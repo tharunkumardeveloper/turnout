@@ -7,7 +7,7 @@ import { test } from 'node:test';
 import { parseEnv } from 'node:util';
 import YAML from 'yaml';
 import { loadConfig } from '../src/config.ts';
-import { DEFAULT_IMAGE, eventFromPath, parseReleases, parseSuccess, renderCompose, writeNew, type NewAnswers } from '../src/commands/new.ts';
+import { bundledFlagsmith, DEFAULT_IMAGE, eventFromPath, parseReleases, parseSuccess, renderCompose, writeNew, type NewAnswers } from '../src/commands/new.ts';
 
 const tmp = () => mkdtempSync(join(tmpdir(), 'turnout-new-'));
 const flagsmithCompose = readFileSync('compose.flagsmith.yml', 'utf8');
@@ -70,7 +70,7 @@ test('bundled Flagsmith: a loadable config, a compose file with the proxy, conso
   assert.deepEqual(other.services.console.ports, ['127.0.0.1:18090:8090']);
   assert.equal(other.services.cli.environment.TURNOUT_PUBLIC_CONSOLE_PORT, '18090');
   assert.equal(other.services.cli.environment.TURNOUT_PUBLIC_SHOP_URL, 'http://127.0.0.1:18080');
-  assert.equal(readFileSync(join(dir, 'flagsmith.compose.yml'), 'utf8'), flagsmithCompose);
+  assert.equal(readFileSync(join(dir, 'flagsmith.compose.yml'), 'utf8'), bundledFlagsmith(flagsmithCompose, 8000));
   assert.ok(existsSync(join(dir, '.env')) && existsSync(join(dir, '.turnout')));
 });
 
@@ -141,4 +141,13 @@ test('success "none": a config with no goal, judged on page speed', async () => 
   assert.deepEqual(c.guardrails, ['server_error']);
   assert.equal(c.traffic, 50);
   assert.match(text, /No goal yet/);
+});
+
+test('the bundled Flagsmith gets no fixed container name and the port given, so two projects can run side by side', async () => {
+  const { bundledFlagsmith } = await import('../src/commands/new.ts');
+  const { readFileSync } = await import('node:fs');
+  const out = bundledFlagsmith(readFileSync(new URL('../compose.flagsmith.yml', import.meta.url), 'utf8'), 8001);
+  assert.doesNotMatch(out, /container_name:/);
+  assert.match(out, /127\.0\.0\.1:8001:8000/);
+  assert.doesNotMatch(out, /:8000:8000/);
 });

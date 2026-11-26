@@ -22,6 +22,7 @@ export type NewAnswers = {
   image?: string | undefined; // the Turnout image
   proxyPort?: number | undefined;
   consolePort?: number | undefined; // default 8090; change it to run next to another Turnout
+  flagsmithPort?: number | undefined; // the bundled Flagsmith's dashboard on this machine; default 8000
   project?: string | undefined; // existing Flagsmith: project and environment init reuses
   environment?: string | undefined;
 };
@@ -177,7 +178,7 @@ services:
       TURNOUT_PREVIEW_TOKEN: \${TURNOUT_PREVIEW_TOKEN:-}
       TURNOUT_FEED_URL: http://turnout:8081
       TURNOUT_PROXY_URL: http://turnout:8080
-      TURNOUT_PUBLIC_SHOP_URL: http://127.0.0.1:${port}
+      TURNOUT_PUBLIC_SHOP_URL: http://127.0.0.1:${port}${bundled ? `\n      FLAGSMITH_DASHBOARD_URL: http://127.0.0.1:${a.flagsmithPort ?? 8000}` : ''}
       CONSOLE_HOST: 0.0.0.0
     ports:
       - 127.0.0.1:${consolePort}:8090 # holds the admin key: this machine only
@@ -215,6 +216,14 @@ volumes:
 `;
 }
 
+// The demo's Flagsmith file, made safe to run next to another Turnout or Flagsmith: no fixed container name (Compose
+// prefixes each project's own) and the dashboard on the port given.
+export function bundledFlagsmith(text: string, port: number): string {
+  const out = text.replace(/^\s*container_name:.*\n/gm, '').replace(/127\.0\.0\.1:8000:8000/g, `127.0.0.1:${port}:8000`);
+  if (/container_name:/.test(out) || (port !== 8000 && /:8000:8000/.test(out))) throw new Error('unexpected Flagsmith compose file: fixed names or ports remain');
+  return out;
+}
+
 export type NewOptions = { answers: NewAnswers; dir: string; force?: boolean; flagsmithCompose?: string; adminKey?: string | undefined; log?: (l: string) => void };
 
 /** Writes the files; refuses to overwrite unless force. Returns the paths written. */
@@ -231,7 +240,7 @@ export function writeNew(opts: NewOptions): string[] {
   ];
   if (a.flagsmith === 'bundled') {
     if (!opts.flagsmithCompose) throw new Error('the bundled Flagsmith compose file is missing from this install');
-    files.push(['flagsmith.compose.yml', opts.flagsmithCompose]);
+    files.push(['flagsmith.compose.yml', bundledFlagsmith(opts.flagsmithCompose, a.flagsmithPort ?? 8000)]);
   }
   const clash = files.filter(([f]) => existsSync(join(opts.dir, f))).map(([f]) => f);
   if (clash.length && !opts.force) throw new Error(`${clash.join(', ')} already exist${clash.length === 1 ? 's' : ''}: pass --force to overwrite`);

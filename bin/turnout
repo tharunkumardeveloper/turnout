@@ -1,0 +1,138 @@
+#!/bin/sh
+# turnout: put Turnout in front of two versions of your app and watch Flagsmith compare them.
+#
+#   turnout compare <live> <new> [--goal "POST /signup"] [--split 50]
+#       <live>/<new>: two URLs (localhost:3001, http://localhost:3002) or two Docker images (myapp:1.0)
+#   turnout open | status | down | reset [--yes]
+#
+# Everything runs on your machine's Docker. Turnout's own files live in ~/.turnout/projects/<this folder's name>, not
+# in your project. Re-running compare with the same arguments resumes; with new ones it sets the experiment up again.
+set -eu
+
+HOME_DIR=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)    # the Turnout checkout this script lives in
+IMAGE="${TURNOUT_IMAGE:-ghcr.io/tharunkumardeveloper/turnout:latest}"
+NAME=$(basename "$PWD" | tr 'A-Z' 'a-z' | sed 's/[^a-z0-9]\{1,\}/-/g; s/^-//; s/-$//')
+[ -n "$NAME" ] || NAME=app
+STATE="${TURNOUT_STATE:-$HOME/.turnout/projects}/$NAME"
+PROJECT="turnout-$NAME"
+
+say() { printf '%s\n' "$*"; }
+die() { printf 'turnout: %s\n' "$*" >&2; exit 1; }
+compose() { docker compose -p "$PROJECT" --project-directory "$STATE" -f "$STATE/turnout.compose.yml" "$@"; }
+
+need_docker() {
+  command -v docker >/dev/null 2>&1 || die "Docker isn't installed. Install Docker Desktop (https://docs.docker.com/get-docker/), start it, and run this again."
+  docker info >/dev/null 2>&1 || die "Docker isn't running. Start Docker Desktop (or: sudo systemctl start docker), wait for it, and run this again."
+}
+
+# The image: pulled if it can be, otherwise built from this checkout (the image is private while Turnout is).
+need_image() {
+  docker image inspect "$IMAGE" >/dev/null 2>&1 && return
+  if docker pull -q "$IMAGE" >/dev/null 2>&1; then return; fi
+  IMAGE=turnout:local
+  docker image inspect "$IMAGE" >/dev/null 2>&1 && { say "Using turnout:local (the published image can't be pulled)."; return; }
+  [ -f "$HOME_DIR/Dockerfile" ] || die "can't pull $IMAGE and there's no Turnout checkout at $HOME_DIR to build from."
+  say "The published image can't be pulled, so building turnout:local from $HOME_DIR (once, about a minute)."
+  docker build -q -t turnout:local "$HOME_DIR" >/dev/null || die "building turnout:local failed: run docker build -t turnout:local $HOME_DIR to see why."
+}
+
+port_free() { curl -s -o /dev/null -m 1 "http://127.0.0.1:$1/" 2>/dev/null; [ $? -eq 7 ]; }
+free_port() {
+  p=$1
+  while ! port_free "$p"; do p=$((p + 1)); [ "$p" -lt $(($1 + 50)) ] || die "no free port from $1 to $p"; done
+  echo "$p"
+}
+
+# localhost:3001 → http://localhost:3001; URLs and images pass through.
+normalise() {
+  case "$1" in
+    http://*|https://*) echo "$1" ;;
+    localhost:*|127.0.0.1:*|*.*:[0-9]*) echo "http://$1" ;;
+    *) echo "$1" ;;
+  esac
+}
+
+open_url() {
+  if command -v open >/dev/null 2>&1; then open "$1" >/dev/null 2>&1 || true
+  elif command -v xdg-open >/dev/null 2>&1; then xdg-open "$1" >/dev/null 2>&1 || true
+  fi
+}
+
+ports_from_state() {
+  PROXY_PORT=$(sed -n 's/^proxy_port=//p' "$STATE/compare.args" 2>/dev/null)
+  CONSOLE_PORT=$(sed -n 's/^console_port=//p' "$STATE/compare.args" 2>/dev/null)
+}
+
+banner() {
+  say ""
+  say "  Your app is live through Turnout:  http://127.0.0.1:$PROXY_PORT"
+  say "  Results, Ship and Revert:          http://127.0.0.1:$CONSOLE_PORT"
+  say ""
+  say "  Each new browser (or private window) is a new visitor: it gets one version and keeps it."
+  say "  Stop: turnout down    Start again: turnout compare (same arguments)    Wipe: turnout reset"
+  say ""
+}
+
+cmd_compare() {
+  [ $# -ge 2 ] || die 'usage: turnout compare <live> <new> [--goal "POST /signup"] [--split 50]'
+  A=$(normalise "$1"); B=$(normalise "$2"); shift 2
+  GOAL=none; SPLIT=50
+  while [ $# -gt 0 ]; do
+    case "$1" in
+      --goal) GOAL="${2:?--goal needs a request, e.g. \"POST /signup\"}"; shift 2 ;;
+      --split) SPLIT="${2:?--split needs a percentage}"; shift 2 ;;
+      *) die "unknown option $1" ;;
+    esac
+  done
+  for r in "$A" "$B"; do
+    case "$r" in http*) ;; *)
+      if git rev-parse --verify --quiet "refs/heads/$r" >/dev/null 2>&1; then
+        die "\"$r\" is a git branch. Comparing branches isn't built yet: run both versions (e.g. on ports 3001 and 3002) and give their URLs."
+      fi ;;
+    esac
+  done
+  need_docker
+  need_image
+  mkdir -p "$STATE"
+
+  WANT="releases=$A $B
+goal=$GOAL
+split=$SPLIT"
+  if [ -f "$STATE/compare.args" ] && [ "$(sed '/_port=/d' "$STATE/compare.args")" = "$WANT" ]; then
+    ports_from_state
+    say "Resuming $NAME: $A vs $B."
+  else
+    [ -f "$STATE/compare.args" ] && { say "New versions or settings: setting $NAME up again."; compose down >/dev/null 2>&1 || true; }
+    PROXY_PORT=$(free_port 8080); CONSOLE_PORT=$(free_port 8090)
+    [ "$CONSOLE_PORT" = "$PROXY_PORT" ] && CONSOLE_PORT=$(free_port $((PROXY_PORT + 1)))
+    [ "$PROXY_PORT" = 8080 ] || say "Port 8080 is busy: your app will be on $PROXY_PORT."
+    docker run --rm -v "$STATE:/work" -w /work "$IMAGE" new --yes --force \
+      --release "$A" --release "$B" --success "$GOAL" --traffic "$SPLIT" \
+      --proxy-port "$PROXY_PORT" --console-port "$CONSOLE_PORT" --image "$IMAGE" >/dev/null \
+      || die "couldn't write the setup for $A and $B (see the message above)."
+    printf '%s\nproxy_port=%s\nconsole_port=%s\n' "$WANT" "$PROXY_PORT" "$CONSOLE_PORT" > "$STATE/compare.args"
+  fi
+
+  say "Starting Flagsmith and Turnout (the first time takes a few minutes)…"
+  compose run --rm cli init >"$STATE/init.log" 2>&1 || { tail -20 "$STATE/init.log" >&2; die "setting up Flagsmith failed (full log: $STATE/init.log)."; }
+  compose up -d --wait >"$STATE/up.log" 2>&1 || { tail -20 "$STATE/up.log" >&2; die "starting failed (full log: $STATE/up.log)."; }
+  compose run --rm cli doctor >"$STATE/doctor.log" 2>&1 || true
+  say "Check: $(tail -1 "$STATE/doctor.log")"
+  banner
+  open_url "http://127.0.0.1:$CONSOLE_PORT"
+}
+
+need_state() { [ -f "$STATE/compare.args" ] || die "nothing set up for $NAME here yet: run turnout compare <live> <new> first."; ports_from_state; }
+
+cmd="${1:-help}"; [ $# -gt 0 ] && shift
+case "$cmd" in
+  compare) cmd_compare "$@" ;;
+  open) need_state; open_url "http://127.0.0.1:$CONSOLE_PORT"; banner ;;
+  status) need_state; need_docker; compose ps; compose run --rm cli doctor | tail -1 ;;
+  down) need_state; need_docker; compose down; say "Stopped. turnout compare with the same arguments starts it again, with its data." ;;
+  reset)
+    need_state; need_docker
+    if [ "${1:-}" != --yes ]; then printf 'Delete %s'"'"'s Turnout and Flagsmith data? [y/N] ' "$NAME"; read -r ok; [ "$ok" = y ] || exit 1; fi
+    compose down -v; rm -rf "$STATE"; say "Wiped. turnout compare starts fresh." ;;
+  *) sed -n '2,9p' "$0" | sed 's/^# \{0,1\}//' ;;
+esac
