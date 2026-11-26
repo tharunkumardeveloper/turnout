@@ -18,7 +18,22 @@ export type Release = {
   // Show "Release 1.5" in the footer. Only when the router in front marks the request (a preview browser or a debug
   // request; see server.ts): ordinary visitors never see which release they are on.
   badge?: boolean;
+  ribbon?: boolean; // demo only (SHOP_RIBBON=1): a corner ribbon saying which release this is
+  slowMs?: number; // a seeded test delay; shown as a label so viewers know why this release is slower
 };
+
+const RELEASE_NAME: Record<Theme, string> = { classic: 'Classic', express: 'Express', bold: 'Bold' };
+
+// A strip under the header that shows the checkout this release offers: the thing the experiment measures.
+function releaseStrip(r: Release): string {
+  const slow = r.slowMs
+    ? `<p class="slow-label" data-slow-label>Test release: deliberately slow (${Math.round(r.slowMs)} ms)</p>`
+    : '';
+  const mode = r.onePage
+    ? `<p class="onepage-badge" data-onepage-badge>One-page checkout</p><p class="strip-text">Buy now from any product, then pay on one page.</p>`
+    : `<div class="step-bar" data-step-bar><p class="step-bar-title">Step 1 of 3 at checkout</p><ol class="step-bar-list"><li>Shipping</li><li>Payment</li><li>Confirmation</li></ol></div>`;
+  return `<div class="release-strip" data-release-strip><div class="wrap strip-inner">${mode}${slow}</div></div>`;
+}
 
 export type Order = { number: string; values: FormValues; last4: string; summary: CartSummary };
 
@@ -89,6 +104,8 @@ export function layout(r: Release, page: PageOptions): string {
     </nav>
   </div>
 </header>
+${releaseStrip(r)}
+${r.ribbon ? `<p class="release-ribbon" data-release-ribbon>You’re seeing ${e(r.version)} ${RELEASE_NAME[theme]}</p>` : ''}
 <main id="main" tabindex="-1">
 ${page.body}
 </main>
@@ -174,9 +191,15 @@ function productCard(r: Release, p: Product): string {
   const actions = r.onePage
     ? `<form class="express" method="post" action="/cart/add" data-express>
           <input type="hidden" name="slug" value="${p.slug}"><input type="hidden" name="qty" value="1"><input type="hidden" name="return" value="/">
-          <button class="btn btn-small" type="submit">Add to cart<span class="visually-hidden">: ${e(p.name)}</span></button>
+          <button class="btn btn-small btn-outline" type="submit">Add to cart<span class="visually-hidden">: ${e(p.name)}</span></button>
         </form>`
-    : `<a class="btn btn-small btn-outline" href="/product/${p.slug}" aria-hidden="true" tabindex="-1">View details</a>`;
+    : `<a class="view-link" href="/product/${p.slug}" aria-hidden="true" tabindex="-1">View</a>`;
+  const buy = r.onePage
+    ? `<form class="buy-now" method="post" action="/cart/add" data-buy-now>
+            <input type="hidden" name="slug" value="${p.slug}"><input type="hidden" name="qty" value="1">
+            <button class="btn btn-large btn-block btn-buy" type="submit">Buy now<span class="visually-hidden">: ${e(p.name)}</span></button>
+          </form>`
+    : '';
   return `      <li class="product-card" id="product-${p.slug}">
         <a class="card-media" href="/product/${p.slug}" tabindex="-1" aria-hidden="true">${productArt(p)}</a>
         <div class="card-body">
@@ -184,6 +207,7 @@ function productCard(r: Release, p: Product): string {
           <h3 class="card-title"><a href="/product/${p.slug}">${e(p.name)}</a></h3>
           <p class="card-text">${e(p.tagline)}</p>
           <div class="card-foot"><span class="price">${formatMoney(p.priceCents)}</span>${actions}</div>
+          ${buy}
         </div>
       </li>`;
 }
@@ -208,7 +232,7 @@ export function productPage(r: Release, p: Product, cartCount: number): string {
       <form class="add-form" method="post" action="/cart/add">
         <input type="hidden" name="slug" value="${p.slug}">
         <div class="qty-field"><label for="qty">Quantity</label><select id="qty" name="qty">${options}</select></div>
-        <button class="btn btn-large" type="submit">Add to cart</button>
+        ${r.onePage ? '<button class="btn btn-large btn-buy" type="submit" data-buy-now>Buy now</button>' : '<button class="btn btn-large" type="submit">Add to cart</button>'}
       </form>
       <ul class="assurances" role="list">
         <li>${checkIcon}Free shipping over ${formatMoney(FREE_SHIPPING_CENTS)}</li>

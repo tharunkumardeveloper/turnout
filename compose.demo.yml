@@ -19,6 +19,7 @@ x-shop: &shop
 x-shop-env: &shop-env
   SHOP_FRAME_HOSTS: ${TURNOUT_CONSOLE_HOSTS:-}
   SHOP_FRAME_ANCESTORS: ${SHOP_FRAME_ANCESTORS:-}
+  SHOP_RIBBON: ${SHOP_RIBBON:-1} # demo only: corner ribbon naming the release; 0 turns it off
 
 services:
   shop-1-4:

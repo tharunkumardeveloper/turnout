@@ -482,3 +482,22 @@ html[data-theme="bold"] h2 { text-transform: uppercase; letter-spacing: .02em; }
   html { scroll-behavior: auto; }
   *, *::before, *::after { animation: none !important; transition: none !important; }
 }
+
+/* ---------- release strip, buy now, demo ribbon ---------- */
+.release-strip { background: var(--brand-50); border-bottom: 3px solid var(--brand-700); }
+.strip-inner { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 20px; padding-top: 12px; padding-bottom: 12px; }
+.strip-inner p { margin: 0; }
+.strip-text { color: var(--ink-2); font-weight: 600; }
+.onepage-badge { display: inline-flex; align-items: center; padding: 8px 18px; border-radius: 999px; background: var(--brand-800); color: #fff; font-weight: 800; font-size: 1.125rem; }
+.step-bar { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 16px; }
+.step-bar-title { font-weight: 800; font-size: 1.125rem; color: var(--brand-900); }
+.step-bar-list { display: flex; flex-wrap: wrap; gap: 6px; margin: 0; padding: 0; list-style: none; counter-reset: sb; }
+.step-bar-list li { counter-increment: sb; padding: 6px 14px; border-radius: 4px; background: #fff; border: 2px solid var(--brand-700); color: var(--brand-900); font-weight: 700; }
+.step-bar-list li::before { content: counter(sb) ". "; }
+.step-bar-list li:first-child { background: var(--brand-800); border-color: var(--brand-800); color: #fff; }
+.slow-label { padding: 8px 14px; border-radius: 6px; background: #fef3c7; color: #78350f; border: 2px dashed #b45309; font-weight: 800; }
+.view-link { font-size: .875rem; font-weight: 600; color: var(--brand-800); text-decoration: underline; padding: 10px 4px; }
+.buy-now { margin-top: 12px; }
+.btn-buy { font-size: 1.25rem; font-weight: 800; }
+.release-ribbon { position: fixed; z-index: 50; right: 12px; bottom: 12px; margin: 0; padding: 10px 18px; border-radius: 8px; background: #111827; color: #fff; font-weight: 800; font-size: 1rem; border: 3px solid var(--brand-500); box-shadow: 0 6px 20px rgb(0 0 0 / .3); pointer-events: none; max-width: calc(100vw - 24px); }
+@media (max-width: 480px) { .release-ribbon { font-size: .875rem; padding: 8px 12px; } }

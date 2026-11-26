@@ -204,6 +204,37 @@ describe('release differences', () => {
     assert.equal(new Set(titles).size, 3);
   });
 
+  test('each release shows its distinguishing marker: step bar, Buy now + one-page badge, slow label', async () => {
+    const SHOP_1_6 = start({ version: '1.6', delayMs: 60 });
+    const [h14, h15, h16] = await Promise.all([SHOP_1_4, SHOP_1_5, SHOP_1_6].map(async (b) => (await get(`${await b}/`)).text()));
+    assert.match(h14!, /data-step-bar/);
+    assert.match(h14!, /Step 1 of 3/);
+    assert.ok(!h14!.includes('data-buy-now') && !h14!.includes('data-onepage-badge') && !h14!.includes('data-slow-label'));
+    for (const h of [h15!, h16!]) {
+      assert.match(h, /data-onepage-badge>One-page checkout</);
+      assert.equal((h.match(/<form class="buy-now" method="post" action="\/cart\/add" data-buy-now>/g) ?? []).length, PRODUCTS.length);
+      assert.ok(!h.includes('data-step-bar'));
+    }
+    assert.ok(!h15!.includes('data-slow-label'));
+    assert.match(h16!, /data-slow-label>Test release: deliberately slow \(60 ms\)</);
+    const product = await (await get(`${await SHOP_1_5}/product/${TRAIL.slug}`)).text();
+    assert.match(product, /data-buy-now>Buy now</);
+    // Buy now is the ordinary add-to-cart POST (no "return"), which lands on the cart.
+    const res = await post(`${await SHOP_1_5}/cart/add`, { slug: TRAIL.slug, qty: '1' });
+    assert.equal(res.status, 303);
+    assert.equal(res.headers.get('location'), `/cart?added=${TRAIL.slug}`);
+  });
+
+  test('the release ribbon shows only when enabled (SHOP_RIBBON=1)', async () => {
+    assert.equal(optionsFromEnv({}).ribbon, false);
+    assert.equal(optionsFromEnv({ SHOP_RIBBON: '1' }).ribbon, true);
+    assert.equal(optionsFromEnv({ SHOP_RIBBON: '0' }).ribbon, false);
+    const off = await (await get(`${await SHOP_1_5}/`)).text();
+    assert.ok(!off.includes('data-release-ribbon'));
+    const on = await (await get(`${await start({ version: '1.5', ribbon: true })}/`)).text();
+    assert.match(on, /data-release-ribbon>You’re seeing 1\.5 Express</);
+  });
+
   test('1.4: classic theme, product links on the catalog, no express add', async () => {
     const html = await (await get(`${await SHOP_1_4}/`)).text();
     assert.match(html, /<html lang="en" data-theme="classic" data-release="1\.4">/);

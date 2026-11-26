@@ -44,6 +44,7 @@ export type ShopOptions = {
   delayMs?: number; // seeded delay on GET pages
   errorRate?: number; // seeded chance (0..1) that a GET page answers 500
   random?: () => number; // injectable for tests
+  ribbon?: boolean; // demo only: a corner ribbon naming the release (SHOP_RIBBON=1)
   frameAncestors?: string; // the CSP frame-ancestors sources; default DEFAULT_FRAME_ANCESTORS
 };
 
@@ -84,8 +85,8 @@ function loadAssets(): Map<string, Asset> {
 
 export function createShop(options: ShopOptions = {}): http.Server {
   const version = options.version ?? '1.4';
-  const base: Release = { version, onePage: version !== '1.4' };
   const delayMs = Math.max(0, options.delayMs ?? 0);
+  const base: Release = { version, onePage: version !== '1.4', ribbon: options.ribbon === true, slowMs: delayMs };
   const errorRate = Math.min(1, Math.max(0, options.errorRate ?? 0));
   const random = options.random ?? Math.random;
   const ancestors = options.frameAncestors ?? DEFAULT_FRAME_ANCESTORS;
@@ -295,6 +296,7 @@ export function optionsFromEnv(env: NodeJS.ProcessEnv): ShopOptions {
     version: env.SHOP_VERSION || '1.4',
     delayMs: num(env.SEEDED_DELAY_MS),
     errorRate: num(env.SEEDED_ERROR_RATE),
+    ribbon: /^(1|true|yes|on)$/i.test(env.SHOP_RIBBON?.trim() ?? ''),
     frameAncestors: frameAncestors(env),
   };
 }
