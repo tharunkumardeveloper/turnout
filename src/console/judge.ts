@@ -1,4 +1,4 @@
-// Judge mode: the whole Turnover story from one page with buttons, no terminal. A small state machine over the
+// Judge mode: the whole Turnout story from one page with buttons, no terminal. A small state machine over the
 // flag's latest experiment (deriveSteps) plus background jobs that drive the real stack: labelled simulated visitors
 // through the proxy, Flagsmith's results, Ship winner / Revert, swing-back, preview, release, verify and reset.
 // Every job reuses the commands the CLI runs; Flagsmith, the simulator and the proxy are injectable for tests.
@@ -62,14 +62,14 @@ export type Job = {
 
 // The stages each job shows, in order. The page draws them as a checklist instead of a log.
 export const JOB_STAGES: Record<JudgeAction, string[]> = {
-  visitors: ['Wait for the proxy to enrol visitors', 'Send the visitors through Turnover', 'Hand their events to Flagsmith'],
+  visitors: ['Wait for the proxy to enrol visitors', 'Send the visitors through Turnout', 'Hand their events to Flagsmith'],
   score: ["Wait for the events to reach Flagsmith", 'Ask Flagsmith to compute the results', 'Read the new results'],
   ship: ['Pause the experiment', "Save a snapshot of Flagsmith's results", "Set the flag's default to the winner", 'Drain the rollout to 0%', 'Complete the experiment', 'Write the release ledger'],
   revert: ['Pause the experiment', "Save a snapshot of Flagsmith's results", "Set the flag's default to control", 'Drain the rollout to 0%', 'Complete the experiment', 'Write the release ledger'],
   'keep-running': ["Read Flagsmith's credible interval", 'Write the release ledger (nothing changes in Flagsmith)'],
   verify: ['Send 50 brand-new visitors', 'Count the release each one got', 'Check no experiment split is left'],
-  'swing-back': ["Edit the flag's default in Flagsmith", 'Wait for Turnover to follow the flag'],
-  'swing-forward': ["Edit the flag's default in Flagsmith", 'Wait for Turnover to follow the flag'],
+  'swing-back': ["Edit the flag's default in Flagsmith", 'Wait for Turnout to follow the flag'],
+  'swing-forward': ["Edit the flag's default in Flagsmith", 'Wait for Turnout to follow the flag'],
   preview: ['Point v2 at the next release', 'Give it to the preview segment only', 'Make the preview link'],
   release: ['Point v2 at the next release', 'Start the experiment in Flagsmith'],
   reset: ['Revert the running experiment', "Set the flag's default back to the first release", 'Start a fresh experiment'],
@@ -168,7 +168,7 @@ export type JudgeOptions = {
   goal: string; // the goal event, for release hypotheses
   apiUrl: string;
   adminKey: string;
-  proxyUrl: string; // where simulated visitors go, e.g. http://turnover:8080
+  proxyUrl: string; // where simulated visitors go, e.g. http://turnout:8080
   shopUrl: string; // the URL a judge's browser uses for the shop
   dashboardUrl: string; // Flagsmith's UI
   previewToken?: string; // also the proxy's debug token: the simulator reads the routing headers with it
@@ -232,13 +232,13 @@ export function parseRates(text: string): Record<string, number> {
   for (const part of text.split(',').map((p) => p.trim()).filter(Boolean)) {
     const at = part.lastIndexOf('=');
     const rate = Number(part.slice(at + 1));
-    if (at <= 0 || !Number.isFinite(rate) || rate < 0 || rate > 1) throw new Error(`TURNOVER_DEMO_RATES expects <release>=<0..1>, got "${part}"`);
+    if (at <= 0 || !Number.isFinite(rate) || rate < 0 || rate > 1) throw new Error(`TURNOUT_DEMO_RATES expects <release>=<0..1>, got "${part}"`);
     rates[part.slice(0, at).trim()] = rate;
   }
   return rates;
 }
 
-// The releases an experiment compares. Turnover names every experiment "<flag>: <v2> vs <control>"; the name
+// The releases an experiment compares. Turnout names every experiment "<flag>: <v2> vs <control>"; the name
 // survives a later preview re-pointing v2's option at the next release, which releaseOf would then report.
 export function testedReleases(experiment: ExperimentDetail, releases: readonly string[]): { control: string | null; v2: string | null } {
   const control = releaseOf(experiment, CONTROL);
@@ -360,10 +360,10 @@ export function deriveSteps(i: StepInput): { steps: Step[]; current: StepId | 'r
 // as the proxy routes them) and reports the release the debug header names.
 export async function freshVisitor(proxyUrl: string, debugToken: string | undefined): Promise<string | null> {
   const headers: Record<string, string> = {
-    'user-agent': 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 Chrome/131.0 Safari/537.36 TurnoverSimulatedVisitor/1.0',
+    'user-agent': 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 Chrome/131.0 Safari/537.36 TurnoutSimulatedVisitor/1.0',
     accept: 'text/html',
     'sec-fetch-dest': 'document',
-    ...(debugToken ? { 'x-turnover-debug': debugToken } : {}),
+    ...(debugToken ? { 'x-turnout-debug': debugToken } : {}),
   };
   const load = async (cookie: string) => {
     const res = await fetch(new URL('/', proxyUrl), {
@@ -376,22 +376,22 @@ export async function freshVisitor(proxyUrl: string, debugToken: string | undefi
   };
   const first = await load('');
   const cookie = first.headers.getSetCookie().map((c) => c.split(';')[0]!).join('; ');
-  return (await load(cookie)).headers.get('x-turnover-release');
+  return (await load(cookie)).headers.get('x-turnout-release');
 }
 
 // A single request with no cookie: routed and reported, but the proxy never counts it (no exposure, no events).
 export async function probeEnrolled(proxyUrl: string, debugToken: string | undefined): Promise<boolean> {
   const res = await fetch(new URL('/', proxyUrl), {
     headers: {
-      'user-agent': 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 Chrome/131.0 Safari/537.36 TurnoverSimulatedVisitor/1.0',
+      'user-agent': 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 Chrome/131.0 Safari/537.36 TurnoutSimulatedVisitor/1.0',
       accept: 'text/html',
-      ...(debugToken ? { 'x-turnover-debug': debugToken } : {}),
+      ...(debugToken ? { 'x-turnout-debug': debugToken } : {}),
     },
     redirect: 'manual',
     signal: AbortSignal.timeout(5000),
   });
   await res.arrayBuffer();
-  return res.headers.get('x-turnover-enrolled') === 'true';
+  return res.headers.get('x-turnout-enrolled') === 'true';
 }
 
 class JobFailure extends Error {
@@ -550,7 +550,7 @@ export function createJudge(opts: JudgeOptions, ctx: JudgeContext) {
   async function readState(): Promise<JudgeState> {
     const shop = opts.shopUrl.replace(/\/$/, '');
     const dash = opts.dashboardUrl.replace(/\/$/, '');
-    const previewLink = opts.previewToken ? `${shop}/__turnover/preview?token=${encodeURIComponent(opts.previewToken)}` : null;
+    const previewLink = opts.previewToken ? `${shop}/__turnout/preview?token=${encodeURIComponent(opts.previewToken)}` : null;
     // The job as it was before reading Flagsmith: a job shown as finished never comes with state from before its end.
     const jobNow = job && { ...job, log: [...job.log] };
     const [events, read] = await Promise.all([
@@ -674,7 +674,7 @@ export function createJudge(opts: JudgeOptions, ctx: JudgeContext) {
       case 'preview':
       case 'release':
         if (!finished) return running;
-        return s.next ? null : `${s.tested.v2 ?? 'This release'} is the last release in turnover.config.yml. Reset to start the story again.`;
+        return s.next ? null : `${s.tested.v2 ?? 'This release'} is the last release in turnout.config.yml. Reset to start the story again.`;
       case 'reset':
         return null;
     }
@@ -773,7 +773,7 @@ export function createJudge(opts: JudgeOptions, ctx: JudgeContext) {
 
   const visitors: Action = async (s, body, { log, stage, progress }) => {
     if (!opts.previewToken) {
-      throw new Error("TURNOVER_PREVIEW_TOKEN isn't set, so the simulator can't see which release each visitor got. Run init, then restart the console.");
+      throw new Error("TURNOUT_PREVIEW_TOKEN isn't set, so the simulator can't see which release each visitor got. Run init, then restart the console.");
     }
     const n = Math.min(3000, Math.max(50, Math.round(body.visitors ?? DEFAULT_VISITORS)));
     const { control, v2 } = s.tested;
@@ -789,7 +789,7 @@ export function createJudge(opts: JudgeOptions, ctx: JudgeContext) {
     }
     stage(1);
     progress(0, n);
-    log(`Sending ${n} simulated visitors (labelled simulation) through the Turnover proxy.`);
+    log(`Sending ${n} simulated visitors (labelled simulation) through the Turnout proxy.`);
     log(`True order rates, set as inputs (not evidence): ${control} ${pct(rates[CONTROL]!)}, ${v2} ${pct(rates.v2!)}. Add-to-cart: 30% on both, so the difference is at checkout.`);
     let bucket = 0;
     const report = await deps.simulate({
@@ -883,7 +883,7 @@ export function createJudge(opts: JudgeOptions, ctx: JudgeContext) {
       }
     }
     const rec = recommend(s.experiment, results);
-    log(`Turnover recommends: ${rec.call === 'ship' ? 'ship' : rec.call === 'revert' ? 'revert' : 'keep running'} (${rec.reason}).`);
+    log(`Turnout recommends: ${rec.call === 'ship' ? 'ship' : rec.call === 'revert' ? 'revert' : 'keep running'} (${rec.reason}).`);
     return { asOf: results.as_of };
   };
 
@@ -953,7 +953,7 @@ export function createJudge(opts: JudgeOptions, ctx: JudgeContext) {
       leftovers = await deps.check((line) => log(line));
       log(leftovers === 0 ? '✓ No splits left behind.' : `✗ ${leftovers} split(s) left behind.`);
     } else {
-      log('Skipped the leftover-split check: TURNOVER_SERVER_KEY is not set for the console.');
+      log('Skipped the leftover-split check: TURNOUT_SERVER_KEY is not set for the console.');
     }
     verified.add(s.experiment.id);
     return { byRelease, expected: s.live, leftovers };
@@ -967,7 +967,7 @@ export function createJudge(opts: JudgeOptions, ctx: JudgeContext) {
     const flagPath = `/api/__future__/environments/${s.exps.ref.envKey}/features/${s.experiment.feature.id}/`;
     log(
       `Setting ${s.experiment.feature.name}'s environment default to ${entry.variant} at ${weight}% (${expected}). ` +
-        "It's the same edit as changing the default in Flagsmith's flag editor; no deploy, no Turnover command.",
+        "It's the same edit as changing the default in Flagsmith's flag editor; no deploy, no Turnout command.",
     );
     await s.exps.api.patch(flagPath, { environment_default: { enabled: true, variants: [{ id: option.id, weight }] } });
     stage(1);
@@ -991,14 +991,14 @@ export function createJudge(opts: JudgeOptions, ctx: JudgeContext) {
 
   const previewAction: Action = async (s, _body, { log, stage }) => {
     const next = s.next!;
-    log(`Pointing ${s.experiment.feature.name}'s v2 at ${next} and giving it to the turnover-preview segment only…`);
+    log(`Pointing ${s.experiment.feature.name}'s v2 at ${next} and giving it to the turnout-preview segment only…`);
     await deps.preview(next, s.exps.ref.envKey, (line) => {
       log(line);
       if (/segment/i.test(line)) stage(1);
     });
     stage(2);
     if (opts.previewToken) {
-      log(`Open the preview link in this browser to see ${next}: ${opts.shopUrl.replace(/\/$/, '')}/__turnover/preview?token=${encodeURIComponent(opts.previewToken)}`);
+      log(`Open the preview link in this browser to see ${next}: ${opts.shopUrl.replace(/\/$/, '')}/__turnout/preview?token=${encodeURIComponent(opts.previewToken)}`);
     }
     return { release: next };
   };
@@ -1019,7 +1019,7 @@ export function createJudge(opts: JudgeOptions, ctx: JudgeContext) {
 
   const reset: Action = async (s, _body, { log, stage }) => {
     const [first, second] = opts.releases;
-    if (!first || !second) throw new Error('turnover.config.yml must list at least two releases.');
+    if (!first || !second) throw new Error('turnout.config.yml must list at least two releases.');
     log(`Resetting the story: everyone back on ${first}, then a fresh ${second} vs ${first} experiment.`);
     if (s.experiment.status !== 'completed') {
       log(`Experiment ${s.experiment.id} is ${s.experiment.status}; reverting it first.`);

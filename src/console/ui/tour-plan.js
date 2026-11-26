@@ -169,7 +169,7 @@ export function introBeats(s, flavor = 'full') {
       target: '#track-card',
       demo: 'track-burst',
       title: 'Who gets which release, live',
-      body: 'This map is drawn from the flag in Flagsmith. Every dot is a request Turnover routed, riding the track Flagsmith chose for that visitor. The dots you just saw were a preview; real ones follow.',
+      body: 'This map is drawn from the flag in Flagsmith. Every dot is a request Turnout routed, riding the track Flagsmith chose for that visitor. The dots you just saw were a preview; real ones follow.',
     },
     {
       id: 'intro:fs',
@@ -185,7 +185,7 @@ export function introBeats(s, flavor = 'full') {
       shop: 'reload',
       target: '#shop-frame',
       title: 'The app being released',
-      body: 'This is the shop, loaded through Turnover. It contains no Flagsmith code at all. The line above it says which release this browser gets, straight from the flag.',
+      body: 'This is the shop, loaded through Turnout. It contains no Flagsmith code at all. The line above it says which release this browser gets, straight from the flag.',
     },
   ];
   if (s && s.current === 'reset') {
@@ -253,16 +253,16 @@ export function actionBeat(s, rec, flavor = 'full') {
         return beat(
           'visitors',
           'Send 3,000 visitors',
-          `Simulated shoppers go through Turnover. For each one Flagsmith picks ${v.control} (what everyone has now) or ${v.v2} (the new release), about half each. Their pages and orders become Flagsmith events as you watch.`,
+          `Simulated shoppers go through Turnout. For each one Flagsmith picks ${v.control} (what everyone has now) or ${v.v2} (the new release), about half each. Their pages and orders become Flagsmith events as you watch.`,
         );
       }
       return beat(
         'visitors',
         'Send 3,000 visitors',
-        `Simulated shoppers go through Turnover. For each one, Flagsmith decides: ${v.control} (what everyone has now) or ${v.v2} (the new release). Turnover turns their pages and orders into Flagsmith events.`,
+        `Simulated shoppers go through Turnout. For each one, Flagsmith decides: ${v.control} (what everyone has now) or ${v.v2} (the new release). Turnout turns their pages and orders into Flagsmith events.`,
       );
     case 'score':
-      return beat('score', 'Ask Flagsmith who won', 'Flagsmith runs its Bayesian analysis on orders (the goal), add-to-cart (a funnel step shown alongside, not a guardrail), page speed and errors (the guardrails). Turnover computes no statistics of its own.');
+      return beat('score', 'Ask Flagsmith who won', 'Flagsmith runs its Bayesian analysis on orders (the goal), add-to-cart (a funnel step shown alongside, not a guardrail), page speed and errors (the guardrails). Turnout computes no statistics of its own.');
     case 'decide':
       if (losing.length) {
         return beat(
@@ -325,7 +325,7 @@ export function afterBeats(action, s, extra = {}) {
           target: '#track-card',
           demo: 'track-burst',
           title: 'The split, as it happened',
-          body: `The dots rode two tracks: ${v.control} and ${v.v2}, about half each. Flagsmith chose the track for every visitor; Turnover only followed the flag.`,
+          body: `The dots rode two tracks: ${v.control} and ${v.v2}, about half each. Flagsmith chose the track for every visitor; Turnout only followed the flag.`,
         },
         {
           id: `visitors-fs:${exp}`,
@@ -365,7 +365,7 @@ export function afterBeats(action, s, extra = {}) {
           target: '#fs-flag',
           demo: 'fs-flash',
           title: 'Flagsmith marks the flag Unhealthy',
-          body: "Turnover reported the losing guardrail to Flagsmith's Feature Health. The release flag now carries an Unhealthy tag in Flagsmith, with Flagsmith's numbers as the reason.",
+          body: "Turnout reported the losing guardrail to Flagsmith's Feature Health. The release flag now carries an Unhealthy tag in Flagsmith, with Flagsmith's numbers as the reason.",
           flagsmith: fs('See the flag in Flagsmith', links.flag),
         });
       }
@@ -401,7 +401,7 @@ export function afterBeats(action, s, extra = {}) {
                 shop: 'reload',
                 target: '#shop-frame',
                 title: 'The shop, now',
-                body: `Reloaded through Turnover. The flag's default is now ${v.live}, so every new visitor gets it; 50 of them prove it in the next step.`,
+                body: `Reloaded through Turnout. The flag's default is now ${v.live}, so every new visitor gets it; 50 of them prove it in the next step.`,
               },
             ]),
       ];
@@ -440,7 +440,7 @@ export function afterBeats(action, s, extra = {}) {
           target: '#fs-flag',
           demo: 'fs-flash',
           title: 'The segment override, in Flagsmith',
-          body: 'The flag card shows the turnover-preview segment override that serves your team. It is an ordinary Flagsmith segment, read back from the API.',
+          body: 'The flag card shows the turnout-preview segment override that serves your team. It is an ordinary Flagsmith segment, read back from the API.',
           flagsmith: fs('See the segment override in Flagsmith', links.flag),
         },
       ];
@@ -496,7 +496,7 @@ function quickAfter(action, s, extra) {
           target: '#fs-flag',
           demo: 'fs-flash',
           title: 'Flagsmith marks the flag Unhealthy',
-          body: "Turnover reported the losing guardrail to Flagsmith's Feature Health, with Flagsmith's numbers as the reason.",
+          body: "Turnout reported the losing guardrail to Flagsmith's Feature Health, with Flagsmith's numbers as the reason.",
           flagsmith: fs('See the flag in Flagsmith', links.flag),
         });
       }
@@ -556,7 +556,7 @@ export function quickOutro(s, notes = []) {
       tab: 'story',
       target: '#history',
       title: "That's the loop",
-      body: `${story} Every decision is in the release history with Flagsmith's numbers. The Feature map and Setup tabs show everything Turnover uses in Flagsmith.`,
+      body: `${story} Every decision is in the release history with Flagsmith's numbers. The Feature map and Setup tabs show everything Turnout uses in Flagsmith.`,
       last: true,
     },
   ];
@@ -576,15 +576,15 @@ export function outroBeats(notes = []) {
       id: 'outro:map',
       tab: 'map',
       target: '#map-frame',
-      title: 'Everything Turnover uses in Flagsmith',
-      body: "Every Flagsmith menu and integration, with what Turnover does with it and live values from this instance. The ones a laptop demo can't reach say why, with Flagsmith's source.",
+      title: 'Everything Turnout uses in Flagsmith',
+      body: "Every Flagsmith menu and integration, with what Turnout does with it and live values from this instance. The ones a laptop demo can't reach say why, with Flagsmith's source.",
     },
     {
       id: 'outro:setup',
       tab: 'setup',
       target: '#setup-frame',
       title: 'Everything, checked',
-      body: 'The setup check compares what Turnover needs with what is really there, from Flagsmith to each release container. Green means expected and actual match.',
+      body: 'The setup check compares what Turnout needs with what is really there, from Flagsmith to each release container. Green means expected and actual match.',
     },
     {
       id: 'outro:end',

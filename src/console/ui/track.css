@@ -1,4 +1,4 @@
-/* Turnover judge mode: the live track map (track.js) and its legend. Loaded after style.css and judge.css, so it
+/* Turnout judge mode: the live track map (track.js) and its legend. Loaded after style.css and judge.css, so it
    uses the same tokens. Everything is scoped to .track-svg / .track-legend: ".rail" is also the step rail's name. */
 
 .track {

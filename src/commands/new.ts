@@ -1,4 +1,4 @@
-// `turnover new`: four questions (Flagsmith, the releases, success, traffic) → turnover.config.yml and a compose
+// `turnout new`: four questions (Flagsmith, the releases, success, traffic) → turnout.config.yml and a compose
 // file for your own project (the proxy, the console and the one-off CLI), plus Flagsmith's when you want it bundled.
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
@@ -7,21 +7,21 @@ import { parse } from 'yaml';
 import { writeEnv } from './init.ts';
 
 // Not published yet: build it locally (docker build -t <this> .) until the publish workflow has run on a tag.
-export const DEFAULT_IMAGE = 'ghcr.io/tharunkumardeveloper/turnover:latest';
+export const DEFAULT_IMAGE = 'ghcr.io/tharunkumardeveloper/turnout:latest';
 export const DEFAULT_RELEASES = ['v1=http://host.docker.internal:3000', 'v2=http://host.docker.internal:3001'];
 export const DEFAULT_SUCCESS = 'POST /signup 2xx';
 
 export type NewAnswers = {
   flagsmith: 'bundled' | string; // "bundled", or your Flagsmith's API URL (…/api/v1/)
   releases: string[]; // each: "label=http://host:port", "http://host:port", or an image ("myapp:2")
-  success: string; // "POST /signup 2xx", or "header signup": the app sends X-Turnover-Event: signup
+  success: string; // "POST /signup 2xx", or "header signup": the app sends X-Turnout-Event: signup
   traffic: number; // % of visitors in the experiment
   flag?: string | undefined;
   event?: string | undefined;
   appPort?: number | undefined; // the port your release images listen on
-  image?: string | undefined; // the Turnover image
+  image?: string | undefined; // the Turnout image
   proxyPort?: number | undefined;
-  consolePort?: number | undefined; // default 8090; change it to run next to another Turnover
+  consolePort?: number | undefined; // default 8090; change it to run next to another Turnout
   project?: string | undefined; // existing Flagsmith: project and environment init reuses
   environment?: string | undefined;
 };
@@ -69,7 +69,7 @@ export function parseSuccess(text: string): { method: string; path: string; stat
   return { method: m[1]!.toUpperCase(), path: m[2]!, status: m[3] ?? '2xx' };
 }
 
-// "header" or "header <event>": success comes from the app's X-Turnover-Event response header.
+// "header" or "header <event>": success comes from the app's X-Turnout-Event response header.
 export function parseHeaderSuccess(text: string): { event: string | undefined } | undefined {
   const m = text.trim().match(/^header(?:\s+(\S+))?$/i);
   return m ? { event: m[1] } : undefined;
@@ -96,12 +96,12 @@ export function renderConfig(a: NewAnswers, releases: Release[]): string {
 goal:
   event: ${event}
   when: { method: ${rule.method}, path: ${yamlString(rule.path)}, status: ${rule.status} }`
-    : `# Success: your app answers the converting request with the response header "X-Turnover-Event: ${event}".
-# Turnover sends it to Flagsmith as an event and removes the header before the visitor sees it.
+    : `# Success: your app answers the converting request with the response header "X-Turnout-Event: ${event}".
+# Turnout sends it to Flagsmith as an event and removes the header before the visitor sees it.
 goal:
   event: ${event}
   header: true`;
-  const text = `# Written by "turnover new". Turnover routes each visitor to one of these releases by the Flagsmith flag below.
+  const text = `# Written by "turnout new". Turnout routes each visitor to one of these releases by the Flagsmith flag below.
 flag: ${flag}
 
 # Allowlist: release label (the flag's value in Flagsmith) → where that release answers.
@@ -129,68 +129,68 @@ export function renderCompose(a: NewAnswers, releases: Release[]): string {
   const nets = bundled ? '\n    networks: [default, sdk]' : '';
   const waitFlagsmith = bundled ? '\n    depends_on:\n      flagsmith:\n        condition: service_healthy' : '';
   const apps = releases.filter((r) => r.image);
-  return `# Written by "turnover new": Turnover in front of your app. Run it with
-#   docker compose -f turnover.compose.yml run --rm cli init
-#   docker compose -f turnover.compose.yml up -d
-# then open http://127.0.0.1:${port} (your app, through Turnover) and http://127.0.0.1:${consolePort} (the console).
-# ${image} is not published yet: build it from the Turnover repo with "docker build -t ${image} ." first.
-${bundled ? 'include:\n  - flagsmith.compose.yml   # Flagsmith, from Turnover\'s compose.flagsmith.yml\n' : ''}
-x-turnover: &turnover
+  return `# Written by "turnout new": Turnout in front of your app. Run it with
+#   docker compose -f turnout.compose.yml run --rm cli init
+#   docker compose -f turnout.compose.yml up -d
+# then open http://127.0.0.1:${port} (your app, through Turnout) and http://127.0.0.1:${consolePort} (the console).
+# ${image} is not published yet: build it from the Turnout repo with "docker build -t ${image} ." first.
+${bundled ? 'include:\n  - flagsmith.compose.yml   # Flagsmith, from Turnout\'s compose.flagsmith.yml\n' : ''}
+x-turnout: &turnout
   image: ${image}
-  user: '\${TURNOVER_UID:-1000}:\${TURNOVER_GID:-1000}'
+  user: '\${TURNOUT_UID:-1000}:\${TURNOUT_GID:-1000}'
   extra_hosts: ['host.docker.internal:host-gateway'] # your machine, on Linux too
 
 services:
-  turnover:
-    <<: *turnover
+  turnout:
+    <<: *turnout
     command: proxy
     restart: unless-stopped
     environment:
       FLAGSMITH_API_URL: ${api}
-      TURNOVER_SERVER_KEY: \${TURNOVER_SERVER_KEY:-} # written by init
-      TURNOVER_PREVIEW_TOKEN: \${TURNOVER_PREVIEW_TOKEN:-}
+      TURNOUT_SERVER_KEY: \${TURNOUT_SERVER_KEY:-} # written by init
+      TURNOUT_PREVIEW_TOKEN: \${TURNOUT_PREVIEW_TOKEN:-}
     ports:
       - 127.0.0.1:${port}:8080
     volumes:
-      - ./turnover.config.yml:/app/turnover.config.yml:ro
-      - turnover-state:/app/.turnover${nets}${waitFlagsmith}
+      - ./turnout.config.yml:/app/turnout.config.yml:ro
+      - turnout-state:/app/.turnout${nets}${waitFlagsmith}
 
   console:
-    <<: *turnover
+    <<: *turnout
     command: console
     restart: unless-stopped
     environment:
       FLAGSMITH_API_URL: ${api}
-      TURNOVER_ADMIN_KEY: \${TURNOVER_ADMIN_KEY:-}
-      TURNOVER_EXPERIMENT: \${TURNOVER_EXPERIMENT:-}
-      TURNOVER_SERVER_KEY: \${TURNOVER_SERVER_KEY:-}
-      TURNOVER_PREVIEW_TOKEN: \${TURNOVER_PREVIEW_TOKEN:-}
-      TURNOVER_FEED_URL: http://turnover:8081
-      TURNOVER_PROXY_URL: http://turnover:8080
-      TURNOVER_PUBLIC_SHOP_URL: http://127.0.0.1:${port}
+      TURNOUT_ADMIN_KEY: \${TURNOUT_ADMIN_KEY:-}
+      TURNOUT_EXPERIMENT: \${TURNOUT_EXPERIMENT:-}
+      TURNOUT_SERVER_KEY: \${TURNOUT_SERVER_KEY:-}
+      TURNOUT_PREVIEW_TOKEN: \${TURNOUT_PREVIEW_TOKEN:-}
+      TURNOUT_FEED_URL: http://turnout:8081
+      TURNOUT_PROXY_URL: http://turnout:8080
+      TURNOUT_PUBLIC_SHOP_URL: http://127.0.0.1:${port}
       CONSOLE_HOST: 0.0.0.0
     ports:
       - 127.0.0.1:${consolePort}:8090 # holds the admin key: this machine only
     volumes:
-      - ./turnover.config.yml:/app/turnover.config.yml:ro
-      - ./.turnover:/app/.turnover${nets}
+      - ./turnout.config.yml:/app/turnout.config.yml:ro
+      - ./.turnout:/app/.turnout${nets}
     depends_on:
-      turnover:
+      turnout:
         condition: service_started
 
-  # One-off commands: docker compose -f turnover.compose.yml run --rm cli <init | status | ship | revert | release …>
+  # One-off commands: docker compose -f turnout.compose.yml run --rm cli <init | status | ship | revert | release …>
   cli:
-    <<: *turnover
+    <<: *turnout
     profiles: [tools]
     environment:
       FLAGSMITH_API_URL: ${api}
-      TURNOVER_PROXY_URL: http://turnover:8080
-      TURNOVER_PUBLIC_SHOP_URL: http://127.0.0.1:${port}
-      TURNOVER_PUBLIC_CONSOLE_PORT: '${consolePort}' # the judge link init prints
+      TURNOUT_PROXY_URL: http://turnout:8080
+      TURNOUT_PUBLIC_SHOP_URL: http://127.0.0.1:${port}
+      TURNOUT_PUBLIC_CONSOLE_PORT: '${consolePort}' # the judge link init prints
     volumes:
-      - ./turnover.config.yml:/app/turnover.config.yml:ro
+      - ./turnout.config.yml:/app/turnout.config.yml:ro
       - ./.env:/app/.env
-      - ./.turnover:/app/.turnover${nets}${waitFlagsmith}
+      - ./.turnout:/app/.turnout${nets}${waitFlagsmith}
 ${apps
   .map(
     (r) => `
@@ -201,7 +201,7 @@ ${apps
   )
   .join('')}
 volumes:
-  turnover-state: {}
+  turnout-state: {}
 `;
 }
 
@@ -216,8 +216,8 @@ export function writeNew(opts: NewOptions): string[] {
   const { releases, notes } = parseReleases(a.releases, a.appPort);
   for (const n of notes) log(`· ${n}`);
   const files: [string, string][] = [
-    ['turnover.config.yml', renderConfig(a, releases)],
-    ['turnover.compose.yml', renderCompose(a, releases)],
+    ['turnout.config.yml', renderConfig(a, releases)],
+    ['turnout.compose.yml', renderCompose(a, releases)],
   ];
   if (a.flagsmith === 'bundled') {
     if (!opts.flagsmithCompose) throw new Error('the bundled Flagsmith compose file is missing from this install');
@@ -225,20 +225,20 @@ export function writeNew(opts: NewOptions): string[] {
   }
   const clash = files.filter(([f]) => existsSync(join(opts.dir, f))).map(([f]) => f);
   if (clash.length && !opts.force) throw new Error(`${clash.join(', ')} already exist${clash.length === 1 ? 's' : ''}: pass --force to overwrite`);
-  mkdirSync(join(opts.dir, '.turnover'), { recursive: true });
+  mkdirSync(join(opts.dir, '.turnout'), { recursive: true });
   for (const [f, text] of files) writeFileSync(join(opts.dir, f), text);
   const env: Record<string, string> = {};
-  if (a.project) env.TURNOVER_PROJECT = a.project;
-  if (a.environment) env.TURNOVER_ENVIRONMENT = a.environment;
-  if (opts.adminKey) env.TURNOVER_ADMIN_KEY = opts.adminKey;
+  if (a.project) env.TURNOUT_PROJECT = a.project;
+  if (a.environment) env.TURNOUT_ENVIRONMENT = a.environment;
+  if (opts.adminKey) env.TURNOUT_ADMIN_KEY = opts.adminKey;
   const envFile = join(opts.dir, '.env');
   if (Object.keys(env).length || !existsSync(envFile)) writeEnv(envFile, env); // the cli mounts it, so it must exist
   const written = [...files.map(([f]) => f), '.env'];
   log(`✓ wrote ${written.join(', ')}`);
   log('Next:');
-  if (a.flagsmith !== 'bundled' && !opts.adminKey) log('  put your Organisation API key in .env as TURNOVER_ADMIN_KEY');
-  log('  docker compose -f turnover.compose.yml run --rm cli init');
-  log('  docker compose -f turnover.compose.yml up -d');
+  if (a.flagsmith !== 'bundled' && !opts.adminKey) log('  put your Organisation API key in .env as TURNOUT_ADMIN_KEY');
+  log('  docker compose -f turnout.compose.yml run --rm cli init');
+  log('  docker compose -f turnout.compose.yml up -d');
   return written;
 }
 

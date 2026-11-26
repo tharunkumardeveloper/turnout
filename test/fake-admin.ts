@@ -552,13 +552,13 @@ export const writes = (state: FakeAdminState) => state.requests.filter((r) => r.
 export const calls = (state: FakeAdminState, method: string, pattern: RegExp) =>
   state.requests.filter((r) => r.method === method && pattern.test(r.path));
 
-// A project as `turnover init` leaves it, with its first experiment already completed (drained override kept,
+// A project as `turnout init` leaves it, with its first experiment already completed (drained override kept,
 // as Flagsmith does): shop_release, control shop:1.4, v2 → shop:1.5, three metrics.
 export const SEED = { envKey: 'envKeySeed', adminKey: 'org.seed', projectId: 2, featureId: 4, v2Id: 5, experimentId: 9, rolloutSegmentId: 10 };
 export function seededState(opts: { experimentStatus?: FakeExperiment['status'] } = {}): FakeAdminState {
   const state = emptyState({ hasUsers: true, adminKeys: [SEED.adminKey] });
-  state.organisations.push({ id: 1, name: 'Turnover' });
-  state.projects.push({ id: SEED.projectId, name: 'Turnover demo', organisation: 1 });
+  state.organisations.push({ id: 1, name: 'Turnout' });
+  state.projects.push({ id: SEED.projectId, name: 'Turnout demo', organisation: 1 });
   state.environments.push({ id: 3, name: 'Production', api_key: SEED.envKey, project: SEED.projectId });
   const v2 = { id: SEED.v2Id, key: 'v2', string_value: 'shop:1.5', default_percentage_allocation: 0 };
   state.features.push({

@@ -1,4 +1,4 @@
-// turnover preview <label>: serve a new release to your team only, before its experiment starts.
+// turnout preview <label>: serve a new release to your team only, before its experiment starts.
 // A segment override (trait preview = "true") gives them the new release. Because it exists before the experiment,
 // the experiment's rollout is added below it (features/feature_segments/services.py:69-75), so the team keeps the
 // new release and stays out of the experiment's data.
@@ -6,7 +6,7 @@ import { AdminClient, type Experiment, type Feature } from '../flagsmith/admin.t
 import type { FlagState } from '../flagsmith/experiments.ts';
 import { currentRelease } from './release.ts';
 
-export const PREVIEW_SEGMENT = 'turnover-preview';
+export const PREVIEW_SEGMENT = 'turnout-preview';
 export const PREVIEW_TRAIT = 'preview';
 
 type Options = {
@@ -28,21 +28,21 @@ export async function preview(opts: Options): Promise<void> {
   const env = await api.get<{ project: number }>(`${envPath}/`);
 
   const feature = (await api.list<Feature>(`/api/v1/projects/${env.project}/features/?search=${opts.flag}`)).find((f) => f.name === opts.flag);
-  if (!feature) throw new Error(`Flag "${opts.flag}" not found. Run turnover init first.`);
+  if (!feature) throw new Error(`Flag "${opts.flag}" not found. Run turnout init first.`);
   const v2 = feature.multivariate_options.find((o) => o.key === 'v2');
   if (!v2) throw new Error(`Flag "${opts.flag}" has no variant with key v2.`);
   const unfinished = (await api.list<Experiment>(`${envPath}/experiments/`)).find((e) => e.feature.id === feature.id && e.status !== 'completed');
   if (unfinished) {
     throw new Error(`Experiment ${unfinished.id} is ${unfinished.status}. A preview must start before the experiment, so it outranks it.`);
   }
-  if (!opts.releases.has(opts.newRelease)) throw new Error(`"${opts.newRelease}" isn't in turnover.config.yml's releases.`);
+  if (!opts.releases.has(opts.newRelease)) throw new Error(`"${opts.newRelease}" isn't in turnout.config.yml's releases.`);
 
   const segment =
     (await api.list<Segment>(`/api/v1/projects/${env.project}/segments/`)).find((s) => s.name === PREVIEW_SEGMENT) ??
     (await api.post<Segment>(`/api/v1/projects/${env.project}/segments/`, {
       name: PREVIEW_SEGMENT,
       project: env.project,
-      description: 'Visitors who opened a Turnover preview link. They see the next release before its experiment.',
+      description: 'Visitors who opened a Turnout preview link. They see the next release before its experiment.',
       rules: [{ type: 'ALL', rules: [{ type: 'ANY', rules: [], conditions: [{ operator: 'EQUAL', property: PREVIEW_TRAIT, value: 'true' }] }], conditions: [] }],
     }));
   log(`✓ segment "${segment.name}" (trait ${PREVIEW_TRAIT} = "true")`);
@@ -75,6 +75,6 @@ export async function preview(opts: Options): Promise<void> {
     ],
   });
   log(`✓ your team gets ${opts.newRelease}; everyone else still gets ${live}`);
-  log(`Open the preview link once per browser: <proxy>/__turnover/preview?token=<TURNOVER_PREVIEW_TOKEN>`);
-  log(`Then start the experiment: turnover release ${opts.newRelease}`);
+  log(`Open the preview link once per browser: <proxy>/__turnout/preview?token=<TURNOUT_PREVIEW_TOKEN>`);
+  log(`Then start the experiment: turnout release ${opts.newRelease}`);
 }

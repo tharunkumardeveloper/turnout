@@ -1,5 +1,5 @@
 // Judge mode's "Health and guard" card: Flagsmith Feature Health reports and the opt-in guard (GET/POST /api/guard).
-const token = document.querySelector('meta[name="turnover-console"]')?.content ?? '';
+const token = document.querySelector('meta[name="turnout-console"]')?.content ?? '';
 const card = document.getElementById('guard');
 const button = document.getElementById('guard-button');
 const healthLine = document.getElementById('health-line');
@@ -10,7 +10,7 @@ const time = (iso) => (iso ? new Date(iso).toLocaleTimeString([], { hour: '2-dig
 async function api(method, body) {
   const res = await fetch('/api/guard', {
     method,
-    headers: { 'x-turnover-console': token, ...(body ? { 'content-type': 'application/json' } : {}) },
+    headers: { 'x-turnout-console': token, ...(body ? { 'content-type': 'application/json' } : {}) },
     ...(body ? { body: JSON.stringify(body) } : {}),
   });
   if (res.status === 404) return null; // not configured: the card stays hidden

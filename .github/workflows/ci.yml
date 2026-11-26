@@ -37,13 +37,13 @@ jobs:
       - uses: actions/checkout@v5
 
       - name: Prepare .env and state directory
-        # The console and the cli write the bind-mounted .env and .turnover. Compose runs them as
-        # TURNOVER_UID:TURNOVER_GID, so make that the runner's user (as turnover.sh does on Linux).
+        # The console and the cli write the bind-mounted .env and .turnout. Compose runs them as
+        # TURNOUT_UID:TURNOUT_GID, so make that the runner's user (as turnout.sh does on Linux).
         run: |
           cp .env.example .env
-          mkdir -p .turnover
-          echo "TURNOVER_UID=$(id -u)" >> "$GITHUB_ENV"
-          echo "TURNOVER_GID=$(id -g)" >> "$GITHUB_ENV"
+          mkdir -p .turnout
+          echo "TURNOUT_UID=$(id -u)" >> "$GITHUB_ENV"
+          echo "TURNOUT_GID=$(id -g)" >> "$GITHUB_ENV"
 
       - name: Start Flagsmith
         run: docker compose up -d flagsmith
@@ -60,39 +60,39 @@ jobs:
           echo "Flagsmith did not become healthy" >&2
           exit 1
 
-      - name: turnover init
+      - name: turnout init
         run: docker compose run --build --rm cli init
 
-      - name: Start Turnover, the console and the shops
+      - name: Start Turnout, the console and the shops
         run: docker compose up -d --build
 
       - name: Wait for the proxy to be healthy
         run: |
           for i in $(seq 1 60); do
-            id=$(docker compose ps -q turnover)
+            id=$(docker compose ps -q turnout)
             status=$(docker inspect -f '{{if .State.Health}}{{.State.Health.Status}}{{else}}none{{end}}' "$id" 2>/dev/null || true)
-            echo "turnover: ${status:-starting}"
+            echo "turnout: ${status:-starting}"
             [ "$status" = healthy ] && exit 0
             sleep 3
           done
-          echo "The turnover service did not become healthy" >&2
+          echo "The turnout service did not become healthy" >&2
           exit 1
 
       - name: Drive simulated visitors through the proxy
         run: docker compose run --rm cli demo --visitors 200
 
       - name: Proxy health
-        run: curl -fsS http://127.0.0.1:8080/__turnover/health
+        run: curl -fsS http://127.0.0.1:8080/__turnout/health
 
-      - name: turnover check
+      - name: turnout check
         run: docker compose run --rm cli check
 
       - name: Read the server key for the action
         id: keys
         # Masked first, so the key never appears in the log, even where a later step echoes its inputs.
         run: |
-          key=$(grep '^TURNOVER_SERVER_KEY=' .env | cut -d= -f2-)
-          [ -n "$key" ] || { echo "init wrote no TURNOVER_SERVER_KEY to .env" >&2; exit 1; }
+          key=$(grep '^TURNOUT_SERVER_KEY=' .env | cut -d= -f2-)
+          [ -n "$key" ] || { echo "init wrote no TURNOUT_SERVER_KEY to .env" >&2; exit 1; }
           echo "::add-mask::$key"
           echo "server-key=$key" >> "$GITHUB_OUTPUT"
 
@@ -120,31 +120,31 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 30
     env:
-      TURNOVER_NO_BROWSER: '1'
+      TURNOUT_NO_BROWSER: '1'
     steps:
       - uses: actions/checkout@v5
 
       - name: Server mode refuses the official placeholder secrets
         run: |
           cp .env.example .env
-          mkdir -p .turnover
-          printf 'TURNOVER_MODE=server\nTURNOVER_HOSTNAME=localhost\nFLAGSMITH_DJANGO_SECRET_KEY=secret\nFLAGSMITH_WAREHOUSE_SECRET=secret\nPOSTGRES_PASSWORD=password\n' >> .env
+          mkdir -p .turnout
+          printf 'TURNOUT_MODE=server\nTURNOUT_HOSTNAME=localhost\nFLAGSMITH_DJANGO_SECRET_KEY=secret\nFLAGSMITH_WAREHOUSE_SECRET=secret\nPOSTGRES_PASSWORD=password\n' >> .env
           if docker compose -f compose.yaml -f compose.server.yml run --rm --build --no-deps cli server-check; then
             echo "server-check accepted placeholder secrets" >&2; exit 1
           fi
           rm .env
 
-      - name: sh turnover.sh server localhost (tls internal)
+      - name: sh turnout.sh server localhost (tls internal)
         run: |
           cp .env.example .env
-          sh turnover.sh server localhost
-          grep -q '^TURNOVER_MODE=server$' .env
-          grep -q '^TURNOVER_CADDY_TLS=tls internal$' .env
+          sh turnout.sh server localhost
+          grep -q '^TURNOUT_MODE=server$' .env
+          grep -q '^TURNOUT_CADDY_TLS=tls internal$' .env
 
       - name: Doctor's server checks all pass
         run: |
           policies=$(docker compose -f compose.yaml -f compose.server.yml ps -q | xargs docker inspect -f '{{index .Config.Labels "com.docker.compose.service"}}={{.HostConfig.RestartPolicy.Name}}' | tr '\n' ',')
-          docker compose -f compose.yaml -f compose.server.yml run --rm -e TURNOVER_RESTART_POLICIES="$policies" cli doctor --json > doctor.json || true
+          docker compose -f compose.yaml -f compose.server.yml run --rm -e TURNOUT_RESTART_POLICIES="$policies" cli doctor --json > doctor.json || true
           node -e '
             const r = JSON.parse(require("fs").readFileSync("doctor.json", "utf8"));
             const server = r.checks.filter((c) => c.area === "Server mode");
@@ -166,7 +166,7 @@ jobs:
       - name: Only the read-only judge view is public
         run: |
           c() { curl -s --cacert caddy-root.crt -o body.txt -w '%{http_code}' "$@"; }
-          [ "$(c https://localhost/judge)" = 200 ] && grep -q 'name="turnover-readonly"' body.txt
+          [ "$(c https://localhost/judge)" = 200 ] && grep -q 'name="turnout-readonly"' body.txt
           [ "$(c https://localhost/judge/judge.js)" = 200 ]
           [ "$(c -X POST -H 'content-type: application/json' -d '{}' https://localhost/judge/api/judge/run)" = 405 ]
           [ "$(c -X POST https://localhost/judge)" = 405 ]
@@ -176,7 +176,7 @@ jobs:
           # The console's own pages and API are not on the hostname: these go to the proxy (the shop), never the console.
           for path in /api/state /api/doctor /setup /flagsmith; do
             c "https://localhost$path" > /dev/null
-            if grep -q 'turnover-console' body.txt; then echo "$path reached the console" >&2; exit 1; fi
+            if grep -q 'turnout-console' body.txt; then echo "$path reached the console" >&2; exit 1; fi
           done
 
       - name: Flagsmith, the proxy and the console are not reachable from outside 127.0.0.1

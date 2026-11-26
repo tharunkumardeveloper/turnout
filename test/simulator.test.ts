@@ -153,7 +153,7 @@ test('the goal flow: any app, land on / and send the goal request; a conversion 
     seen.push(`${req.method} ${req.url}`);
     if (req.method === 'GET') {
       const variant = Math.floor(n++ / 2) % 2 ? 'v2' : 'control'; // two page views per visitor
-      res.writeHead(200, { 'x-turnover-variant': variant, 'x-turnover-release': variant === 'v2' ? 'landing:2' : 'landing:1' });
+      res.writeHead(200, { 'x-turnout-variant': variant, 'x-turnout-release': variant === 'v2' ? 'landing:2' : 'landing:1' });
       return res.end('ok');
     }
     res.writeHead(req.url === '/signup' ? 201 : 404).end();

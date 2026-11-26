@@ -15,7 +15,7 @@ const EDGE = 16; // the bubble's margin from the viewport edge
 const SHEET_BELOW = 640; // narrower than this: the bubble is a bottom sheet
 const W_COMPACT = 300;
 const SHOW_CAP_MS = 2300; // the SHOW phase never lasts longer than this
-const FLAGSMITH_TAB = 'turnover-flagsmith';
+const FLAGSMITH_TAB = 'turnout-flagsmith';
 const NS = 'http://www.w3.org/2000/svg';
 
 function h(tag, props = {}, ...children) {

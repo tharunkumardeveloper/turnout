@@ -1,4 +1,4 @@
-// turnover release <label>: start the next experiment on the same flag. Whatever the flag serves today becomes
+// turnout release <label>: start the next experiment on the same flag. Whatever the flag serves today becomes
 // control, the new release becomes v2. Flagsmith clears the previous experiment's leftover override when this one
 // starts (merged in Flagsmith #8770).
 import { AdminClient, type Experiment, type Feature } from '../flagsmith/admin.ts';
@@ -72,7 +72,7 @@ export async function release(opts: Options): Promise<{ experimentId: number }> 
 
   const env = await api.get<{ project: number }>(`${envPath}/`);
   const feature = (await api.list<Feature>(`/api/v1/projects/${env.project}/features/?search=${opts.flag}`)).find((f) => f.name === opts.flag);
-  if (!feature) throw new Error(`Flag "${opts.flag}" not found. Run turnover init first.`);
+  if (!feature) throw new Error(`Flag "${opts.flag}" not found. Run turnout init first.`);
   const v2 = feature.multivariate_options.find((o) => o.key === 'v2');
   if (!v2) throw new Error(`Flag "${opts.flag}" has no variant with key v2.`);
 
@@ -82,7 +82,7 @@ export async function release(opts: Options): Promise<{ experimentId: number }> 
     throw new Error(`Experiment ${unfinished.id} ("${unfinished.name}") is ${unfinished.status}. Ship or revert it and complete it first.`);
   }
   const previous = experiments.sort((a, b) => b.id - a.id)[0];
-  if (!previous) throw new Error('No previous experiment on this flag to take metrics from. Run turnover init first.');
+  if (!previous) throw new Error('No previous experiment on this flag to take metrics from. Run turnout init first.');
   const previousDetail = await api.get<ExperimentDetail>(`${envPath}/experiments/${previous.id}/`);
   const metrics = previousDetail.metrics.map((m) => ({
     metric: m.metric,
@@ -94,11 +94,11 @@ export async function release(opts: Options): Promise<{ experimentId: number }> 
   if (opts.aa) {
     if (opts.newRelease && opts.newRelease !== live) throw new Error(`An A/A run serves the live release on both arms; ${live} is live, not ${opts.newRelease}.`);
   } else if (live === opts.newRelease) {
-    throw new Error(`${opts.newRelease} is already what everyone gets. To test the setup itself, run an A/A: turnover release --aa.`);
+    throw new Error(`${opts.newRelease} is already what everyone gets. To test the setup itself, run an A/A: turnout release --aa.`);
   }
   const next = opts.aa ? live : opts.newRelease;
   for (const label of new Set([live, next])) {
-    if (!opts.releases.has(label)) throw new Error(`"${label}" isn't in turnover.config.yml's releases, so the proxy couldn't route to it.`);
+    if (!opts.releases.has(label)) throw new Error(`"${label}" isn't in turnout.config.yml's releases, so the proxy couldn't route to it.`);
   }
   log(opts.aa ? `Live today: ${live}. A/A run: ${live} on both arms.` : `Live today: ${live}. New: ${opts.newRelease}.`);
 

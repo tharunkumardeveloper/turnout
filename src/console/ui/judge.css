@@ -1,4 +1,4 @@
-/* Turnover judge mode: the dashboard layout. Loaded after style.css (same tokens, buttons, pills, verdict chips and
+/* Turnout judge mode: the dashboard layout. Loaded after style.css (same tokens, buttons, pills, verdict chips and
    chance bars) and before track.css (the live map) and tour.css (the guided tour), which own their own rules.
    Full width up to 1680 px: three columns from 1280 px, two from 1024 px, one below. */
 

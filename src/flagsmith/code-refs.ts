@@ -1,8 +1,8 @@
 // Code References: where the release flag's name appears in this repository, submitted to Flagsmith so its dashboard
 // shows it on the flag (Usage tab) and its Lifecycle page can use it.
 //
-// Turnover's claim is "zero app code": the flag's name should appear only in infrastructure config
-// (turnover.config.yml), never in the app. This scan is the evidence, kept in Flagsmith itself.
+// Turnout's claim is "zero app code": the flag's name should appear only in infrastructure config
+// (turnout.config.yml), never in the app. This scan is the evidence, kept in Flagsmith itself.
 //
 // Flagsmith 2.291.0, projects/code_references/:
 // - POST /api/v1/projects/<id>/code-references/ takes { repository_url, vcs_provider ("github", the only choice),
@@ -17,12 +17,12 @@ import type { AdminClient } from './admin.ts';
 
 // Not scanned: dependencies, VCS and state, throwaway spikes, tests (they name the flag in fixtures) and
 // documentation (Markdown prose talks about the flag; it doesn't use it).
-export const SKIP_DIRS = new Set(['node_modules', '.git', '.turnover', 'spikes', 'docs', 'test', 'coverage', '.tmp']);
+export const SKIP_DIRS = new Set(['node_modules', '.git', '.turnout', 'spikes', 'docs', 'test', 'coverage', '.tmp']);
 const SKIP_EXTENSIONS = new Set(['.md', '.mdx']);
 const MAX_BYTES = 1_000_000;
 
 export type CodeReference = { feature_name: string; file_path: string; line_number: number };
-export type Repository = { repositoryUrl: string; revision: string; from: 'github-actions' | 'git remote' | 'TURNOVER_REPOSITORY_URL' };
+export type Repository = { repositoryUrl: string; revision: string; from: 'github-actions' | 'git remote' | 'TURNOUT_REPOSITORY_URL' };
 export type Git = (args: string[], cwd: string) => string; // throws when git or the repository is missing
 
 const runGit: Git = (args, cwd) =>
@@ -110,7 +110,7 @@ function publicHttpUrl(value: string): string | undefined {
 }
 
 // Where the scan came from. GitHub Actions' own variables first; then the checkout's https GitHub "origin"; then
-// TURNOVER_REPOSITORY_URL. Without any of them there is nothing honest to submit, so the scan is skipped.
+// TURNOUT_REPOSITORY_URL. Without any of them there is nothing honest to submit, so the scan is skipped.
 export function resolveRepository(env: NodeJS.ProcessEnv, root: string, git: Git = runGit): Repository | { skip: string } {
   if (env.GITHUB_SERVER_URL && env.GITHUB_REPOSITORY && env.GITHUB_SHA) {
     const url = publicHttpUrl(`${env.GITHUB_SERVER_URL}/${env.GITHUB_REPOSITORY}`);
@@ -130,14 +130,14 @@ export function resolveRepository(env: NodeJS.ProcessEnv, root: string, git: Git
     remote = undefined;
   }
   // A commit Flagsmith's permalinks can point at; without one, HEAD (GitHub resolves it to the default branch).
-  const revision = () => env.TURNOVER_REVISION?.trim() || head() || 'HEAD';
+  const revision = () => env.TURNOUT_REVISION?.trim() || head() || 'HEAD';
   if (remote) return { repositoryUrl: remote, revision: revision(), from: 'git remote' };
-  if (env.TURNOVER_REPOSITORY_URL) {
-    const url = publicHttpUrl(env.TURNOVER_REPOSITORY_URL);
-    if (!url) return { skip: 'TURNOVER_REPOSITORY_URL is not an http(s) URL without credentials' };
-    return { repositoryUrl: url, revision: revision(), from: 'TURNOVER_REPOSITORY_URL' };
+  if (env.TURNOUT_REPOSITORY_URL) {
+    const url = publicHttpUrl(env.TURNOUT_REPOSITORY_URL);
+    if (!url) return { skip: 'TURNOUT_REPOSITORY_URL is not an http(s) URL without credentials' };
+    return { repositoryUrl: url, revision: revision(), from: 'TURNOUT_REPOSITORY_URL' };
   }
-  return { skip: 'no repository URL: the checkout has no https GitHub "origin" remote and TURNOVER_REPOSITORY_URL is not set' };
+  return { skip: 'no repository URL: the checkout has no https GitHub "origin" remote and TURNOUT_REPOSITORY_URL is not set' };
 }
 
 export type ScanResult = {

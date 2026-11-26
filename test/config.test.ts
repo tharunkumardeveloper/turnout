@@ -52,7 +52,7 @@ test('traffic: the % of visitors in the experiment, 100 by default', async () =>
 
 test('a missing config file says how to get one', async () => {
   const { loadConfig } = await import('../src/config.ts');
-  assert.throws(() => loadConfig('no-such-turnover.config.yml'), /not found.*turnover new/);
+  assert.throws(() => loadConfig('no-such-turnout.config.yml'), /not found.*turnout new/);
 });
 
 test('secondary metrics: parsed from HTTP rules, with comma status lists', () => {

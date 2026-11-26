@@ -30,7 +30,7 @@ describe('console UI files', () => {
     assert.match(html, /<link rel="stylesheet" href="\/style\.css">/);
     assert.match(html, /<html lang="en">/);
     assert.match(html, /name="color-scheme" content="light dark"/);
-    assert.ok(html.includes('<meta name="turnover-console" content="">'), 'the server injects the API token here');
+    assert.ok(html.includes('<meta name="turnout-console" content="">'), 'the server injects the API token here');
     assert.doesNotMatch(html, /<script(?![^>]*\ssrc=)[^>]*>/, 'no inline scripts: the CSP allows only same-origin ones');
   });
 
@@ -47,7 +47,7 @@ describe('console UI files', () => {
     for (const id of ['action-status', 'refresh-status', 'dialog-result']) {
       assert.match(html, new RegExp(`id="${id}"[^>]*aria-live="polite"`), `#${id} should announce results`);
     }
-    assert.ok(html.includes("Flagsmith decides; Turnover never computes its own statistics. Every action is visible in Flagsmith's audit log."));
+    assert.ok(html.includes("Flagsmith decides; Turnout never computes its own statistics. Every action is visible in Flagsmith's audit log."));
   });
 
   test('every element app.js looks up by id exists in index.html', () => {
@@ -85,7 +85,7 @@ describe('console UI files', () => {
     const app = read('app.js');
     assert.doesNotMatch(app, /(?<![\w.])fetch\('\/api/, 'use api(), which adds the token header');
     assert.match(app, /new EventSource\(`\/api\/traffic\?token=\$\{encodeURIComponent\(TOKEN\)\}`\)/);
-    assert.match(app, /meta\[name="turnover-console"\]/);
+    assert.match(app, /meta\[name="turnout-console"\]/);
   });
 
   test('Ship and Revert send the experiment the page shows', () => {
@@ -154,7 +154,7 @@ describe('console serves the UI', () => {
   test('the page gets a token in its meta tag and a CSP', async () => {
     const res = await fetch(`${base}/`);
     const page = await res.text();
-    assert.match(page, /<meta name="turnover-console" content="[\w-]{32}">/);
+    assert.match(page, /<meta name="turnout-console" content="[\w-]{32}">/);
     assert.match(res.headers.get('content-security-policy') ?? '', /default-src 'self'/);
   });
 });
@@ -449,7 +449,7 @@ describe('demo controls: send visitors, swing back and forward', () => {
     assert.equal(F.swingView(experiment('completed'), shipped, 'shop:1.4').suggested, 'forward');
 
     assert.equal(F.swingView(experiment('running'), shipped, 'shop:1.4').enabled, false);
-    assert.match(F.swingView(experiment('completed'), [], 'shop:1.4').note, /no Turnover decision/);
+    assert.match(F.swingView(experiment('completed'), [], 'shop:1.4').note, /no Turnout decision/);
     const reverted = [{ ...shipped[0], decision: 'reverted', variant: 'control', release: 'shop:1.4' }];
     assert.match(F.swingView(experiment('completed'), reverted, 'shop:1.4').note, /was reverted/);
     const previewed = F.swingView(experiment('completed', 'shop:1.6'), shipped, 'shop:1.5');

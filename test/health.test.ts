@@ -84,7 +84,7 @@ describe('the health bridge', () => {
     await w.tick();
     assert.deepEqual(posts.map((p) => p.status), ['unhealthy'], 'only on a change');
     assert.deepEqual(reverts, [], 'the guard is off');
-    assert.match(posts[0]!.reason.text_blocks.at(-1)!.text, /Revert it from the Turnover console/);
+    assert.match(posts[0]!.reason.text_blocks.at(-1)!.text, /Revert it from the Turnout console/);
 
     s.experiment.status = 'completed';
     await w.tick();

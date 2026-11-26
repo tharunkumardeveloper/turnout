@@ -111,23 +111,23 @@ test('HEAD records no exposure', async () => {
   assert.ok(!flags.exposures.includes(id));
 });
 
-test("hop-by-hop headers and Turnover's cookies never reach the app or the visitor", async () => {
+test("hop-by-hop headers and Turnout's cookies never reach the app or the visitor", async () => {
   const id = 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb';
   const res = await fetch(`${base}/echo`, {
-    headers: { cookie: `${ID_COOKIE}=${id}; app=1; tv_preview=x`, 'x-turnover-debug': 'dbg', 'proxy-authorization': 'Basic x' },
+    headers: { cookie: `${ID_COOKIE}=${id}; app=1; tn_preview=x`, 'x-turnout-debug': 'dbg', 'proxy-authorization': 'Basic x' },
   });
   const seen = (await res.json()) as Record<string, string>;
   assert.equal(seen.cookie, 'app=1');
   assert.equal(seen['proxy-authorization'], undefined);
-  assert.equal(seen['x-turnover-debug'], undefined);
+  assert.equal(seen['x-turnout-debug'], undefined);
   assert.equal(seen['x-forwarded-proto'], 'http');
   assert.equal(res.headers.get('x-secret'), null, 'headers named in Connection are stripped');
   assert.notEqual(res.headers.get('keep-alive'), 'timeout=99', "the app's keep-alive is its own connection's");
 });
 
 test('without a debug token, the variant headers are never sent', async () => {
-  const res = await fetch(`${base}/`, { headers: { accept: 'text/html', 'x-turnover-debug': '1' } });
-  assert.equal(res.headers.get('x-turnover-variant'), null);
+  const res = await fetch(`${base}/`, { headers: { accept: 'text/html', 'x-turnout-debug': '1' } });
+  assert.equal(res.headers.get('x-turnout-variant'), null);
 });
 
 test("redirects to the app's own host stay on the visitor's", async () => {
@@ -143,8 +143,8 @@ test('WebSocket upgrades get a 501 instead of hanging', async () => {
   assert.match(await raw('/socket', 'upgrade: websocket\r\nconnection: upgrade\r\n'), /^HTTP\/1\.1 501/);
 });
 
-test('/__turnover/health reports the live release', async () => {
-  const health = (await (await fetch(`${base}/__turnover/health`)).json()) as { ok: boolean; liveRelease: string };
+test('/__turnout/health reports the live release', async () => {
+  const health = (await (await fetch(`${base}/__turnout/health`)).json()) as { ok: boolean; liveRelease: string };
   assert.equal(health.ok, true);
   assert.equal(health.liveRelease, 'shop:1.4');
 });

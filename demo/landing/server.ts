@@ -1,5 +1,5 @@
-// A tiny landing page with a "Sign up" button: the second Turnover example. It knows nothing about Flagsmith or
-// Turnover. LANDING_VERSION picks the release: 1 (the live page) or 2 (a new headline and button).
+// A tiny landing page with a "Sign up" button: the second Turnout example. It knows nothing about Flagsmith or
+// Turnout. LANDING_VERSION picks the release: 1 (the live page) or 2 (a new headline and button).
 import http from 'node:http';
 
 const VERSION = process.env.LANDING_VERSION ?? '1';
@@ -45,9 +45,9 @@ export function createLanding(): http.Server {
         res.writeHead(400, { 'content-type': 'text/plain' });
         return res.end('an email address, please');
       }
-      // Optional, no SDK: names the conversion for Turnover, which removes this header before the visitor sees it.
+      // Optional, no SDK: names the conversion for Turnout, which removes this header before the visitor sees it.
       // Used only with goal.header: true in the config; the example's default goal is the POST /signup rule.
-      res.writeHead(201, { 'content-type': 'text/html; charset=utf-8', 'x-turnover-event': 'signup' });
+      res.writeHead(201, { 'content-type': 'text/html; charset=utf-8', 'x-turnout-event': 'signup' });
       return res.end(thanks);
     }
     res.writeHead(404, { 'content-type': 'text/plain' });

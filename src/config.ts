@@ -16,7 +16,7 @@ export type Config = {
   releases: Map<string, URL>;
   fallback: string; // the first release: served when Flagsmith can't answer or the flag is off
   // when: the request that counts as a conversion. header: the app may also name events itself in an
-  // X-Turnover-Event response header. At least one of the two.
+  // X-Turnout-Event response header. At least one of the two.
   goal: { event: string; when?: HttpRule; header: boolean };
   guardrails: Guardrail[];
   // Secondary metrics (e.g. add_to_cart in a funnel): counted from HTTP rules like the goal and shown next to it,
@@ -39,7 +39,7 @@ export function loadConfig(path: string): Config {
     if (code === 'ENOENT' || code === 'EISDIR') {
       throw new ConfigError(
         `${path} ${code === 'EISDIR' ? 'is a directory (Docker creates one when the mounted file is missing)' : 'not found'}: ` +
-          'mount your turnover.config.yml there (run "turnover new" to write one)',
+          'mount your turnout.config.yml there (run "turnout new" to write one)',
       );
     }
     throw error;

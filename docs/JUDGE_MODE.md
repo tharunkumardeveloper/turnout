@@ -6,7 +6,7 @@ The console runs at <http://127.0.0.1:8090>. It has four pages:
 |---|---|
 | `/judge` | Judge mode: the whole story from a browser, with a guided tour |
 | `/` | The full console: traffic map, Flagsmith's results, Ship winner and Revert, demo controls, snapshots, the guard |
-| `/flagsmith` | Every Flagsmith menu and integration, what Turnover does with it, a live value from the Admin API, and for anything a laptop demo can't reach, the source behind that |
+| `/flagsmith` | Every Flagsmith menu and integration, what Turnout does with it, a live value from the Admin API, and for anything a laptop demo can't reach, the source behind that |
 | `/setup` | The setup check (`doctor`) in the browser |
 
 Every number about results comes from Flagsmith as returned; the console computes no statistics. Every visitor it sends is simulated, and the page says so.
@@ -15,7 +15,7 @@ Every number about results comes from Flagsmith as returned; the console compute
 
 ### The welcome screen
 
-It says what Turnover is in three points (no app code; Flagsmith decides; ship or revert on one flag) and offers two ways to run the tour:
+It says what Turnout is in three points (no app code; Flagsmith decides; ship or revert on one flag) and offers two ways to run the tour:
 
 - **Guide me.** The tour dims the page, puts a spotlight on the one thing to look at or click, and explains it in a bubble. You click the highlighted button and press **Next**.
 - **Play it for me.** The same tour, hands-free. An on-screen cursor glides to each button and clicks it. Each explanation stays up for 4.5 to 13 seconds, depending on its length.
@@ -31,7 +31,7 @@ Each beat is shown in two phases. First the spotlight moves to its target, a sho
 
 ### The page
 
-Four tabs: **Story**, **Shop** (the shop through Turnover, which has no Flagsmith code), **What we use** (the `/flagsmith` page) and **Setup check** (the `/setup` page). The tour moves between them on its own.
+Four tabs: **Story**, **Shop** (the shop through Turnout, which has no Flagsmith code), **What we use** (the `/flagsmith` page) and **Setup check** (the `/setup` page). The tour moves between them on its own.
 
 The Story tab is a three-column dashboard:
 

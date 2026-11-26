@@ -1,4 +1,4 @@
-/* Turnover setup check (/setup). Loaded after style.css: same tokens, buttons, cards and banner. One column from
+/* Turnout setup check (/setup). Loaded after style.css: same tokens, buttons, cards and banner. One column from
    320 px; green, amber and red come from --good, --warn and --bad, so dark mode follows style.css. */
 
 .setup {

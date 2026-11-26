@@ -1,16 +1,16 @@
 # Server mode's front door (compose.server.yml mounts it). Caddy fills {$…} from the environment Compose gives it, so
-# the site below is built from TURNOVER_HOSTNAME: turnover.sh server <hostname> writes it into .env.
+# the site below is built from TURNOUT_HOSTNAME: turnout.sh server <hostname> writes it into .env.
 #
 #   https://<hostname>/judge, /judge/*   GET and HEAD only, to the console's read-only port (8092, never published)
-#   anything else on the hostname        to the Turnover proxy, which routes it to a release
+#   anything else on the hostname        to the Turnout proxy, which routes it to a release
 # Flagsmith and the console's own ports are not here at all: they stay on 127.0.0.1 (SSH tunnel).
 {
 	admin off
 }
 
-{$TURNOVER_HOSTNAME} {
-	# Empty for a public certificate; "tls internal" (TURNOVER_CADDY_TLS) for Caddy's own CA in CI or a trial.
-	{$TURNOVER_CADDY_TLS}
+{$TURNOUT_HOSTNAME} {
+	# Empty for a public certificate; "tls internal" (TURNOUT_CADDY_TLS) for Caddy's own CA in CI or a trial.
+	{$TURNOUT_CADDY_TLS}
 
 	@judge path /judge /judge/*
 	handle @judge {
@@ -23,6 +23,6 @@
 	}
 
 	handle {
-		reverse_proxy turnover:8080
+		reverse_proxy turnout:8080
 	}
 }

@@ -1,12 +1,12 @@
 // Spike 4: under local evaluation, does the environment document carry the experiment's rollout,
 // does getExperimentFlag record exposures, and does Flagsmith accept them?
-// Run: node spikes/04-local-eval.ts   (after `turnover init`, with Flagsmith on localhost:8000)
+// Run: node spikes/04-local-eval.ts   (after `turnout init`, with Flagsmith on localhost:8000)
 import { randomUUID } from 'node:crypto';
 import { Flag, Flagsmith } from '@flagsmith/nodejs';
 
 process.loadEnvFile('.env');
 const API = 'http://localhost:8000/api/v1/';
-const serverKey = process.env.TURNOVER_SERVER_KEY!;
+const serverKey = process.env.TURNOUT_SERVER_KEY!;
 
 const doc: any = await (await fetch(`${API}environment-document/`, { headers: { 'X-Environment-Key': serverKey } })).json();
 const segments = (doc.project?.segments ?? []) as { name: string; rules: unknown }[];

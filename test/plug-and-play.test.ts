@@ -1,4 +1,4 @@
-// Plug-and-play: Turnover in front of different kinds of apps it knows nothing about (two static sites, an SPA with
+// Plug-and-play: Turnout in front of different kinds of apps it knows nothing about (two static sites, an SPA with
 // a JSON API, a POST form with CSRF-style Origin checks, a release mounted under a path), all as real local HTTP
 // servers. See docs/PLUG_AND_PLAY.md for the same matrix run against containers and public websites.
 import assert from 'node:assert/strict';

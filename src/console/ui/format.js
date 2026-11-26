@@ -347,7 +347,7 @@ export function guardrailWarningText(variantKey, warning) {
 }
 
 /**
- * Turnover's recommendation (recommend() on the server, read off Flagsmith's interval and chance to win) in one
+ * Turnout's recommendation (recommend() on the server, read off Flagsmith's interval and chance to win) in one
  * line: "Keep running: interval −14% to +44% crosses zero". Empty when there is none.
  */
 export function recommendationText(rec) {
@@ -406,7 +406,7 @@ export function visitorCount(raw) {
 /** Whether "Send visitors" applies: only a running experiment enrols visitors. */
 export function visitorsView(experiment) {
   if (experiment?.status === 'running') {
-    return { enabled: true, note: "Simulated, labelled visitors go through the Turnover proxy, which reports their pages and orders to Flagsmith as events." };
+    return { enabled: true, note: "Simulated, labelled visitors go through the Turnout proxy, which reports their pages and orders to Flagsmith as events." };
   }
   if (experiment?.status === 'completed') return { enabled: false, note: 'This experiment is finished. Release the next version to send visitors to a new experiment.' };
   return { enabled: false, note: `The experiment is ${experiment?.status ?? 'not loaded'}, so the proxy isn't enrolling visitors.` };
@@ -422,7 +422,7 @@ export function swingView(experiment, ledger, serving) {
   if (!experiment) return off('Waiting for the experiment.');
   if (experiment.status !== 'completed') return off('Swing applies after Ship winner: it moves everyone between the shipped release and the one it replaced.');
   const entry = latestEntryFor(ledger, experiment.id);
-  if (!entry) return off("There's no Turnover decision for this experiment in the release ledger, so there is nothing to swing.");
+  if (!entry) return off("There's no Turnout decision for this experiment in the release ledger, so there is nothing to swing.");
   if (entry.decision !== 'shipped' || entry.variant === CONTROL || !entry.release) return off('Swing applies after shipping a new release; this experiment was reverted.');
   const option = (experiment.feature?.multivariate_options ?? []).find((o) => o?.key === entry.variant);
   if (!option) return off(`The flag has no variant ${entry.variant} any more.`);

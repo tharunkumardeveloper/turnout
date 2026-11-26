@@ -15,9 +15,9 @@ x-shop: &shop
     retries: 3
 
 # Judge mode shows the shop in a frame of the console. The shop allows that from this machine's console and from the
-# hosts in TURNOVER_CONSOLE_HOSTS (port 8090); SHOP_FRAME_ANCESTORS replaces the whole list.
+# hosts in TURNOUT_CONSOLE_HOSTS (port 8090); SHOP_FRAME_ANCESTORS replaces the whole list.
 x-shop-env: &shop-env
-  SHOP_FRAME_HOSTS: ${TURNOVER_CONSOLE_HOSTS:-}
+  SHOP_FRAME_HOSTS: ${TURNOUT_CONSOLE_HOSTS:-}
   SHOP_FRAME_ANCESTORS: ${SHOP_FRAME_ANCESTORS:-}
 
 services:

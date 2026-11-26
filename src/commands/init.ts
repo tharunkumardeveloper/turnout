@@ -14,8 +14,8 @@ import {
 } from '../flagsmith/admin.ts';
 import { scanAndSubmit, type Git } from '../flagsmith/code-refs.ts';
 
-const ORG = 'Turnover';
-const PROJECT = 'Turnover demo';
+const ORG = 'Turnout';
+const PROJECT = 'Turnout demo';
 const ENVIRONMENT = 'Production';
 export const RELEASE_TAG = 'release';
 
@@ -87,7 +87,7 @@ export function incompatibleFlag(feature: Feature, releases: Iterable<string>): 
   return (
     `Flag "${feature.name}" already exists with values that aren't releases in your config ` +
     `(${bad.map((b) => `${b.what} = "${b.value}"`).join(', ')}; releases: ${[...labels].join(', ')}). ` +
-    'Nothing was changed on it: pick another flag name in turnover.config.yml, or list those releases.'
+    'Nothing was changed on it: pick another flag name in turnout.config.yml, or list those releases.'
   );
 }
 
@@ -123,11 +123,11 @@ export async function init(opts: Options): Promise<void> {
     throw new Error(`This Flagsmith has no users yet, so it has no project "${opts.project}". Run init without --project to set it up from scratch.`);
   }
   if (version.self_hosted_data?.has_users === false) {
-    newAdmin = { email: 'admin@turnover.local', password: randomBytes(18).toString('base64url') };
+    newAdmin = { email: 'admin@turnout.local', password: randomBytes(18).toString('base64url') };
     const res = await api.post<{ key: string }>('/api/v1/auth/users/', {
       ...newAdmin,
       re_password: newAdmin.password,
-      first_name: 'Turnover',
+      first_name: 'Turnout',
       last_name: 'Admin',
       superuser: true,
     });
@@ -137,7 +137,7 @@ export async function init(opts: Options): Promise<void> {
   } else if (opts.adminKey) {
     api.auth = { apiKey: opts.adminKey };
   } else {
-    throw new Error('This Flagsmith already has users. Put an Organisation API key in .env as TURNOVER_ADMIN_KEY.');
+    throw new Error('This Flagsmith already has users. Put an Organisation API key in .env as TURNOUT_ADMIN_KEY.');
   }
 
   // 2. Organisation, project, environment: with --project, existing ones (never created); otherwise the demo's,
@@ -165,10 +165,10 @@ export async function init(opts: Options): Promise<void> {
   // 3. Keys: an Organisation API key (only when we bootstrapped, since it's shown once) and a server-side key.
   if (newAdmin || !opts.adminKey) { // keys in .env from an earlier instance are stale on a fresh one
     const key = await api.post<{ key: string }>(`/api/v1/organisations/${org.id}/master-api-keys/`, {
-      name: 'Turnover',
+      name: 'Turnout',
       is_admin: true,
     });
-    save({ TURNOVER_ADMIN_KEY: key.key });
+    save({ TURNOUT_ADMIN_KEY: key.key });
   }
   // With --project, a key in .env may belong to another environment (the demo's): reuse it only if it reads this one.
   const keyFitsEnvironment = async (key: string) => {
@@ -183,8 +183,8 @@ export async function init(opts: Options): Promise<void> {
   if (opts.serverKey && !newAdmin && (await keyFitsEnvironment(opts.serverKey))) {
     log('✓ server-side key already in .env');
   } else {
-    const serverKey = await api.post<{ key: string }>(`${envPath}/api-keys/`, { name: 'Turnover proxy' });
-    save({ TURNOVER_SERVER_KEY: serverKey.key });
+    const serverKey = await api.post<{ key: string }>(`${envPath}/api-keys/`, { name: 'Turnout proxy' });
+    save({ TURNOUT_SERVER_KEY: serverKey.key });
     log('✓ server-side key created');
   }
 
@@ -203,7 +203,7 @@ export async function init(opts: Options): Promise<void> {
   // 5. The release flag: control serves the first upstream's release, v2 the new one.
   // The first release in the config is live (control); the second is the first one to test.
   const [controlRelease, v2Release] = [...opts.config.releases.keys()];
-  if (!controlRelease || !v2Release) throw new Error('turnover.config.yml must list at least two releases to start an experiment.');
+  if (!controlRelease || !v2Release) throw new Error('turnout.config.yml must list at least two releases to start an experiment.');
   const features = await api.list<Feature>(`/api/v1/projects/${project.id}/features/?search=${opts.config.flag}`);
   let feature = features.find((f) => f.name === opts.config.flag);
   const conflict = feature && incompatibleFlag(feature, opts.config.releases.keys());
@@ -213,7 +213,7 @@ export async function init(opts: Options): Promise<void> {
       name: opts.config.flag,
       initial_value: controlRelease,
       default_enabled: true,
-      description: 'Release router managed by Turnover. Each variant value is the release it serves.',
+      description: 'Release router managed by Turnout. Each variant value is the release it serves.',
     });
     log(`✓ flag "${feature.name}" created`);
   }
@@ -224,7 +224,7 @@ export async function init(opts: Options): Promise<void> {
     (await api.post<{ id: number; label: string }>(`/api/v1/projects/${project.id}/tags/`, {
       label: RELEASE_TAG,
       color: '#0AADDF',
-      description: 'Managed by Turnover: each variant value is the release it serves',
+      description: 'Managed by Turnout: each variant value is the release it serves',
       is_permanent: true,
     }));
   if (!feature.tags.includes(tag.id)) {
@@ -241,9 +241,9 @@ export async function init(opts: Options): Promise<void> {
     }
   }
 
-  // Feature Health: a "Webhook" provider lets Turnover mark the release flag Unhealthy in Flagsmith's dashboard
+  // Feature Health: a "Webhook" provider lets Turnout mark the release flag Unhealthy in Flagsmith's dashboard
   // when a guardrail is losing. Its URL carries the secret path; Flagsmith builds it with its own public host, so
-  // point it at the API address Turnover uses.
+  // point it at the API address Turnout uses.
   type HealthProvider = { name: string; webhook_url: string | null };
   const providersPath = `/api/v1/projects/${project.id}/feature-health/providers/`;
   // In your own project an existing provider is reused, never added: a provider is a project-wide setting.
@@ -252,8 +252,8 @@ export async function init(opts: Options): Promise<void> {
   if (!provider) log('· Feature Health: this project has no "Webhook" provider, so guardrail health is not shown on the flag (add one in Flagsmith to get it)');
   if (provider?.webhook_url) {
     const path = new URL(provider.webhook_url).pathname;
-    save({ TURNOVER_HEALTH_WEBHOOK: new URL(path, new URL(opts.apiUrl).origin).href });
-    log('✓ Feature Health provider (Webhook): Turnover reports guardrail health on the flag');
+    save({ TURNOUT_HEALTH_WEBHOOK: new URL(path, new URL(opts.apiUrl).origin).href });
+    log('✓ Feature Health provider (Webhook): Turnout reports guardrail health on the flag');
   }
 
   let v2 = feature.multivariate_options.find((o) => o.key === 'v2');
@@ -269,7 +269,7 @@ export async function init(opts: Options): Promise<void> {
   }
 
   // 6. Metrics: the goal (first: Flagsmith's primary), secondary metrics such as add_to_cart, and the guardrails.
-  // Secondary metrics expect an increase like the goal; guardrails expect no increase, which is how Turnover tells
+  // Secondary metrics expect an increase like the goal; guardrails expect no increase, which is how Turnout tells
   // them apart (src/flagsmith/experiments.ts isGuardrail).
   const wanted = [
     { name: opts.config.goal.event, aggregation: 'occurrence', direction: 'up', expected: 'increase' },
@@ -296,9 +296,9 @@ export async function init(opts: Options): Promise<void> {
   const onFlag = experiments.filter((e) => e.feature.id === feature.id).sort((a, b) => b.id - a.id);
   let experiment = onFlag.find((e) => e.status !== 'completed');
   if (!experiment && onFlag.length) {
-    // Releases already ran on this flag: the next one is `turnover release`'s job, which knows what's live.
+    // Releases already ran on this flag: the next one is `turnout release`'s job, which knows what's live.
     experiment = onFlag[0]!;
-    log(`✓ ${onFlag.length} experiment(s) already ran on "${feature.name}"; start the next with: turnover release <label>`);
+    log(`✓ ${onFlag.length} experiment(s) already ran on "${feature.name}"; start the next with: turnout release <label>`);
   } else if (!experiment) {
     experiment = await api.post<Experiment>(`${envPath}/experiments/`, {
       feature: feature.id,
@@ -327,24 +327,24 @@ export async function init(opts: Options): Promise<void> {
     if (missing.length) log(`✓ attached ${missing.length} new metric(s) to the running experiment`);
   }
 
-  save({ TURNOVER_EXPERIMENT: `${env.api_key}/${experiment.id}` });
-  if (!process.env.TURNOVER_PREVIEW_TOKEN) save({ TURNOVER_PREVIEW_TOKEN: randomBytes(18).toString('base64url') });
+  save({ TURNOUT_EXPERIMENT: `${env.api_key}/${experiment.id}` });
+  if (!process.env.TURNOUT_PREVIEW_TOKEN) save({ TURNOUT_PREVIEW_TOKEN: randomBytes(18).toString('base64url') });
   // Opens judge mode (/judge?key=…) on devices other than this machine. Rotate it to revoke every judge browser.
   // Kept across re-runs: from the environment, or from the env file itself.
   const savedJudgeToken =
-    process.env.TURNOVER_JUDGE_TOKEN || readFileSync(opts.envFile, 'utf8').match(/^TURNOVER_JUDGE_TOKEN=(\S+)$/m)?.[1];
+    process.env.TURNOUT_JUDGE_TOKEN || readFileSync(opts.envFile, 'utf8').match(/^TURNOUT_JUDGE_TOKEN=(\S+)$/m)?.[1];
   const judgeToken = savedJudgeToken || randomBytes(18).toString('base64url');
-  if (!savedJudgeToken) save({ TURNOVER_JUDGE_TOKEN: judgeToken });
+  if (!savedJudgeToken) save({ TURNOUT_JUDGE_TOKEN: judgeToken });
   log(`\nWrote ${Object.keys(created).join(' and ')} to ${opts.envFile}.`);
   if (newAdmin) log(`Dashboard: ${opts.dashboardUrl} (login saved in ${opts.envFile} as FLAGSMITH_ADMIN_EMAIL / FLAGSMITH_ADMIN_PASSWORD)`);
   log(`Experiment: ${opts.dashboardUrl}/project/${project.id}/environment/${env.api_key}/experiments/${experiment.id}`);
   for (const line of judgeLinks(judgeToken, opts.env ?? process.env)) log(line);
 }
 
-const CONSOLE_PORT = 8090; // this machine (Compose publishes it on 127.0.0.1 only); TURNOVER_PUBLIC_CONSOLE_PORT overrides it
-/** The console port published on this machine: TURNOVER_PUBLIC_CONSOLE_PORT (set by "turnover new --console-port"), else 8090. */
+const CONSOLE_PORT = 8090; // this machine (Compose publishes it on 127.0.0.1 only); TURNOUT_PUBLIC_CONSOLE_PORT overrides it
+/** The console port published on this machine: TURNOUT_PUBLIC_CONSOLE_PORT (set by "turnout new --console-port"), else 8090. */
 export function consolePort(env: NodeJS.ProcessEnv): number {
-  const n = Number(env.TURNOVER_PUBLIC_CONSOLE_PORT?.trim());
+  const n = Number(env.TURNOUT_PUBLIC_CONSOLE_PORT?.trim());
   return Number.isInteger(n) && n > 0 && n < 65536 ? n : CONSOLE_PORT;
 }
 export const DEVICE_PORT = 8091; // other devices: the console's judge-link-only port (CONSOLE_DEVICE_PORT)
@@ -358,11 +358,11 @@ const hostOf = (url: string | undefined): string | undefined => {
 };
 
 /**
- * The hostname for links on this machine: 127.0.0.1, or the loopback name TURNOVER_PUBLIC_SHOP_URL uses, so the
+ * The hostname for links on this machine: 127.0.0.1, or the loopback name TURNOUT_PUBLIC_SHOP_URL uses, so the
  * console and the Shop tab stay on the same site (see judgeLinks).
  */
 export function localHost(env: NodeJS.ProcessEnv): string {
-  const shopHost = hostOf(env.TURNOVER_PUBLIC_SHOP_URL || 'http://127.0.0.1:8080');
+  const shopHost = hostOf(env.TURNOUT_PUBLIC_SHOP_URL || 'http://127.0.0.1:8080');
   return shopHost && isLoopback(shopHost) ? shopHost : '127.0.0.1';
 }
 
@@ -372,24 +372,24 @@ export function localHost(env: NodeJS.ProcessEnv): string {
  * the Shop tab on "localhost" inside a console on "127.0.0.1" is a cross-site frame, and the browser drops the
  * shop's SameSite=Lax cookies there. 127.0.0.1 rather than localhost: on Windows a client that tries ::1 first
  * waits for the refused IPv6 attempt (Compose publishes on 127.0.0.1 only).
- * Other devices: the first TURNOVER_CONSOLE_HOSTS entry (or the one the shop URL uses), with the key.
+ * Other devices: the first TURNOUT_CONSOLE_HOSTS entry (or the one the shop URL uses), with the key.
  */
 export function judgeLinks(token: string, env: NodeJS.ProcessEnv): string[] {
-  const shopHost = hostOf(env.TURNOVER_PUBLIC_SHOP_URL || 'http://127.0.0.1:8080');
+  const shopHost = hostOf(env.TURNOUT_PUBLIC_SHOP_URL || 'http://127.0.0.1:8080');
   const local = localHost(env);
   const lines = [`Judge mode: http://${local}:${consolePort(env)}/judge`];
-  const hosts = (env.TURNOVER_CONSOLE_HOSTS ?? '').split(',').map((h) => h.trim()).filter(Boolean);
+  const hosts = (env.TURNOUT_CONSOLE_HOSTS ?? '').split(',').map((h) => h.trim()).filter(Boolean);
   if (hosts.length === 0) {
-    lines.push('Judge mode on other devices: set TURNOVER_CONSOLE_HOSTS and TURNOVER_PUBLISH_HOST=0.0.0.0 in .env (see .env.example), then run init again for the link.');
+    lines.push('Judge mode on other devices: set TURNOUT_CONSOLE_HOSTS and TURNOUT_PUBLISH_HOST=0.0.0.0 in .env (see .env.example), then run init again for the link.');
     return lines;
   }
   const remote = shopHost && hosts.includes(shopHost) ? shopHost : hosts[0]!;
   lines.push(`Judge link for other devices: http://${remote}:${DEVICE_PORT}/judge?key=${token}`);
-  if (isLoopback(env.TURNOVER_PUBLISH_HOST?.trim() || '127.0.0.1')) {
-    lines.push('  Other devices reach it once TURNOVER_PUBLISH_HOST=0.0.0.0 is set in .env and the stack is restarted.');
+  if (isLoopback(env.TURNOUT_PUBLISH_HOST?.trim() || '127.0.0.1')) {
+    lines.push('  Other devices reach it once TURNOUT_PUBLISH_HOST=0.0.0.0 is set in .env and the stack is restarted.');
   }
   if (shopHost !== remote) {
-    lines.push(`  Set TURNOVER_PUBLIC_SHOP_URL=http://${remote}:8080 in .env too, so the Shop tab on other devices loads the shop from this machine.`);
+    lines.push(`  Set TURNOUT_PUBLIC_SHOP_URL=http://${remote}:8080 in .env too, so the Shop tab on other devices loads the shop from this machine.`);
   } else {
     lines.push('  On this machine too, open that link: the Shop tab needs the console and the shop on the same hostname.');
   }

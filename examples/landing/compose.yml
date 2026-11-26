@@ -2,7 +2,7 @@
 # It goes on top of the main stack, which brings Flagsmith, the proxy and the console:
 #
 #   docker compose -f compose.yaml -f examples/landing/compose.yml build landing-1 landing-2
-#   TURNOVER_CONFIG_FILE=./examples/landing/turnover.config.yml \
+#   TURNOUT_CONFIG_FILE=./examples/landing/turnout.config.yml \
 #     docker compose -f compose.yaml -f examples/landing/compose.yml up -d --wait
 #
 # Paths here are relative to the repo root (the first -f file's folder). See examples/landing/README.md.

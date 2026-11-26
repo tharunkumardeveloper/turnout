@@ -53,7 +53,7 @@ describe('the recommendation: an interval crossing zero is not a win', () => {
     await status(opts);
     fake.close();
     assert.ok(lines.includes('Credible interval for v2 on the goal: −2% to +62% (96.7% chance to win)'));
-    assert.ok(lines.includes('Turnover recommends: keep running (interval −2% to +62% crosses zero)'));
+    assert.ok(lines.includes('Turnout recommends: keep running (interval −2% to +62% crosses zero)'));
   });
 
   test('ship without --yes warns when the call is keep running, and asks to ship against it', async () => {
@@ -61,7 +61,7 @@ describe('the recommendation: an interval crossing zero is not a win', () => {
     const { fake, lines, questions, opts } = await setup(state, [false]);
     await ship(opts);
     fake.close();
-    assert.ok(lines.some((l) => l.includes("Turnover recommends keeping the experiment running: interval −2% to +62% crosses zero. An interval crossing zero isn't a win.")));
+    assert.ok(lines.some((l) => l.includes("Turnout recommends keeping the experiment running: interval −2% to +62% crosses zero. An interval crossing zero isn't a win.")));
     assert.deepEqual(questions, ['Ship it anyway, against the recommendation?']);
     assert.deepEqual(writes(state), []);
   });
@@ -71,7 +71,7 @@ describe('the recommendation: an interval crossing zero is not a win', () => {
     const { fake, lines, opts } = await setup(state);
     await ship({ ...opts, yes: true });
     fake.close();
-    assert.ok(lines.includes('Turnover recommends: keep running (interval −2% to +62% crosses zero)'));
+    assert.ok(lines.includes('Turnout recommends: keep running (interval −2% to +62% crosses zero)'));
     assert.ok(!lines.some((l) => l.includes('recommends keeping the experiment running')));
     assert.equal(readLedger(opts.ledgerDir)[0]?.decision, 'shipped');
   });
@@ -141,7 +141,7 @@ describe('ship', () => {
     const { fake, lines, questions, opts } = await setup(state, [false]);
     await ship(opts);
     fake.close();
-    assert.ok(lines.includes('Turnover recommends: ship (interval +5% to +62% clears zero, 96.7% chance to win)'));
+    assert.ok(lines.includes('Turnout recommends: ship (interval +5% to +62% clears zero, 96.7% chance to win)'));
     assert.deepEqual(questions, ['Ship it?']);
     assert.equal(lines.at(-1), 'Nothing changed.');
     assert.deepEqual(writes(state), []);
@@ -173,7 +173,7 @@ describe('ship', () => {
     fake.close();
     assert.equal(questions.length, 1);
     assert.match(questions[0]!, /Ship v2 even though it's losing on doc_latency_ms\?/);
-    assert.equal(lines.at(-1), 'Nothing changed. To send everyone back to control instead: turnover revert');
+    assert.equal(lines.at(-1), 'Nothing changed. To send everyone back to control instead: turnout revert');
     assert.deepEqual(writes(state), []);
   });
 

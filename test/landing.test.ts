@@ -14,9 +14,9 @@ test('the landing example: a page with a Sign up button, POST /signup answers 20
     assert.match(page, /<button>/);
     assert.match(page, /action="\/signup"/);
     const ok = await fetch(`${base}/signup`, { method: 'POST', body: new URLSearchParams({ email: 'a@b.c' }) });
-    assert.equal(ok.headers.get('x-turnover-event'), 'signup'); // the optional header alternative
+    assert.equal(ok.headers.get('x-turnout-event'), 'signup'); // the optional header alternative
     const bad = await fetch(`${base}/signup`, { method: 'POST', body: new URLSearchParams({ email: 'nope' }) });
-    const config = loadConfig('examples/landing/turnover.config.yml');
+    const config = loadConfig('examples/landing/turnout.config.yml');
     assert.equal(matchesRule(config.goal.when!, 'POST', '/signup', ok.status), true);
     assert.equal(matchesRule(config.goal.when!, 'POST', '/signup', bad.status), false);
     assert.deepEqual([...config.releases.keys()], ['landing:1', 'landing:2']);

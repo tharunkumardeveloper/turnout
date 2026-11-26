@@ -3,25 +3,25 @@
 ## Layout
 
 ```
-README.md                  what Turnover is, the quick start, the evidence
+README.md                  what Turnout is, the quick start, the evidence
 compose.yaml               includes the two files below, so plain `docker compose` works in any shell
 compose.flagsmith.yml      Flagsmith's official docker-compose.yml with five edits, listed in its header (pinned 2.291.0)
-compose.turnover.yml     overlay: proxy, console, three shop releases, a `cli` service (profile tools); networks
-turnover.config.yml      routing config for the demo
-Dockerfile                 Turnover image: proxy, console, CLI
+compose.turnout.yml     overlay: proxy, console, three shop releases, a `cli` service (profile tools); networks
+turnout.config.yml      routing config for the demo
+Dockerfile                 Turnout image: proxy, console, CLI
 .env.example               every setting, in sections; ops.test.ts fails if code reads one that isn't listed
 setup.bat, setup.sh        check and install what the demo needs (Windows; macOS and Linux)
-turnover.bat, .sh        start, demo, status, stop, reset [--yes]; .bat files keep CRLF line endings
+turnout.bat, .sh        start, demo, status, stop, reset [--yes]; .bat files keep CRLF line endings
 action.yml                 reusable GitHub Action: check, and Code References with an admin key
 .github/workflows/ci.yml   typecheck and tests; a compose smoke job (init → demo → check)
 src/
-  cli.ts                   entry point: turnover <command> [--api-url --server-key --admin-key]
+  cli.ts                   entry point: turnout <command> [--api-url --server-key --admin-key]
   config.ts                config loading, validation, HTTP rule matching
   decide.ts                Ship winner / Revert: guardrail check, steps, ledger entry (shared by CLI and console)
-  ledger.ts                .turnover/ledger.jsonl, RELEASES.md and the GitHub Release section
+  ledger.ts                .turnout/ledger.jsonl, RELEASES.md and the GitHub Release section
   health.ts                Feature Health reports and the guard (the console's watcher)
   proxy/server.ts          reverse proxy: origin-form targets only, identity cookie, routing with a 150 ms deadline,
-                           live-release fallback, exposures, events, /__turnover/{receipt,preview,health}
+                           live-release fallback, exposures, events, /__turnout/{receipt,preview,health}
   proxy/feed.ts            live traffic feed (internal port 8081) for the console, bounded
   flagsmith/admin.ts       Admin API client
   flagsmith/experiments.ts results, Flagsmith's winner rule, guardrails, Ship/Revert plans with read-back
@@ -69,7 +69,7 @@ docker compose run --rm cli doctor             # everything in place? (also http
 docker compose run --rm cli demo               # 2,000 labelled simulated visitors
 docker compose run --rm cli status --refresh   # Flagsmith's results (one refresh per 5 min)
 docker compose run --rm cli ship               # Ship winner, after showing the plan
-docker compose run --rm cli preview shop:1.6   # then open /__turnover/preview?token=<TURNOVER_PREVIEW_TOKEN>
+docker compose run --rm cli preview shop:1.6   # then open /__turnout/preview?token=<TURNOUT_PREVIEW_TOKEN>
 docker compose run --rm cli release shop:1.6   # the next experiment; shop:1.6 has a seeded delay
 docker compose run --rm cli revert             # after the guardrail shows it losing
 docker compose run --rm cli check              # splits left behind on any flag
@@ -78,7 +78,7 @@ docker compose run --rm cli code-refs          # needs a repository URL; see doc
 
 Or open <http://127.0.0.1:8090/judge> and run the same story from the browser.
 
-To reset everything: `sh turnover.sh reset --yes` (`turnover.bat reset /yes`), or `docker compose --profile tools down -v` and then delete `.turnover/`.
+To reset everything: `sh turnout.sh reset --yes` (`turnout.bat reset /yes`), or `docker compose --profile tools down -v` and then delete `.turnout/`.
 
 After changing code, rebuild the images: `docker compose --profile tools build cli`, then `docker compose up -d --build --wait`.
 
@@ -106,7 +106,7 @@ The console keeps some Flagsmith reads briefly and shares a read already in flig
 | What | Kept for |
 |---|---|
 | `/api/state` and judge mode's `/api/judge/state` | 1.5 s |
-| Which experiment is the latest | 10 s, so a `turnover release` run in a terminal shows up within about 10 s |
+| Which experiment is the latest | 10 s, so a `turnout release` run in a terminal shows up within about 10 s |
 | Flagsmith's event counter | 1 s |
 | `/api/doctor` | 15 s; `?fresh=1` skips it (the setup page's **Check again** uses it) |
 | The `/flagsmith` feature map | 30 s |

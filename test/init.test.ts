@@ -20,9 +20,9 @@ let envFile: string;
 let fake: { apiUrl: string; close: () => Promise<void> } | undefined;
 
 beforeEach(() => {
-  dir = mkdtempSync(join(tmpdir(), 'turnover-init-'));
+  dir = mkdtempSync(join(tmpdir(), 'turnout-init-'));
   envFile = join(dir, '.env');
-  delete process.env.TURNOVER_PREVIEW_TOKEN; // init only mints a token when none is set
+  delete process.env.TURNOUT_PREVIEW_TOKEN; // init only mints a token when none is set
 });
 afterEach(async () => {
   await fake?.close();
@@ -56,8 +56,8 @@ test('a fresh instance is bootstrapped end to end and every key lands in .env', 
   assert.equal((signup.body as { re_password: string }).re_password, state.users[0]!.password);
 
   // Organisation, project, environment, keys, event store.
-  assert.deepEqual(state.organisations.map((o) => o.name), ['Turnover']);
-  assert.deepEqual(state.projects.map((p) => p.name), ['Turnover demo']);
+  assert.deepEqual(state.organisations.map((o) => o.name), ['Turnout']);
+  assert.deepEqual(state.projects.map((p) => p.name), ['Turnout demo']);
   assert.deepEqual(state.environments.map((e) => e.name), ['Production']);
   const env = state.environments[0]!;
   assert.equal(state.adminKeys.length, 1);
@@ -118,10 +118,10 @@ test('a fresh instance is bootstrapped end to end and every key lands in .env', 
   const saved = readEnv();
   assert.equal(saved.FLAGSMITH_ADMIN_EMAIL, state.users[0]!.email);
   assert.equal(saved.FLAGSMITH_ADMIN_PASSWORD, state.users[0]!.password);
-  assert.equal(saved.TURNOVER_ADMIN_KEY, state.adminKeys[0]);
-  assert.equal(saved.TURNOVER_SERVER_KEY, state.serverKeys[0]!.key);
-  assert.equal(saved.TURNOVER_EXPERIMENT, `${env.api_key}/${experiment.id}`);
-  assert.match(saved.TURNOVER_PREVIEW_TOKEN ?? '', /^[A-Za-z0-9_-]{24}$/);
+  assert.equal(saved.TURNOUT_ADMIN_KEY, state.adminKeys[0]);
+  assert.equal(saved.TURNOUT_SERVER_KEY, state.serverKeys[0]!.key);
+  assert.equal(saved.TURNOUT_EXPERIMENT, `${env.api_key}/${experiment.id}`);
+  assert.match(saved.TURNOUT_PREVIEW_TOKEN ?? '', /^[A-Za-z0-9_-]{24}$/);
 });
 
 test('the admin login is saved the moment it exists, so a later failure does not lose it', async () => {
@@ -132,17 +132,17 @@ test('the admin login is saved the moment it exists, so a later failure does not
   const saved = readEnv();
   assert.equal(saved.FLAGSMITH_ADMIN_EMAIL, state.users[0]!.email);
   assert.equal(saved.FLAGSMITH_ADMIN_PASSWORD, state.users[0]!.password);
-  assert.equal(saved.TURNOVER_ADMIN_KEY, state.adminKeys[0]);
-  assert.equal(saved.TURNOVER_SERVER_KEY, state.serverKeys[0]!.key);
-  assert.equal(saved.TURNOVER_EXPERIMENT, undefined);
+  assert.equal(saved.TURNOUT_ADMIN_KEY, state.adminKeys[0]);
+  assert.equal(saved.TURNOUT_SERVER_KEY, state.serverKeys[0]!.key);
+  assert.equal(saved.TURNOUT_EXPERIMENT, undefined);
 
   // The instance now has users; re-running with the saved keys finishes the job.
-  await run(state, { adminKey: saved.TURNOVER_ADMIN_KEY!, serverKey: saved.TURNOVER_SERVER_KEY! });
+  await run(state, { adminKey: saved.TURNOUT_ADMIN_KEY!, serverKey: saved.TURNOUT_SERVER_KEY! });
   assert.equal(state.users.length, 1);
   assert.equal(state.serverKeys.length, 1);
   assert.equal(state.warehouses.length, 1);
   assert.equal(state.experiments[0]!.status, 'running');
-  assert.equal(readEnv().TURNOVER_EXPERIMENT, `${state.environments[0]!.api_key}/${state.experiments[0]!.id}`);
+  assert.equal(readEnv().TURNOUT_EXPERIMENT, `${state.environments[0]!.api_key}/${state.experiments[0]!.id}`);
 });
 
 test('the login is kept even when the very next call fails', async () => {
@@ -167,9 +167,9 @@ test('re-running init with the keys in place changes nothing', async () => {
     warehouses: state.warehouses.length,
   };
   const requestsBefore = state.requests.length;
-  process.env.TURNOVER_PREVIEW_TOKEN = first.TURNOVER_PREVIEW_TOKEN; // the CLI loads .env into the environment
+  process.env.TURNOUT_PREVIEW_TOKEN = first.TURNOUT_PREVIEW_TOKEN; // the CLI loads .env into the environment
 
-  await run(state, { adminKey: first.TURNOVER_ADMIN_KEY!, serverKey: first.TURNOVER_SERVER_KEY! });
+  await run(state, { adminKey: first.TURNOUT_ADMIN_KEY!, serverKey: first.TURNOUT_SERVER_KEY! });
 
   assert.deepEqual(
     {
@@ -190,7 +190,7 @@ test('re-running init with the keys in place changes nothing', async () => {
     [],
     'a second run only reads',
   );
-  assert.ok(rerun.every((r) => r.path === '/version/' || r.authorization === `Api-Key ${first.TURNOVER_ADMIN_KEY}`));
+  assert.ok(rerun.every((r) => r.path === '/version/' || r.authorization === `Api-Key ${first.TURNOUT_ADMIN_KEY}`));
   assert.deepEqual(readEnv(), first);
 });
 
@@ -200,27 +200,27 @@ test('re-running init after every experiment finished starts nothing new (releas
   const first = readEnv();
   for (const e of state.experiments) e.status = 'completed';
   const count = state.experiments.length;
-  process.env.TURNOVER_PREVIEW_TOKEN = first.TURNOVER_PREVIEW_TOKEN;
+  process.env.TURNOUT_PREVIEW_TOKEN = first.TURNOUT_PREVIEW_TOKEN;
 
-  const lines = await run(state, { adminKey: first.TURNOVER_ADMIN_KEY!, serverKey: first.TURNOVER_SERVER_KEY! });
+  const lines = await run(state, { adminKey: first.TURNOUT_ADMIN_KEY!, serverKey: first.TURNOUT_SERVER_KEY! });
 
   assert.equal(state.experiments.length, count, 'no new experiment');
-  assert.ok(lines.some((l) => /already ran/.test(l) && /turnover release/.test(l)));
+  assert.ok(lines.some((l) => /already ran/.test(l) && /turnout release/.test(l)));
 });
 
 test('on a fresh (e.g. wiped) instance, stale keys from an earlier instance are replaced', async () => {
   // .env still holds keys from an instance that was removed with `docker compose down -v`.
-  writeFileSync(envFile, 'TURNOVER_ADMIN_KEY=org.stale\nTURNOVER_SERVER_KEY=ser.stale\n');
+  writeFileSync(envFile, 'TURNOUT_ADMIN_KEY=org.stale\nTURNOUT_SERVER_KEY=ser.stale\n');
   const state = emptyState();
   await run(state, { adminKey: 'org.stale', serverKey: 'ser.stale' });
   const saved = readEnv();
-  assert.ok(state.adminKeys.includes(saved.TURNOVER_ADMIN_KEY!), 'the admin key in .env works on this instance');
-  assert.ok(state.serverKeys.some((k) => k.key === saved.TURNOVER_SERVER_KEY), 'the server key in .env belongs to this instance');
+  assert.ok(state.adminKeys.includes(saved.TURNOUT_ADMIN_KEY!), 'the admin key in .env works on this instance');
+  assert.ok(state.serverKeys.some((k) => k.key === saved.TURNOUT_SERVER_KEY), 'the server key in .env belongs to this instance');
 });
 
 test('an instance that already has users needs an Organisation API key', async () => {
   const state = emptyState({ hasUsers: true });
-  await assert.rejects(run(state), /already has users.*TURNOVER_ADMIN_KEY/);
+  await assert.rejects(run(state), /already has users.*TURNOUT_ADMIN_KEY/);
   assert.deepEqual(state.requests.map((r) => r.path), ['/version/']);
   assert.equal(existsSync(envFile), false);
 });
@@ -232,9 +232,9 @@ test('an existing instance is set up with the given Organisation API key, withou
   assert.deepEqual(state.adminKeys, ['org.given']);
   assert.equal(calls(state, 'POST', /master-api-keys/).length, 0);
   const saved = readEnv();
-  assert.equal(saved.TURNOVER_ADMIN_KEY, undefined);
+  assert.equal(saved.TURNOUT_ADMIN_KEY, undefined);
   assert.equal(saved.FLAGSMITH_ADMIN_PASSWORD, undefined);
-  assert.equal(saved.TURNOVER_SERVER_KEY, state.serverKeys[0]!.key);
+  assert.equal(saved.TURNOUT_SERVER_KEY, state.serverKeys[0]!.key);
   assert.equal(state.experiments[0]!.status, 'running');
 });
 
@@ -260,21 +260,21 @@ test('.env being a directory fails before anything is sent to Flagsmith', async 
 });
 
 test('writeEnv replaces existing keys in place and appends new ones', () => {
-  writeFileSync(envFile, '# comment\nFLAGSMITH_API_URL=http://flagsmith:8000/api/v1/\nTURNOVER_SERVER_KEY=\nGITHUB_TOKEN=\n');
-  writeEnv(envFile, { TURNOVER_SERVER_KEY: 'ser.abc', TURNOVER_EXPERIMENT: 'envKey1/7' });
+  writeFileSync(envFile, '# comment\nFLAGSMITH_API_URL=http://flagsmith:8000/api/v1/\nTURNOUT_SERVER_KEY=\nGITHUB_TOKEN=\n');
+  writeEnv(envFile, { TURNOUT_SERVER_KEY: 'ser.abc', TURNOUT_EXPERIMENT: 'envKey1/7' });
   assert.equal(
     readFileSync(envFile, 'utf8'),
-    '# comment\nFLAGSMITH_API_URL=http://flagsmith:8000/api/v1/\nTURNOVER_SERVER_KEY=ser.abc\nGITHUB_TOKEN=\nTURNOVER_EXPERIMENT=envKey1/7\n',
+    '# comment\nFLAGSMITH_API_URL=http://flagsmith:8000/api/v1/\nTURNOUT_SERVER_KEY=ser.abc\nGITHUB_TOKEN=\nTURNOUT_EXPERIMENT=envKey1/7\n',
   );
-  writeEnv(envFile, { TURNOVER_EXPERIMENT: 'envKey1/8' });
-  assert.match(readFileSync(envFile, 'utf8'), /\nTURNOVER_EXPERIMENT=envKey1\/8\n$/);
-  assert.equal(readFileSync(envFile, 'utf8').match(/TURNOVER_EXPERIMENT=/g)!.length, 1);
+  writeEnv(envFile, { TURNOUT_EXPERIMENT: 'envKey1/8' });
+  assert.match(readFileSync(envFile, 'utf8'), /\nTURNOUT_EXPERIMENT=envKey1\/8\n$/);
+  assert.equal(readFileSync(envFile, 'utf8').match(/TURNOUT_EXPERIMENT=/g)!.length, 1);
 });
 
 test('writeEnv only matches whole key names at the start of a line', () => {
-  writeFileSync(envFile, 'TURNOVER_ADMIN_KEY_OLD=1\n# TURNOVER_ADMIN_KEY=commented\nTURNOVER_ADMIN_KEY=2');
-  writeEnv(envFile, { TURNOVER_ADMIN_KEY: '3' });
-  assert.equal(readFileSync(envFile, 'utf8'), 'TURNOVER_ADMIN_KEY_OLD=1\n# TURNOVER_ADMIN_KEY=commented\nTURNOVER_ADMIN_KEY=3');
+  writeFileSync(envFile, 'TURNOUT_ADMIN_KEY_OLD=1\n# TURNOUT_ADMIN_KEY=commented\nTURNOUT_ADMIN_KEY=2');
+  writeEnv(envFile, { TURNOUT_ADMIN_KEY: '3' });
+  assert.equal(readFileSync(envFile, 'utf8'), 'TURNOUT_ADMIN_KEY_OLD=1\n# TURNOUT_ADMIN_KEY=commented\nTURNOUT_ADMIN_KEY=3');
 });
 
 test('writeEnv creates a missing file and adds a newline to one without', () => {
@@ -303,44 +303,44 @@ test('writeEnv refuses newlines in values and unsafe names, leaving the file alo
 
 // ---------- the judge links init prints ----------
 
-test('judge links: 127.0.0.1 on this machine; other devices need TURNOVER_CONSOLE_HOSTS', () => {
+test('judge links: 127.0.0.1 on this machine; other devices need TURNOUT_CONSOLE_HOSTS', () => {
   const lines = judgeLinks('tok', {});
   assert.equal(lines[0], 'Judge mode: http://127.0.0.1:8090/judge');
-  assert.match(lines[1]!, /set TURNOVER_CONSOLE_HOSTS and TURNOVER_PUBLISH_HOST=0\.0\.0\.0/);
+  assert.match(lines[1]!, /set TURNOUT_CONSOLE_HOSTS and TURNOUT_PUBLISH_HOST=0\.0\.0\.0/);
   assert.ok(!lines.join('\n').includes('tok'), 'no key link that only this machine could open');
   // An older .env keeps the shop on localhost: the console link follows it, so the Shop tab stays same-site.
-  assert.equal(judgeLinks('tok', { TURNOVER_PUBLIC_SHOP_URL: 'http://localhost:8080' })[0], 'Judge mode: http://localhost:8090/judge');
-  assert.equal(judgeLinks('tok', { TURNOVER_PUBLIC_SHOP_URL: 'not a url' })[0], 'Judge mode: http://127.0.0.1:8090/judge');
-  assert.equal(judgeLinks('tok', { TURNOVER_PUBLIC_CONSOLE_PORT: '18090' })[0], 'Judge mode: http://127.0.0.1:18090/judge');
-  assert.equal(judgeLinks('tok', { TURNOVER_PUBLIC_CONSOLE_PORT: 'x' })[0], 'Judge mode: http://127.0.0.1:8090/judge');
+  assert.equal(judgeLinks('tok', { TURNOUT_PUBLIC_SHOP_URL: 'http://localhost:8080' })[0], 'Judge mode: http://localhost:8090/judge');
+  assert.equal(judgeLinks('tok', { TURNOUT_PUBLIC_SHOP_URL: 'not a url' })[0], 'Judge mode: http://127.0.0.1:8090/judge');
+  assert.equal(judgeLinks('tok', { TURNOUT_PUBLIC_CONSOLE_PORT: '18090' })[0], 'Judge mode: http://127.0.0.1:18090/judge');
+  assert.equal(judgeLinks('tok', { TURNOUT_PUBLIC_CONSOLE_PORT: 'x' })[0], 'Judge mode: http://127.0.0.1:8090/judge');
 });
 
 test("localHost: 127.0.0.1 unless the shop URL uses another loopback name (the CLI's console and watcher links use it)", () => {
   assert.equal(localHost({}), '127.0.0.1');
-  assert.equal(localHost({ TURNOVER_PUBLIC_SHOP_URL: 'http://localhost:8080' }), 'localhost');
-  assert.equal(localHost({ TURNOVER_PUBLIC_SHOP_URL: 'http://192.168.1.20:8080' }), '127.0.0.1');
-  assert.equal(localHost({ TURNOVER_PUBLIC_SHOP_URL: 'nonsense' }), '127.0.0.1');
+  assert.equal(localHost({ TURNOUT_PUBLIC_SHOP_URL: 'http://localhost:8080' }), 'localhost');
+  assert.equal(localHost({ TURNOUT_PUBLIC_SHOP_URL: 'http://192.168.1.20:8080' }), '127.0.0.1');
+  assert.equal(localHost({ TURNOUT_PUBLIC_SHOP_URL: 'nonsense' }), '127.0.0.1');
 });
 
 test('judge links: with console hosts, the link for other devices uses the first host (or the shop URL\'s)', () => {
   const ready = judgeLinks('tok', {
-    TURNOVER_CONSOLE_HOSTS: ' 192.168.1.20 , demo.local',
-    TURNOVER_PUBLISH_HOST: '0.0.0.0',
-    TURNOVER_PUBLIC_SHOP_URL: 'http://192.168.1.20:8080',
+    TURNOUT_CONSOLE_HOSTS: ' 192.168.1.20 , demo.local',
+    TURNOUT_PUBLISH_HOST: '0.0.0.0',
+    TURNOUT_PUBLIC_SHOP_URL: 'http://192.168.1.20:8080',
   });
   assert.deepEqual(ready, [
     'Judge mode: http://127.0.0.1:8090/judge',
     'Judge link for other devices: http://192.168.1.20:8091/judge?key=tok',
     '  On this machine too, open that link: the Shop tab needs the console and the shop on the same hostname.',
   ]);
-  const byShop = judgeLinks('tok', { TURNOVER_CONSOLE_HOSTS: '192.168.1.20,demo.local', TURNOVER_PUBLISH_HOST: '0.0.0.0', TURNOVER_PUBLIC_SHOP_URL: 'http://demo.local:8080' });
+  const byShop = judgeLinks('tok', { TURNOUT_CONSOLE_HOSTS: '192.168.1.20,demo.local', TURNOUT_PUBLISH_HOST: '0.0.0.0', TURNOUT_PUBLIC_SHOP_URL: 'http://demo.local:8080' });
   assert.equal(byShop[1], 'Judge link for other devices: http://demo.local:8091/judge?key=tok');
 
   // Hosts set, but published on loopback and the shop URL still local: say what else is needed.
-  const half = judgeLinks('tok', { TURNOVER_CONSOLE_HOSTS: '192.168.1.20' });
+  const half = judgeLinks('tok', { TURNOUT_CONSOLE_HOSTS: '192.168.1.20' });
   assert.equal(half[1], 'Judge link for other devices: http://192.168.1.20:8091/judge?key=tok');
-  assert.match(half[2]!, /TURNOVER_PUBLISH_HOST=0\.0\.0\.0/);
-  assert.match(half[3]!, /TURNOVER_PUBLIC_SHOP_URL=http:\/\/192\.168\.1\.20:8080/);
+  assert.match(half[2]!, /TURNOUT_PUBLISH_HOST=0\.0\.0\.0/);
+  assert.match(half[3]!, /TURNOUT_PUBLIC_SHOP_URL=http:\/\/192\.168\.1\.20:8080/);
 });
 
 test('init prints the judge links from the settings it is given', async () => {
@@ -353,9 +353,9 @@ test('init prints the judge links from the settings it is given', async () => {
     adminKey: undefined,
     envFile,
     log: (l) => lines.push(l),
-    env: { TURNOVER_CONSOLE_HOSTS: '10.0.0.5', TURNOVER_PUBLISH_HOST: '0.0.0.0', TURNOVER_PUBLIC_SHOP_URL: 'http://10.0.0.5:8080' },
+    env: { TURNOUT_CONSOLE_HOSTS: '10.0.0.5', TURNOUT_PUBLISH_HOST: '0.0.0.0', TURNOUT_PUBLIC_SHOP_URL: 'http://10.0.0.5:8080' },
   });
-  const token = readEnv().TURNOVER_JUDGE_TOKEN!;
+  const token = readEnv().TURNOUT_JUDGE_TOKEN!;
   assert.ok(token);
   assert.ok(lines.includes('Judge mode: http://127.0.0.1:8090/judge'));
   assert.ok(lines.includes(`Judge link for other devices: http://10.0.0.5:8091/judge?key=${token}`));
@@ -402,12 +402,12 @@ test('--project reuses your project and environment: no organisation, project, e
   assert.equal(state.organisations.length, 1);
   assert.equal(state.projects.length, 2);
   assert.equal(state.environments.length, 2);
-  // Only Turnover's own things, in that environment.
+  // Only Turnout's own things, in that environment.
   assert.deepEqual(state.features.map((f) => [f.name, f.project]), [['dark_mode', 901], ['landing_release', 901]]);
   assert.equal(state.serverKeys[0]!.envKey, 'envProd');
   assert.equal(state.experiments[0]!.envKey, 'envProd');
   assert.equal(state.experiments[0]!.experiment_rollout!.rollout_percentage, 40, 'traffic from the config');
-  assert.equal(readEnv().TURNOVER_EXPERIMENT, `envProd/${state.experiments[0]!.id}`);
+  assert.equal(readEnv().TURNOUT_EXPERIMENT, `envProd/${state.experiments[0]!.id}`);
   // The other flag is never touched.
   assert.equal(state.requests.filter((r) => r.method !== 'GET' && r.path.includes('/features/905/')).length, 0);
 });
@@ -474,7 +474,7 @@ test('--project mints a server key unless the one given reads that environment',
   const state = existingFlagsmith();
   state.serverKeys.push({ envKey: 'envDev', key: 'ser.dev', name: 'other' });
   await runByo(state, 'Web', 'Production', 'ser.dev');
-  assert.equal(readEnv().TURNOVER_SERVER_KEY, state.serverKeys[1]!.key);
+  assert.equal(readEnv().TURNOUT_SERVER_KEY, state.serverKeys[1]!.key);
   assert.equal(state.serverKeys[1]!.envKey, 'envProd');
 });
 
@@ -482,7 +482,7 @@ test('a secondary metric added to the config later is created and attached to th
   const state = emptyState();
   await run(state);
   const first = readEnv();
-  process.env.TURNOVER_PREVIEW_TOKEN = first.TURNOVER_PREVIEW_TOKEN;
+  process.env.TURNOUT_PREVIEW_TOKEN = first.TURNOUT_PREVIEW_TOKEN;
   const withFunnel = parseConfig({
     flag: 'shop_release',
     releases: { 'shop:1.4': 'http://shop-1-4:8080', 'shop:1.5': 'http://shop-1-5:8080' },
@@ -491,7 +491,7 @@ test('a secondary metric added to the config later is created and attached to th
     guardrails: ['doc_latency_ms', 'server_error'],
   });
   const lines: string[] = [];
-  await init({ apiUrl: fake!.apiUrl, dashboardUrl: 'http://x', config: withFunnel, adminKey: first.TURNOVER_ADMIN_KEY, serverKey: first.TURNOVER_SERVER_KEY, envFile, log: (l) => lines.push(l) });
+  await init({ apiUrl: fake!.apiUrl, dashboardUrl: 'http://x', config: withFunnel, adminKey: first.TURNOUT_ADMIN_KEY, serverKey: first.TURNOUT_SERVER_KEY, envFile, log: (l) => lines.push(l) });
   const metric = state.metrics.find((m) => m.name === 'add_to_cart')!;
   assert.deepEqual([metric.aggregation, metric.direction], ['occurrence', 'up']);
   const experiment = state.experiments[0]!;

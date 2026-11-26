@@ -1,15 +1,15 @@
 @echo off
 rem ===========================================================================================================
-rem  Turnover: start everything and open judge mode. (Set TURNOVER_NO_BROWSER=1 to skip opening the browser.)
+rem  Turnout: start everything and open judge mode. (Set TURNOUT_NO_BROWSER=1 to skip opening the browser.)
 rem
-rem    turnover.bat            start Flagsmith, set it up (first run), start Turnover and the shop, check the setup,
+rem    turnout.bat            start Flagsmith, set it up (first run), start Turnout and the shop, check the setup,
 rem                              open judge mode
-rem    turnover.bat demo       the same, then send 1,500 simulated visitors through the proxy
-rem    turnover.bat status     show what's running, check the setup, and the links
-rem    turnover.bat stop       stop every container (Flagsmith's data and the keys are kept)
-rem    turnover.bat reset      wipe Flagsmith's data, the ledger and the keys, then start from scratch
-rem    turnover.bat reset /yes the same without asking (for scripts and tests)
-rem    turnover.bat server <hostname>   server mode: write TURNOVER_MODE=server and the hostname into .env,
+rem    turnout.bat demo       the same, then send 1,500 simulated visitors through the proxy
+rem    turnout.bat status     show what's running, check the setup, and the links
+rem    turnout.bat stop       stop every container (Flagsmith's data and the keys are kept)
+rem    turnout.bat reset      wipe Flagsmith's data, the ledger and the keys, then start from scratch
+rem    turnout.bat reset /yes the same without asking (for scripts and tests)
+rem    turnout.bat server <hostname>   server mode: write TURNOUT_MODE=server and the hostname into .env,
 rem                              generate Flagsmith's secrets, then start behind Caddy with HTTPS on that hostname.
 rem                              Every command after that adds -f compose.server.yml (docs\SETUP.md, "Running on a server")
 rem
@@ -31,11 +31,11 @@ set "ASSUME_YES="
 set "SERVER_HOST="
 if /i "%ACTION%"=="server" set "SERVER_HOST=%~2"
 if defined SERVER_HOST if "!SERVER_HOST:~0,1!"=="-" (
-  echo Unknown option "%~2" for server: give the hostname, e.g. turnover.bat server turnover.example.com
+  echo Unknown option "%~2" for server: give the hostname, e.g. turnout.bat server turnout.example.com
   goto :usage_error
 )
 if defined SERVER_HOST if "!SERVER_HOST:~0,1!"=="/" (
-  echo Unknown option "%~2" for server: give the hostname, e.g. turnover.bat server turnover.example.com
+  echo Unknown option "%~2" for server: give the hostname, e.g. turnout.bat server turnout.example.com
   goto :usage_error
 )
 if not "%~2"=="" if not defined SERVER_HOST (
@@ -55,7 +55,7 @@ if not "%~3"=="" (
 )
 
 echo.
-echo  Turnover
+echo  Turnout
 echo  ==========
 
 rem ---- Docker must be installed and running -----------------------------------------------------------------
@@ -80,7 +80,7 @@ if errorlevel 1 (
   goto :failed
 )
 if exist ".env\" (
-  echo  .env is a folder ^(Docker creates one when the file is missing^). Delete it and run turnover.bat again.
+  echo  .env is a folder ^(Docker creates one when the file is missing^). Delete it and run turnout.bat again.
   goto :failed
 )
 if not exist ".env" (
@@ -90,13 +90,13 @@ if not exist ".env" (
 call :pick_host
 call :pick_mode
 if defined SY_SERVER (
-  call :env_get TURNOVER_HOSTNAME
+  call :env_get TURNOUT_HOSTNAME
   echo.
   echo  Server mode: !SY_VALUE! ^(compose.yaml + compose.server.yml^)
   rem Placeholder Flagsmith secrets or tokens: refuse before anything public starts. Names only, never values.
   !DC! run --rm --build --no-deps cli server-check
   if errorlevel 1 (
-    echo  Fix the settings above in .env ^(turnover.bat server ^<hostname^> writes random Flagsmith secrets^).
+    echo  Fix the settings above in .env ^(turnout.bat server ^<hostname^> writes random Flagsmith secrets^).
     goto :failed
   )
 )
@@ -115,7 +115,7 @@ echo        Safe to repeat: on an instance that's already set up, it only checks
 !DC! run --rm --build cli init
 if errorlevel 1 (
   echo  init failed: see the message above.
-  echo  If this Flagsmith already has users, put an Organisation API key in .env as TURNOVER_ADMIN_KEY.
+  echo  If this Flagsmith already has users, put an Organisation API key in .env as TURNOUT_ADMIN_KEY.
   goto :failed
 )
 
@@ -128,7 +128,7 @@ if defined SY_SERVER (
 )
 
 echo.
-echo  [3/5] Starting Turnover, the console and the three shop releases...
+echo  [3/5] Starting Turnout, the console and the three shop releases...
 if defined SY_SERVER echo        and Caddy ^(HTTPS; the first certificate can take a minute^)
 !DC! up -d --build --wait
 if errorlevel 1 (
@@ -143,7 +143,7 @@ if /i "%ACTION%"=="demo" (
 )
 
 echo.
-echo  [4/5] Checking that everything is in place ^(turnover doctor^)...
+echo  [4/5] Checking that everything is in place ^(turnout doctor^)...
 call :doctor
 
 echo.
@@ -151,8 +151,8 @@ echo  [5/5] Ready.
 call :links
 rem Never a browser in server mode: a server has no one at its screen.
 if defined SY_SERVER endlocal & exit /b 0
-if not defined TURNOVER_NO_BROWSER echo  Opening judge mode in your browser...
-if not defined TURNOVER_NO_BROWSER start "" "http://!SY_HOST!:8090/judge"
+if not defined TURNOUT_NO_BROWSER echo  Opening judge mode in your browser...
+if not defined TURNOUT_NO_BROWSER start "" "http://!SY_HOST!:8090/judge"
 endlocal & exit /b 0
 
 :status
@@ -164,7 +164,7 @@ rem The setup check mounts .env: without the file, Docker would create it as a f
 set "SY_READY="
 if exist ".env" if not exist ".env\" set "SY_READY=1"
 if defined SY_READY call :doctor
-if not defined SY_READY echo  Not set up yet: run turnover.bat first ^(it creates .env^). Setup check skipped.
+if not defined SY_READY echo  Not set up yet: run turnout.bat first ^(it creates .env^). Setup check skipped.
 call :links
 endlocal & exit /b 0
 
@@ -172,7 +172,7 @@ endlocal & exit /b 0
 echo.
 echo  Stopping every container. Flagsmith's data, the keys in .env and the ledger are kept.
 !DC! --profile tools down
-echo  Stopped. Run turnover.bat to bring it back.
+echo  Stopped. Run turnout.bat to bring it back.
 endlocal & exit /b 0
 
 :reset
@@ -194,7 +194,7 @@ if errorlevel 1 (
   echo  Not reset.
   endlocal & exit /b 1
 )
-if exist ".turnover\" rmdir /s /q ".turnover"
+if exist ".turnout\" rmdir /s /q ".turnout"
 echo  Wiped. Starting from scratch...
 goto :start
 
@@ -209,20 +209,20 @@ if not exist ".env" (
   echo  Created .env from .env.example
 )
 if not defined SERVER_HOST (
-  call :env_get TURNOVER_HOSTNAME
+  call :env_get TURNOUT_HOSTNAME
   set "SERVER_HOST=!SY_VALUE!"
 )
 if not defined SERVER_HOST (
-  echo  Give the hostname: turnover.bat server turnover.example.com
+  echo  Give the hostname: turnout.bat server turnout.example.com
   goto :failed
 )
-call :env_set TURNOVER_MODE server || goto :failed
-call :env_set TURNOVER_HOSTNAME "!SERVER_HOST!" || goto :failed
-call :env_set TURNOVER_PUBLISH_HOST 127.0.0.1 || goto :failed
-call :env_set TURNOVER_PUBLIC_SHOP_URL "https://!SERVER_HOST!" || goto :failed
+call :env_set TURNOUT_MODE server || goto :failed
+call :env_set TURNOUT_HOSTNAME "!SERVER_HOST!" || goto :failed
+call :env_set TURNOUT_PUBLISH_HOST 127.0.0.1 || goto :failed
+call :env_set TURNOUT_PUBLIC_SHOP_URL "https://!SERVER_HOST!" || goto :failed
 rem localhost (a trial, CI) gets Caddy's own CA; a real hostname a public certificate.
-call :env_get TURNOVER_CADDY_TLS
-if /i "!SERVER_HOST!"=="localhost" if not defined SY_VALUE call :env_set TURNOVER_CADDY_TLS "tls internal"
+call :env_get TURNOUT_CADDY_TLS
+if /i "!SERVER_HOST!"=="localhost" if not defined SY_VALUE call :env_set TURNOUT_CADDY_TLS "tls internal"
 rem Only where empty: Postgres keeps the password it was created with, so an existing one is never replaced.
 for %%n in (FLAGSMITH_DJANGO_SECRET_KEY FLAGSMITH_WAREHOUSE_SECRET POSTGRES_PASSWORD) do (
   call :env_get %%n
@@ -231,18 +231,18 @@ for %%n in (FLAGSMITH_DJANGO_SECRET_KEY FLAGSMITH_WAREHOUSE_SECRET POSTGRES_PASS
     echo  Wrote a random %%n to .env
   )
 )
-echo  .env: TURNOVER_MODE=server, TURNOVER_HOSTNAME=!SERVER_HOST!. From now on every command adds compose.server.yml.
+echo  .env: TURNOUT_MODE=server, TURNOUT_HOSTNAME=!SERVER_HOST!. From now on every command adds compose.server.yml.
 goto :start
 
 
 rem ======================================== helpers =========================================================
 
-rem Mode: TURNOVER_MODE in .env. local (default) is the stack as it always was; server adds compose.server.yml
+rem Mode: TURNOUT_MODE in .env. local (default) is the stack as it always was; server adds compose.server.yml
 rem (Caddy, HTTPS, restart policies, random Flagsmith secrets) to every compose command. Same experiment logic.
 :pick_mode
 set "SY_SERVER="
 set "DC=docker compose"
-call :env_get TURNOVER_MODE
+call :env_get TURNOUT_MODE
 if /i "!SY_VALUE!"=="server" (
   set "SY_SERVER=1"
   set "DC=docker compose -f compose.yaml -f compose.server.yml"
@@ -274,18 +274,18 @@ exit /b %errorlevel%
 set "ADMIN_EMAIL="
 for /f "tokens=1,* delims==" %%a in ('findstr /b "FLAGSMITH_ADMIN_EMAIL=" .env 2^>nul') do set "ADMIN_EMAIL=%%b"
 if defined SY_SERVER (
-  call :env_get TURNOVER_HOSTNAME
+  call :env_get TURNOUT_HOSTNAME
   echo.
   echo  ------------------------------------------------------------
   echo   Server mode on !SY_VALUE!
-  echo   Shop         https://!SY_VALUE!/          ^(through Turnover^)
+  echo   Shop         https://!SY_VALUE!/          ^(through Turnout^)
   echo   Judge view   https://!SY_VALUE!/judge     ^(read-only, for anyone^)
   echo   Console, Flagsmith and the full judge mode stay on the server's 127.0.0.1. From your machine:
   echo     ssh -L 8090:127.0.0.1:8090 -L 8000:127.0.0.1:8000 ^<you^>@!SY_VALUE!
   echo     then http://127.0.0.1:8090/judge and http://127.0.0.1:8000
   if defined ADMIN_EMAIL echo   Flagsmith login !ADMIN_EMAIL!, password in .env ^(FLAGSMITH_ADMIN_PASSWORD^)
   echo  ------------------------------------------------------------
-  echo   Stop:   turnover.bat stop        Status:   turnover.bat status
+  echo   Stop:   turnout.bat stop        Status:   turnout.bat status
   echo  ------------------------------------------------------------
   echo.
   exit /b 0
@@ -295,16 +295,16 @@ echo  ------------------------------------------------------------
 echo   Judge mode   http://!SY_HOST!:8090/judge   ^(the whole story, with buttons^)
 echo   Setup check  http://!SY_HOST!:8090/setup   ^(is everything in place?^)
 echo   Console      http://!SY_HOST!:8090
-echo   Shop         http://!SY_HOST!:8080          ^(through Turnover^)
+echo   Shop         http://!SY_HOST!:8080          ^(through Turnout^)
 echo   Flagsmith    http://!SY_HOST!:8000
 if defined ADMIN_EMAIL echo                login !ADMIN_EMAIL!, password in .env ^(FLAGSMITH_ADMIN_PASSWORD^)
 echo  ------------------------------------------------------------
-echo   Stop:   turnover.bat stop        Start over:   turnover.bat reset
+echo   Stop:   turnout.bat stop        Start over:   turnout.bat reset
 echo  ------------------------------------------------------------
 echo.
 exit /b 0
 
-rem turnover doctor: expected against actual for Flagsmith, the keys, the flag, metrics, proxy and shops. Non-fatal.
+rem turnout doctor: expected against actual for Flagsmith, the keys, the flag, metrics, proxy and shops. Non-fatal.
 :doctor
 if defined SY_SERVER (
   rem Restart policies are Docker's, not visible from inside a container: read them here, hand them to doctor.
@@ -312,7 +312,7 @@ if defined SY_SERVER (
   for /f %%i in ('!DC! ps -q') do set "IDS=!IDS! %%i"
   set "POLICIES="
   if defined IDS for /f "delims=" %%p in ('docker inspect -f "{{.Name}}={{.HostConfig.RestartPolicy.Name}}" !IDS!') do set "POLICIES=!POLICIES!%%p,"
-  !DC! run --rm -e "TURNOVER_RESTART_POLICIES=!POLICIES!" cli doctor
+  !DC! run --rm -e "TURNOUT_RESTART_POLICIES=!POLICIES!" cli doctor
   if errorlevel 1 echo  Some checks above are failing ^(FAIL^).
   exit /b 0
 )
@@ -326,7 +326,7 @@ rem hostname and the shop keeps its cookies.
 :pick_host
 set "SY_HOST=127.0.0.1"
 set "SHOP_URL="
-for /f "tokens=1,* delims==" %%a in ('findstr /b "TURNOVER_PUBLIC_SHOP_URL=" .env 2^>nul') do set "SHOP_URL=%%b"
+for /f "tokens=1,* delims==" %%a in ('findstr /b "TURNOUT_PUBLIC_SHOP_URL=" .env 2^>nul') do set "SHOP_URL=%%b"
 if not defined SHOP_URL exit /b 0
 if /i not "!SHOP_URL:~0,16!"=="http://localhost" exit /b 0
 set "SHOP_REST=!SHOP_URL:~16,1!"
@@ -353,7 +353,7 @@ set "DD_EXE="
 if exist "%LOCALAPPDATA%\Programs\DockerDesktop\Docker Desktop.exe" set "DD_EXE=%LOCALAPPDATA%\Programs\DockerDesktop\Docker Desktop.exe"
 if exist "%ProgramFiles%\Docker\Docker\Docker Desktop.exe" set "DD_EXE=%ProgramFiles%\Docker\Docker\Docker Desktop.exe"
 if not defined DD_EXE (
-  echo  Docker isn't running and Docker Desktop wasn't found. Start Docker Desktop, then run turnover.bat again.
+  echo  Docker isn't running and Docker Desktop wasn't found. Start Docker Desktop, then run turnout.bat again.
   exit /b 1
 )
 echo  Starting Docker Desktop (this can take a minute)...
@@ -362,11 +362,11 @@ for /l %%i in (1,1,60) do (
   docker info >nul 2>&1 && (echo  Docker is running. & exit /b 0)
   timeout /t 3 /nobreak >nul
 )
-echo  Docker Desktop didn't start within 3 minutes. Open it, accept any prompts, then run turnover.bat again.
+echo  Docker Desktop didn't start within 3 minutes. Open it, accept any prompts, then run turnout.bat again.
 exit /b 1
 
 :usage
-echo Usage: turnover.bat [start ^| demo ^| status ^| stop ^| reset [/yes] ^| server ^<hostname^>]
+echo Usage: turnout.bat [start ^| demo ^| status ^| stop ^| reset [/yes] ^| server ^<hostname^>]
 echo   start   (default) start everything, check the setup and open judge mode
 echo   demo    start, then send 1,500 simulated visitors
 echo   status  show what's running, check the setup, and the links
@@ -376,7 +376,7 @@ echo   server  server mode on ^<hostname^>: HTTPS through Caddy, read-only judge
 endlocal & exit /b 0
 
 :usage_error
-echo Usage: turnover.bat [start ^| demo ^| status ^| stop ^| reset [/yes] ^| server ^<hostname^>]
+echo Usage: turnout.bat [start ^| demo ^| status ^| stop ^| reset [/yes] ^| server ^<hostname^>]
 goto :failed
 
 :failed

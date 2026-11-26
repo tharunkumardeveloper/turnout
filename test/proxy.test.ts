@@ -152,22 +152,22 @@ test('reports the variant only when asked to debug', async () => {
   const id = '55555555-5555-4555-8555-555555555555';
   flags.variants.set(id, 'v2');
   const plain = await page(`${ID_COOKIE}=${id}`);
-  assert.equal(plain.headers.get('x-turnover-variant'), null);
-  const debug = await fetch(`${base}/`, { headers: { accept: 'text/html', cookie: `${ID_COOKIE}=${id}`, 'x-turnover-debug': 'dbg' } });
-  assert.equal(debug.headers.get('x-turnover-variant'), 'v2');
-  assert.equal(debug.headers.get('x-turnover-enrolled'), 'true');
+  assert.equal(plain.headers.get('x-turnout-variant'), null);
+  const debug = await fetch(`${base}/`, { headers: { accept: 'text/html', cookie: `${ID_COOKIE}=${id}`, 'x-turnout-debug': 'dbg' } });
+  assert.equal(debug.headers.get('x-turnout-variant'), 'v2');
+  assert.equal(debug.headers.get('x-turnout-enrolled'), 'true');
 });
 
-test('/__turnover/receipt answers from the proxy, never the app, and records no exposure', async () => {
+test('/__turnout/receipt answers from the proxy, never the app, and records no exposure', async () => {
   const id = '66666666-6666-4666-8666-666666666666';
   flags.variants.set(id, 'v2');
   const before = flags.exposures.length;
-  const res = await fetch(`${base}/__turnover/receipt`, { headers: { cookie: `${ID_COOKIE}=${id}` } });
+  const res = await fetch(`${base}/__turnout/receipt`, { headers: { cookie: `${ID_COOKIE}=${id}` } });
   assert.equal(res.status, 200);
   assert.deepEqual(await res.json(), { variant: 'v2', release: 'shop:1.5', enrolled: true, receipt: null });
   assert.equal(flags.exposures.length, before);
-  assert.equal((await fetch(`${base}/__turnover/receipt`)).status, 404); // no cookie yet
-  assert.equal((await fetch(`${base}/__turnover/anything`)).status, 404);
+  assert.equal((await fetch(`${base}/__turnout/receipt`)).status, 404); // no cookie yet
+  assert.equal((await fetch(`${base}/__turnout/anything`)).status, 404);
 });
 
 test('a flag value outside the allowlist only ever reaches the fallback release', async () => {
@@ -180,26 +180,26 @@ test('a flag value outside the allowlist only ever reaches the fallback release'
 });
 
 test('a preview link puts the browser in the preview segment; a wrong token does not', async () => {
-  const wrong = await fetch(`${base}/__turnover/preview?token=nope`, { redirect: 'manual' });
+  const wrong = await fetch(`${base}/__turnout/preview?token=nope`, { redirect: 'manual' });
   assert.equal(wrong.status, 403);
 
-  const join = await fetch(`${base}/__turnover/preview?token=tok123`, { redirect: 'manual' });
+  const join = await fetch(`${base}/__turnout/preview?token=tok123`, { redirect: 'manual' });
   assert.equal(join.status, 303);
   const cookie = join.headers.get('set-cookie') ?? '';
-  assert.match(cookie, /^tv_preview=[A-Za-z0-9_-]{43}; Path=\/; .*HttpOnly/);
+  assert.match(cookie, /^tn_preview=[A-Za-z0-9_-]{43}; Path=\/; .*HttpOnly/);
   assert.ok(!cookie.includes('tok123'), 'the cookie holds a MAC, never the token');
   const mark = cookie.split(';')[0]!;
 
   const id = '88888888-8888-4888-8888-888888888888';
   await page(`${ID_COOKIE}=${id}; ${mark}`);
   assert.deepEqual(flags.traits.get(id), { preview: 'true' });
-  await page(`${ID_COOKIE}=${id}; tv_preview=tok123`);
+  await page(`${ID_COOKIE}=${id}; tn_preview=tok123`);
   assert.equal(flags.traits.get(id), undefined, 'the raw token is not accepted as a cookie');
-  await fetch(`${base}/__turnover/receipt`, { headers: { cookie: `${ID_COOKIE}=${id}; ${mark}` } });
+  await fetch(`${base}/__turnout/receipt`, { headers: { cookie: `${ID_COOKIE}=${id}; ${mark}` } });
   assert.deepEqual(flags.traits.get(id), { preview: 'true' }, 'the receipt reports what the pages serve');
 
-  const leave = await fetch(`${base}/__turnover/preview/off`, { redirect: 'manual' });
-  assert.match(leave.headers.get('set-cookie') ?? '', /^tv_preview=; .*Max-Age=0/);
+  const leave = await fetch(`${base}/__turnout/preview/off`, { redirect: 'manual' });
+  assert.match(leave.headers.get('set-cookie') ?? '', /^tn_preview=; .*Max-Age=0/);
 });
 
 test('a secondary metric (add_to_cart) is tracked from its HTTP rule, and is not a conversion', async () => {
@@ -216,13 +216,13 @@ test('the release request header reaches the app only for preview browsers and d
   const id = 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb';
   const echo = async (headers: Record<string, string>) =>
     (await (await fetch(`${base}/echo`, { headers: { cookie: `${ID_COOKIE}=${id}`, ...headers } })).json()) as Record<string, string>;
-  assert.equal((await echo({}))['x-turnover-release'], undefined);
-  assert.equal((await echo({ 'x-turnover-release': 'spoofed' }))['x-turnover-release'], undefined, 'a client copy is stripped');
-  assert.equal((await echo({ 'x-turnover-debug': 'dbg' }))['x-turnover-release'], 'shop:1.4');
-  const join = await fetch(`${base}/__turnover/preview?token=tok123`, { redirect: 'manual' });
+  assert.equal((await echo({}))['x-turnout-release'], undefined);
+  assert.equal((await echo({ 'x-turnout-release': 'spoofed' }))['x-turnout-release'], undefined, 'a client copy is stripped');
+  assert.equal((await echo({ 'x-turnout-debug': 'dbg' }))['x-turnout-release'], 'shop:1.4');
+  const join = await fetch(`${base}/__turnout/preview?token=tok123`, { redirect: 'manual' });
   const mark = (join.headers.get('set-cookie') ?? '').split(';')[0]!;
   const res = await fetch(`${base}/echo`, { headers: { cookie: `${ID_COOKIE}=${id}; ${mark}` } });
-  assert.equal(((await res.json()) as Record<string, string>)['x-turnover-release'], 'shop:1.4');
+  assert.equal(((await res.json()) as Record<string, string>)['x-turnout-release'], 'shop:1.4');
 });
 
 test('every proxied request reaches the traffic feed', () => {
@@ -231,13 +231,13 @@ test('every proxied request reaches the traffic feed', () => {
 });
 
 test('the health endpoint probes each release container only for the debug token', async () => {
-  const plain: any = await (await fetch(`${base}/__turnover/health`)).json();
+  const plain: any = await (await fetch(`${base}/__turnout/health`)).json();
   assert.equal(plain.ok, true);
   assert.equal(plain.upstreams, undefined, 'a public request never fans out to the apps');
-  const wrong: any = await (await fetch(`${base}/__turnover/health`, { headers: { 'x-turnover-debug': 'nope' } })).json();
+  const wrong: any = await (await fetch(`${base}/__turnout/health`, { headers: { 'x-turnout-debug': 'nope' } })).json();
   assert.equal(wrong.upstreams, undefined);
 
-  const res = await fetch(`${base}/__turnover/health`, { headers: { 'x-turnover-debug': 'dbg' } });
+  const res = await fetch(`${base}/__turnout/health`, { headers: { 'x-turnout-debug': 'dbg' } });
   const body: any = await res.json();
   assert.deepEqual(Object.keys(body.upstreams).sort(), ['shop:1.4', 'shop:1.5']);
   for (const probe of Object.values(body.upstreams) as { ok: boolean; status: number; ms: number }[]) {
@@ -259,7 +259,7 @@ test('a release container that is down is reported, not thrown', async () => {
   const p = createProxy({ config, flags, debugToken: 'dbg', log: () => {}, warn: () => {} });
   const pBase = await listen(p);
   try {
-    const body: any = await (await fetch(`${pBase}/__turnover/health`, { headers: { 'x-turnover-debug': 'dbg' } })).json();
+    const body: any = await (await fetch(`${pBase}/__turnout/health`, { headers: { 'x-turnout-debug': 'dbg' } })).json();
     assert.equal(body.upstreams['shop:1.4'].ok, false);
     assert.equal(body.upstreams['shop:1.4'].error, 'ECONNREFUSED');
   } finally {

@@ -1,5 +1,5 @@
 // Experiment Doctor: sanity checks on how traffic and events reach a Flagsmith experiment, for any Flagsmith
-// Experimentation user (with or without the Turnover proxy). Read-only, Organisation API key. None of these checks
+// Experimentation user (with or without the Turnout proxy). Read-only, Organisation API key. None of these checks
 // say which arm is better; Flagsmith's results do that. They say whether the data feeding the results looks broken.
 import type { AdminClient } from '../flagsmith/admin.ts';
 import { CONTROL, variantKey, type ExperimentDetail, type Results } from '../flagsmith/experiments.ts';

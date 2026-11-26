@@ -1,6 +1,6 @@
-// Server mode (TURNOVER_MODE=server): the same Turnover, published on a public hostname behind Caddy (compose.server.yml).
+// Server mode (TURNOUT_MODE=server): the same Turnout, published on a public hostname behind Caddy (compose.server.yml).
 // Nothing here changes experiment logic. It holds what server mode adds on top of local mode:
-//   - serverSecretProblems(): the start-up refusal (placeholder Flagsmith secrets or tokens), used by `turnover server-check`
+//   - serverSecretProblems(): the start-up refusal (placeholder Flagsmith secrets or tokens), used by `turnout server-check`
 //     and by doctor. It names a setting and what's wrong with it, never its value.
 //   - gatherServerFacts() / evaluateServer(): doctor's server-only checks (HTTPS and its certificate, Secure cookies,
 //     ports that must stay private, secrets, restart policies). Local mode never runs them.
@@ -10,12 +10,12 @@ import tls from 'node:tls';
 import type { CheckStatus, DoctorCheck } from './commands/doctor.ts';
 
 export type Mode = 'local' | 'server';
-export const modeOf = (env: NodeJS.ProcessEnv): Mode => (env.TURNOVER_MODE?.trim().toLowerCase() === 'server' ? 'server' : 'local');
+export const modeOf = (env: NodeJS.ProcessEnv): Mode => (env.TURNOUT_MODE?.trim().toLowerCase() === 'server' ? 'server' : 'local');
 
-// The secrets compose.server.yml hands to Flagsmith and Postgres (turnover.sh server writes random ones).
+// The secrets compose.server.yml hands to Flagsmith and Postgres (turnout.sh server writes random ones).
 export const SERVER_SECRETS = ['FLAGSMITH_DJANGO_SECRET_KEY', 'FLAGSMITH_WAREHOUSE_SECRET', 'POSTGRES_PASSWORD'] as const;
 // Written by init. Before init they are empty, which is fine; a placeholder never is.
-export const SERVER_TOKENS = ['TURNOVER_JUDGE_TOKEN', 'TURNOVER_PREVIEW_TOKEN'] as const;
+export const SERVER_TOKENS = ['TURNOUT_JUDGE_TOKEN', 'TURNOUT_PREVIEW_TOKEN'] as const;
 // The ports that stay on 127.0.0.1 in server mode (Flagsmith, the proxy, the console and its device port).
 export const PRIVATE_PORTS = [8000, 8080, 8090, 8091] as const;
 const MIN_SECRET_LENGTH = 16;
@@ -40,7 +40,7 @@ export function hostnameProblem(hostname: string | undefined): string | null {
   const h = (hostname ?? '').trim().toLowerCase();
   if (!h) return 'empty';
   if (h === 'localhost') return null; // CI and trying it out: Caddy's internal certificate
-  if (!/^[a-z0-9]([a-z0-9-]*[a-z0-9])?(\.[a-z0-9]([a-z0-9-]*[a-z0-9])?)+$/.test(h)) return 'not a hostname (e.g. turnover.example.com, no scheme or port)';
+  if (!/^[a-z0-9]([a-z0-9-]*[a-z0-9])?(\.[a-z0-9]([a-z0-9-]*[a-z0-9])?)+$/.test(h)) return 'not a hostname (e.g. turnout.example.com, no scheme or port)';
   if (/^[0-9.]+$/.test(h)) return 'an IP address: use a DNS name that points at this server, so Caddy can get a certificate';
   return null;
 }
@@ -51,8 +51,8 @@ export function hostnameProblem(hostname: string | undefined): string | null {
  */
 export function serverSecretProblems(env: NodeJS.ProcessEnv, afterInit = false): SecretProblem[] {
   const problems: SecretProblem[] = [];
-  const host = hostnameProblem(env.TURNOVER_HOSTNAME);
-  if (host) problems.push({ name: 'TURNOVER_HOSTNAME', problem: host });
+  const host = hostnameProblem(env.TURNOUT_HOSTNAME);
+  if (host) problems.push({ name: 'TURNOUT_HOSTNAME', problem: host });
   for (const name of SERVER_SECRETS) {
     const p = secretProblem(env[name]);
     if (p) problems.push({ name, problem: p });
@@ -62,9 +62,9 @@ export function serverSecretProblems(env: NodeJS.ProcessEnv, afterInit = false):
     const p = secretProblem(env[name]);
     if (p) problems.push({ name, problem: p });
   }
-  const publish = (env.TURNOVER_PUBLISH_HOST ?? '127.0.0.1').trim();
-  if (publish !== '127.0.0.1') problems.push({ name: 'TURNOVER_PUBLISH_HOST', problem: `"${publish}": server mode publishes through Caddy only, keep 127.0.0.1` });
-  if ((env.TURNOVER_CONSOLE_HOSTS ?? '').trim()) problems.push({ name: 'TURNOVER_CONSOLE_HOSTS', problem: 'set: server mode shows judge mode read-only at https://<hostname>/judge; leave it empty' });
+  const publish = (env.TURNOUT_PUBLISH_HOST ?? '127.0.0.1').trim();
+  if (publish !== '127.0.0.1') problems.push({ name: 'TURNOUT_PUBLISH_HOST', problem: `"${publish}": server mode publishes through Caddy only, keep 127.0.0.1` });
+  if ((env.TURNOUT_CONSOLE_HOSTS ?? '').trim()) problems.push({ name: 'TURNOUT_CONSOLE_HOSTS', problem: 'set: server mode shows judge mode read-only at https://<hostname>/judge; leave it empty' });
   return problems;
 }
 
@@ -72,10 +72,10 @@ export function serverSecretProblems(env: NodeJS.ProcessEnv, afterInit = false):
 
 export type ServerModeOptions = {
   hostname: string;
-  tls: 'public' | 'internal'; // internal: Caddy's own CA (TURNOVER_CADDY_TLS="tls internal", CI and trying it out)
+  tls: 'public' | 'internal'; // internal: Caddy's own CA (TURNOUT_CADDY_TLS="tls internal", CI and trying it out)
   edgeAddress?: string | undefined; // where to reach Caddy from here (Compose: "caddy"); default the hostname
   env: NodeJS.ProcessEnv; // the settings, for the secret checks (values are compared, never reported)
-  restartPolicies?: string | undefined; // "service=policy,…" read from Docker by turnover.sh / turnover.bat
+  restartPolicies?: string | undefined; // "service=policy,…" read from Docker by turnout.sh / turnout.bat
 };
 
 export type TlsFacts = { authorized: boolean; error: string | null; issuer: string | null; validTo: string | null; selfSigned: boolean };
@@ -216,17 +216,17 @@ export function evaluateServer(f: ServerFacts): DoctorCheck[] {
   } else if (f.https.value.authorized) {
     add('HTTPS', 'ok', `${url} answers with a valid certificate`, `valid certificate from ${f.https.value.issuer ?? 'a trusted CA'}, until ${f.https.value.validTo}`);
   } else if (f.tls === 'internal' && f.https.value.selfSigned) {
-    add('HTTPS', 'ok', `${url} answers (Caddy's internal certificate, TURNOVER_CADDY_TLS)`, `self-signed certificate from ${f.https.value.issuer ?? "Caddy's local CA"} (${f.https.value.error}): expected with tls internal, browsers warn`);
+    add('HTTPS', 'ok', `${url} answers (Caddy's internal certificate, TURNOUT_CADDY_TLS)`, `self-signed certificate from ${f.https.value.issuer ?? "Caddy's local CA"} (${f.https.value.error}): expected with tls internal, browsers warn`);
   } else {
     add('HTTPS', 'fail', `${url} answers with a valid certificate`, `certificate not trusted: ${f.https.value.error}`,
       "Caddy couldn't get a public certificate yet: check its logs, DNS for the hostname, and that ports 80 and 443 reach this server.");
   }
 
   if ('error' in f.cookies) add('Secure cookies', 'fail', 'the proxy sets cookies with Secure over HTTPS', f.cookies.error);
-  else if (f.cookies.value.setCookies === 0) add('Secure cookies', 'warn', 'the proxy sets cookies with Secure over HTTPS', `GET / answered HTTP ${f.cookies.value.status} with no cookies`, 'Is the proxy up? docker compose logs turnover');
+  else if (f.cookies.value.setCookies === 0) add('Secure cookies', 'warn', 'the proxy sets cookies with Secure over HTTPS', `GET / answered HTTP ${f.cookies.value.status} with no cookies`, 'Is the proxy up? docker compose logs turnout');
   else {
     const { setCookies, secure } = f.cookies.value;
-    add('Secure cookies', secure === setCookies ? 'ok' : 'fail', 'every cookie marked Secure', `${secure} of ${setCookies} marked Secure`, 'compose.server.yml sets TURNOVER_SECURE_COOKIES=1 on the proxy');
+    add('Secure cookies', secure === setCookies ? 'ok' : 'fail', 'every cookie marked Secure', `${secure} of ${setCookies} marked Secure`, 'compose.server.yml sets TURNOUT_SECURE_COOKIES=1 on the proxy');
   }
 
   if ('error' in f.readOnly) add('Public judge view', 'fail', `${url}/judge refuses actions`, f.readOnly.error);
@@ -239,14 +239,14 @@ export function evaluateServer(f: ServerFacts): DoctorCheck[] {
   const where = f.portsLoopback ? `${f.hostname} (resolves to loopback here, so this only proves the container's own ports: check from another machine)` : f.hostname;
   add('Private ports', open.length ? 'fail' : 'ok', `${f.ports.map((p) => p.port).join(', ')} not reachable on ${where}`,
     open.length ? `reachable: ${open.map((p) => p.port).join(', ')}` : `not reachable (${f.ports.map((p) => `${p.port} ${p.detail}`).join(', ')})`,
-    'Keep TURNOVER_PUBLISH_HOST=127.0.0.1 and reach Flagsmith and the console through an SSH tunnel (docs/SETUP.md, "Running on a server").');
+    'Keep TURNOUT_PUBLISH_HOST=127.0.0.1 and reach Flagsmith and the console through an SSH tunnel (docs/SETUP.md, "Running on a server").');
 
   add('Secrets', f.secrets.length ? 'fail' : 'ok', 'no placeholder secrets or tokens', f.secrets.length ? f.secrets.map((s) => `${s.name} is ${s.problem}`).join('; ') : 'none',
-    'sh turnover.sh server <hostname> writes random Flagsmith secrets; init writes the tokens. Values are never shown here.');
+    'sh turnout.sh server <hostname> writes random Flagsmith secrets; init writes the tokens. Values are never shown here.');
 
   if (!f.restart) {
-    add('Restart policies', 'warn', 'restart: unless-stopped on every service', 'not checked: run from turnover.sh / turnover.bat, which read them from Docker',
-      'sh turnover.sh status (or turnover.bat status)');
+    add('Restart policies', 'warn', 'restart: unless-stopped on every service', 'not checked: run from turnout.sh / turnout.bat, which read them from Docker',
+      'sh turnout.sh status (or turnout.bat status)');
   } else {
     const bad = f.restart.filter((r) => r.policy !== 'unless-stopped' && r.policy !== 'always');
     add('Restart policies', bad.length ? 'fail' : 'ok', 'unless-stopped (or always) on every running service', bad.length ? bad.map((r) => `${r.service}: ${r.policy}`).join(', ') : `${f.restart.length} services, all restart`,

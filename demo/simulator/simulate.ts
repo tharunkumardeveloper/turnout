@@ -1,12 +1,12 @@
 // Labelled, simulated visitors for the demo. Each one gets its own cookie jar, lands on the shop through the
-// Turnover proxy, browses, and with a known probability per variant buys something through the checkout flow
+// Turnout proxy, browses, and with a known probability per variant buys something through the checkout flow
 // of the release it was actually served. Nothing here is evidence: the true rates are inputs, printed next to every
 // result. Variant keys don't name releases (after a release, v2 can be shop:1.6 and control shop:1.5), so the
-// checkout flow follows the x-turnover-release debug header, while rates and byVariant stay keyed by variant.
+// checkout flow follows the x-turnout-release debug header, while rates and byVariant stay keyed by variant.
 import { PRODUCTS } from '../shop/catalog.ts';
 
 export type SimOptions = {
-  target: string; // the proxy, e.g. http://turnover:8080
+  target: string; // the proxy, e.g. http://turnout:8080
   visitors: number;
   rates: Record<string, number>; // true conversion (order) rate per variant key
   // Demo shop funnel: the share of visitors who add to cart, the same on every release. Of those, rate/cartRate place
@@ -17,7 +17,7 @@ export type SimOptions = {
   // Any app: land on /, then (with the variant's rate) send this request; a conversion is a status the rule accepts.
   // Without it, the demo shop's browse-cart-checkout flow.
   goal?: { method: string; path: string; status: string };
-  debugToken?: string; // the proxy's debug token (TURNOVER_PREVIEW_TOKEN): it reveals each visitor's variant and release
+  debugToken?: string; // the proxy's debug token (TURNOUT_PREVIEW_TOKEN): it reveals each visitor's variant and release
   log?: (line: string) => void;
 };
 
@@ -30,7 +30,7 @@ export type SimReport = {
   durationMs: number;
 };
 
-const USER_AGENT = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/131.0 Safari/537.36 TurnoverSimulatedVisitor/1.0';
+const USER_AGENT = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/131.0 Safari/537.36 TurnoutSimulatedVisitor/1.0';
 
 // One independent, repeatable stream per visitor: the seed and the visitor's index, mixed (splitmix32 finaliser).
 export function visitorRandom(seed: number, index: number): () => number {
@@ -65,7 +65,7 @@ class Visitor {
   async request(method: string, path: string, form?: Record<string, string>): Promise<Response> {
     const headers: Record<string, string> = {
       'user-agent': USER_AGENT,
-      'x-turnover-debug': this.debugToken,
+      'x-turnout-debug': this.debugToken,
       accept: 'text/html',
       'sec-fetch-dest': 'document',
     };
@@ -120,8 +120,8 @@ async function visit(
   };
 
   const landing = await page('/');
-  const variant = landing.headers.get('x-turnover-variant') ?? 'control';
-  const release = landing.headers.get('x-turnover-release') ?? 'unknown';
+  const variant = landing.headers.get('x-turnout-variant') ?? 'control';
+  const release = landing.headers.get('x-turnout-release') ?? 'unknown';
   const product = PRODUCTS[Math.floor(random() * PRODUCTS.length)]!;
   await page(`/product/${product.slug}`);
   if (random() < 0.4) await page(`/product/${PRODUCTS[Math.floor(random() * PRODUCTS.length)]!.slug}`);
@@ -173,8 +173,8 @@ async function visitGoal(
   const first = await v.request('GET', '/');
   const landing = await v.request('GET', '/');
   const pageErrors = (first.status >= 500 ? 1 : 0) + (landing.status >= 500 ? 1 : 0);
-  const variant = landing.headers.get('x-turnover-variant') ?? 'control';
-  const release = landing.headers.get('x-turnover-release') ?? 'unknown';
+  const variant = landing.headers.get('x-turnout-variant') ?? 'control';
+  const release = landing.headers.get('x-turnout-release') ?? 'unknown';
   if (random() >= (rates[variant] ?? 0)) return { variant, release, carted: false, ordered: false, ok: true, pageErrors };
   const write = goal.method !== 'GET' && goal.method !== 'HEAD';
   const res = await v.request(goal.method, goalPath(goal.path), write ? { email: 'simulated.visitor@example.com' } : undefined);

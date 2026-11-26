@@ -1,7 +1,7 @@
 // Spikes 7–9 against a real Flagsmith: what do enrolled visitors get after
 //   A) the documented Round 04 (Complete, then update the flag), versus
-//   B) Turnover's Ship winner (pause, default = winner, drain, complete), then a swing-back edit?
-// Run: node spikes/07-round04.ts   (after `turnover init`, Flagsmith on localhost:8000)
+//   B) Turnout's Ship winner (pause, default = winner, drain, complete), then a swing-back edit?
+// Run: node spikes/07-round04.ts   (after `turnout init`, Flagsmith on localhost:8000)
 import { randomUUID } from 'node:crypto';
 import { Flag, Flagsmith } from '@flagsmith/nodejs';
 import { AdminClient, type Environment, type Feature, type MvOption, type Project } from '../src/flagsmith/admin.ts';
@@ -9,9 +9,9 @@ import { Experiments, planShip, runSteps } from '../src/flagsmith/experiments.ts
 
 process.loadEnvFile('.env');
 const API = 'http://localhost:8000/api/v1/';
-const api = new AdminClient(API, { apiKey: process.env.TURNOVER_ADMIN_KEY! });
-const serverKey = process.env.TURNOVER_SERVER_KEY!;
-const project = (await api.list<Project>('/api/v1/projects/')).find((p) => p.name === 'Turnover demo')!;
+const api = new AdminClient(API, { apiKey: process.env.TURNOUT_ADMIN_KEY! });
+const serverKey = process.env.TURNOUT_SERVER_KEY!;
+const project = (await api.list<Project>('/api/v1/projects/')).find((p) => p.name === 'Turnout demo')!;
 const env = (await api.list<Environment>(`/api/v1/environments/?project=${project.id}`))[0]!;
 const metric = (await api.list<{ id: number }>(`/api/v1/environments/${env.api_key}/experiment-metrics/`))[0]!;
 const visitors = Array.from({ length: 300 }, () => randomUUID());
@@ -57,10 +57,10 @@ await api.post(`/api/v1/environments/${env.api_key}/experiments/${a.experiments.
 await futurePatch(a.feature.id, { environment_default: { enabled: true, variants: [{ id: a.v2.id, weight: 100 }] } });
 console.log('   after Complete+edit:', await census(a.name));
 
-console.log('B) Turnover Ship winner (v2), then swing back to control with one flag edit');
-const b = await newExperiment('turnover');
+console.log('B) Turnout Ship winner (v2), then swing back to control with one flag edit');
+const b = await newExperiment('turnout');
 console.log('   while running:      ', await census(b.name));
-await runSteps(b.experiments, await planShip(b.experiments, 'v2', '.turnover/spike-snapshots'), (s) => console.log(`   ${s.status === 'done' ? '✓' : '·'} ${s.title}`));
+await runSteps(b.experiments, await planShip(b.experiments, 'v2', '.turnout/spike-snapshots'), (s) => console.log(`   ${s.status === 'done' ? '✓' : '·'} ${s.title}`));
 console.log('   after Ship:         ', await census(b.name));
 try {
   await futurePatch(b.feature.id, { environment_default: { enabled: true, variants: [{ id: b.v2.id, weight: 0 }] } });

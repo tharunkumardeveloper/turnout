@@ -2,7 +2,7 @@ node_modules/
 .env
 *.log
 coverage/
-.turnover/
+.turnout/
 .tmp/
 
 # Private: idea history, judge panels and scores, and a local copy of Flagsmith's docs (Flagsmith's, not ours)

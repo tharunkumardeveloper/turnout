@@ -83,8 +83,8 @@
     }
   });
 
-  // Release receipt: when a release router (Turnover) sits in front of the shop, it answers
-  // /__turnover/receipt with which release this visitor is on and what happened to their latest event.
+  // Release receipt: when a release router (Turnout) sits in front of the shop, it answers
+  // /__turnout/receipt with which release this visitor is on and what happened to their latest event.
   // Without one the request 404s and the footer line stays hidden.
   var STATUS_TEXT = {
     accepted: 'accepted',
@@ -120,7 +120,7 @@
   function showReceipt() {
     var el = document.querySelector('[data-release-receipt]');
     if (!el || !window.fetch) return;
-    fetch('/__turnover/receipt', { credentials: 'same-origin', headers: { accept: 'application/json' } })
+    fetch('/__turnout/receipt', { credentials: 'same-origin', headers: { accept: 'application/json' } })
       .then(function (res) {
         var type = res.headers.get('content-type') || '';
         if (res.status !== 200 || type.indexOf('json') === -1) return null;
@@ -129,7 +129,7 @@
       .then(function (data) {
         var text = data ? receiptText(data) : '';
         if (!text) return;
-        el.textContent = 'Turnover: ' + text;
+        el.textContent = 'Turnout: ' + text;
         el.hidden = false;
       })
       .catch(function () { /* no router in front: stay hidden */ });

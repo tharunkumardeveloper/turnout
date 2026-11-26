@@ -21,9 +21,9 @@ function environmentDocument(flag: FlagShape, name = 'shop_release') {
     id: 1,
     project: {
       id: 2,
-      name: 'Turnover demo',
+      name: 'Turnout demo',
       hide_disabled_flags: false,
-      organisation: { id: 1, name: 'Turnover', feature_analytics: false, persist_trait_data: true, stop_serving_flags: false },
+      organisation: { id: 1, name: 'Turnout', feature_analytics: false, persist_trait_data: true, stop_serving_flags: false },
       segments: flag.rollout
         ? [
             {

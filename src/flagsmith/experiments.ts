@@ -114,7 +114,7 @@ export function losingGuardrails(
   });
 }
 
-// What Turnover recommends, read off Flagsmith's own inference (it computes everything; this only reads it):
+// What Turnout recommends, read off Flagsmith's own inference (it computes everything; this only reads it):
 // - a treatment losing a guardrail → revert;
 // - the goal's credible interval for the best treatment crossing zero, or its chance to win under 95% → keep running;
 // - the interval wholly on the losing side (chance to win at or under 5%) → revert: control is better;
@@ -181,7 +181,7 @@ export function parseExperimentRef(input: string): ExperimentRef {
 export async function latestExperiment(api: AdminClient, envKey: string, flag: string): Promise<Experiments> {
   const list = await api.list<{ id: number; feature: { name: string } }>(`/api/v1/environments/${envKey}/experiments/`);
   const latest = list.filter((e) => e.feature.name === flag).sort((a, b) => b.id - a.id)[0];
-  if (!latest) throw new Error(`No experiment on "${flag}" yet. Run turnover init.`);
+  if (!latest) throw new Error(`No experiment on "${flag}" yet. Run turnout init.`);
   return new Experiments(api, { envKey, experimentId: latest.id });
 }
 

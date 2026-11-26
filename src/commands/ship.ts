@@ -39,14 +39,14 @@ export async function status(opts: Common & { refresh?: boolean }): Promise<void
   for (const line of recommendationLines(recommend(experiment, results))) log(line);
 }
 
-// Flagsmith's interval on the goal and what Turnover recommends from it: an interval crossing zero isn't a win.
+// Flagsmith's interval on the goal and what Turnout recommends from it: an interval crossing zero isn't a win.
 export function recommendationLines(rec: Recommendation): string[] {
   const call = rec.call === 'ship' ? 'ship' : rec.call === 'revert' ? 'revert' : 'keep running';
   return [
     rec.interval
       ? `Credible interval for ${rec.variant} on the goal: ${formatInterval(rec.interval)}${rec.chanceToWin !== null ? ` (${pct(rec.chanceToWin)} chance to win)` : ''}`
       : 'Credible interval on the goal: not computed yet',
-    `Turnover recommends: ${call} (${rec.reason})`,
+    `Turnout recommends: ${call} (${rec.reason})`,
   ];
 }
 
@@ -71,7 +71,7 @@ async function run(opts: DecisionOptions, action: 'ship' | 'revert', winner: str
     if (!accept && opts.yes) throw new Error('A guardrail is losing. Add --accept-losing-guardrails to ship anyway, or revert.');
     if (!accept) accept = await confirm(RED(`Ship ${winner} even though it's losing on ${losing.map((w) => w.metric).join(', ')}?`));
     if (!accept) {
-      log('Nothing changed. To send everyone back to control instead: turnover revert');
+      log('Nothing changed. To send everyone back to control instead: turnout revert');
       return false;
     }
   }
@@ -119,7 +119,7 @@ export async function ship(opts: DecisionOptions & { winner?: string }): Promise
   const rec = recommend(experiment, results);
   for (const line of recommendationLines(rec)) log(line);
   if (rec.call === 'keep-running' && !opts.yes) {
-    log(RED(`! Turnover recommends keeping the experiment running: ${rec.reason}. An interval crossing zero isn't a win.`));
+    log(RED(`! Turnout recommends keeping the experiment running: ${rec.reason}. An interval crossing zero isn't a win.`));
   }
   if (await run(opts, 'ship', winner, rec.call === 'keep-running' ? 'Ship it anyway, against the recommendation?' : 'Ship it?')) {
     log(`\nEveryone now gets ${winner} from the flag's environment default. Rolling back is an ordinary flag edit.`);

@@ -91,12 +91,12 @@ for (const version of ['1.4', '1.5']) {
       assert.match(html, /role="img" aria-label="Illustration of the Northstar 2P Tent"/);
     });
 
-    test('add to cart stores the cart in the shop_cart cookie, never tv_id', async () => {
+    test('add to cart stores the cart in the shop_cart cookie, never tn_id', async () => {
       const res = await post(`${await base}/cart/add`, { slug: TENT.slug, qty: '2' });
       assert.equal(res.status, 303);
       assert.equal(res.headers.get('location'), `/cart?added=${TENT.slug}`);
       const setCookies = res.headers.getSetCookie();
-      assert.ok(setCookies.every((c) => !c.startsWith('tv_id=')));
+      assert.ok(setCookies.every((c) => !c.startsWith('tn_id=')));
       const cookie = cookieFrom(res, 'shop_cart');
       assert.ok(cookie);
       assert.match(setCookies.join(), /HttpOnly; SameSite=Lax/);
@@ -381,7 +381,7 @@ describe('release receipt footer', () => {
   });
 
   test('without a router in front, the shop answers the receipt path with a plain 404', async () => {
-    const res = await get(`${await SHOP_1_4}/__turnover/receipt`);
+    const res = await get(`${await SHOP_1_4}/__turnout/receipt`);
     assert.equal(res.status, 404);
     assert.doesNotMatch(res.headers.get('content-type') ?? '', /json/);
   });
@@ -389,22 +389,22 @@ describe('release receipt footer', () => {
   test('fetches once, same-origin, and shows an accepted event', async () => {
     const f = await footerFor(json({ variant: 'v2', release: 'shop:1.5', enrolled: true, receipt: { status: 'accepted', at: AT.toISOString(), event: 'order_placed', httpStatus: 202 } }));
     assert.equal(f.calls.length, 1);
-    assert.equal(f.calls[0]![0], '/__turnover/receipt');
+    assert.equal(f.calls[0]![0], '/__turnout/receipt');
     assert.equal(f.calls[0]![1].credentials, 'same-origin');
     assert.equal(f.hidden, false);
-    assert.equal(f.text, "Turnover: You're in v2 (shop:1.5) of a release experiment. Your latest event (order_placed): accepted at 14:03:12.");
+    assert.equal(f.text, "Turnout: You're in v2 (shop:1.5) of a release experiment. Your latest event (order_placed): accepted at 14:03:12.");
   });
 
   test('a non-accepted status is shown plainly, with its HTTP status; ms timestamps work', async () => {
     const f = await footerFor(json({ variant: 'control', release: 'shop:1.4', enrolled: true, receipt: { status: 'store_not_connected', at: AT.getTime(), event: 'doc_latency_ms', httpStatus: 404 } }));
-    assert.equal(f.text, "Turnover: You're in control (shop:1.4) of a release experiment. Your latest event (doc_latency_ms): not stored (no event store connected), HTTP 404 at 14:03:12.");
+    assert.equal(f.text, "Turnout: You're in control (shop:1.4) of a release experiment. Your latest event (doc_latency_ms): not stored (no event store connected), HTTP 404 at 14:03:12.");
     const g = await footerFor(json({ variant: 'v2', release: 'shop:1.6', enrolled: true, receipt: { status: 'not_delivered', at: AT.getTime(), event: 'order_placed', httpStatus: 0 } }));
     assert.match(g.text, /Your latest event \(order_placed\): not delivered at 14:03:12\.$/);
   });
 
   test('no receipt yet, and visitors outside the experiment', async () => {
     const f = await footerFor(json({ variant: 'control', release: null, enrolled: false, receipt: null }));
-    assert.equal(f.text, "Turnover: You're on the default release (not in a release experiment). No events recorded for you yet.");
+    assert.equal(f.text, "Turnout: You're on the default release (not in a release experiment). No events recorded for you yet.");
   });
 
   test('text is set with textContent, never parsed as HTML', async () => {
@@ -436,7 +436,7 @@ describe('frame-ancestors', () => {
     assert.equal((await get(`${base}/`)).headers.get('content-security-policy'), `frame-ancestors ${DEFAULT_FRAME_ANCESTORS}`);
   });
 
-  test('SHOP_FRAME_HOSTS (compose passes TURNOVER_CONSOLE_HOSTS) adds the console on each host, port 8091 (its port for other devices)', async () => {
+  test('SHOP_FRAME_HOSTS (compose passes TURNOUT_CONSOLE_HOSTS) adds the console on each host, port 8091 (its port for other devices)', async () => {
     const env = { SHOP_FRAME_HOSTS: ' 192.168.1.20, Demo.Local ,,[fd00::1],localhost' };
     const want = `${DEFAULT_FRAME_ANCESTORS} http://192.168.1.20:8091 http://demo.local:8091 http://[fd00::1]:8091 http://localhost:8091`;
     assert.equal(frameAncestors(env), want);
@@ -477,7 +477,7 @@ describe('release difference and badge', () => {
   test('the footer badge shows only when the router sets the release header', async () => {
     const fresh = await SHOP_1_5;
     assert.doesNotMatch(await (await get(`${fresh}/`)).text(), /Release 1\.5/);
-    const marked = await fetch(`${fresh}/`, { headers: { accept: 'text/html', 'x-turnover-release': 'shop:1.5' } });
+    const marked = await fetch(`${fresh}/`, { headers: { accept: 'text/html', 'x-turnout-release': 'shop:1.5' } });
     assert.match(await marked.text(), /data-release-badge>Release 1\.5</);
   });
 });

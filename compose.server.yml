@@ -1,23 +1,23 @@
 # Server mode: the same stack on a public hostname, behind Caddy with automatic HTTPS. Used as a second file on every
-# compose command (turnover.sh / turnover.bat do it when .env says TURNOVER_MODE=server):
+# compose command (turnout.sh / turnout.bat do it when .env says TURNOUT_MODE=server):
 #   docker compose -f compose.yaml -f compose.server.yml up -d --build --wait
 # Only networking, secrets and start-up change here: the proxy, the console and the experiment logic are the same.
 #
-#   https://<TURNOVER_HOSTNAME>/        the proxy (your app, through Turnover)
-#   https://<TURNOVER_HOSTNAME>/judge   judge mode, read-only (GET only; the console's public port, deploy/Caddyfile)
+#   https://<TURNOUT_HOSTNAME>/        the proxy (your app, through Turnout)
+#   https://<TURNOUT_HOSTNAME>/judge   judge mode, read-only (GET only; the console's public port, deploy/Caddyfile)
 #   Flagsmith (:8000), the console (:8090) and the proxy's own port (:8080) stay on 127.0.0.1: reach them with an
 #   SSH tunnel (docs/SETUP.md, "Running on a server"). Needs Docker Compose 2.24+ (!override).
 #
-# The ${VAR:?…} values below make Compose refuse to start without them; `turnover server-check` also refuses
+# The ${VAR:?…} values below make Compose refuse to start without them; `turnout server-check` also refuses
 # placeholders ("secret", "password", short values).
 
 x-restart: &restart
   restart: unless-stopped
 
 x-flagsmith-secrets: &flagsmith-secrets
-  DATABASE_URL: postgresql://postgres:${POSTGRES_PASSWORD:?run sh turnover.sh server <hostname> (it writes random secrets)}@postgres:5432/flagsmith
-  DJANGO_SECRET_KEY: ${FLAGSMITH_DJANGO_SECRET_KEY:?run sh turnover.sh server <hostname> (it writes random secrets)}
-  WAREHOUSE_CREDENTIALS_SECRET: ${FLAGSMITH_WAREHOUSE_SECRET:?run sh turnover.sh server <hostname> (it writes random secrets)}
+  DATABASE_URL: postgresql://postgres:${POSTGRES_PASSWORD:?run sh turnout.sh server <hostname> (it writes random secrets)}@postgres:5432/flagsmith
+  DJANGO_SECRET_KEY: ${FLAGSMITH_DJANGO_SECRET_KEY:?run sh turnout.sh server <hostname> (it writes random secrets)}
+  WAREHOUSE_CREDENTIALS_SECRET: ${FLAGSMITH_WAREHOUSE_SECRET:?run sh turnout.sh server <hostname> (it writes random secrets)}
 
 # The shops answer only frames from their own origin: the public judge view is https://<hostname>/judge, same origin.
 x-shop-frames: &shop-frames
@@ -34,34 +34,34 @@ services:
       - 443:443
       - 443:443/udp
     environment:
-      TURNOVER_HOSTNAME: ${TURNOVER_HOSTNAME:?run sh turnover.sh server <hostname>}
+      TURNOUT_HOSTNAME: ${TURNOUT_HOSTNAME:?run sh turnout.sh server <hostname>}
       # Empty: a public certificate (Let's Encrypt / ZeroSSL). "tls internal": Caddy's own CA (CI, trying it out).
-      TURNOVER_CADDY_TLS: ${TURNOVER_CADDY_TLS:-}
+      TURNOUT_CADDY_TLS: ${TURNOUT_CADDY_TLS:-}
     volumes:
       - ./deploy/Caddyfile:/etc/caddy/Caddyfile:ro
       - caddy-data:/data # certificates: keep them, or Let's Encrypt rate limits bite on rebuilds
       - caddy-config:/config
     networks: [edge]
     depends_on:
-      turnover:
+      turnout:
         condition: service_healthy
       console:
         condition: service_started
 
-  turnover:
+  turnout:
     <<: *restart
     environment:
-      TURNOVER_SECURE_COOKIES: '1'
+      TURNOUT_SECURE_COOKIES: '1'
     ports: !override
-      - 127.0.0.1:8080:8080 # whatever TURNOVER_PUBLISH_HOST says: the public way in is Caddy
+      - 127.0.0.1:8080:8080 # whatever TURNOUT_PUBLISH_HOST says: the public way in is Caddy
     networks: [sdk, feed, apps, edge]
 
   console:
     <<: *restart
     environment:
       CONSOLE_PUBLIC_PORT: 8092 # the read-only judge view; Caddy reaches it on the edge network, never published
-      TURNOVER_PUBLIC_SHOP_URL: https://${TURNOVER_HOSTNAME}
-      TURNOVER_CONSOLE_HOSTS: '' # other devices use the public, read-only view
+      TURNOUT_PUBLIC_SHOP_URL: https://${TURNOUT_HOSTNAME}
+      TURNOUT_CONSOLE_HOSTS: '' # other devices use the public, read-only view
     ports: !override
       - 127.0.0.1:8090:8090
       - 127.0.0.1:8091:8091
@@ -70,43 +70,43 @@ services:
   # Doctor's server checks reach Caddy by name on the edge network, with the public hostname as SNI and Host.
   cli:
     environment:
-      TURNOVER_EDGE_ADDRESS: caddy
-      TURNOVER_RESTART_POLICIES: ${TURNOVER_RESTART_POLICIES:-}
+      TURNOUT_EDGE_ADDRESS: caddy
+      TURNOUT_RESTART_POLICIES: ${TURNOUT_RESTART_POLICIES:-}
     networks: [default, feed, edge]
 
   # A small batch of labelled simulated visitors every 5 minutes, so the public judge view has live traffic.
-  # TURNOVER_TRAFFIC_VISITORS=0 turns it off.
+  # TURNOUT_TRAFFIC_VISITORS=0 turns it off.
   traffic:
     build: .
-    image: turnover:local
+    image: turnout:local
     <<: *restart
     entrypoint: ['sh', '-c']
     command:
       - |
         while true; do
-          n=$${TURNOVER_TRAFFIC_VISITORS:-40}
+          n=$${TURNOUT_TRAFFIC_VISITORS:-40}
           if [ "$$n" -gt 0 ] 2>/dev/null; then
             node src/cli.ts demo --visitors "$$n" --concurrency 4 --seed "$$(( $$(date +%s) % 4000000000 ))" || true
           fi
-          sleep "$${TURNOVER_TRAFFIC_INTERVAL:-300}"
+          sleep "$${TURNOUT_TRAFFIC_INTERVAL:-300}"
         done
     environment:
-      TURNOVER_PROXY_URL: http://turnover:8080
-      TURNOVER_PREVIEW_TOKEN: ${TURNOVER_PREVIEW_TOKEN:-} # reads the proxy's routing headers (labelled simulation)
-      TURNOVER_TRAFFIC_VISITORS: ${TURNOVER_TRAFFIC_VISITORS:-40}
-      TURNOVER_TRAFFIC_INTERVAL: ${TURNOVER_TRAFFIC_INTERVAL:-300}
+      TURNOUT_PROXY_URL: http://turnout:8080
+      TURNOUT_PREVIEW_TOKEN: ${TURNOUT_PREVIEW_TOKEN:-} # reads the proxy's routing headers (labelled simulation)
+      TURNOUT_TRAFFIC_VISITORS: ${TURNOUT_TRAFFIC_VISITORS:-40}
+      TURNOUT_TRAFFIC_INTERVAL: ${TURNOUT_TRAFFIC_INTERVAL:-300}
     volumes:
-      - ${TURNOVER_CONFIG_FILE:-./turnover.config.yml}:/app/turnover.config.yml:ro
+      - ${TURNOUT_CONFIG_FILE:-./turnout.config.yml}:/app/turnout.config.yml:ro
     networks: [feed]
     depends_on:
-      turnover:
+      turnout:
         condition: service_healthy
 
   # Flagsmith and its Postgres: random secrets instead of the official file's placeholders, and restart on reboot.
   postgres:
     <<: *restart
     environment:
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?run sh turnover.sh server <hostname> (it writes random secrets)}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?run sh turnout.sh server <hostname> (it writes random secrets)}
   migrate-db:
     restart: on-failure # a one-off: it exits 0 when the migrations are done
     environment: *flagsmith-secrets

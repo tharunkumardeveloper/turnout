@@ -1,7 +1,7 @@
-// Setup check (/setup): turnover doctor's checks from GET /api/doctor, grouped by area, with "Expected → Actual"
+// Setup check (/setup): turnout doctor's checks from GET /api/doctor, grouped by area, with "Expected → Actual"
 // for anything that differs. Every string from the server goes in through textContent.
-const TOKEN = document.querySelector('meta[name="turnover-console"]')?.getAttribute('content') ?? '';
-const TOKEN_HEADER = 'x-turnover-console';
+const TOKEN = document.querySelector('meta[name="turnout-console"]')?.getAttribute('content') ?? '';
+const TOKEN_HEADER = 'x-turnout-console';
 const $ = (id) => /** @type {HTMLElement} */ (document.getElementById(id));
 
 const MARK = { ok: '✓', warn: '!', fail: '✕' };

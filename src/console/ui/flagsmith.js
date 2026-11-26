@@ -2,12 +2,12 @@
 // goes in through textContent, and only http(s) links become hrefs.
 
 const $ = (id) => /** @type {HTMLElement} */ (document.getElementById(id));
-const TOKEN = globalThis.document?.querySelector('meta[name="turnover-console"]')?.getAttribute('content') ?? '';
-const TOKEN_HEADER = 'x-turnover-console';
+const TOKEN = globalThis.document?.querySelector('meta[name="turnout-console"]')?.getAttribute('content') ?? '';
+const TOKEN_HEADER = 'x-turnout-console';
 
 export const GROUPS = [
-  { status: 'used', title: 'Used live', chip: 'Used live', sub: 'Turnover writes to these, or runs on them, during the demo.' },
-  { status: 'used-read-only', title: 'Read only', chip: 'Read only', sub: 'Turnover reads these, or they show what Turnover set somewhere else.' },
+  { status: 'used', title: 'Used live', chip: 'Used live', sub: 'Turnout writes to these, or runs on them, during the demo.' },
+  { status: 'used-read-only', title: 'Read only', chip: 'Read only', sub: 'Turnout reads these, or they show what Turnout set somewhere else.' },
   {
     status: 'not-available-locally',
     title: 'Needs a public endpoint or account',

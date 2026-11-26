@@ -24,7 +24,7 @@ import { createJudge, shared, type JudgeOptions } from './judge.ts';
 export type ConsoleOptions = {
   // A fixed experiment, or a resolver that finds the flag's latest one (so the console follows `release`).
   experiments: Experiments | (() => Promise<Experiments>);
-  feedUrl: string; // the proxy's internal feed, e.g. http://turnover:8081
+  feedUrl: string; // the proxy's internal feed, e.g. http://turnout:8081
   metricsUrl?: string; // Flagsmith's Prometheus endpoint, e.g. http://flagsmith:9100/metrics
   snapshotDir: string;
   ledgerDir: string; // where decide() appends ledger.jsonl and RELEASES.md
@@ -32,13 +32,13 @@ export type ConsoleOptions = {
   github?: { token: string; repository: string }; // also publish each decision to the release's GitHub Release
   // Hostnames besides loopback the console answers (any port), each only with the judge cookie. Needs judgeToken.
   allowedHosts?: string[];
-  judgeToken?: string; // TURNOVER_JUDGE_TOKEN: /judge?key=<it> gives a browser the judge cookie
+  judgeToken?: string; // TURNOUT_JUDGE_TOKEN: /judge?key=<it> gives a browser the judge cookie
   judge?: JudgeOptions; // judge mode's jobs; without it /api/judge/* answers 404
   // Flagsmith's admin login, for the tour's "sign in to Flagsmith" step. The password goes only to loopback pages.
   flagsmithLogin?: { email: string; password?: string };
   watcher?: Watcher; // the Feature Health bridge and the guard: GET/POST /api/guard
   lock?: { busy: boolean }; // pass one to share it with the watcher's guard
-  doctor?: () => Promise<DoctorReport>; // turnover doctor's checks: GET /api/doctor, shown on /setup
+  doctor?: () => Promise<DoctorReport>; // turnout doctor's checks: GET /api/doctor, shown on /setup
   cacheMs?: Partial<CacheTimes>; // how long each shared read is kept; defaults in CACHE_MS
 };
 
@@ -46,20 +46,20 @@ export type ConsoleOptions = {
 // Ship winner, Revert, a results refresh, every judge job and the guard's automatic Revert drop the kept reads.
 export type CacheTimes = {
   state: number; // GET /api/state
-  latest: number; // which experiment is the flag's latest (turnover release in a terminal shows up within this)
+  latest: number; // which experiment is the flag's latest (turnout release in a terminal shows up within this)
   events: number; // Flagsmith's Prometheus event counter
   doctor: number; // GET /api/doctor; ?fresh=1 skips it
 };
 export const CACHE_MS: CacheTimes = { state: 1500, latest: 10_000, events: 1000, doctor: 15_000 };
 
-export const TOKEN_HEADER = 'x-turnover-console';
+export const TOKEN_HEADER = 'x-turnout-console';
 const DEFAULT_HOSTS = ['localhost', '127.0.0.1', '[::1]'];
-export const JUDGE_COOKIE = 'tv_judge';
+export const JUDGE_COOKIE = 'tn_judge';
 const JUDGE_COOKIE_MAX_AGE = 24 * 60 * 60;
 
 // The judge cookie holds a MAC of the judge token, never the token itself.
 export const judgeMark = (judgeToken: string): string =>
-  createHmac('sha256', judgeToken).update('turnover-judge').digest('base64url');
+  createHmac('sha256', judgeToken).update('turnout-judge').digest('base64url');
 const MAX_BODY = 16 * 1024;
 
 const TYPES: Record<string, string> = {
@@ -70,7 +70,7 @@ const TYPES: Record<string, string> = {
 };
 
 // Judge mode shows the setup check and the feature map as tabs (same-origin frames) and the shop through
-// Turnover (frame-src names the shop's origin). Nothing else may frame the console.
+// Turnout (frame-src names the shop's origin). Nothing else may frame the console.
 function securityHeaders(shopUrl: string | undefined): Record<string, string> {
   let shop = '';
   try {
@@ -93,7 +93,7 @@ function securityHeaders(shopUrl: string | undefined): Record<string, string> {
 const otherDevices = new WeakSet<net.Socket>();
 
 // Serve the console to other devices on a second port. Compose publishes the console's main port on 127.0.0.1 only
-// and this one on TURNOVER_PUBLISH_HOST, so the rule for a request comes from the port it arrived on.
+// and this one on TURNOUT_PUBLISH_HOST, so the rule for a request comes from the port it arrived on.
 export function listenForOtherDevices(server: http.Server, port: number, host: string, onListening?: () => void): net.Server {
   const devices = net.createServer((socket) => {
     otherDevices.add(socket);
@@ -144,7 +144,7 @@ export function createConsole(opts: ConsoleOptions): http.Server {
   const remoteHosts = [...allowedHosts].filter((h) => !loopback.has(h));
   if (remoteHosts.length && !opts.judgeToken) {
     throw new Error(
-      `TURNOVER_CONSOLE_HOSTS lists ${remoteHosts.join(', ')}, but TURNOVER_JUDGE_TOKEN is not set. ` +
+      `TURNOUT_CONSOLE_HOSTS lists ${remoteHosts.join(', ')}, but TURNOUT_JUDGE_TOKEN is not set. ` +
         'Other devices need the judge link (/judge?key=<token>): run init to create the token, or remove the hosts.',
     );
   }
@@ -564,17 +564,17 @@ export function sortSnapshots(files: string[]): string[] {
   return [...files].sort((a, b) => at(b).localeCompare(at(a)) || b.localeCompare(a));
 }
 
-const TOKEN_META = '<meta name="turnover-console" content="">';
+const TOKEN_META = '<meta name="turnout-console" content="">';
 // Pages by path; each gets the API token injected.
 const PAGES: Record<string, string> = { '/': 'index.html', '/judge': 'judge.html', '/setup': 'setup.html', '/flagsmith': 'flagsmith.html' };
 
 // The public judge page: the same judge.html, read-only, its assets under /judge/ (Caddy sends only /judge* here, so
-// /style.css and friends stay the app's), and its API calls under /judge/api/ (the page reads turnover-base).
+// /style.css and friends stay the app's), and its API calls under /judge/api/ (the page reads turnout-base).
 function servePublicPage(dir: string, res: http.ServerResponse, token: string): void {
   const html = readFileSync(join(dir, 'judge.html'), 'utf8')
     .replace(
       TOKEN_META,
-      `<meta name="turnover-console" content="${token}"><meta name="turnover-base" content="${PUBLIC_BASE}"><meta name="turnover-readonly" content="1">`,
+      `<meta name="turnout-console" content="${token}"><meta name="turnout-base" content="${PUBLIC_BASE}"><meta name="turnout-readonly" content="1">`,
     )
     .replace(/(href|src)="\/([a-z0-9-]+\.(?:css|js|svg))"/g, `$1="${PUBLIC_BASE}/$2"`);
   res.writeHead(200, { 'content-type': TYPES['.html']!, 'cache-control': 'no-store' });
@@ -594,6 +594,6 @@ function serveStatic(dir: string, pathname: string, res: http.ServerResponse, to
   }
   res.writeHead(200, { 'content-type': TYPES[extname(name)]!, 'cache-control': 'no-store' });
   // The page learns the API token here; only a same-origin page (Host checked above) can read it.
-  if (Object.values(PAGES).includes(name)) res.end(readFileSync(file, 'utf8').replace(TOKEN_META, `<meta name="turnover-console" content="${token}">`));
+  if (Object.values(PAGES).includes(name)) res.end(readFileSync(file, 'utf8').replace(TOKEN_META, `<meta name="turnout-console" content="${token}">`));
   else res.end(readFileSync(file));
 }

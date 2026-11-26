@@ -1,5 +1,5 @@
 {
-  "name": "turnover",
+  "name": "turnout",
   "version": "0.0.0",
   "private": true,
   "description": "Every deploy is a Flagsmith experiment, with zero app code. Ship it or roll it back on the same flag.",
@@ -9,7 +9,7 @@
     "node": ">=24"
   },
   "bin": {
-    "turnover": "src/cli.ts"
+    "turnout": "src/cli.ts"
   },
   "scripts": {
     "start": "node src/cli.ts proxy",
