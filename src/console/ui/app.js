@@ -388,7 +388,10 @@ function renderBanner() {
     ? "Can't reach the Turnout console server."
     : app.error.kind === 'token'
       ? 'The console server restarted. Reload this page to keep using it.'
-      : `Flagsmith didn't answer (${app.error.message}).`;
+      : /^Your app's console (didn't answer|isn't running)/.test(String(app.error.message))
+        // Your app's test isn't running (Try it restarted, or nothing built yet): say that, not "Flagsmith didn't answer".
+        ? "Your app's test isn't running here right now. Open Try it with your app and build it again."
+        : `Flagsmith didn't answer (${app.error.message}).`;
   const since = app.lastOk ? ` Showing the last good state, from ${fmtTime(app.lastOk)}.` : '';
   banner.textContent = `${what}${since} Retrying every 5 s.`;
   banner.hidden = false;

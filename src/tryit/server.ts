@@ -431,7 +431,7 @@ export function startTryit(o: TryitOptions) {
     const env = await api.get<{ project: number }>(`/api/v1/environments/${o.envKey}/`);
     await runInit({
       apiUrl: o.apiUrl, dashboardUrl: o.dashboardUrl, config: initConfig, adminKey: o.adminKey, serverKey: o.serverKey,
-      envFile: join(o.stateDir, 'init.env'), project: String(env.project), environment: o.envKey, log: (l) => note(l, 'Flagsmith'),
+      envFile: join(o.stateDir, 'init.env'), project: String(env.project), environment: o.envKey, log: (l) => { if (!/^Guided demo/.test(l)) note(l, 'Flagsmith'); }, // init's guided-demo links aren't about your app
     });
     // The proxy routes only the versions built now.
     const config = parseConfig({ ...raw, releases: Object.fromEntries(releases.map((l) => [l, upstream[l]!])) });
