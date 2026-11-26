@@ -1,5 +1,5 @@
 // Ridgeline Supply Co., the demo shop, shipped as two releases from one codebase:
-//   1.4  classic checkout: cart -> /checkout/details -> /checkout/payment -> POST /checkout (blue theme)
+//   1.4  classic 3-step checkout ("Step 1 of 3"): cart -> /checkout/details -> /checkout/payment -> POST /checkout (blue theme)
 //   1.5  one-page checkout on /cart, express add-to-cart on the catalog (green theme)
 // Both releases place the order with POST /checkout, answering 200 with an order number, or 422 with the form.
 //
@@ -47,6 +47,7 @@ export type ShopOptions = {
   frameAncestors?: string; // the CSP frame-ancestors sources; default DEFAULT_FRAME_ANCESTORS
 };
 
+export const RELEASE_HEADER = 'x-switchyard-release';
 const MAX_BODY_BYTES = 32 * 1024;
 // Who may show the shop in a frame: the Switchyard console's judge tour on this machine (port 8090).
 export const DEFAULT_FRAME_ANCESTORS = "'self' http://localhost:8090 http://127.0.0.1:8090";
@@ -83,7 +84,7 @@ function loadAssets(): Map<string, Asset> {
 
 export function createShop(options: ShopOptions = {}): http.Server {
   const version = options.version ?? '1.4';
-  const release: Release = { version, onePage: version !== '1.4' };
+  const base: Release = { version, onePage: version !== '1.4' };
   const delayMs = Math.max(0, options.delayMs ?? 0);
   const errorRate = Math.min(1, Math.max(0, options.errorRate ?? 0));
   const random = options.random ?? Math.random;
@@ -97,6 +98,9 @@ export function createShop(options: ShopOptions = {}): http.Server {
     const path = url.pathname;
     const method = req.method ?? 'GET';
     const isRead = method === 'GET' || method === 'HEAD';
+    // A release router in front (Switchyard) sets this request header only for preview browsers and debug requests,
+    // and drops any copy a visitor sends; then the footer shows "Release 1.5"..
+    const release: Release = req.headers[RELEASE_HEADER] ? { ...base, badge: true } : base;
 
     if (path === '/health') {
       if (!isRead) return notAllowed(res, 'GET, HEAD');
@@ -229,7 +233,7 @@ export function createShop(options: ShopOptions = {}): http.Server {
   return http.createServer((req, res) => {
     handle(req, res).catch((err: unknown) => {
       console.error('shop: request failed', err);
-      if (!res.headersSent) html(res, 500, errorPage(release));
+      if (!res.headersSent) html(res, 500, errorPage(base));
       else res.destroy();
     });
   });

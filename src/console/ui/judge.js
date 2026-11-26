@@ -24,10 +24,22 @@ const $ = (id) => /** @type {HTMLElement} */ (document.getElementById(id));
 // The per-boot token the server put in the page. Every /api/* call carries it; without it the server refuses.
 const TOKEN = document.querySelector('meta[name="switchyard-console"]')?.getAttribute('content') ?? '';
 const TOKEN_HEADER = 'x-switchyard-console';
+// Server mode's public view (/judge on the server's hostname): the API lives under /judge/api/, every action is refused.
+const BASE = document.querySelector('meta[name="switchyard-base"]')?.getAttribute('content') ?? '';
+const READONLY = document.querySelector('meta[name="switchyard-readonly"]') !== null;
+const READONLY_TEXT = 'This is the public, read-only view. Actions run only from the console on the server.';
+if (READONLY) {
+  document.body.classList.add('is-readonly');
+  // The setup check and the feature map are the console's, not public: drop their tabs.
+  for (const tab of ['map', 'setup']) {
+    document.querySelector(`.tab[data-tab="${tab}"]`)?.remove();
+    document.getElementById(`tab-${tab}`)?.remove();
+  }
+}
 
 /** fetch() for the console API, with the token header added. */
 function api(path, init = {}) {
-  return fetch(path, { ...init, headers: { ...(init.headers ?? {}), [TOKEN_HEADER]: TOKEN } });
+  return fetch(BASE + path, { ...init, headers: { ...(init.headers ?? {}), [TOKEN_HEADER]: TOKEN } });
 }
 
 /** Small element builder; strings become text nodes, never HTML. */
@@ -256,6 +268,11 @@ function startJobPoll() {
 
 async function run(action, payload = {}) {
   if (busy() || !ui.state) return;
+  if (READONLY) {
+    ui.runError = READONLY_TEXT;
+    renderStage(ui.state);
+    return;
+  }
   ui.runError = null;
   ui.posting = true;
   renderStage(ui.state);
@@ -1205,7 +1222,7 @@ function setFeed(state, text) {
 function connectFeed() {
   clearTimeout(feedTimer);
   if (source || document.hidden || ui.error?.kind === 'expired') return;
-  source = new EventSource(`/api/traffic?token=${encodeURIComponent(TOKEN)}`); // EventSource can't set headers
+  source = new EventSource(`${BASE}/api/traffic?token=${encodeURIComponent(TOKEN)}`); // EventSource can't set headers
   source.onopen = () => {
     feedBackoff = 1000;
     setFeed('ok', 'live');

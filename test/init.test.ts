@@ -475,3 +475,25 @@ test('--project mints a server key unless the one given reads that environment',
   assert.equal(readEnv().SWITCHYARD_SERVER_KEY, state.serverKeys[1]!.key);
   assert.equal(state.serverKeys[1]!.envKey, 'envProd');
 });
+
+test('a secondary metric added to the config later is created and attached to the running experiment', async () => {
+  const state = emptyState();
+  await run(state);
+  const first = readEnv();
+  process.env.SWITCHYARD_PREVIEW_TOKEN = first.SWITCHYARD_PREVIEW_TOKEN;
+  const withFunnel = parseConfig({
+    flag: 'shop_release',
+    releases: { 'shop:1.4': 'http://shop-1-4:8080', 'shop:1.5': 'http://shop-1-5:8080' },
+    goal: { event: 'order_placed', when: { method: 'POST', path: '/checkout', status: '2xx' } },
+    metrics: [{ event: 'add_to_cart', when: { method: 'POST', path: '/cart/add', status: '2xx,303' } }],
+    guardrails: ['doc_latency_ms', 'server_error'],
+  });
+  const lines: string[] = [];
+  await init({ apiUrl: fake!.apiUrl, dashboardUrl: 'http://x', config: withFunnel, adminKey: first.SWITCHYARD_ADMIN_KEY, serverKey: first.SWITCHYARD_SERVER_KEY, envFile, log: (l) => lines.push(l) });
+  const metric = state.metrics.find((m) => m.name === 'add_to_cart')!;
+  assert.deepEqual([metric.aggregation, metric.direction], ['occurrence', 'up']);
+  const experiment = state.experiments[0]!;
+  assert.equal(experiment.metrics[0]!.metric_name, 'order_placed', 'the goal stays primary');
+  assert.deepEqual(experiment.metrics.find((m) => m.metric_name === 'add_to_cart')?.expected_direction, 'increase');
+  assert.ok(lines.some((l) => /attached 1 new metric/.test(l)));
+});

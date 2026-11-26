@@ -95,6 +95,10 @@ export type GuardrailWarning = { metric: string; chanceToWin: number; lift: numb
 // a rise; every other direction by a fall.
 export const harmOf = (direction: string, lift: number): number => (/^(down|lower|decrease)/i.test(direction) ? lift : -lift);
 
+// A guardrail is any metric after the primary that isn't expected to increase. Secondary metrics (add_to_cart: "up",
+// expected to increase) are shown, never guard a release.
+export const isGuardrail = (m: { expected_direction?: string }): boolean => m.expected_direction !== 'increase';
+
 export function losingGuardrails(
   experiment: ExperimentDetail,
   results: Results | null,
@@ -102,7 +106,7 @@ export function losingGuardrails(
   minHarm: number = GUARDRAIL_MIN_HARM,
 ): GuardrailWarning[] {
   if (winnerKey === CONTROL || !results?.payload) return [];
-  return experiment.metrics.slice(1).flatMap((m) => {
+  return experiment.metrics.slice(1).filter(isGuardrail).flatMap((m) => {
     const inference = results.payload!.metrics.find((r) => r.metric_id === m.metric)?.inference[winnerKey];
     return inference && inference.chance_to_win < GUARDRAIL_LOSING_BELOW && harmOf(m.direction, inference.lift) > minHarm
       ? [{ metric: m.metric_name, chanceToWin: inference.chance_to_win, lift: inference.lift }]

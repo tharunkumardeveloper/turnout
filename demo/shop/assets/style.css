@@ -339,6 +339,16 @@ input:focus-visible, select:focus-visible { outline: 3px solid var(--focus); out
 .step-current { color: var(--ink); }
 .step-current .step-num { border-color: var(--brand); background: var(--brand); color: #fff; }
 .step-done .step-num { border-color: var(--brand); color: var(--brand); }
+.step-of { margin: 0 0 8px; font-size: .8125rem; font-weight: 800; text-transform: uppercase; letter-spacing: .08em; color: var(--brand); }
+
+/* Which checkout this release has, readable at a glance on the cart page. */
+.checkout-mode { margin-top: 24px; padding: 14px 18px; border-radius: var(--radius-sm); border: 2px solid var(--brand); background: var(--brand-50); }
+.checkout-mode p { margin: 0; }
+.mode-title { font-weight: 800; font-size: 1.0625rem; color: var(--brand-900); }
+.mode-text { color: var(--ink-2); }
+.mode-list { display: flex; flex-wrap: wrap; gap: 4px 20px; margin: 6px 0 0; padding-left: 1.3em; font-weight: 600; color: var(--ink-2); }
+.mode-onepage { border-style: solid; }
+.mode-steps { border-style: dashed; }
 
 /* ---------- confirmation and status pages ---------- */
 
@@ -396,6 +406,13 @@ input:focus-visible, select:focus-visible { outline: 3px solid var(--focus); out
   .field-row { grid-template-columns: 1fr; }
   .card { padding: 18px; }
   .step + .step::before { width: 12px; }
+  .steps { gap: 6px; }
+  .step { font-size: .8125rem; gap: 6px; }
+  .form-actions { flex-direction: column-reverse; align-items: stretch; gap: 12px; }
+  .form-actions .btn, .checkout-form .btn { width: 100%; }
+  .btn-large { padding-left: 16px; padding-right: 16px; }
+  .two-col { gap: 20px; }
+  .card-foot { flex-wrap: wrap; gap: 8px; }
   .footer-grid { grid-template-columns: 1fr; }
 }
 

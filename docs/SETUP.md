@@ -87,6 +87,28 @@ What this doesn't cover: a container on the console's Compose networks (`default
 
 `SWITCHYARD_PUBLISH_HOST=0.0.0.0` also publishes the proxy (the shop, port 8080) to your network. Flagsmith's dashboard and API stay on `127.0.0.1`: the official compose file's placeholder secrets are kept, so it isn't put on a shared network. On another device, "see it in Flagsmith" links point at this machine's dashboard and don't open there. The shops allow the console on the listed hosts to frame them; `SHOP_FRAME_ANCESTORS` replaces that list if you need something else.
 
+## Running on a server
+
+One setting, `SWITCHYARD_MODE` in `.env`, picks the mode: `local` (the default, everything above) or `server`. The experiment logic is the same in both; server mode only changes networking, secrets and start-up.
+
+1. Point a DNS name at the server and open ports 80 and 443.
+2. Run `sh switchyard.sh server <hostname>` (or `switchyard.bat server <hostname>`). It writes `SWITCHYARD_MODE=server`, `SWITCHYARD_HOSTNAME` and random Flagsmith and Postgres secrets (only where they are empty) into `.env`, then starts the stack.
+3. From then on every script command uses `-f compose.yaml -f compose.server.yml`. By hand, add the same two `-f` flags to every `docker compose` command.
+
+What changes in server mode (`compose.server.yml`, `deploy/Caddyfile`):
+
+- Caddy (pinned image) on ports 80 and 443 gets a certificate for the hostname and redirects HTTP to HTTPS. `SWITCHYARD_CADDY_TLS=tls internal` uses Caddy's own CA instead (CI, or a trial on `localhost`).
+- `https://<hostname>/` goes to the proxy; its cookies are marked `Secure`, and the shop URL is `https://<hostname>`.
+- `https://<hostname>/judge` is judge mode, read-only: GET and HEAD only, to a console port that is never published. Every action is refused there, and the setup check and feature map are left out.
+- Flagsmith (8000), the console (8090, 8091) and the proxy's own port (8080) are published on `127.0.0.1` only. Reach them with an SSH tunnel: `ssh -L 8000:127.0.0.1:8000 -L 8090:127.0.0.1:8090 you@<hostname>`.
+- Every service has `restart: unless-stopped`.
+- A `traffic` service sends a small batch of labelled simulated visitors every 5 minutes (`SWITCHYARD_TRAFFIC_VISITORS`, `SWITCHYARD_TRAFFIC_INTERVAL`; 0 visitors turns it off).
+- No browser is opened.
+- The start refuses to run while a Flagsmith secret, the Postgres password or a Switchyard token is a placeholder (`cli server-check`).
+- `doctor` adds a "Server mode" section: HTTPS and the certificate, Secure cookies, 8000 and 8090 not public, no placeholder secrets, restart policies. These checks run only in server mode.
+
+Needs Docker Compose 2.24 or later. Back to local: set `SWITCHYARD_MODE=local` in `.env` and run `docker compose -f compose.yaml -f compose.server.yml down` once.
+
 ## Linux user ids
 
 The console and the CLI write `.switchyard/` (snapshots and the release ledger) and `.env` through bind mounts, so they run as `SWITCHYARD_UID:SWITCHYARD_GID` (default `1000:1000`, the image's `node` user).

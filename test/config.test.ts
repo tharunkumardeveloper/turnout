@@ -54,3 +54,16 @@ test('a missing config file says how to get one', async () => {
   const { loadConfig } = await import('../src/config.ts');
   assert.throws(() => loadConfig('no-such-switchyard.config.yml'), /not found.*switchyard new/);
 });
+
+test('secondary metrics: parsed from HTTP rules, with comma status lists', () => {
+  const config = parseConfig({ ...valid, metrics: [{ event: 'add_to_cart', when: { method: 'post', path: '/cart/add', status: '2xx, 303' } }] });
+  const rule = config.metrics![0]!.when;
+  assert.equal(config.metrics![0]!.event, 'add_to_cart');
+  assert.equal(matchesRule(rule, 'POST', '/cart/add', 200), true);
+  assert.equal(matchesRule(rule, 'POST', '/cart/add', 303), true);
+  assert.equal(matchesRule(rule, 'POST', '/cart/add', 302), false);
+  assert.deepEqual(parseConfig(valid).metrics, []);
+  assert.throws(() => parseConfig({ ...valid, metrics: [{ event: 'order_placed', when: { method: 'POST', path: '/x' } }] }), ConfigError);
+  assert.throws(() => parseConfig({ ...valid, metrics: [{ event: 'server_error', when: { method: 'POST', path: '/x' } }] }), ConfigError);
+  assert.throws(() => parseConfig({ ...valid, metrics: [{ event: 'ok', when: { method: 'POST', path: '/x', status: '2xx;' } }] }), ConfigError);
+});

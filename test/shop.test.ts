@@ -77,7 +77,7 @@ for (const version of ['1.4', '1.5']) {
       }
       assert.ok(html.includes('$129.00'));
       assert.equal((html.match(/<svg class="art"/g) ?? []).length, PRODUCTS.length);
-      assert.match(html, new RegExp(`Release ${version.replace('.', '\\.')}`));
+      assert.doesNotMatch(html, /Release \d/, 'no release badge for an ordinary visitor');
       assert.doesNotMatch(html, /<img|https?:\/\/(?!www\.w3\.org)/, 'no external images or CDNs');
     });
 
@@ -223,7 +223,7 @@ describe('release differences', () => {
     const cartHtml = await (await get(`${base}/cart`, cart)).text();
     assert.ok(cartHtml.includes('href="/checkout/details"'));
     assert.ok(!cartHtml.includes('action="/checkout"'), 'no checkout form on the cart page');
-    assert.match(cartHtml, /aria-current="step"><span class="step-num" aria-hidden="true">1<\/span>Cart/);
+    assert.match(cartHtml, /Checkout in 3 steps/);
 
     const details = await get(`${base}/checkout/details`, cart);
     assert.equal(details.status, 200);
@@ -448,5 +448,26 @@ describe('frame-ancestors', () => {
       assert.equal(frameAncestors({ SHOP_FRAME_ANCESTORS: bad }), DEFAULT_FRAME_ANCESTORS, JSON.stringify(bad));
     }
     assert.equal(frameAncestors({ SHOP_FRAME_ANCESTORS: '   ' }), DEFAULT_FRAME_ANCESTORS);
+  });
+});
+
+describe('release difference and badge', () => {
+  test('1.4 says "Step 1 of 3"; 1.5 says everything is on one page', async () => {
+    const old = await SHOP_1_4;
+    const cookie = await cartWith(old);
+    const cart14 = await (await get(`${old}/cart`, cookie)).text();
+    assert.match(cart14, /Checkout in 3 steps/);
+    assert.match(await (await get(`${old}/checkout/details`, cookie)).text(), /Step 1 of 3/);
+    const fresh = await SHOP_1_5;
+    const cart15 = await (await get(`${fresh}/cart`, await cartWith(fresh))).text();
+    assert.match(cart15, /One-page checkout/);
+    assert.doesNotMatch(cart15, /Step \d of 3/);
+  });
+
+  test('the footer badge shows only when the router sets the release header', async () => {
+    const fresh = await SHOP_1_5;
+    assert.doesNotMatch(await (await get(`${fresh}/`)).text(), /Release 1\.5/);
+    const marked = await fetch(`${fresh}/`, { headers: { accept: 'text/html', 'x-switchyard-release': 'shop:1.5' } });
+    assert.match(await marked.text(), /data-release-badge>Release 1\.5</);
   });
 });

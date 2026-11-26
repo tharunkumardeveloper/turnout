@@ -29,7 +29,7 @@ const COPY = {
   visitors: {
     flagsmith: 'Buckets each visitor into control or v2 on the release flag and records an exposure for each one.',
     switchyard:
-      'Gives each simulated visitor a cookie, routes them to the release the flag names, and turns their HTTP into events: a successful POST /checkout becomes order_placed; every page load sends doc_latency_ms and server_error.',
+      'Gives each simulated visitor a cookie, routes them to the release the flag names, and turns their HTTP into events: a successful POST /checkout becomes order_placed (the goal), POST /cart/add becomes add_to_cart (a funnel step, not a guardrail); every page load sends doc_latency_ms and server_error.',
   },
   score: {
     flagsmith:
@@ -174,7 +174,7 @@ export function resultsView(state) {
     return {
       name: m.name,
       role: m.role,
-      roleLabel: m.role === 'goal' ? 'Goal' : 'Guardrail',
+      roleLabel: m.role === 'goal' ? 'Goal' : m.role === 'secondary' ? 'Funnel step (not a guardrail)' : 'Guardrail',
       meta: [m.aggregation, directionText(m.direction)].filter(Boolean).join(' · '),
       arms: keys.map((key) => {
         const a = m.arms[key];

@@ -230,7 +230,7 @@ export function actionBeat(s, rec) {
         `Simulated shoppers go through Switchyard. For each one, Flagsmith decides: ${v.control} (what everyone has now) or ${v.v2} (the new release). Switchyard turns their pages and orders into Flagsmith events.`,
       );
     case 'score':
-      return beat('score', 'Ask Flagsmith who won', 'Flagsmith runs its Bayesian analysis on orders (the goal), page speed and errors (the guardrails). Switchyard computes no statistics of its own.');
+      return beat('score', 'Ask Flagsmith who won', 'Flagsmith runs its Bayesian analysis on orders (the goal), add-to-cart (a funnel step shown alongside, not a guardrail), page speed and errors (the guardrails). Switchyard computes no statistics of its own.');
     case 'decide':
       if (losing.length) {
         return beat(
@@ -419,7 +419,7 @@ export function afterBeats(action, s, extra = {}) {
           target: '#track-card',
           demo: 'track-burst',
           title: 'A new experiment on the same flag',
-          body: `The experiment track is back, now splitting ${s?.experiment?.control ?? v.live} and ${s?.experiment?.v2 ?? v.next}. Round two: this release sells even more, but watch its page speed.`,
+          body: `The experiment track is back, now splitting ${s?.experiment?.control ?? v.live} and ${s?.experiment?.v2 ?? v.next}. Round two: this release sells even more, but it carries a deliberate test fault, a labelled 60 ms delay on every page. Watch the page-speed guardrail catch it.`,
         },
         {
           id: `release-fs:${exp}`,

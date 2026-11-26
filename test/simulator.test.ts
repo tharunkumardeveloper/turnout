@@ -174,3 +174,14 @@ test('the goal flow: any app, land on / and send the goal request; a conversion 
   }
   assert.equal(goalPath('/fix/*'), '/fix/simulated');
 });
+
+test('funnel: add-to-cart is level across variants; the order rate decides', async () => {
+  const report = await simulate({ target, visitors: 600, rates: { control: 0.1, v2: 0.2 }, cartRate: 0.3, concurrency: 20, seed: 11, log: () => {} });
+  await new Promise((r) => setTimeout(r, 50));
+  const rate = (k: string, f: 'carts' | 'orders') => report.byVariant[k]![f] / report.byVariant[k]!.visitors;
+  assert.ok(Math.abs(rate('v2', 'carts') - rate('control', 'carts')) < 0.1, `carts ${rate('control', 'carts')} vs ${rate('v2', 'carts')}`);
+  assert.ok(rate('v2', 'orders') > rate('control', 'orders'), 'v2 completes more checkouts');
+  for (const k of ['control', 'v2']) assert.ok(report.byVariant[k]!.orders <= report.byVariant[k]!.carts);
+  flags.conversions.clear();
+  flags.exposures = 0;
+});

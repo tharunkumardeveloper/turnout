@@ -73,7 +73,7 @@ describe('judge.html and judge.js', () => {
   test('the tour gets demo() and openWelcome(); demos are capped and guarded', () => {
     assert.match(js, /import \* as FX from '\.\/fx\.js'/);
     assert.match(js, /typeof fn !== 'function'/, 'a missing fx export is skipped, not thrown');
-    assert.match(js, /\n {2}demo,\n {2}openWelcome: /);
+    assert.match(js, /\r?\n {2}demo,\r?\n {2}openWelcome: /);
     assert.match(js, /DEMO_MAX_MS = 2000/);
     for (const name of ['flow-sweep', 'track-burst', 'kpi-count', 'results-grow', 'diff-flash', 'verify-grow', 'stage-pulse', 'fs-flash', 'steps-sweep']) {
       assert.ok(js.includes(`case '${name}':`), name);
@@ -98,7 +98,10 @@ describe('judge.html and judge.js', () => {
     assert.doesNotMatch(js, /(?<![\w.])fetch\('\/api/, 'use api(), which adds the token header');
     assert.match(js, /\[TOKEN_HEADER\]: TOKEN/);
     assert.match(js, /meta\[name="switchyard-console"\]/);
-    assert.match(js, /new EventSource\(`\/api\/traffic\?token=\$\{encodeURIComponent\(TOKEN\)\}`\)/);
+    // BASE: '' on the console, '/judge' in server mode's public, read-only view.
+    assert.match(js, /new EventSource\(`\$\{BASE\}\/api\/traffic\?token=\$\{encodeURIComponent\(TOKEN\)\}`\)/);
+    assert.match(js, /fetch\(BASE \+ path, /);
+    assert.match(js, /if \(READONLY\) \{\s*ui\.runError = READONLY_TEXT;/, 'the public view never POSTs');
     assert.match(js, /api\('\/api\/judge\/state'/);
     assert.match(js, /api\('\/api\/judge\/job'/);
     const post = /api\('\/api\/judge\/run', \{[\s\S]*?\}\);/.exec(js)?.[0] ?? '';

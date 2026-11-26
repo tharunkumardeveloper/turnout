@@ -69,6 +69,7 @@ before(async () => {
     flag: 'shop_release',
     releases: { 'shop:1.4': await listen(oldShop), 'shop:1.5': await listen(newShop) },
     goal: { event: 'order_placed', when: { method: 'POST', path: '/checkout', status: '2xx' } },
+    metrics: [{ event: 'add_to_cart', when: { method: 'POST', path: '/cart/add', status: '2xx,303' } }],
     guardrails: ['doc_latency_ms', 'server_error'],
   });
   proxy = createProxy({
@@ -199,6 +200,29 @@ test('a preview link puts the browser in the preview segment; a wrong token does
 
   const leave = await fetch(`${base}/__switchyard/preview/off`, { redirect: 'manual' });
   assert.match(leave.headers.get('set-cookie') ?? '', /^sy_preview=; .*Max-Age=0/);
+});
+
+test('a secondary metric (add_to_cart) is tracked from its HTTP rule, and is not a conversion', async () => {
+  const id = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
+  flags.tracked = [];
+  await page(`${ID_COOKIE}=${id}`);
+  await fetch(`${base}/cart/add`, { method: 'POST', headers: { cookie: `${ID_COOKIE}=${id}` } });
+  await new Promise((r) => setTimeout(r, 20));
+  assert.ok(flags.tracked.some((t) => t.event === 'add_to_cart' && t.identity === id));
+  assert.ok(!flags.tracked.some((t) => t.event === 'order_placed'));
+});
+
+test('the release request header reaches the app only for preview browsers and debug requests, never from a client', async () => {
+  const id = 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb';
+  const echo = async (headers: Record<string, string>) =>
+    (await (await fetch(`${base}/echo`, { headers: { cookie: `${ID_COOKIE}=${id}`, ...headers } })).json()) as Record<string, string>;
+  assert.equal((await echo({}))['x-switchyard-release'], undefined);
+  assert.equal((await echo({ 'x-switchyard-release': 'spoofed' }))['x-switchyard-release'], undefined, 'a client copy is stripped');
+  assert.equal((await echo({ 'x-switchyard-debug': 'dbg' }))['x-switchyard-release'], 'shop:1.4');
+  const join = await fetch(`${base}/__switchyard/preview?token=tok123`, { redirect: 'manual' });
+  const mark = (join.headers.get('set-cookie') ?? '').split(';')[0]!;
+  const res = await fetch(`${base}/echo`, { headers: { cookie: `${ID_COOKIE}=${id}; ${mark}` } });
+  assert.equal(((await res.json()) as Record<string, string>)['x-switchyard-release'], 'shop:1.4');
 });
 
 test('every proxied request reaches the traffic feed', () => {

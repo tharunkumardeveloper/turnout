@@ -15,6 +15,9 @@ import { escapeHtml as e } from './html.ts';
 export type Release = {
   version: string;
   onePage: boolean; // 1.5+: one-page checkout and express add-to-cart; 1.4: classic multi-step checkout
+  // Show "Release 1.5" in the footer. Only when the router in front marks the request (a preview browser or a debug
+  // request; see server.ts): ordinary visitors never see which release they are on.
+  badge?: boolean;
 };
 
 export type Order = { number: string; values: FormValues; last4: string; summary: CartSummary };
@@ -76,7 +79,7 @@ ${page.body}
   </div>
   <div class="wrap footer-bottom">
     <p>© 2026 ${STORE} · Demo store: no real payments are taken.</p>
-    <p class="release">Release ${e(r.version)}</p>
+    ${r.badge ? `<p class="release" data-release-badge>Release ${e(r.version)}</p>` : ''}
     <p class="release-receipt" data-release-receipt hidden></p>
   </div>
 </footer>
@@ -231,7 +234,7 @@ export function cartPage(r: Release, s: CartSummary, state: CheckoutState = {}):
 
   const body = `
 <div class="wrap">
-  ${r.onePage ? '' : steps(1)}
+  ${empty ? '' : r.onePage ? onePageBanner : multiStepBanner}
   ${state.added ? addedNotice(state.added) : ''}
   ${errorSummary(errors)}
   <h1 class="page-title">Your cart${empty ? '' : ` <span class="muted count">(${itemCount(s.count)})</span>`}</h1>
@@ -290,9 +293,17 @@ function summaryBox(s: CartSummary, footer = ''): string {
   </div>`;
 }
 
-function steps(current: 1 | 2 | 3 | 4): string {
-  const names = ['Cart', 'Details', 'Payment', 'Confirmation'];
-  return `<nav class="steps-nav" aria-label="Checkout progress"><ol class="steps">${names
+// The two checkouts must look different at a glance: 1.4 says "Step N of 3" on every page, 1.5 says everything is
+// on this one page.
+const STEP_NAMES = ['Shipping', 'Payment', 'Confirmation'];
+
+const multiStepBanner = `<div class="checkout-mode mode-steps"><p class="mode-title">Checkout in 3 steps</p><ol class="mode-list">${STEP_NAMES.map((n) => `<li>${n}</li>`).join('')}</ol></div>`;
+
+const onePageBanner = `<div class="checkout-mode mode-onepage"><p class="mode-title">One-page checkout</p><p class="mode-text">Cart, shipping and payment are all on this page. No further steps.</p></div>`;
+
+function steps(current: 1 | 2 | 3): string {
+  const names = STEP_NAMES;
+  return `<nav class="steps-nav" aria-label="Checkout progress"><p class="step-of">Step ${current} of ${names.length}</p><ol class="steps">${names
     .map((name, i) => {
       const n = i + 1;
       const state = n < current ? 'done' : n === current ? 'current' : 'todo';
@@ -304,7 +315,7 @@ function steps(current: 1 | 2 | 3 | 4): string {
 export function detailsPage(r: Release, s: CartSummary, values: FormValues, errors: FormErrors = {}): string {
   const body = `
 <div class="wrap">
-  ${steps(2)}
+  ${steps(1)}
   ${errorSummary(errors)}
   <h1 class="page-title">Shipping details</h1>
   <div class="two-col">
@@ -324,7 +335,7 @@ export function paymentPage(r: Release, s: CartSummary, values: FormValues, erro
   const hidden = SHIPPING_FIELDS.map((f) => `<input type="hidden" name="${f}" value="${e(values[f])}">`).join('');
   const body = `
 <div class="wrap">
-  ${steps(3)}
+  ${steps(2)}
   ${errorSummary(errors)}
   <h1 class="page-title">Payment</h1>
   <div class="two-col">
@@ -351,7 +362,7 @@ export function confirmationPage(r: Release, order: Order): string {
   const first = (v.name ?? '').split(/\s+/)[0] ?? '';
   const body = `
 <div class="wrap narrow">
-  ${r.onePage ? '' : steps(4)}
+  ${r.onePage ? "" : steps(3)}
   <section class="card confirmation" aria-labelledby="thanks-heading">
     <div class="confirm-icon">${checkIcon}</div>
     <h1 id="thanks-heading">Thank you${first ? `, ${e(first)}` : ''}!</h1>

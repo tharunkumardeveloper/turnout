@@ -10,6 +10,9 @@
 #    sh switchyard.sh stop       stop every container (Flagsmith's data and the keys are kept)
 #    sh switchyard.sh reset      wipe Flagsmith's data, the ledger and the keys, then start from scratch
 #    sh switchyard.sh reset --yes   the same without asking (for scripts and tests)
+#    sh switchyard.sh server <hostname>   server mode: write SWITCHYARD_MODE=server and the hostname into .env,
+#                                generate Flagsmith's secrets, then start behind Caddy with HTTPS on that hostname.
+#                                Every command after that adds -f compose.server.yml (docs/SETUP.md, "Running on a server")
 #
 #  First time on this machine? Run sh setup.sh first: it checks and installs what's needed.
 # ===========================================================================================================
@@ -19,20 +22,24 @@ HERE=$(pwd)
 ACTION=${1:-start}
 OPTION=${2:-}
 usage() {
-  echo "Usage: sh switchyard.sh [start | demo | status | stop | reset [--yes]]"
+  echo "Usage: sh switchyard.sh [start | demo | status | stop | reset [--yes] | server <hostname>]"
   echo "  start   (default) start everything, check the setup and open judge mode"
   echo "  demo    start, then send 1,500 simulated visitors"
   echo "  status  show what's running, check the setup, and the links"
   echo "  stop    stop every container; data and keys are kept"
   echo "  reset   wipe Flagsmith's data, the ledger and the keys, then start fresh (--yes: don't ask)"
+  echo "  server  server mode on <hostname>: HTTPS through Caddy, read-only judge view at https://<hostname>/judge"
 }
 case "$ACTION" in
-  start|demo|status|stop|reset) ;;
+  start|demo|status|stop|reset|server) ;;
   -h|--help|/?) usage; exit 0 ;;
   *) echo "Unknown option \"$ACTION\"."; usage; echo; echo " Not started."; exit 1 ;;
 esac
 ASSUME_YES=
+SERVER_HOST=
 case "$ACTION:$OPTION" in
+  server:-*|server:/*) echo "Unknown option \"$OPTION\" for server: give the hostname, e.g. sh switchyard.sh server switchyard.example.com"; usage; echo; echo " Not started."; exit 1 ;;
+  server:*) SERVER_HOST=$OPTION ;;
   *:) ;;
   reset:--yes|reset:-y|reset:/yes) ASSUME_YES=1 ;;
   *) echo "Unknown option \"$OPTION\" for $ACTION."; usage; echo; echo " Not started."; exit 1 ;;
@@ -52,8 +59,39 @@ if [ "$(uname -s)" = Linux ]; then
   SWITCHYARD_GID=${SWITCHYARD_GID:-$(id -g)}
   export SWITCHYARD_UID SWITCHYARD_GID
 fi
+# ---- Mode: SWITCHYARD_MODE in .env. local (default) is the stack as it always was; server adds compose.server.yml
+# (Caddy, HTTPS, restart policies, random Flagsmith secrets) to every compose command. Same experiment logic either way.
+env_get() {
+  sed -n "s/^$1=//p" .env 2>/dev/null | head -n 1
+}
+# Set NAME=VALUE in .env (replacing the line, or adding it). Values are never echoed.
+env_set() {
+  if grep -q "^$1=" .env 2>/dev/null; then
+    tmp=".env.tmp.$$"
+    awk -v k="$1" -v v="$2" 'BEGIN { p = k "=" } index($0, p) == 1 { print p v; next } { print }' .env > "$tmp" && cat "$tmp" > .env
+    rm -f "$tmp"
+  else
+    printf '%s=%s\n' "$1" "$2" >> .env
+  fi
+}
+random_secret() {
+  head -c 24 /dev/urandom | od -An -tx1 | tr -d ' \n'
+}
+MODE=local
+COMPOSE_FILES=
+pick_mode() {
+  case "$(env_get SWITCHYARD_MODE)" in
+    server) MODE=server; COMPOSE_FILES="-f compose.yaml -f compose.server.yml" ;;
+    *) MODE=local; COMPOSE_FILES= ;;
+  esac
+}
+pick_mode
+dc() {
+  # shellcheck disable=SC2086 # COMPOSE_FILES is a list of flags
+  docker compose $COMPOSE_FILES "$@"
+}
 cli() {
-  docker compose run --rm "$@"
+  dc run --rm "$@"
 }
 
 # The hostname for links on this machine: 127.0.0.1 (Compose publishes there; "localhost" can try IPv6 first), or
@@ -69,6 +107,23 @@ pick_host() {
 ADMIN_EMAIL=
 links() {
   ADMIN_EMAIL=$(sed -n 's/^FLAGSMITH_ADMIN_EMAIL=//p' .env 2>/dev/null | head -n 1)
+  if [ "$MODE" = server ]; then
+    SH=$(env_get SWITCHYARD_HOSTNAME)
+    echo
+    echo " ------------------------------------------------------------"
+    echo "  Server mode on $SH"
+    echo "  Shop         https://$SH/          (through Switchyard)"
+    echo "  Judge view   https://$SH/judge     (read-only, for anyone)"
+    echo "  Console, Flagsmith and the full judge mode stay on this server's 127.0.0.1. From your machine:"
+    echo "    ssh -L 8090:127.0.0.1:8090 -L 8000:127.0.0.1:8000 <you>@$SH"
+    echo "    then http://127.0.0.1:8090/judge and http://127.0.0.1:8000"
+    [ -n "$ADMIN_EMAIL" ] && echo "  Flagsmith login $ADMIN_EMAIL, password in .env (FLAGSMITH_ADMIN_PASSWORD)"
+    echo " ------------------------------------------------------------"
+    echo "  Stop:   sh switchyard.sh stop        Status:   sh switchyard.sh status"
+    echo " ------------------------------------------------------------"
+    echo
+    return 0
+  fi
   echo
   echo " ------------------------------------------------------------"
   echo "  Judge mode   http://$HOST:8090/judge   (the whole story, with buttons)"
@@ -85,6 +140,14 @@ links() {
 
 # switchyard doctor: expected against actual for Flagsmith, the keys, the flag, metrics, proxy and shops. Non-fatal.
 doctor() {
+  if [ "$MODE" = server ]; then
+    # Restart policies are Docker's, not visible from inside a container: read them here, hand them to doctor.
+    POLICIES=$(dc ps -q | xargs docker inspect -f '{{index .Config.Labels "com.docker.compose.service"}}={{.HostConfig.RestartPolicy.Name}}' 2>/dev/null | tr '\n' ',')
+    if ! cli -e SWITCHYARD_RESTART_POLICIES="$POLICIES" cli doctor; then
+      echo " Some checks above are failing (FAIL)."
+    fi
+    return 0
+  fi
   if ! cli cli doctor; then
     echo " Some checks above are failing (FAIL). The same list, with Expected and Actual: http://$HOST:8090/setup"
   fi
@@ -92,6 +155,7 @@ doctor() {
 
 open_browser() {
   [ -n "${SWITCHYARD_NO_BROWSER:-}" ] && return 0
+  [ "$MODE" = server ] && return 0 # a server has no one at its screen
   echo " Opening judge mode in your browser..."
   if [ "$(uname -s)" = Darwin ]; then
     open "$1" >/dev/null 2>&1 || true
@@ -155,11 +219,21 @@ start() {
     failed
   fi
   pick_host
+  pick_mode
+  if [ "$MODE" = server ]; then
+    echo
+    echo " Server mode: $(env_get SWITCHYARD_HOSTNAME) (compose.yaml + compose.server.yml)"
+    # Placeholder Flagsmith secrets or tokens: refuse before anything public starts. Names only, never values.
+    if ! cli --build --no-deps cli server-check; then
+      echo " Fix the settings above in .env (sh switchyard.sh server <hostname> writes random Flagsmith secrets)."
+      failed
+    fi
+  fi
 
   echo
   echo " [1/5] Starting Flagsmith (the first run downloads its images: a few minutes)..."
-  if ! docker compose up -d --wait flagsmith; then
-    echo " Flagsmith didn't become healthy. Logs:  docker compose logs flagsmith"
+  if ! dc up -d --wait flagsmith; then
+    echo " Flagsmith didn't become healthy. Logs:  docker compose $COMPOSE_FILES logs flagsmith"
     failed
   fi
 
@@ -172,10 +246,16 @@ start() {
     failed
   fi
 
+  if [ "$MODE" = server ] && ! cli --no-deps cli server-check --after-init; then
+    echo " init left a token empty or a placeholder: see above. Not starting the public side."
+    failed
+  fi
+
   echo
   echo " [3/5] Starting Switchyard, the console and the three shop releases..."
-  if ! docker compose up -d --build --wait; then
-    echo " Something didn't start. See:  docker compose ps   and   docker compose logs"
+  [ "$MODE" = server ] && echo "       and Caddy (HTTPS for $(env_get SWITCHYARD_HOSTNAME); the first certificate can take a minute)"
+  if ! dc up -d --build --wait; then
+    echo " Something didn't start. See:  docker compose $COMPOSE_FILES ps   and   docker compose $COMPOSE_FILES logs"
     failed
   fi
 
@@ -200,7 +280,7 @@ case "$ACTION" in
   status)
     pick_host
     echo
-    docker compose ps --format "table {{.Service}}\t{{.Status}}\t{{.Ports}}"
+    dc ps --format "table {{.Service}}\t{{.Status}}\t{{.Ports}}"
     echo
     # The setup check mounts .env and .switchyard/: without them Docker would create both, .env as a folder.
     if [ -f .env ] && [ -d .switchyard ]; then
@@ -214,7 +294,7 @@ case "$ACTION" in
   stop)
     echo
     echo " Stopping every container. Flagsmith's data, the keys in .env and the ledger are kept."
-    docker compose --profile tools down
+    dc --profile tools down
     echo " Stopped. Run sh switchyard.sh to bring it back."
     exit 0
     ;;
@@ -232,7 +312,7 @@ case "$ACTION" in
         *) echo " Nothing changed."; exit 0 ;;
       esac
     fi
-    if ! docker compose --profile tools down -v; then
+    if ! dc --profile tools down -v; then
       echo " Docker could not remove the containers and volumes: nothing deleted (the ledger and snapshots are kept)."
       echo
       echo " Not reset."
@@ -240,6 +320,28 @@ case "$ACTION" in
     fi
     rm -rf .switchyard
     echo " Wiped. Starting from scratch..."
+    start
+    ;;
+  server)
+    # Server mode: hostname and mode into .env, random Flagsmith secrets where there are none, then the usual start.
+    if [ -d .env ]; then echo " .env is a folder. Delete it (rm -r .env) and run again."; failed; fi
+    [ -f .env ] || { cp .env.example .env; echo " Created .env from .env.example"; }
+    if [ -z "$SERVER_HOST" ]; then
+      SERVER_HOST=$(env_get SWITCHYARD_HOSTNAME)
+      [ -n "$SERVER_HOST" ] || { echo " Give the hostname: sh switchyard.sh server switchyard.example.com"; failed; }
+    fi
+    env_set SWITCHYARD_MODE server
+    env_set SWITCHYARD_HOSTNAME "$SERVER_HOST"
+    env_set SWITCHYARD_PUBLISH_HOST 127.0.0.1
+    env_set SWITCHYARD_PUBLIC_SHOP_URL "https://$SERVER_HOST"
+    # localhost (a trial, CI) gets Caddy's own CA; a real hostname a public certificate.
+    if [ "$SERVER_HOST" = localhost ] && [ -z "$(env_get SWITCHYARD_CADDY_TLS)" ]; then env_set SWITCHYARD_CADDY_TLS "tls internal"; fi
+    # Only where empty: Postgres keeps the password it was created with, so an existing one is never replaced.
+    for name in FLAGSMITH_DJANGO_SECRET_KEY FLAGSMITH_WAREHOUSE_SECRET POSTGRES_PASSWORD; do
+      if [ -z "$(env_get "$name")" ]; then env_set "$name" "$(random_secret)"; echo " Wrote a random $name to .env"; fi
+    done
+    echo " .env: SWITCHYARD_MODE=server, SWITCHYARD_HOSTNAME=$SERVER_HOST. From now on every command adds compose.server.yml."
+    pick_mode
     start
     ;;
   *) start ;;

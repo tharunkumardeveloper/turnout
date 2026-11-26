@@ -1,0 +1,129 @@
+# Server mode: the same stack on a public hostname, behind Caddy with automatic HTTPS. Used as a second file on every
+# compose command (switchyard.sh / switchyard.bat do it when .env says SWITCHYARD_MODE=server):
+#   docker compose -f compose.yaml -f compose.server.yml up -d --build --wait
+# Only networking, secrets and start-up change here: the proxy, the console and the experiment logic are the same.
+#
+#   https://<SWITCHYARD_HOSTNAME>/        the proxy (your app, through Switchyard)
+#   https://<SWITCHYARD_HOSTNAME>/judge   judge mode, read-only (GET only; the console's public port, deploy/Caddyfile)
+#   Flagsmith (:8000), the console (:8090) and the proxy's own port (:8080) stay on 127.0.0.1: reach them with an
+#   SSH tunnel (docs/SETUP.md, "Running on a server"). Needs Docker Compose 2.24+ (!override).
+#
+# The ${VAR:?…} values below make Compose refuse to start without them; `switchyard server-check` also refuses
+# placeholders ("secret", "password", short values).
+
+x-restart: &restart
+  restart: unless-stopped
+
+x-flagsmith-secrets: &flagsmith-secrets
+  DATABASE_URL: postgresql://postgres:${POSTGRES_PASSWORD:?run sh switchyard.sh server <hostname> (it writes random secrets)}@postgres:5432/flagsmith
+  DJANGO_SECRET_KEY: ${FLAGSMITH_DJANGO_SECRET_KEY:?run sh switchyard.sh server <hostname> (it writes random secrets)}
+  WAREHOUSE_CREDENTIALS_SECRET: ${FLAGSMITH_WAREHOUSE_SECRET:?run sh switchyard.sh server <hostname> (it writes random secrets)}
+
+# The shops answer only frames from their own origin: the public judge view is https://<hostname>/judge, same origin.
+x-shop-frames: &shop-frames
+  <<: *restart
+  environment:
+    SHOP_FRAME_ANCESTORS: "'self'"
+
+services:
+  caddy:
+    image: caddy:2.10.2-alpine
+    <<: *restart
+    ports:
+      - 80:80
+      - 443:443
+      - 443:443/udp
+    environment:
+      SWITCHYARD_HOSTNAME: ${SWITCHYARD_HOSTNAME:?run sh switchyard.sh server <hostname>}
+      # Empty: a public certificate (Let's Encrypt / ZeroSSL). "tls internal": Caddy's own CA (CI, trying it out).
+      SWITCHYARD_CADDY_TLS: ${SWITCHYARD_CADDY_TLS:-}
+    volumes:
+      - ./deploy/Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy-data:/data # certificates: keep them, or Let's Encrypt rate limits bite on rebuilds
+      - caddy-config:/config
+    networks: [edge]
+    depends_on:
+      switchyard:
+        condition: service_healthy
+      console:
+        condition: service_started
+
+  switchyard:
+    <<: *restart
+    environment:
+      SWITCHYARD_SECURE_COOKIES: '1'
+    ports: !override
+      - 127.0.0.1:8080:8080 # whatever SWITCHYARD_PUBLISH_HOST says: the public way in is Caddy
+    networks: [sdk, feed, apps, edge]
+
+  console:
+    <<: *restart
+    environment:
+      CONSOLE_PUBLIC_PORT: 8092 # the read-only judge view; Caddy reaches it on the edge network, never published
+      SWITCHYARD_PUBLIC_SHOP_URL: https://${SWITCHYARD_HOSTNAME}
+      SWITCHYARD_CONSOLE_HOSTS: '' # other devices use the public, read-only view
+    ports: !override
+      - 127.0.0.1:8090:8090
+      - 127.0.0.1:8091:8091
+    networks: [default, feed, edge]
+
+  # Doctor's server checks reach Caddy by name on the edge network, with the public hostname as SNI and Host.
+  cli:
+    environment:
+      SWITCHYARD_EDGE_ADDRESS: caddy
+      SWITCHYARD_RESTART_POLICIES: ${SWITCHYARD_RESTART_POLICIES:-}
+    networks: [default, feed, edge]
+
+  # A small batch of labelled simulated visitors every 5 minutes, so the public judge view has live traffic.
+  # SWITCHYARD_TRAFFIC_VISITORS=0 turns it off.
+  traffic:
+    build: .
+    image: switchyard:local
+    <<: *restart
+    entrypoint: ['sh', '-c']
+    command:
+      - |
+        while true; do
+          n=$${SWITCHYARD_TRAFFIC_VISITORS:-40}
+          if [ "$$n" -gt 0 ] 2>/dev/null; then
+            node src/cli.ts demo --visitors "$$n" --concurrency 4 --seed "$$(( $$(date +%s) % 4000000000 ))" || true
+          fi
+          sleep "$${SWITCHYARD_TRAFFIC_INTERVAL:-300}"
+        done
+    environment:
+      SWITCHYARD_PROXY_URL: http://switchyard:8080
+      SWITCHYARD_PREVIEW_TOKEN: ${SWITCHYARD_PREVIEW_TOKEN:-} # reads the proxy's routing headers (labelled simulation)
+      SWITCHYARD_TRAFFIC_VISITORS: ${SWITCHYARD_TRAFFIC_VISITORS:-40}
+      SWITCHYARD_TRAFFIC_INTERVAL: ${SWITCHYARD_TRAFFIC_INTERVAL:-300}
+    volumes:
+      - ${SWITCHYARD_CONFIG_FILE:-./switchyard.config.yml}:/app/switchyard.config.yml:ro
+    networks: [feed]
+    depends_on:
+      switchyard:
+        condition: service_healthy
+
+  # Flagsmith and its Postgres: random secrets instead of the official file's placeholders, and restart on reboot.
+  postgres:
+    <<: *restart
+    environment:
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?run sh switchyard.sh server <hostname> (it writes random secrets)}
+  migrate-db:
+    restart: on-failure # a one-off: it exits 0 when the migrations are done
+    environment: *flagsmith-secrets
+  flagsmith:
+    <<: *restart
+    environment: *flagsmith-secrets
+  flagsmith-task-processor:
+    <<: *restart
+    environment: *flagsmith-secrets
+
+  shop-1-4: *shop-frames
+  shop-1-5: *shop-frames
+  shop-1-6: *shop-frames
+
+networks:
+  edge: {} # Caddy, the proxy and the console's read-only port
+
+volumes:
+  caddy-data: {}
+  caddy-config: {}

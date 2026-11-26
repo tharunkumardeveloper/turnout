@@ -12,4 +12,10 @@ goal:
   event: order_placed
   when: { method: POST, path: /checkout, status: 2xx }
 
+# Secondary metrics: shown next to the goal, never a guardrail. The funnel's first step: adding something to the
+# cart (the express button answers 200, the plain form a 303 back to the page).
+metrics:
+  - event: add_to_cart
+    when: { method: POST, path: /cart/add, status: "2xx,303" }
+
 guardrails: [doc_latency_ms, server_error]   # sent on every page load

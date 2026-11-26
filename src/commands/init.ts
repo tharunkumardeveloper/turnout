@@ -268,9 +268,12 @@ export async function init(opts: Options): Promise<void> {
     log(`✓ variant v2 → ${v2Release}`);
   }
 
-  // 6. Metrics: the goal and two guardrails.
+  // 6. Metrics: the goal (first: Flagsmith's primary), secondary metrics such as add_to_cart, and the guardrails.
+  // Secondary metrics expect an increase like the goal; guardrails expect no increase, which is how Switchyard tells
+  // them apart (src/flagsmith/experiments.ts isGuardrail).
   const wanted = [
     { name: opts.config.goal.event, aggregation: 'occurrence', direction: 'up', expected: 'increase' },
+    ...(opts.config.metrics ?? []).map((m) => ({ name: m.event, aggregation: 'occurrence', direction: 'up', expected: 'increase' })),
     ...opts.config.guardrails.map((g) => ({ name: g, aggregation: 'mean', direction: 'down', expected: 'not_increase' })),
   ];
   const existing = await api.list<Metric>(`${envPath}/experiment-metrics/`);
@@ -314,6 +317,15 @@ export async function init(opts: Options): Promise<void> {
     experiment = await api.post<Experiment>(`${envPath}/experiments/${experiment.id}/start/`);
   }
   log(`✓ experiment "${experiment.name}" is ${experiment.status}`);
+
+  // A metric added to the config later is attached to the current experiment while it isn't completed (Flagsmith:
+  // api/experimentation/experiment_urls.py:12, serializers.py:228-247 refuse a completed one or a duplicate).
+  if (experiment.status !== 'completed') {
+    const attached = await api.get<{ metric: number }[]>(`${envPath}/experiments/${experiment.id}/metrics/`);
+    const missing = metrics.filter((m) => !attached.some((a) => a.metric === m.metric));
+    for (const m of missing) await api.post(`${envPath}/experiments/${experiment.id}/metrics/`, m);
+    if (missing.length) log(`✓ attached ${missing.length} new metric(s) to the running experiment`);
+  }
 
   save({ SWITCHYARD_EXPERIMENT: `${env.api_key}/${experiment.id}` });
   if (!process.env.SWITCHYARD_PREVIEW_TOKEN) save({ SWITCHYARD_PREVIEW_TOKEN: randomBytes(18).toString('base64url') });

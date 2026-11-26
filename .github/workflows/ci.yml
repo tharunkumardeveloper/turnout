@@ -112,3 +112,86 @@ jobs:
       - name: Tear down
         if: always()
         run: docker compose down -v
+
+  # Server mode end to end, with Caddy's internal (self-signed) certificate on hostname localhost: the start-up script,
+  # HTTPS, Secure cookies, the read-only judge view, and nothing private reachable from outside 127.0.0.1.
+  server:
+    needs: test
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      SWITCHYARD_NO_BROWSER: '1'
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Server mode refuses the official placeholder secrets
+        run: |
+          cp .env.example .env
+          mkdir -p .switchyard
+          printf 'SWITCHYARD_MODE=server\nSWITCHYARD_HOSTNAME=localhost\nFLAGSMITH_DJANGO_SECRET_KEY=secret\nFLAGSMITH_WAREHOUSE_SECRET=secret\nPOSTGRES_PASSWORD=password\n' >> .env
+          if docker compose -f compose.yaml -f compose.server.yml run --rm --build --no-deps cli server-check; then
+            echo "server-check accepted placeholder secrets" >&2; exit 1
+          fi
+          rm .env
+
+      - name: sh switchyard.sh server localhost (tls internal)
+        run: |
+          cp .env.example .env
+          sh switchyard.sh server localhost
+          grep -q '^SWITCHYARD_MODE=server$' .env
+          grep -q '^SWITCHYARD_CADDY_TLS=tls internal$' .env
+
+      - name: Doctor's server checks all pass
+        run: |
+          policies=$(docker compose -f compose.yaml -f compose.server.yml ps -q | xargs docker inspect -f '{{index .Config.Labels "com.docker.compose.service"}}={{.HostConfig.RestartPolicy.Name}}' | tr '\n' ',')
+          docker compose -f compose.yaml -f compose.server.yml run --rm -e SWITCHYARD_RESTART_POLICIES="$policies" cli doctor --json > doctor.json || true
+          node -e '
+            const r = JSON.parse(require("fs").readFileSync("doctor.json", "utf8"));
+            const server = r.checks.filter((c) => c.area === "Server mode");
+            for (const c of server) console.log(`${c.status.padEnd(4)} ${c.name}: ${c.actual}`);
+            if (server.length !== 6 || server.some((c) => c.status !== "ok")) process.exit(1);'
+
+      - name: HTTPS, certificate, Secure cookies
+        run: |
+          # Caddy's internal CA: untrusted by default, valid with its root.
+          if curl -fsS -o /dev/null https://localhost/; then echo "expected an untrusted certificate" >&2; exit 1; fi
+          docker compose -f compose.yaml -f compose.server.yml cp caddy:/data/caddy/pki/authorities/local/root.crt caddy-root.crt
+          curl -fsS --cacert caddy-root.crt -o /dev/null https://localhost/
+          curl -sS --cacert caddy-root.crt -A 'Mozilla/5.0' -D - -o /dev/null https://localhost/ | grep -i '^set-cookie:' | tee cookies.txt
+          [ -s cookies.txt ]
+          if grep -iv 'secure' cookies.txt; then echo "a cookie without Secure" >&2; exit 1; fi
+          # Plain HTTP redirects to HTTPS
+          [ "$(curl -s -o /dev/null -w '%{http_code}' http://localhost/)" = 308 ]
+
+      - name: Only the read-only judge view is public
+        run: |
+          c() { curl -s --cacert caddy-root.crt -o body.txt -w '%{http_code}' "$@"; }
+          [ "$(c https://localhost/judge)" = 200 ] && grep -q 'name="switchyard-readonly"' body.txt
+          [ "$(c https://localhost/judge/judge.js)" = 200 ]
+          [ "$(c -X POST -H 'content-type: application/json' -d '{}' https://localhost/judge/api/judge/run)" = 405 ]
+          [ "$(c -X POST https://localhost/judge)" = 405 ]
+          for path in /judge/api/state /judge/api/doctor /judge/api/guard /judge/api/judge/signin /judge/setup.html; do
+            code=$(c "https://localhost$path"); echo "$path $code"; [ "$code" = 404 ] || [ "$code" = 403 ]
+          done
+          # The console's own pages and API are not on the hostname: these go to the proxy (the shop), never the console.
+          for path in /api/state /api/doctor /setup /flagsmith; do
+            c "https://localhost$path" > /dev/null
+            if grep -q 'switchyard-console' body.txt; then echo "$path reached the console" >&2; exit 1; fi
+          done
+
+      - name: Flagsmith, the proxy and the console are not reachable from outside 127.0.0.1
+        run: |
+          ip=$(hostname -I | awk '{print $1}')
+          for port in 8000 8080 8090 8091 8092; do
+            if curl -s --max-time 3 -o /dev/null "http://$ip:$port/"; then echo "port $port is reachable on $ip" >&2; exit 1; fi
+            echo "$port: not reachable on $ip"
+          done
+          curl -fsS -o /dev/null http://127.0.0.1:8090/ # still there for an SSH tunnel
+
+      - name: Logs
+        if: failure()
+        run: docker compose -f compose.yaml -f compose.server.yml logs --no-color
+
+      - name: Tear down
+        if: always()
+        run: docker compose -f compose.yaml -f compose.server.yml --profile tools down -v

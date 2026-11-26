@@ -15,7 +15,7 @@ import { simulate } from '../demo/simulator/simulate.ts';
 import { loadConfig } from './config.ts';
 import { createFlagSource } from './flagsmith/flag-source.ts';
 import { DEFAULT_RATES, parseRates } from './console/judge.ts';
-import { createConsole, listenForOtherDevices } from './console/server.ts';
+import { createConsole, listenForOtherDevices, listenForPublic } from './console/server.ts';
 import { AdminClient } from './flagsmith/admin.ts';
 import { scanAndSubmit } from './flagsmith/code-refs.ts';
 import { Experiments, latestExperiment, parseExperimentRef } from './flagsmith/experiments.ts';
@@ -23,6 +23,7 @@ import { createFeedServer, TrafficFeed } from './proxy/feed.ts';
 import { createProxy, type ReleaseMemory } from './proxy/server.ts';
 import { decide } from './decide.ts';
 import { DEFAULT_GUARD_THRESHOLD, Watcher } from './health.ts';
+import { modeOf, serverSecretProblems } from './server-mode.ts';
 
 const USAGE = `Usage: switchyard <command> [options]
 
@@ -51,6 +52,7 @@ Commands:
   demo       Drive labelled simulated visitors through the proxy [--visitors 2000] [--rate v2=0.13]
              [--concurrency 20] [--seed 42] [--target http://switchyard:8080]
              [--flow shop|goal]  goal: land on /, then send the config's goal request (default for non-shop apps)
+  server-check  Server mode: refuse placeholder Flagsmith secrets and tokens (names only, never values) [--after-init]
   code-refs  Find the flag's name in this checkout and submit it to Flagsmith's Code References [--project <id>]
              (repository: GitHub Actions' variables, an https GitHub "origin" remote, or SWITCHYARD_REPOSITORY_URL)
 
@@ -110,6 +112,7 @@ const parseCommandLine = () =>
       dir: { type: 'string' },
       force: { type: 'boolean' },
       flow: { type: 'string' },
+      'after-init': { type: 'boolean' },
       help: { type: 'boolean', short: 'h' },
     },
   });
@@ -329,6 +332,18 @@ function doctorOptions(self = false): DoctorOptions {
     stateDir: STATE_DIR, // Ship and Revert write here (the console's own copy when the console is asking)
     // init and release write .env; the console doesn't mount it, and a missing one is created by init.
     envFile: !self && existsSync(ENV_FILE) ? ENV_FILE : undefined,
+    // Server mode (SWITCHYARD_MODE=server in .env): HTTPS, Secure cookies, private ports, secrets, restart policies.
+    ...(!self && modeOf(process.env) === 'server'
+      ? {
+          server: {
+            hostname: process.env.SWITCHYARD_HOSTNAME ?? '',
+            tls: /internal/.test(process.env.SWITCHYARD_CADDY_TLS ?? '') ? ('internal' as const) : ('public' as const),
+            edgeAddress: process.env.SWITCHYARD_EDGE_ADDRESS || undefined,
+            env: process.env,
+            restartPolicies: process.env.SWITCHYARD_RESTART_POLICIES || undefined,
+          },
+        }
+      : {}),
   };
 }
 
@@ -355,6 +370,13 @@ const commands: Record<string, () => Promise<void>> = {
     if (cliFlags.json) console.log(JSON.stringify(report, null, 2));
     else for (const line of [`Switchyard doctor: Flagsmith at ${options.apiUrl}, proxy at ${options.proxyUrl}`, ...formatReport(report)]) console.log(line);
     process.exitCode = report.summary.fail > 0 ? 1 : 0;
+  },
+  // Server mode's start-up refusal: switchyard.sh / switchyard.bat run it before starting anything public.
+  'server-check': async () => {
+    const problems = serverSecretProblems(process.env, cliFlags['after-init'] ?? false);
+    for (const p of problems) console.error(`  ${p.name}: ${p.problem}`);
+    if (problems.length) throw new Error(`server mode refuses to start: ${problems.length} setting${problems.length === 1 ? '' : 's'} above (values are never shown)`);
+    console.log('Server mode: no placeholder secrets or tokens.');
   },
   'code-refs': async () => {
     // The project: --project, SWITCHYARD_PROJECT_ID, or the environment in SWITCHYARD_EXPERIMENT.
@@ -495,6 +517,11 @@ const commands: Record<string, () => Promise<void>> = {
         const at = devices.address();
         console.log(`other devices (judge link only) on ${host}:${typeof at === 'object' && at ? at.port : devicePort}`);
       });
+    }
+    // Server mode: the read-only judge view, for Caddy only (compose.server.yml never publishes this port). Unset: none.
+    const publicPort = process.env.CONSOLE_PUBLIC_PORT ? Number(process.env.CONSOLE_PUBLIC_PORT) : undefined;
+    if (publicPort !== undefined) {
+      listenForPublic(server, publicPort, host, () => console.log(`read-only judge view (server mode, behind Caddy) on ${host}:${publicPort}`));
     }
   },
   init: () => {

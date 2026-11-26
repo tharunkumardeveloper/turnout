@@ -83,15 +83,15 @@ Decisions read Flagsmith's own credible interval: when it crosses zero, Switchya
 | Round | Flagsmith does | Switchyard does |
 |---|---|---|
 | 01 Multivariate flag | `shop_release` has variants `control` and `v2`; each variant's **value** is the release it serves (`shop:1.5`) | Routes each visitor to the container for that release, from an allowlist |
-| 02 Metrics | Holds the goal and the guardrails | Turns HTTP into events: "POST /checkout returned 2xx" becomes `order_placed`; every page load gives `doc_latency_ms` and `server_error` |
+| 02 Metrics | Holds the goal and the guardrails | Turns HTTP into events: "POST /checkout returned 2xx" becomes `order_placed` (the goal), "POST /cart/add" becomes `add_to_cart` (a secondary funnel metric, never a guardrail); every page load gives `doc_latency_ms` and `server_error` |
 | 03 Split traffic | Buckets visitors, records exposures, computes the Bayesian result | Records an exposure when a returning visitor loads a page |
 | 04 Ship the winner | Serves the winner from the same flag | Warns when the winner is losing a guardrail; ships in an order that reaches everyone; writes the decision to the release |
 
 **The demo, in order** (simulated visitors, labelled as such):
-1. `shop:1.5` (one-page checkout) against `shop:1.4`. `grep -ri flagsmith` over the shop image finds nothing, yet Flagsmith's results page shows v2 ahead. **Ship winner**: the traffic map's two tracks merge.
+1. `shop:1.5` (one-page checkout: cart, shipping and payment on one page) against `shop:1.4` ("Step 1 of 3" checkout). Simulated visitors add to cart at the same rate on both; 1.5 wins at checkout completion, so `add_to_cart` stays level while `order_placed` rises. Preview browsers and debug requests see a "Release 1.5" footer badge (the proxy sends the app an `X-Switchyard-Release` request header for them only, and strips any copy a visitor sends); ordinary visitors never see it. `grep -ri flagsmith` over the shop image finds nothing, yet Flagsmith's results page shows v2 ahead. **Ship winner**: the traffic map's two tracks merge.
 2. One edit to the flag's default swings everyone back, made in Flagsmith's flag editor or with the console's **Swing back** button; the console notices that the flag changed after the ship.
 3. `switchyard preview shop:1.6`: only your team's browsers see it. `switchyard release shop:1.6` starts the next experiment on the same flag.
-4. `shop:1.6` carries a **seeded, labelled delay**. It wins on orders, but Flagsmith shows it losing on `doc_latency_ms`; the Ship dialog says so in red and asks you to accept that. You **Revert** instead, and the release notes record why.
+4. `shop:1.6` carries a **deliberate test fault**: a labelled 60 ms delay on every page (`SEEDED_DELAY_MS`), there to show a guardrail catching a release that wins on orders. It wins on orders, but Flagsmith shows it losing on `doc_latency_ms`; the Ship dialog says so in red and asks you to accept that. You **Revert** instead, and the release notes record why.
 
 ![Ship winner in judge mode: the 50/50 experiment track drains into one track to shop:1.5 while new visitors keep arriving](docs/images/judge-ship.gif)
 
@@ -203,7 +203,7 @@ All on Flagsmith `2.291.0` and Node SDK `9.4.0`, Docker Desktop on Windows 11 un
 |---|---|
 | Ending an experiment the documented way, 300 identities | 144 stayed on control (the split survives); after Ship winner, 300 of 300 on the winner; one default edit back, 300 of 300 on control |
 | The full cycle on a fresh instance: init → 2,000 visitors → Ship → swing back → preview → release → 2,000 visitors → Revert | Flagsmith's identity counts equal the simulator's visitor counts (1,000 / 1,000 per arm); its own counter: 17,910 events accepted, 0 rejected |
-| shop:1.6, seeded 60 ms delay | Orders: 99.8% chance to win. `doc_latency_ms`: 97.6 vs 26.5 ms (means per exposed identity), 0.0% chance to win. Ship refused without explicit acceptance; Revert left 200 of 200 new visitors on shop:1.5 and `check` clean |
+| shop:1.6, deliberate test fault (60 ms delay) | Orders: 99.8% chance to win. `doc_latency_ms`: 97.6 vs 26.5 ms (means per exposed identity), 0.0% chance to win. Ship refused without explicit acceptance; Revert left 200 of 200 new visitors on shop:1.5 and `check` clean |
 | First start from a fresh `.env`, Docker images already downloaded | Windows (`switchyard.bat`): 135 s; Linux userland as uid 1234 (`switchyard.sh`, Alpine): 128 s. Doctor: 29 ok, 0 warnings, 0 failing |
 | `reset --yes` (wipe and start again) | Windows: 142 s, then experiment 1 running again with an empty ledger; Linux: 135 s. Doctor: 29 ok after each |
 | Ship click → every new visitor on the winner (n = 1) | 7.05 s; the five steps took 7.1 s |

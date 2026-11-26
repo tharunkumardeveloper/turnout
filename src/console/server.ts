@@ -5,6 +5,8 @@
 // must be listed in allowedHosts, and the browser must have opened the judge link (/judge?key=<judge token>) once,
 // which leaves an HttpOnly cookie. The Host header is the client's to choose, so it never decides who is local: a
 // request on the other-devices port needs the cookie and never gets the admin password, whatever Host it names.
+// Server mode adds a third port (listenForPublic) behind Caddy: a read-only judge view under /judge, GET only, with its
+// own API token, judge state with the preview link and tokens taken out, and nothing else (publicView below).
 import { createHmac, randomBytes, timingSafeEqual } from 'node:crypto';
 import { existsSync, readFileSync, readdirSync } from 'node:fs';
 import http from 'node:http';
@@ -101,6 +103,26 @@ export function listenForOtherDevices(server: http.Server, port: number, host: s
   return devices.listen(port, host, onListening);
 }
 
+// Sockets accepted on the public read-only port (server mode, behind Caddy). Requests on them only ever reach publicView.
+const publicViewers = new WeakSet<net.Socket>();
+
+// Server mode: the read-only judge view, on its own port that only Caddy reaches (compose.server.yml, edge network).
+// The rule comes from the port, like listenForOtherDevices: whatever Host or path a request names, it gets publicView.
+export function listenForPublic(server: http.Server, port: number, host: string, onListening?: () => void): net.Server {
+  const viewers = net.createServer((socket) => {
+    publicViewers.add(socket);
+    server.emit('connection', socket);
+  });
+  server.on('close', () => viewers.close());
+  return viewers.listen(port, host, onListening);
+}
+
+// The public view's prefix: Caddy sends /judge and /judge/* here, everything else on the hostname to the proxy.
+export const PUBLIC_BASE = '/judge';
+// What the public view serves: the judge page, its scripts, styles and icon, and three reads.
+const PUBLIC_READS = new Set(['/api/judge/state', '/api/judge/job', '/api/traffic']);
+const PUBLIC_ASSET_TYPES = new Set(['.js', '.css', '.svg']);
+
 class HttpError extends Error {
   readonly status: number;
   constructor(status: number, message: string) {
@@ -112,6 +134,11 @@ class HttpError extends Error {
 export function createConsole(opts: ConsoleOptions): http.Server {
   const lock = opts.lock ?? { busy: false }; // one write sequence at a time: Ship/Revert, judge jobs, the guard
   const token = randomBytes(24).toString('base64url');
+  const publicToken = randomBytes(24).toString('base64url'); // the public view's own: never the console's token
+  // Taken out of everything the public view sends (the preview link and job logs carry the preview token).
+  const hidden = [opts.judge?.previewToken, opts.judgeToken, opts.flagsmithLogin?.password]
+    .filter((x): x is string => !!x)
+    .flatMap((x) => [x, encodeURIComponent(x)]);
   const loopback = new Set(DEFAULT_HOSTS);
   const allowedHosts = new Set([...DEFAULT_HOSTS, ...(opts.allowedHosts ?? [])].map((h) => h.trim().toLowerCase()));
   const remoteHosts = [...allowedHosts].filter((h) => !loopback.has(h));
@@ -232,8 +259,45 @@ export function createConsole(opts: ConsoleOptions): http.Server {
   };
   opts.watcher?.onRevert(forget); // the guard's automatic Revert is a write too
 
+  // Server mode's public, read-only judge view. GET and HEAD only; no admin password, no preview link, no writes.
+  const redact = <T>(data: T): T => {
+    let text = JSON.stringify(data);
+    for (const secret of hidden) text = text.split(secret).join('<hidden>');
+    return JSON.parse(text) as T;
+  };
+  async function publicView(req: http.IncomingMessage, res: http.ServerResponse): Promise<void> {
+    if (req.method !== 'GET' && req.method !== 'HEAD') {
+      res.writeHead(405, { allow: 'GET, HEAD', 'content-type': 'application/json', 'cache-control': 'no-store' });
+      return void res.end(JSON.stringify({ error: 'Read-only view: actions run only from the console on the server (SSH tunnel).' }));
+    }
+    const url = new URL(req.url ?? '/', 'http://console');
+    if (url.pathname === PUBLIC_BASE || url.pathname === `${PUBLIC_BASE}/`) return servePublicPage(opts.uiDir, res, publicToken);
+    if (!url.pathname.startsWith(`${PUBLIC_BASE}/`)) return json(res, 404, { error: 'not found' });
+    const rest = url.pathname.slice(PUBLIC_BASE.length);
+    if (rest.startsWith('/api/')) {
+      if (!PUBLIC_READS.has(rest)) return json(res, 404, { error: 'not found' });
+      const given = req.headers[TOKEN_HEADER] ?? (rest === '/api/traffic' ? url.searchParams.get('token') : null);
+      if (!sameSecret(typeof given === 'string' ? given : '', publicToken)) return json(res, 403, { error: 'Open the judge page to use its API.' });
+      if (rest === '/api/traffic') return relayFeed(`${opts.feedUrl}/traffic`, res);
+      if (!judge) return json(res, 404, { error: 'Judge mode is not configured for this console.' });
+      if (rest === '/api/judge/job') return json(res, 200, redact({ job: judge.job() }));
+      const state = redact(await judge.state());
+      return json(res, 200, { ...state, links: { ...state.links, preview: null }, readOnly: true });
+    }
+    const name = rest.slice(1);
+    if (!PUBLIC_ASSET_TYPES.has(extname(name))) return void res.writeHead(404).end();
+    return serveStatic(opts.uiDir, rest, res, publicToken);
+  }
+
   return http.createServer(async (req, res) => {
     for (const [k, v] of Object.entries(SECURITY_HEADERS)) res.setHeader(k, v);
+    if (publicViewers.has(req.socket)) {
+      try {
+        return await publicView(req, res);
+      } catch (error) {
+        return json(res, 500, { error: (error as Error).message.split(token).join('') });
+      }
+    }
     // DNS rebinding: a page on evil.example resolving to 127.0.0.1 still sends Host: evil.example.
     const hostname = hostnameOf(req.headers.host);
     // This machine: a loopback name on the port Compose publishes on 127.0.0.1 only. Never the other-devices port.
@@ -503,6 +567,19 @@ export function sortSnapshots(files: string[]): string[] {
 const TOKEN_META = '<meta name="switchyard-console" content="">';
 // Pages by path; each gets the API token injected.
 const PAGES: Record<string, string> = { '/': 'index.html', '/judge': 'judge.html', '/setup': 'setup.html', '/flagsmith': 'flagsmith.html' };
+
+// The public judge page: the same judge.html, read-only, its assets under /judge/ (Caddy sends only /judge* here, so
+// /style.css and friends stay the app's), and its API calls under /judge/api/ (the page reads switchyard-base).
+function servePublicPage(dir: string, res: http.ServerResponse, token: string): void {
+  const html = readFileSync(join(dir, 'judge.html'), 'utf8')
+    .replace(
+      TOKEN_META,
+      `<meta name="switchyard-console" content="${token}"><meta name="switchyard-base" content="${PUBLIC_BASE}"><meta name="switchyard-readonly" content="1">`,
+    )
+    .replace(/(href|src)="\/([a-z0-9-]+\.(?:css|js|svg))"/g, `$1="${PUBLIC_BASE}/$2"`);
+  res.writeHead(200, { 'content-type': TYPES['.html']!, 'cache-control': 'no-store' });
+  res.end(html);
+}
 
 function serveStatic(dir: string, pathname: string, res: http.ServerResponse, token: string): void {
   const name = PAGES[pathname] ?? pathname.slice(1);

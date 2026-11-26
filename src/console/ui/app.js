@@ -324,7 +324,7 @@ function metricCard(m) {
     'div',
     { class: 'metric-head' },
     h('h3', { class: 'metric-name' }, m.name),
-    h('span', { class: `role role-${m.role}` }, m.role === 'goal' ? 'Goal' : 'Guardrail'),
+    h('span', { class: `role role-${m.role}` }, m.role === 'goal' ? 'Goal' : m.role === 'secondary' ? 'Secondary' : 'Guardrail'),
     h('span', { class: 'metric-meta' }, `${m.aggregation} · ${m.direction}`),
   );
 
@@ -358,7 +358,7 @@ function metricCard(m) {
     for (const t of m.treatments) body.push(inferenceBlock(t, m.treatments.length > 1));
   }
 
-  return h('article', { class: `metric metric-${m.role}`, 'data-state': m.state, 'aria-label': `${m.role === 'goal' ? 'Goal' : 'Guardrail'} metric ${m.name}` }, head, table, ...body);
+  return h('article', { class: `metric metric-${m.role}`, 'data-state': m.state, 'aria-label': `${m.role === 'goal' ? 'Goal' : m.role === 'secondary' ? 'Secondary' : 'Guardrail'} metric ${m.name}` }, head, table, ...body);
 }
 
 function inferenceBlock(t, many) {

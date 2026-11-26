@@ -19,6 +19,9 @@ export type Config = {
   // X-Switchyard-Event response header. At least one of the two.
   goal: { event: string; when?: HttpRule; header: boolean };
   guardrails: Guardrail[];
+  // Secondary metrics (e.g. add_to_cart in a funnel): counted from HTTP rules like the goal and shown next to it,
+  // never a guardrail and never the decision. Optional; default none.
+  metrics?: { event: string; when: HttpRule }[];
   traffic: number; // % of visitors in the experiment (its rollout); the rest stay on the live release. Default 100.
 };
 
@@ -62,14 +65,7 @@ export function parseConfig(raw: unknown): Config {
   let rule: HttpRule | undefined;
   if (goal.when !== undefined || !header) {
     const when = asRecord(goal.when, 'goal.when');
-    rule = {
-      method: asString(when.method, 'goal.when.method').toUpperCase(),
-      path: asString(when.path, 'goal.when.path'),
-      status: String(when.status ?? '2xx'),
-    };
-    if (!/^[1-5](xx|\d\d)$/.test(rule.status)) {
-      throw new ConfigError(`goal.when.status must look like 2xx or 201, got "${rule.status}"`);
-    }
+    rule = asRule(when, 'goal.when');
   }
 
   const guardrails = (doc.guardrails ?? []) as unknown[];
@@ -87,6 +83,19 @@ export function parseConfig(raw: unknown): Config {
   }
   if ((GUARDRAILS as readonly string[]).includes(event)) throw new ConfigError(`goal.event "${event}" is a guardrail name`);
 
+  const metricsRaw = doc.metrics ?? [];
+  if (!Array.isArray(metricsRaw)) throw new ConfigError('metrics must be a list');
+  const metrics: Config['metrics'] = [];
+  metricsRaw.forEach((raw: unknown, i) => {
+    const m = asRecord(raw, `metrics[${i}]`);
+    const name = asString(m.event, `metrics[${i}].event`);
+    if (!EVENT_NAME.test(name)) throw new ConfigError(`metrics[${i}].event must be letters, digits, _ . or - and start with a letter, got "${name}"`);
+    if (name === event || (GUARDRAILS as readonly string[]).includes(name) || metrics.some((x) => x.event === name)) {
+      throw new ConfigError(`metrics[${i}].event "${name}" is already the goal, a guardrail or another metric`);
+    }
+    metrics.push({ event: name, when: asRule(asRecord(m.when, `metrics[${i}].when`), `metrics[${i}].when`) });
+  });
+
   const traffic = doc.traffic === undefined ? 100 : Number(doc.traffic);
   if (!Number.isFinite(traffic) || traffic <= 0 || traffic > 100) {
     throw new ConfigError(`traffic must be a percentage above 0 and up to 100, got "${String(doc.traffic)}"`);
@@ -98,15 +107,35 @@ export function parseConfig(raw: unknown): Config {
     fallback,
     goal: { event, ...(rule ? { when: rule } : {}), header },
     guardrails: guardrails as Guardrail[],
+    metrics,
     traffic,
   };
+}
+
+// status: "2xx", "201", or a comma list of those ("2xx,303": a form post that redirects counts too).
+const STATUS_RULE = /^[1-5](xx|\d\d)(,[1-5](xx|\d\d))*$/;
+
+function asRule(when: Record<string, unknown>, name: string): HttpRule {
+  const rule = {
+    method: asString(when.method, `${name}.method`).toUpperCase(),
+    path: asString(when.path, `${name}.path`),
+    status: String(when.status ?? '2xx').replace(/\s+/g, ''),
+  };
+  if (!STATUS_RULE.test(rule.status)) {
+    throw new ConfigError(`${name}.status must look like 2xx, 201 or "2xx,303", got "${rule.status}"`);
+  }
+  return rule;
+}
+
+export function matchesStatus(rule: string, status: number): boolean {
+  const code = String(status);
+  return rule.split(',').some((r) => (r.endsWith('xx') ? code[0] === r[0] : code === r));
 }
 
 export function matchesRule(rule: HttpRule, method: string, path: string, status: number): boolean {
   if (rule.method !== method.toUpperCase()) return false;
   if (!matchesPath(rule.path, path)) return false;
-  const code = String(status);
-  return rule.status.endsWith('xx') ? code[0] === rule.status[0] : code === rule.status;
+  return matchesStatus(rule.status, status);
 }
 
 // "/checkout" matches exactly; "/fix/*" matches anything under /fix/.

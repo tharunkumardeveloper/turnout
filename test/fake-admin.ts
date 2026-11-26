@@ -228,6 +228,19 @@ export async function startFakeAdmin(state: FakeAdminState): Promise<{ apiUrl: s
         state.experiments.push(experiment);
         return send(201, publicExperiment(experiment));
       }
+      // Flagsmith: api/experimentation/experiment_urls.py:12 and serializers.py:228-247 (no completed, no duplicate).
+      if ((m = rest.match(/^experiments\/(\d+)\/metrics\/$/))) {
+        const experiment = state.experiments.find((e) => e.envKey === envKey && e.id === Number(m![1]));
+        if (!experiment) return send(404, { detail: 'Not found.' });
+        if (method === 'GET') return send(200, experiment.metrics);
+        if (experiment.status === 'completed') return send(400, { non_field_errors: ['Cannot modify metrics of a completed experiment.'] });
+        if (experiment.metrics.some((x) => x.metric === body.metric)) return send(400, { metric: ['Metric is already attached to this experiment.'] });
+        const metric = state.metrics.find((s) => s.id === body.metric);
+        if (!metric) return send(400, { metric: ['Invalid pk'] });
+        const attached = { metric: metric.id, metric_name: metric.name, aggregation: metric.aggregation, direction: metric.direction, expected_direction: body.expected_direction };
+        experiment.metrics.push(attached);
+        return send(201, attached);
+      }
       if ((m = rest.match(/^experiments\/(\d+)\/results\/$/)) && method === 'GET') {
         const experiment = state.experiments.find((e) => e.envKey === envKey && e.id === Number(m![1]));
         if (!experiment) return send(404, { detail: 'Not found.' });

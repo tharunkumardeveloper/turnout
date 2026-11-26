@@ -8,7 +8,10 @@ import { PRODUCTS } from '../shop/catalog.ts';
 export type SimOptions = {
   target: string; // the proxy, e.g. http://switchyard:8080
   visitors: number;
-  rates: Record<string, number>; // true conversion rate per variant key
+  rates: Record<string, number>; // true conversion (order) rate per variant key
+  // Demo shop funnel: the share of visitors who add to cart, the same on every release. Of those, rate/cartRate place
+  // the order, so a release wins at checkout completion, not at add-to-cart. Default 0.3.
+  cartRate?: number;
   concurrency: number;
   seed: number;
   // Any app: land on /, then (with the variant's rate) send this request; a conversion is a status the rule accepts.
@@ -18,7 +21,7 @@ export type SimOptions = {
   log?: (line: string) => void;
 };
 
-type Tally = { visitors: number; orders: number; pageErrors: number };
+type Tally = { visitors: number; carts: number; orders: number; pageErrors: number };
 
 export type SimReport = {
   byVariant: Record<string, Tally>;
@@ -106,7 +109,8 @@ async function visit(
   rates: Record<string, number>,
   random: () => number,
   debugToken?: string,
-): Promise<{ variant: string; release: string; ordered: boolean; ok: boolean; pageErrors: number }> {
+  cartRate = DEFAULT_CART_RATE,
+): Promise<VisitResult> {
   const v = new Visitor(target, debugToken);
   let pageErrors = 0;
   const page = async (path: string) => {
@@ -122,10 +126,13 @@ async function visit(
   await page(`/product/${product.slug}`);
   if (random() < 0.4) await page(`/product/${PRODUCTS[Math.floor(random() * PRODUCTS.length)]!.slug}`);
 
-  if (random() >= (rates[variant] ?? 0)) return { variant, release, ordered: false, ok: true, pageErrors };
-
+  // Funnel: add to cart at the same rate on every release; the release decides how many of those finish checkout.
+  const orderRate = rates[variant] ?? 0;
+  const carted = Math.max(cartRate, orderRate);
+  if (random() >= carted) return { variant, release, carted: false, ordered: false, ok: true, pageErrors };
   await v.request('POST', '/cart/add', { slug: product.slug, qty: '1' });
   await page('/cart');
+  if (random() >= orderRate / carted) return { variant, release, carted: true, ordered: false, ok: true, pageErrors };
   let order: Response;
   if (checkoutFlow(release) === 'multi-step') {
     // shop 1.4: cart → shipping details → payment → place order
@@ -137,8 +144,11 @@ async function visit(
     // shop 1.5 and later: one-page checkout on the cart page
     order = await v.request('POST', '/checkout', { ...SHIPPING, ...PAYMENT });
   }
-  return { variant, release, ordered: order.status === 200, ok: order.status === 200, pageErrors };
+  return { variant, release, carted: true, ordered: order.status === 200, ok: order.status === 200, pageErrors };
 }
+
+type VisitResult = { variant: string; release: string; carted: boolean; ordered: boolean; ok: boolean; pageErrors: number };
+export const DEFAULT_CART_RATE = 0.3;
 
 // The goal path with any trailing wildcard filled in: "/fix/*" → "/fix/simulated".
 export function goalPath(path: string): string {
@@ -146,7 +156,7 @@ export function goalPath(path: string): string {
 }
 
 export function statusMatches(rule: string, status: number): boolean {
-  return rule.endsWith('xx') ? String(status)[0] === rule[0] : String(status) === rule;
+  return rule.split(',').some((r) => (r.endsWith('xx') ? String(status)[0] === r[0] : String(status) === r));
 }
 
 async function visitGoal(
@@ -155,7 +165,7 @@ async function visitGoal(
   rates: Record<string, number>,
   random: () => number,
   debugToken?: string,
-): Promise<{ variant: string; release: string; ordered: boolean; ok: boolean; pageErrors: number }> {
+): Promise<VisitResult> {
   const v = new Visitor(target, debugToken);
   // Two page views: the proxy records an exposure only for a visitor who sends its cookie back (a returning page
   // load), and Flagsmith counts a conversion only after the exposure. A visitor who signs up on the very first
@@ -165,14 +175,14 @@ async function visitGoal(
   const pageErrors = (first.status >= 500 ? 1 : 0) + (landing.status >= 500 ? 1 : 0);
   const variant = landing.headers.get('x-switchyard-variant') ?? 'control';
   const release = landing.headers.get('x-switchyard-release') ?? 'unknown';
-  if (random() >= (rates[variant] ?? 0)) return { variant, release, ordered: false, ok: true, pageErrors };
+  if (random() >= (rates[variant] ?? 0)) return { variant, release, carted: false, ordered: false, ok: true, pageErrors };
   const write = goal.method !== 'GET' && goal.method !== 'HEAD';
   const res = await v.request(goal.method, goalPath(goal.path), write ? { email: 'simulated.visitor@example.com' } : undefined);
   const ok = statusMatches(goal.status, res.status);
-  return { variant, release, ordered: ok, ok, pageErrors };
+  return { variant, release, carted: false, ordered: ok, ok, pageErrors };
 }
 
-const newTally = (): Tally => ({ visitors: 0, orders: 0, pageErrors: 0 });
+const newTally = (): Tally => ({ visitors: 0, carts: 0, orders: 0, pageErrors: 0 });
 
 export async function simulate(opts: SimOptions): Promise<SimReport> {
   const log = opts.log ?? console.log;
@@ -189,10 +199,11 @@ export async function simulate(opts: SimOptions): Promise<SimReport> {
       const random = visitorRandom(opts.seed, index);
       const r = opts.goal
         ? await visitGoal(opts.target, opts.goal, opts.rates, random, opts.debugToken)
-        : await visit(opts.target, opts.rates, random, opts.debugToken);
+        : await visit(opts.target, opts.rates, random, opts.debugToken, opts.cartRate);
       for (const t of [(report.byVariant[r.variant] ??= newTally()), (report.byRelease[r.release] ??= newTally())]) {
         t.visitors++;
         t.pageErrors += r.pageErrors;
+        if (r.carted) t.carts++;
         if (r.ordered) t.orders++;
       }
       if (!r.ok) report.failedOrders++;

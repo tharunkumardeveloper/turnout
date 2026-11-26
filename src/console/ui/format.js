@@ -230,7 +230,7 @@ export function assessMetric(experiment, metricDef, results, index) {
   return {
     id: metricDef.metric,
     name: metricDef.metric_name,
-    role: index === 0 ? 'goal' : 'guardrail',
+    role: index === 0 ? 'goal' : metricDef.expected_direction === 'increase' ? 'secondary' : 'guardrail',
     aggregation: aggregationLabel(metricDef.aggregation),
     direction: directionLabel(metricDef.direction),
     state,

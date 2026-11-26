@@ -292,6 +292,17 @@ describe('losingGuardrails', () => {
     assert.deepEqual(losingGuardrails(s.experiment, s.results, 'v2'), []);
   });
 
+  test('a secondary metric (expected to increase) is never a guardrail', () => {
+    const s = initialState();
+    s.experiment.metrics[1]!.expected_direction = 'increase';
+    s.results!.payload!.metrics.push({
+      metric_id: s.experiment.metrics[1]!.metric,
+      variants: { control: { n: 1000, sum: 300, sum_squares: 0 }, v2: { n: 1000, sum: 200, sum_squares: 0 } },
+      inference: { v2: { lift: -0.33, ci_low: -0.4, ci_high: -0.2, chance_to_win: 0.001 } },
+    });
+    assert.deepEqual(losingGuardrails(s.experiment, s.results, 'v2'), []);
+  });
+
   test('a practical minimum: a sure but tiny harm (under 5% relative) is not losing', () => {
     const s = initialState();
     s.results!.payload!.metrics.push({

@@ -14,6 +14,7 @@ import { analyze, coverage, fetchEnvironmentDocument, type EnvironmentDocument }
 import { RELEASE_TAG } from './init.ts';
 import { PREVIEW_SEGMENT, PREVIEW_TRAIT } from './preview.ts';
 import { currentRelease } from './release.ts';
+import { evaluateServer, gatherServerFacts, type ServerFacts, type ServerModeOptions } from '../server-mode.ts';
 
 // The Flagsmith image compose.flagsmith.yml pins (test/doctor.test.ts keeps the two equal).
 export const PINNED_FLAGSMITH_VERSION = '2.291.0';
@@ -39,6 +40,8 @@ export type DoctorOptions = {
   // Where Ship and Revert write snapshots and the ledger, and the .env init and release write. Unset: not checked.
   stateDir?: string | undefined;
   envFile?: string | undefined;
+  // Server mode only (SWITCHYARD_MODE=server): HTTPS, Secure cookies, private ports, secrets, restart policies.
+  server?: ServerModeOptions | undefined;
 };
 
 // One read: its value, or why it failed.
@@ -83,6 +86,7 @@ export type DoctorFacts = {
   events: { accepted: number; rejected: number } | null;
   fromHost?: boolean;
   writable?: { label: string; path: string; problem: string | null }[];
+  server?: ServerFacts; // server mode only
 };
 
 const got = async <T>(promise: Promise<T>): Promise<Got<T>> => {
@@ -164,12 +168,14 @@ export async function gatherFacts(o: DoctorOptions): Promise<DoctorFacts> {
     return (await res.json()) as ProxyHealth;
   };
 
-  const [, proxyHealth, consoleStatus, events] = await Promise.all([
+  const [, proxyHealth, consoleStatus, events, server] = await Promise.all([
     flagsmith(),
     got(proxy()),
     o.consoleUrl ? got(httpStatus(o.consoleUrl)) : Promise.resolve('self' as const),
     readEventCounter(o.metricsUrl),
+    o.server ? gatherServerFacts(o.server) : Promise.resolve(undefined),
   ]);
+  if (server) facts.server = server;
   facts.proxy = proxyHealth;
   facts.console = consoleStatus;
   facts.events = events;
@@ -476,6 +482,8 @@ export function evaluate(f: DoctorFacts): DoctorCheck[] {
     const u = f.proxy.value.undeliveredEvents;
     add(A, 'Proxy deliveries', u > 0 ? 'warn' : 'ok', '0 undelivered', `${n(u)} undelivered`, 'docker compose logs switchyard shows why');
   }
+  // ---- Server mode (local mode has no f.server and skips these) -------------------------------------------------
+  if (f.server) checks.push(...evaluateServer(f.server));
   return checks;
 }
 

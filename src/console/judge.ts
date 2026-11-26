@@ -21,6 +21,7 @@ import {
   type GuardrailWarning,
   type Results,
   formatInterval,
+  isGuardrail,
 } from '../flagsmith/experiments.ts';
 import { readLedger, type LedgerEntry } from '../ledger.ts';
 
@@ -103,7 +104,7 @@ export function routingFrom(
 export type Verdict = 'winning' | 'losing' | 'inconclusive' | 'collecting' | 'no-events';
 export type MetricSummary = {
   name: string;
-  role: 'goal' | 'guardrail';
+  role: 'goal' | 'secondary' | 'guardrail';
   aggregation: string;
   direction: string;
   arms: Record<string, { n: number; mean: number }>;
@@ -216,7 +217,8 @@ export function shared<T>(load: () => Promise<T>, ttlMs: number, now: () => numb
   };
 }
 
-// shop:1.6 converts better but carries a seeded 60 ms delay: it wins on orders and loses the latency guardrail.
+// shop:1.6 converts better but carries a deliberate test fault, a seeded 60 ms delay: it wins on orders and loses
+// the latency guardrail.
 export const DEFAULT_RATES = 'shop:1.4=0.10,shop:1.5=0.135,shop:1.6=0.17';
 export const REFRESH_EVERY_MS = 5 * 60_000; // Flagsmith accepts one results refresh per experiment every 5 minutes
 const DEFAULT_VISITORS = 1500;
@@ -264,7 +266,7 @@ export function summarizeResults(experiment: ExperimentDetail, results: Results 
     const inference = r?.inference.v2 ?? null;
     return {
       name: m.metric_name,
-      role: i === 0 ? 'goal' : 'guardrail',
+      role: i === 0 ? 'goal' : isGuardrail(m) ? 'guardrail' : 'secondary',
       aggregation: m.aggregation,
       direction: m.direction,
       arms,
@@ -788,7 +790,7 @@ export function createJudge(opts: JudgeOptions, ctx: JudgeContext) {
     stage(1);
     progress(0, n);
     log(`Sending ${n} simulated visitors (labelled simulation) through the Switchyard proxy.`);
-    log(`True order rates, set as inputs (not evidence): ${control} ${pct(rates[CONTROL]!)}, ${v2} ${pct(rates.v2!)}.`);
+    log(`True order rates, set as inputs (not evidence): ${control} ${pct(rates[CONTROL]!)}, ${v2} ${pct(rates.v2!)}. Add-to-cart: 30% on both, so the difference is at checkout.`);
     let bucket = 0;
     const report = await deps.simulate({
       target: opts.proxyUrl,
@@ -813,7 +815,7 @@ export function createJudge(opts: JudgeOptions, ctx: JudgeContext) {
     visitorsSent.set(s.experiment.id, (visitorsSent.get(s.experiment.id) ?? 0) + sent);
     lastVisitorsAt.set(s.experiment.id, iso());
     for (const [release, t] of Object.entries(report.byRelease)) {
-      log(`${release}: ${t.visitors} visitors, ${t.orders} orders (${pct(t.orders / Math.max(t.visitors, 1))})${t.pageErrors ? `, ${t.pageErrors} page errors` : ''}`);
+      log(`${release}: ${t.visitors} visitors, ${t.carts ?? 0} added to cart, ${t.orders} orders (${pct(t.orders / Math.max(t.visitors, 1))})${t.pageErrors ? `, ${t.pageErrors} page errors` : ''}`);
     }
     if (report.failedOrders) log(`${report.failedOrders} orders failed`);
     log(`Done in ${(report.durationMs / 1000).toFixed(1)} s. The proxy sends their events to Flagsmith every 2 s.`);

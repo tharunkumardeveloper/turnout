@@ -5,6 +5,7 @@ import http from 'node:http';
 import type { AddressInfo } from 'node:net';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { after, before, describe, test } from 'node:test';
 import type { SimOptions, SimReport } from '../demo/simulator/simulate.ts';
 import {
@@ -19,7 +20,7 @@ import {
   type JudgeOptions,
   type StepInput,
 } from '../src/console/judge.ts';
-import { createConsole, JUDGE_COOKIE, judgeMark, listenForOtherDevices } from '../src/console/server.ts';
+import { createConsole, JUDGE_COOKIE, judgeMark, listenForOtherDevices, listenForPublic } from '../src/console/server.ts';
 import { AdminClient } from '../src/flagsmith/admin.ts';
 import { latestExperiment, type ExperimentDetail, type Results } from '../src/flagsmith/experiments.ts';
 import { readLedger } from '../src/ledger.ts';
@@ -339,8 +340,8 @@ describe('judge mode API', () => {
           return {
             byVariant: {},
             byRelease: {
-              'shop:1.4': { visitors: half, orders: Math.round(half / 10), pageErrors: 0 },
-              'shop:1.5': { visitors: half, orders: Math.round(half / 7), pageErrors: 0 },
+              'shop:1.4': { visitors: half, carts: 0, orders: Math.round(half / 10), pageErrors: 0 },
+              'shop:1.5': { visitors: half, carts: 0, orders: Math.round(half / 7), pageErrors: 0 },
             },
             failedOrders: 0,
             durationMs: 1234,
@@ -530,7 +531,7 @@ describe('judge mode API', () => {
     assert.match(log, /simulated visitors \(labelled simulation\)/);
     assert.match(log, /300 of 3000 visitors done/);
     assert.match(log, /3000 of 3000 visitors done/);
-    assert.match(log, /shop:1\.5: 1500 visitors, 214 orders/);
+    assert.match(log, /shop:1\.5: 1500 visitors, 0 added to cart, 214 orders/);
     assert.equal(s.totals.visitorsSent, 3000);
     assert.equal(s.current, 'score');
   });
@@ -760,7 +761,7 @@ describe('judge mode shares one read of Flagsmith between viewers', () => {
         deps: {
           simulate: async (opts: SimOptions): Promise<SimReport> => ({
             byVariant: {},
-            byRelease: { 'shop:1.4': { visitors: opts.visitors, orders: 0, pageErrors: 0 } },
+            byRelease: { 'shop:1.4': { carts: 0, visitors: opts.visitors, orders: 0, pageErrors: 0 } },
             failedOrders: 0,
             durationMs: 1,
           }),
@@ -982,5 +983,88 @@ describe('judge mode from another device', () => {
     const p = (other.address() as AddressInfo).port;
     assert.equal((await raw(p, '/judge?key=anything', { host: 'localhost' })).status, 403);
     other.close();
+  });
+});
+
+// Server mode: the console's public port (behind Caddy) serves a read-only judge view and nothing else.
+describe('the public, read-only judge view (server mode)', () => {
+  let flagsmith: Awaited<ReturnType<typeof startFlagsmith>>;
+  let server: http.Server;
+  let pub = '';
+  let token = '';
+  const realUi = fileURLToPath(new URL('../src/console/ui/', import.meta.url));
+
+  before(async () => {
+    flagsmith = await startFlagsmith(initialState());
+    server = createConsole({
+      experiments: () => latestExperiment(new AdminClient(flagsmith.apiUrl, { apiKey: 'k' }), ENV, 'shop_release'),
+      feedUrl: 'http://127.0.0.1:9',
+      snapshotDir: mkdtempSync(join(tmpdir(), 'sy-pub-snap-')),
+      ledgerDir: mkdtempSync(join(tmpdir(), 'sy-pub-ledger-')),
+      uiDir: realUi,
+      judgeToken: 'judge-token-0123456789',
+      flagsmithLogin: { email: 'a@example.com', password: 'admin-password-123' },
+      judge: {
+        flag: 'shop_release',
+        releases: RELEASES,
+        goal: 'order_placed',
+        apiUrl: flagsmith.apiUrl,
+        adminKey: 'k',
+        proxyUrl: 'http://proxy.invalid:8080',
+        shopUrl: 'https://switchyard.example.com',
+        dashboardUrl: 'http://127.0.0.1:8000',
+        previewToken: 'preview-token-secret',
+        rates: parseRates(DEFAULT_RATES),
+      },
+    });
+    await listen(server);
+    const viewers = listenForPublic(server, 0, '127.0.0.1');
+    await once(viewers, 'listening');
+    pub = `http://127.0.0.1:${(viewers.address() as AddressInfo).port}`;
+  });
+  after(() => {
+    server.close();
+    flagsmith.close();
+  });
+
+  test('GET /judge: the judge page, read-only, assets and API under /judge/, its own token', async () => {
+    const res = await fetch(`${pub}/judge`, { headers: { host: 'switchyard.example.com' } });
+    assert.equal(res.status, 200);
+    const html = await res.text();
+    token = html.match(/name="switchyard-console" content="([^"]+)"/)?.[1] ?? '';
+    assert.ok(token);
+    assert.match(html, /<meta name="switchyard-readonly" content="1">/);
+    assert.match(html, /<meta name="switchyard-base" content="\/judge">/);
+    assert.match(html, /src="\/judge\/judge\.js"/);
+    assert.doesNotMatch(html, /(href|src)="\/[a-z-]+\.(css|js|svg)"/, 'no asset left at the root, where the app lives');
+    assert.equal((await fetch(`${pub}/judge/judge.js`)).status, 200);
+    assert.equal((await fetch(`${pub}/judge/style.css`)).status, 200);
+  });
+
+  test('state without the preview link, tokens or the admin password', async () => {
+    const res = await fetch(`${pub}/judge/api/judge/state`, { headers: { 'x-switchyard-console': token } });
+    assert.equal(res.status, 200);
+    const text = await res.text();
+    const body = JSON.parse(text);
+    assert.equal(body.readOnly, true);
+    assert.equal(body.links.preview, null);
+    for (const secret of ['preview-token-secret', 'judge-token-0123456789', 'admin-password-123']) assert.ok(!text.includes(secret), 'no secret in the public state');
+    assert.equal((await fetch(`${pub}/judge/api/judge/state`)).status, 403, 'the page token is required');
+  });
+
+  test('every write, every other page and every other API answer is refused', async () => {
+    const post = await fetch(`${pub}/judge/api/judge/run`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', 'x-switchyard-console': token },
+      body: JSON.stringify({ action: 'visitors' }),
+    });
+    assert.equal(post.status, 405);
+    for (const method of ['PUT', 'DELETE', 'PATCH']) assert.equal((await fetch(`${pub}/judge`, { method })).status, 405);
+    const h = { 'x-switchyard-console': token, host: 'localhost' };
+    for (const path of ['/', '/setup', '/flagsmith', '/api/state', '/api/doctor', '/api/judge/state', '/judge/api/state', '/judge/api/doctor',
+      '/judge/api/guard', '/judge/api/judge/signin', '/judge/api/flagsmith-map', '/judge/judge.html', '/judge/setup.html', '/judge/index.html', '/judge/../index.html']) {
+      const res = await fetch(`${pub}${path}`, { headers: h });
+      assert.equal(res.status, 404, path);
+    }
   });
 });

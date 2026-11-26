@@ -12,6 +12,8 @@ export const OWN_PREFIX = '/__switchyard/';
 // removes the header; with goal.header: true it turns each entry into a Flagsmith event for that visitor.
 export const EVENT_HEADER = 'x-switchyard-event';
 export const MAX_HEADER_EVENTS = 5;
+// Request header to the app, for previewing browsers and debug-token requests only: the release label it serves.
+export const RELEASE_HEADER = 'x-switchyard-release';
 
 const CONTROL = 'control';
 const ONE_YEAR_S = 365 * 24 * 60 * 60;
@@ -175,6 +177,9 @@ export function createProxy(opts: Options): http.Server {
           flags.track(config.goal.event, id);
           converted = true;
         }
+        for (const m of config.metrics ?? []) {
+          if (matchesRule(m.when, method, target.pathname, status)) flags.track(m.event, id);
+        }
         for (const e of appEvents) {
           if (e.event === config.goal.event && converted) continue; // the rule already counted this request
           if (e.value === undefined) flags.track(e.event, id);
@@ -200,12 +205,17 @@ export function createProxy(opts: Options): http.Server {
     const client = url.protocol === 'https:' ? https : http;
     let timedOut = false;
 
-    const upstreamReq = client.request(url, { method, headers: forwardHeaders(req, upstream, secure), timeout: upstreamTimeoutMs }, (upstreamRes) => {
+    const debugging = !!debugToken && safeEqual(header(req, 'x-switchyard-debug'), debugToken);
+    const upstreamHeaders = forwardHeaders(req, upstream, secure);
+    // Only a previewing browser or a debug-token request tells the app which release it is (the app may show a
+    // "Release 1.5" badge); forwardHeaders already dropped any copy a client sent, so nobody else can ask for it.
+    if (previewing || debugging) upstreamHeaders[RELEASE_HEADER] = release;
+    const upstreamReq = client.request(url, { method, headers: upstreamHeaders, timeout: upstreamTimeoutMs }, (upstreamRes) => {
       const status = upstreamRes.statusCode ?? 502;
       const latencyMs = elapsed(); // time to the app's response headers
       const headers = responseHeaders(upstreamRes.headers, upstream);
       if (config.goal.header) appEvents = parseEventHeader(upstreamRes.headers[EVENT_HEADER]);
-      if (debugToken && safeEqual(header(req, 'x-switchyard-debug'), debugToken)) {
+      if (debugging) {
         headers['x-switchyard-variant'] = variant;
         headers['x-switchyard-release'] = release;
         headers['x-switchyard-enrolled'] = String(enrolled);
@@ -403,6 +413,7 @@ function forwardHeaders(req: http.IncomingMessage, upstream: URL, secure: boolea
   const headers = stripHopByHop(req.headers);
   headers.host = upstream.host;
   delete headers['x-switchyard-debug'];
+  delete headers[RELEASE_HEADER]; // set by Switchyard only, never by a client
   // Switchyard's own cookies stay between the visitor and Switchyard.
   const cookie = (req.headers.cookie ?? '')
     .split(';')
