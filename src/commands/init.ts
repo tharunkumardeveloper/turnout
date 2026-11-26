@@ -272,7 +272,9 @@ export async function init(opts: Options): Promise<void> {
   // Secondary metrics expect an increase like the goal; guardrails expect no increase, which is how Turnout tells
   // them apart (src/flagsmith/experiments.ts isGuardrail).
   const wanted = [
-    { name: opts.config.goal.event, aggregation: 'occurrence', direction: 'up', expected: 'increase' },
+    opts.config.goal.speedOnly
+      ? { name: opts.config.goal.event, aggregation: 'mean', direction: 'down', expected: 'decrease' } // no goal: speed
+      : { name: opts.config.goal.event, aggregation: 'occurrence', direction: 'up', expected: 'increase' },
     ...(opts.config.metrics ?? []).map((m) => ({ name: m.event, aggregation: 'occurrence', direction: 'up', expected: 'increase' })),
     ...opts.config.guardrails.map((g) => ({ name: g, aggregation: 'mean', direction: 'down', expected: 'not_increase' })),
   ];

@@ -2,6 +2,7 @@
 // flag's latest experiment (deriveSteps) plus background jobs that drive the real stack: labelled simulated visitors
 // through the proxy, Flagsmith's results, Ship winner / Revert, swing-back, preview, release, verify and reset.
 // Every job reuses the commands the CLI runs; Flagsmith, the simulator and the proxy are injectable for tests.
+import { defaultHypothesis } from '../config.ts';
 import { randomBytes } from 'node:crypto';
 import { simulate as runSimulation, type SimOptions, type SimReport } from '../../demo/simulator/simulate.ts';
 import { check as runCheck } from '../commands/check.ts';
@@ -1006,7 +1007,7 @@ export function createJudge(opts: JudgeOptions, ctx: JudgeContext) {
 
   const releaseAction: Action = async (s, _body, { log, stage }) => {
     const next = s.next!;
-    const hypothesis = `${next} raises ${opts.goal} without hurting latency or errors`;
+    const hypothesis = defaultHypothesis(next, opts.goal);
     log(`Starting the next experiment on the same flag: ${next} against ${s.live}.`);
     const { experimentId } = await deps.release(next, hypothesis, s.exps.ref.envKey, (line) => {
       log(line);
@@ -1044,7 +1045,7 @@ export function createJudge(opts: JudgeOptions, ctx: JudgeContext) {
     });
     log(`✓ The flag's environment default serves ${first} to everyone.`);
     stage(2);
-    const { experimentId } = await deps.release(second, `${second} raises ${opts.goal} without hurting latency or errors`, s.exps.ref.envKey, log);
+    const { experimentId } = await deps.release(second, defaultHypothesis(second, opts.goal), s.exps.ref.envKey, log);
     visitorsSent.clear();
     lastVisitorsAt.clear();
     verified.clear();

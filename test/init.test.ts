@@ -499,3 +499,24 @@ test('a secondary metric added to the config later is created and attached to th
   assert.deepEqual(experiment.metrics.find((m) => m.metric_name === 'add_to_cart')?.expected_direction, 'increase');
   assert.ok(lines.some((l) => /attached 1 new metric/.test(l)));
 });
+
+test('no goal in the config: page speed is the primary metric (lower is better), server_error the guardrail', async () => {
+  const state = emptyState();
+  fake = await startFakeAdmin(state);
+  await init({
+    apiUrl: fake.apiUrl,
+    dashboardUrl: 'http://localhost:8000',
+    config: parseConfig({ flag: 'app_release', releases: { 'app:1.0': 'http://a:3000', 'app:1.1': 'http://b:3000' } }),
+    envFile,
+    log: () => {},
+  });
+  assert.deepEqual(state.metrics.map((m) => [m.name, m.aggregation, m.direction]), [
+    ['doc_latency_ms', 'mean', 'down'],
+    ['server_error', 'mean', 'down'],
+  ]);
+  assert.deepEqual(state.experiments[0]!.metrics.map((m) => [m.metric_name, m.expected_direction]), [
+    ['doc_latency_ms', 'decrease'],
+    ['server_error', 'not_increase'],
+  ]);
+  assert.equal(state.experiments[0]!.status, 'running');
+});

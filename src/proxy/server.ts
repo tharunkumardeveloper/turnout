@@ -3,7 +3,7 @@ import http from 'node:http';
 import https from 'node:https';
 import dns from 'node:dns';
 import type { LookupFunction } from 'node:net';
-import { EVENT_NAME, GUARDRAILS, matchesRule, type Config } from '../config.ts';
+import { EVENT_NAME, GUARDRAILS, matchesRule, measuresSpeed, type Config } from '../config.ts';
 import type { Receipt } from '../flagsmith/receipts.ts';
 
 export const ID_COOKIE = 'tn_id';
@@ -200,7 +200,7 @@ export function createProxy(opts: Options): http.Server {
           track(e.event, id, e.value);
           if (e.event === config.goal.event) converted = true;
         }
-        if (document && method === 'GET' && config.guardrails.includes('doc_latency_ms')) track('doc_latency_ms', id, latencyMs);
+        if (document && method === 'GET' && measuresSpeed(config)) track('doc_latency_ms', id, latencyMs);
         if (config.guardrails.includes('server_error') && (document || status >= 500)) {
           track('server_error', id, status >= 500 ? 1 : 0);
         }

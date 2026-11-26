@@ -16,8 +16,9 @@ export type Config = {
   releases: Map<string, URL>;
   fallback: string; // the first release: served when Flagsmith can't answer or the flag is off
   // when: the request that counts as a conversion. header: the app may also name events itself in an
-  // X-Turnout-Event response header. At least one of the two.
-  goal: { event: string; when?: HttpRule; header: boolean };
+  // X-Turnout-Event response header. At least one of the two. With no goal in the file, speedOnly: the experiment's
+  // primary metric is page speed (doc_latency_ms, lower is better) and server_error stays a guardrail.
+  goal: { event: string; when?: HttpRule; header: boolean; speedOnly?: true };
   guardrails: Guardrail[];
   // Secondary metrics (e.g. add_to_cart in a funnel): counted from HTTP rules like the goal and shown next to it,
   // never a guardrail and never the decision. Optional; default none.
@@ -59,6 +60,7 @@ export function parseConfig(raw: unknown): Config {
   const fallback = [...releases.keys()][0];
   if (!fallback) throw new ConfigError("releases must list at least one release; the first is served when Flagsmith can't answer");
 
+  if (doc.goal === undefined || doc.goal === null) return parseSpeedOnly(doc, flag, releases, fallback);
   const goal = asRecord(doc.goal, 'goal');
   if (goal.header !== undefined && typeof goal.header !== 'boolean') throw new ConfigError('goal.header must be true or false');
   const header = goal.header === true;
@@ -111,6 +113,38 @@ export function parseConfig(raw: unknown): Config {
     traffic,
   };
 }
+
+// No goal: a release is judged on page speed (the primary metric) with server errors as the guardrail. A goal can be
+// added later; until then nothing about the app needs describing beyond its releases.
+export const SPEED_GOAL = 'doc_latency_ms';
+function parseSpeedOnly(doc: Record<string, unknown>, flag: string, releases: Map<string, URL>, fallback: string): Config {
+  const listed = (doc.guardrails ?? ['server_error']) as unknown[];
+  if (!Array.isArray(listed)) throw new ConfigError('guardrails must be a list');
+  for (const g of listed) {
+    if (!GUARDRAILS.includes(g as Guardrail)) throw new ConfigError(`unknown guardrail "${String(g)}"; supported: ${GUARDRAILS.join(', ')}`);
+  }
+  if (doc.metrics !== undefined) throw new ConfigError('metrics need a goal: add goal: { event, when } first');
+  const traffic = doc.traffic === undefined ? 100 : Number(doc.traffic);
+  if (!Number.isFinite(traffic) || traffic <= 0 || traffic > 100) {
+    throw new ConfigError(`traffic must be a percentage above 0 and up to 100, got "${String(doc.traffic)}"`);
+  }
+  return {
+    flag,
+    releases,
+    fallback,
+    goal: { event: SPEED_GOAL, header: false, speedOnly: true },
+    guardrails: (listed as Guardrail[]).filter((g) => g !== SPEED_GOAL), // page speed is the primary metric here
+    metrics: [],
+    traffic,
+  };
+}
+
+/** The hypothesis Turnout writes for a release when nobody gave one. */
+export const defaultHypothesis = (release: string, goalEvent: string): string =>
+  goalEvent === SPEED_GOAL ? `${release} loads pages faster without more errors` : `${release} raises ${goalEvent} without hurting latency or errors`;
+
+/** Does the proxy send page-load latency (as the speed-only goal or as a guardrail)? */
+export const measuresSpeed = (c: Config): boolean => !!c.goal.speedOnly || c.guardrails.includes('doc_latency_ms');
 
 // status: "2xx", "201", or a comma list of those ("2xx,303": a form post that redirects counts too).
 const STATUS_RULE = /^[1-5](xx|\d\d)(,[1-5](xx|\d\d))*$/;

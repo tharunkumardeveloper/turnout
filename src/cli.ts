@@ -12,7 +12,7 @@ import { preview } from './commands/preview.ts';
 import { release } from './commands/release.ts';
 import { revert, ship, status } from './commands/ship.ts';
 import { simulate } from '../demo/simulator/simulate.ts';
-import { loadConfig } from './config.ts';
+import { defaultHypothesis, loadConfig } from './config.ts';
 import { createFlagSource } from './flagsmith/flag-source.ts';
 import { DEFAULT_RATES, parseRates } from './console/judge.ts';
 import { createConsole, listenForOtherDevices, listenForPublic } from './console/server.ts';
@@ -415,7 +415,7 @@ const commands: Record<string, () => Promise<void>> = {
       flag: config.flag,
       releases: new Set(config.releases.keys()),
       newRelease: label ?? '',
-      hypothesis: cliFlags.hypothesis ?? `${label} raises ${config.goal.event} without hurting latency or errors`,
+      hypothesis: cliFlags.hypothesis ?? defaultHypothesis(label ?? '', config.goal.event),
     });
     writeEnv(ENV_FILE, { TURNOUT_EXPERIMENT: `${envKey()}/${experimentId}` });
   },

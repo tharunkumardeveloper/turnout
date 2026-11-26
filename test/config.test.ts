@@ -67,3 +67,16 @@ test('secondary metrics: parsed from HTTP rules, with comma status lists', () =>
   assert.throws(() => parseConfig({ ...valid, metrics: [{ event: 'server_error', when: { method: 'POST', path: '/x' } }] }), ConfigError);
   assert.throws(() => parseConfig({ ...valid, metrics: [{ event: 'ok', when: { method: 'POST', path: '/x', status: '2xx;' } }] }), ConfigError);
 });
+
+test('no goal: a speed-only experiment (page speed is the primary metric, server errors the guardrail)', async () => {
+  const { measuresSpeed, defaultHypothesis } = await import('../src/config.ts');
+  const c = parseConfig({ flag: 'app_release', releases: { 'app:1.0': 'http://a:3000', 'app:1.1': 'http://b:3000' } });
+  assert.deepEqual(c.goal, { event: 'doc_latency_ms', header: false, speedOnly: true });
+  assert.deepEqual(c.guardrails, ['server_error']);
+  assert.equal(c.traffic, 100);
+  assert.ok(measuresSpeed(c));
+  assert.equal(defaultHypothesis('app:1.1', c.goal.event), 'app:1.1 loads pages faster without more errors');
+  const both = parseConfig({ flag: 'f', releases: { a: 'http://a', b: 'http://b' }, guardrails: ['doc_latency_ms', 'server_error'] });
+  assert.deepEqual(both.guardrails, ['server_error'], 'page speed is never both the goal and a guardrail');
+  assert.throws(() => parseConfig({ flag: 'f', releases: { a: 'http://a' }, metrics: [{ event: 'x', when: { method: 'POST', path: '/x' } }] }), /metrics need a goal/);
+});
