@@ -32,6 +32,74 @@ say() { printf '%s\n' "$*"; }
 die() { printf 'turnout: %s\n' "$*" >&2; exit 1; }
 compose() { docker compose -p "$PROJECT" --project-directory "$STATE" -f "$STATE/turnout.compose.yml" "$@"; }
 
+# ---- the look: banner, colours, help ------------------------------------------------------------------------------
+# Colours only on a terminal that shows them (not when piped, not with NO_COLOR).
+if [ -t 1 ] && [ -z "${NO_COLOR:-}" ]; then
+  C_B=$(printf '\033[1m'); C_D=$(printf '\033[2m'); C_G=$(printf '\033[32m'); C_C=$(printf '\033[36m'); C_Y=$(printf '\033[33m'); C_R=$(printf '\033[31m'); C_0=$(printf '\033[0m')
+else
+  C_B=; C_D=; C_G=; C_C=; C_Y=; C_R=; C_0=
+fi
+
+logo() {
+  printf '%s' "$C_C"
+  cat <<'ART'
+
+   _____ _   _ ____  _   _  ___  _   _ _____
+  |_   _| | | |  _ \| \ | |/ _ \| | | |_   _|
+    | | | | | | |_) |  \| | | | | | | | | |
+    | | | |_| |  _ <| |\  | |_| | |_| | | |
+    |_|  \___/|_| \_\_| \_|\___/ \___/  |_|
+ART
+  printf '%s' "$C_0"
+  say "  ${C_B}Every release becomes a Flagsmith experiment. No app code.${C_0}"
+  say "  ${C_D}built by Tharun Kumar${C_0}"
+  say ""
+}
+
+# What this machine has: Docker (installed, running), Git. Prints a line each.
+machine_check() {
+  ok=0
+  if command -v docker >/dev/null 2>&1; then
+    if docker info >/dev/null 2>&1; then say "  ${C_G}[ok]${C_0} Docker is installed and running"
+    else say "  ${C_Y}[!!]${C_0} Docker is installed but not running: start Docker Desktop (or: sudo systemctl start docker)"; ok=1; fi
+  else say "  ${C_R}[no]${C_0} Docker isn't installed: https://docs.docker.com/get-docker/"; ok=1; fi
+  if command -v git >/dev/null 2>&1; then say "  ${C_G}[ok]${C_0} Git is installed"
+  else say "  ${C_Y}[--]${C_0} Git isn't installed (needed for turnout update and comparing branches): https://git-scm.com/downloads"; fi
+  return $ok
+}
+
+help_screen() {
+  logo
+  say "${C_B}WHAT YOU NEED${C_0}"
+  machine_check || true
+  say "  ${C_D}About 4 GB of memory for Docker. Flagsmith comes with Turnout: nothing else to install.${C_0}"
+  say ""
+  say "${C_B}TRY IT${C_0}"
+  say "  ${C_C}turnout demo${C_0}                          the demo shop and judge mode, with a guided tour"
+  say ""
+  say "${C_B}YOUR OWN WEBSITE${C_0}   ${C_D}(run these in your project's folder)${C_0}"
+  say "  ${C_C}turnout compare localhost:3001 localhost:3002${C_0}   two versions you have running"
+  say "  ${C_C}turnout compare myapp:1.0 myapp:1.1 --port 3000${C_0}  two Docker images"
+  say "  ${C_C}turnout compare main new-design${C_0}                 two git branches (built from your Dockerfile)"
+  say "      ${C_D}--goal \"POST /signup\"   count a conversion (no goal: judged on page speed)${C_0}"
+  say "      ${C_D}--split 10              10% of visitors get the new version (up to 50)${C_0}"
+  say "  ${C_C}turnout simulate${C_0}                      pretend visitors, so results show in minutes (kept apart)"
+  say "  ${C_C}turnout open${C_0}                          reopen the results page: Ship winner or Revert there"
+  say "  ${C_C}turnout status${C_0}                        what's running, and a full check"
+  say ""
+  say "${C_B}GO LIVE${C_0}"
+  say "  ${C_C}turnout deploy yourdomain.com${C_0}         the lines to put your web server (Nginx, Caddy) in front"
+  say ""
+  say "${C_B}LOOK AFTER IT${C_0}"
+  say "  ${C_C}turnout down${C_0}  stop (data kept)    ${C_C}turnout reset${C_0}  wipe    ${C_C}turnout update${C_0}  get the latest Turnout"
+  say ""
+  say "${C_D}How it works: visitors reach Turnout, Turnout asks Flagsmith which version each one gets and sends them there,"
+  say "Flagsmith scores both versions, and one click moves everyone to the winner. More: README.md in $HOME_DIR${C_0}"
+}
+
+step() { say "${C_C}==>${C_0} ${C_B}$*${C_0}"; }
+
+
 need_docker() {
   command -v docker >/dev/null 2>&1 || die "Docker isn't installed. Install Docker Desktop (https://docs.docker.com/get-docker/), start it, and run this again."
   docker info >/dev/null 2>&1 || die "Docker isn't running. Start Docker Desktop (or: sudo systemctl start docker), wait for it, and run this again."
@@ -77,8 +145,10 @@ ports_from_state() {
 
 banner() {
   say ""
-  say "  Your app is live through Turnout:  http://127.0.0.1:$PROXY_PORT"
-  say "  Results, Ship and Revert:          http://127.0.0.1:$CONSOLE_PORT"
+  say "  ${C_G}${C_B}+----------------------------------------------------------+${C_0}"
+  say "  ${C_G}${C_B}|${C_0}  Your app, through Turnout:   ${C_B}http://127.0.0.1:$PROXY_PORT${C_0}"
+  say "  ${C_G}${C_B}|${C_0}  Results, Ship and Revert:    ${C_B}http://127.0.0.1:$CONSOLE_PORT${C_0}"
+  say "  ${C_G}${C_B}+----------------------------------------------------------+${C_0}"
   say ""
   say "  Each new browser (or private window) is a new visitor: it gets one version and keeps it."
   say "  Stop: turnout down    Start again: turnout compare (same arguments)    Wipe: turnout reset"
@@ -100,7 +170,7 @@ build_branch() {
   tag="turnout-$NAME-$(label_of "$1"):$sha"
   logs="${TURNOUT_STATE:-$HOME/.turnout/projects}/.builds"; mkdir -p "$logs"
   if ! docker image inspect "$tag" >/dev/null 2>&1; then
-    say "Building branch $1 ($sha) from its Dockerfile…" >&2
+    say "${C_C}==>${C_0} ${C_B}Building branch $1 ($sha) from its Dockerfile${C_0}" >&2
     git archive --format=tar "refs/heads/$1" | docker build -t "$tag" - >"$logs/$NAME-$(label_of "$1").log" 2>&1 \
       || { tail -20 "$logs/$NAME-$(label_of "$1").log" >&2; die "building branch $1 failed (full log: $logs/$NAME-$(label_of "$1").log)."; }
   fi
@@ -127,6 +197,7 @@ app_logs() {
 }
 
 cmd_compare() {
+  logo
   [ $# -ge 2 ] || die 'usage: turnout compare <live> <new> [--goal "POST /signup"] [--split 50]'
   A=$(normalise "$1"); B=$(normalise "$2"); shift 2
   GOAL=none; SPLIT=50; APP_PORT=
@@ -188,13 +259,13 @@ app_port=$APP_PORT"
   NOT_ANSWERING="a version doesn't answer: its last log lines are above. If it needs a database or other services, start both versions yourself and run: turnout compare http://localhost:<port-a> http://localhost:<port-b>"
   if [ -n "$BRANCHES" ]; then
     # Start the branch builds first and give them a few seconds: a crash shows now, before Flagsmith's set-up.
-    say "Starting both branches…"
+    step "Starting both branches"
     compose up -d $(app_services) >"$STATE/apps.log" 2>&1 || { tail -20 "$STATE/apps.log" >&2; die "couldn't start the branches (full log: $STATE/apps.log)."; }
     sleep 8
     crashed=$(crashed_apps)
     if [ -n "$crashed" ]; then app_logs "$crashed"; compose down >/dev/null 2>&1 || true; die "$NOT_ANSWERING"; fi
   fi
-  say "Starting Flagsmith and Turnout (the first time takes a few minutes)…"
+  step "Starting Flagsmith and Turnout (the first time takes a few minutes)"
   compose run --rm cli init >"$STATE/init.log" 2>&1 || { tail -20 "$STATE/init.log" >&2; die "setting up Flagsmith failed (full log: $STATE/init.log)."; }
   if ! compose up -d --wait >"$STATE/up.log" 2>&1; then
     tail -20 "$STATE/up.log" >&2
@@ -241,6 +312,7 @@ cmd_deploy() {
 }
 
 cmd_simulate() {
+  logo
   need_state; need_docker
   visitors=500; yes=
   while [ $# -gt 0 ]; do
@@ -259,7 +331,7 @@ cmd_simulate() {
   [ -n "$real" ] || die "run turnout compare first: there's no experiment yet."
   mkdir -p "$STATE/.turnout/sim"
   [ -f "$STATE/.turnout/sim.env" ] || grep -E '^(TURNOUT_ADMIN_KEY|TURNOUT_PREVIEW_TOKEN)=' "$STATE/.env" > "$STATE/.turnout/sim.env"
-  say "Setting up the separate Demo environment in Flagsmith (once)…"
+  step "Setting up the separate Demo environment in Flagsmith (once)"
   compose run --rm -e TURNOUT_ENV_FILE=.turnout/sim.env -e TURNOUT_REAL_ENV_KEY="$real" cli sim-setup >"$STATE/sim-setup.log" 2>&1 \
     || { tail -20 "$STATE/sim-setup.log" >&2; die "setting up the Demo environment failed (full log: $STATE/sim-setup.log)."; }
   SIM_PORT=$(sed -n 's/^sim_console_port=//p' "$STATE/compare.args")
@@ -289,5 +361,5 @@ case "$cmd" in
     need_state; need_docker
     if [ "${1:-}" != --yes ]; then printf 'Delete %s'"'"'s Turnout and Flagsmith data? [y/N] ' "$NAME"; read -r ok; [ "$ok" = y ] || exit 1; fi
     compose --profile sim down -v; rm -rf "$STATE"; say "Wiped. turnout compare starts fresh." ;;
-  *) sed -n '2,13p' "$0" | sed 's/^# \{0,1\}//' ;;
+  *) help_screen ;;
 esac
