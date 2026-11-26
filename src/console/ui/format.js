@@ -240,9 +240,28 @@ export function assessMetric(experiment, metricDef, results, index) {
   };
 }
 
-/** The headline under Flagsmith's results: who the results page shows ahead, and Flagsmith's word for it. */
-export function winnerText(experiment, winner) {
+/**
+ * The headline under Flagsmith's results: who the results page shows ahead, and Flagsmith's word for it. A decision
+ * already made, or a losing guardrail, comes first: "v2 is winning" must never head a release that was rolled back.
+ * `context`: { ledger, recommendation } from /api/state, both optional.
+ */
+export function winnerText(experiment, winner, context = {}) {
   const primary = experiment?.metrics?.[0]?.metric_name ?? 'the goal metric';
+  const decided = [...(context.ledger ?? [])].reverse().find((e) => e.experimentId === experiment?.id && e.decision !== 'kept-running');
+  if (decided && experiment?.status === 'completed') {
+    const why = decided.by === 'guard' ? ` The guard rolled it back: ${decided.guardReason ?? 'a guardrail was losing'}.` : '';
+    return decided.decision === 'shipped'
+      ? { tone: 'good', headline: `Shipped: everyone gets ${decided.release}`, detail: `Decided ${decided.at.slice(0, 16).replace('T', ' ')} UTC on Flagsmith's results below.` }
+      : { tone: 'bad', headline: `Rolled back: everyone stays on ${decided.release}`, detail: `Decided ${decided.at.slice(0, 16).replace('T', ' ')} UTC on Flagsmith's results below.${why}` };
+  }
+  const rec = context.recommendation;
+  if (winner && rec?.call === 'revert' && /losing/.test(rec.reason ?? '')) {
+    return {
+      tone: 'bad',
+      headline: `${winner.key} (${releaseLabel(experiment, winner.key)}) is losing a guardrail`,
+      detail: `Flagsmith: ${rec.reason}. Turnout recommends: revert, whatever ${primary} says.`,
+    };
+  }
   if (!winner) {
     return {
       tone: 'neutral',

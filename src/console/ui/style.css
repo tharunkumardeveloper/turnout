@@ -459,6 +459,8 @@ fieldset:disabled .choice { opacity: 0.55; cursor: not-allowed; }
   margin-bottom: 12px;
 }
 .winner[data-tone="neutral"] { --c: var(--faint); }
+.winner[data-tone="bad"] { --c: var(--bad); }
+.winner[data-tone="bad"] .winner-headline { color: var(--bad); }
 .winner-headline { font-size: 16px; font-weight: 750; }
 .winner[data-tone="good"] .winner-headline { color: color-mix(in srgb, var(--c), white var(--tint)); }
 .winner-detail { font-size: 13px; color: var(--muted); }

@@ -409,7 +409,7 @@ function renderResults(s) {
   }
   asof.textContent = parts.join(' ');
 
-  const w = F.winnerText(e, s.winner);
+  const w = F.winnerText(e, s.winner, { ledger: s.ledger, recommendation: s.recommendation });
   $('winner').dataset.tone = w.tone;
   const winnerVariant = s.winner ? F.variantList(e).find((v) => v.key === s.winner.key) : null;
   // Only a winning result takes the release's colour; a lead that is still inconclusive stays neutral.

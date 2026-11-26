@@ -599,7 +599,7 @@ export function sortSnapshots(files: string[]): string[] {
 
 const TOKEN_META = '<meta name="turnout-console" content="">';
 // Pages by path; each gets the API token injected.
-const PAGES: Record<string, string> = { '/': 'index.html', '/judge': 'judge.html', '/setup': 'setup.html', '/flagsmith': 'flagsmith.html' };
+const PAGES: Record<string, string> = { '/': 'index.html', '/judge': 'demo.html', '/setup': 'setup.html', '/flagsmith': 'flagsmith.html' };
 
 // The public judge page: the same judge.html, read-only, its assets under /judge/ (Caddy sends only /judge* here, so
 // /style.css and friends stay the app's), and its API calls under /judge/api/ (the page reads turnout-base).

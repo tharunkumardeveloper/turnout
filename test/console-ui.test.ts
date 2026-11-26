@@ -352,6 +352,20 @@ describe('format: wording', () => {
     assert.match(lead.detail, /only >95% winning/);
   });
 
+  test('a losing guardrail or a decision already made heads the results, never "is winning"', () => {
+    const e = experiment();
+    const winner = { key: 'v2', chanceToWin: 0.98, isControl: false };
+    const losing = F.winnerText(e, winner, { recommendation: { call: 'revert', reason: 'v2 is losing doc_latency_ms (lift +142%, 0.0% chance to win)' } });
+    assert.equal(losing.tone, 'bad');
+    assert.equal(losing.headline, 'v2 (shop:1.5) is losing a guardrail');
+    const done = { ...e, status: 'completed' };
+    const reverted = F.winnerText(done, winner, { ledger: [{ experimentId: e.id, decision: 'reverted', release: 'shop:1.4', at: '2026-11-24T15:06:01.754Z' }] });
+    assert.equal(reverted.headline, 'Rolled back: everyone stays on shop:1.4');
+    assert.equal(reverted.tone, 'bad');
+    const shipped = F.winnerText(done, winner, { ledger: [{ experimentId: e.id, decision: 'shipped', release: 'shop:1.5', at: '2026-11-24T15:06:01.754Z' }] });
+    assert.equal(shipped.headline, 'Shipped: everyone gets shop:1.5');
+  });
+
   test('sample-ratio, event counter and refresh refusal', () => {
     assert.equal(F.srmText(initialState().results), 'Sample-ratio check: not computed');
     assert.equal(F.srmText(null), 'Sample-ratio check: not computed');

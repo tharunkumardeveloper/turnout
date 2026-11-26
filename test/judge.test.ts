@@ -264,7 +264,8 @@ async function startFlagsmith(state: FakeState) {
 const UI = (() => {
   const dir = mkdtempSync(join(tmpdir(), 'sy-judge-ui-'));
   writeFileSync(join(dir, 'index.html'), '<head><meta name="turnout-console" content=""></head><h1>console</h1>');
-  writeFileSync(join(dir, 'judge.html'), '<head><meta name="turnout-console" content=""></head><h1>judge</h1>');
+  writeFileSync(join(dir, 'judge.html'), '<head><meta name="turnout-console" content=""></head><h1>judge</h1>'); // server mode's public page
+  writeFileSync(join(dir, 'demo.html'), '<head><meta name="turnout-console" content=""></head><h1>demo</h1>'); // /judge on the console
   writeFileSync(join(dir, 'judge.js'), 'export {};');
   writeFileSync(join(dir, 'judge.css'), 'body{}');
   return dir;
@@ -424,11 +425,11 @@ describe('judge mode API', () => {
   };
   const logText = (s: any) => s.job.log.map((l: { text: string }) => l.text).join('\n');
 
-  test('serves judge.html with the per-boot token, and its script and styles', async () => {
+  test('serves the simple judge page (demo.html) at /judge with the per-boot token, and its script and styles', async () => {
     assert.match(token, /^[\w-]{32}$/);
     const page = await fetch(`${base}/judge`);
     assert.equal(page.headers.get('content-type'), 'text/html; charset=utf-8');
-    assert.equal(await page.text(), `<head><meta name="turnout-console" content="${token}"></head><h1>judge</h1>`);
+    assert.equal(await page.text(), `<head><meta name="turnout-console" content="${token}"></head><h1>demo</h1>`);
     assert.equal((await fetch(`${base}/judge.js`)).headers.get('content-type'), 'text/javascript; charset=utf-8');
     assert.equal((await fetch(`${base}/judge.css`)).headers.get('content-type'), 'text/css; charset=utf-8');
     assert.equal((await fetch(`${base}/api/judge/state`)).status, 403, 'the API needs the token');
