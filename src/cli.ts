@@ -756,7 +756,7 @@ const commands: Record<string, () => Promise<void>> = {
       if (r.errors) bits.push(`${r.errors} server errors`);
       console.log(`  ${release}: ${bits.join(', ')}`);
     }
-    if (report.spa) console.log('  Your home page has no links in its HTML (a single-page app?): visitors saw one page and sent the goal request directly.');
+    if (report.spa) console.log(`  Your home page has no links in its HTML (a single-page app?): visitors saw one page${config.goal.when ? ' and sent the goal request directly' : ''}.`);
     if (config.goal.when) console.log(`Hidden goal rates for this run, now revealed (the share of visitors who make "${describeGoal(config.goal)}"): ${ratesText(report.rates)}.`);
     else console.log('No goal: these visitors only browse, so the comparison is on page speed and errors.');
     console.log('Flagsmith recomputes results at most every 5 minutes: see them in the simulation console.');

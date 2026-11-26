@@ -106,7 +106,8 @@ async function load(fresh = false) {
   button.disabled = true;
   $('recheck-spinner').hidden = false;
   $('groups').setAttribute('aria-busy', 'true');
-  if ($('groups').childElementCount) $('verdict').textContent = 'Checking again…';
+  // Results already shown (not the loading placeholders): this is a re-check.
+  if ($('groups').querySelector(':scope > :not(.skeleton)')) $('verdict').textContent = 'Checking again…';
   try {
     const res = await fetch(fresh ? '/api/doctor?fresh=1' : '/api/doctor', { headers: { [TOKEN_HEADER]: TOKEN }, cache: 'no-store' });
     const body = await res.json().catch(() => ({}));

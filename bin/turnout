@@ -27,6 +27,14 @@ IMAGE="${TURNOUT_IMAGE:-turnout:local}"
 NAME=$(basename "$PWD" | tr 'A-Z' 'a-z' | sed 's/[^a-z0-9]\{1,\}/-/g; s/^-//; s/-$//')
 [ -n "$NAME" ] || NAME=app
 STATE="${TURNOUT_STATE:-$HOME/.turnout/projects}/$NAME"
+# Git Bash on Windows rewrites Linux paths in arguments (docker's /work became C:/Program Files/Git/work): turn that
+# off, and give Docker the state folder as a Windows path it can mount.
+case "$(uname -s 2>/dev/null)" in
+  MINGW*|MSYS*|CYGWIN*)
+    export MSYS_NO_PATHCONV=1 MSYS2_ARG_CONV_EXCL='*'
+    command -v cygpath >/dev/null 2>&1 && { STATE=$(cygpath -m "$STATE"); HOME_DIR=$(cygpath -m "$HOME_DIR"); }
+    ;;
+esac
 PROJECT="turnout-$NAME"
 
 say() { printf '%s\n' "$*"; }
@@ -397,7 +405,7 @@ cmd_simulate() {
   if [ -z "$SIM_PORT" ]; then SIM_PORT=$(free_port 8099); echo "sim_console_port=$SIM_PORT" >> "$STATE/compare.args"; fi
   TURNOUT_SIM_CONSOLE_PORT=$SIM_PORT compose --profile sim up -d --wait turnout-sim console-sim >"$STATE/sim-up.log" 2>&1 \
     || { tail -20 "$STATE/sim-up.log" >&2; die "starting the simulation failed (full log: $STATE/sim-up.log)."; }
-  compose run --rm -e TURNOUT_ENV_FILE=.turnout/sim.env cli simulate --visitors "$visitors" || die "the simulation stopped (see above)."
+  compose --progress quiet run --rm -e TURNOUT_ENV_FILE=.turnout/sim.env cli simulate --visitors "$visitors" || die "the simulation stopped (see above)."
   say ""
   say "  Simulated results (Demo environment, never your real experiment):  http://127.0.0.1:$SIM_PORT"
   say "  Flagsmith recomputes results at most every 5 minutes. Run turnout simulate again for more visitors."
@@ -413,17 +421,20 @@ case "$cmd" in
   simulate) cmd_simulate "$@" ;;
   demo) need_docker; cd "$HOME_DIR" && exec sh turnout.sh "${1:-start}" ;;   # start (opens judge mode), or: stop, status, reset
   update) cd "$HOME_DIR" && git pull --ff-only && say "Up to date. The next turnout compare or turnout demo uses it." ;;
-  results) need_state; need_docker; compose run --rm cli status ;;
-  ship) need_state; need_docker; compose run --rm -it cli ship ${1:+--winner "$1"} ;;
-  revert) need_state; need_docker; compose run --rm -it cli revert ;;
+  results) need_state; need_docker; compose --progress quiet run --rm cli status ;;
+  ship) need_state; need_docker; compose --progress quiet run --rm -it cli ship ${1:+--winner "$1"} ;;
+  revert) need_state; need_docker; compose --progress quiet run --rm -it cli revert ;;
   logs) need_state; need_docker; svc=${1:-}; [ "$svc" = proxy ] && svc=turnout; compose logs -f --tail 50 $svc ;;
   version|--version|-v) say "turnout $(version_of)" ;;
   open) need_state; open_url "http://127.0.0.1:$CONSOLE_PORT"; banner ;;
-  status) need_state; need_docker; compose ps; compose run --rm cli doctor | tail -1 ;;
+  status) need_state; need_docker; compose ps; compose --progress quiet run --rm cli doctor | tail -1 ;;
   down) need_state; need_docker; step "Stopping $NAME"; compose --profile sim down >/dev/null 2>&1; say "Stopped. turnout compare with the same arguments starts it again, with its data." ;;
   reset)
     need_state; need_docker
     if [ "${1:-}" != --yes ]; then printf 'Delete %s'"'"'s Turnout and Flagsmith data? [y/N] ' "$NAME"; read -r ok; [ "$ok" = y ] || exit 1; fi
     step "Removing $NAME's containers and data"; compose --profile sim down -v >/dev/null 2>&1; rm -rf "$STATE"; say "Wiped. turnout compare starts fresh." ;;
-  *) help_screen ;;
+  help|-h|--help|'') help_screen ;;
+  *) help_screen; printf '
+turnout: unknown command "%s" (the commands are above).
+' "$cmd" >&2; exit 2 ;;
 esac

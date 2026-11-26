@@ -1236,7 +1236,9 @@ function renderYou() {
       ? ': pinned (not counted).'
       : e?.status === 'running'
         ? ': outside the test (not counted).'
-        : ': what everyone gets now.';
+        : e
+          ? ': what everyone gets now.'
+          : '.'; // the test's state hasn't loaded yet: claim nothing (it said "what everyone gets now" of a B)
   const lines = [
     h('p', { class: 'you-line' }, h('span', { class: 'you-chip', vars: { '--c': variants[i]?.color ?? 'var(--muted)' } }, letter ?? '•'), h('strong', {}, `You got ${y.release ?? 'no version'}`), where),
   ];

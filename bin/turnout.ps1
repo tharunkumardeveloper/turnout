@@ -377,7 +377,7 @@ function Invoke-Simulate([string[]]$a) {
   $log = Join-Path $State 'sim-up.log'
   Compose --profile sim up -d --wait turnout-sim console-sim *> $log
   if ($LASTEXITCODE -ne 0) { Get-Content $log -Tail 20; Die "starting the simulation failed (full log: $log)." }
-  Compose run --rm -e TURNOUT_ENV_FILE=.turnout/sim.env cli simulate --visitors $visitors 2>&1 | ForEach-Object { "$_" }
+  Compose --progress quiet run --rm -e TURNOUT_ENV_FILE=.turnout/sim.env cli simulate --visitors $visitors 2>&1 | ForEach-Object { "$_" }
   if ($LASTEXITCODE -ne 0) { Die 'the simulation stopped (see above).' }
   Say ''
   Say "  Simulated results (Demo environment, never your real experiment):  http://127.0.0.1:$simPort"
@@ -397,18 +397,19 @@ switch ($cmd) {
     Push-Location $HomeDir; try { & cmd /c "turnout.bat $what" } finally { Pop-Location }
   }
   'update' { Push-Location $HomeDir; try { git pull --ff-only; if ($LASTEXITCODE -eq 0) { Say 'Up to date. The next turnout compare or turnout demo uses it.' } } finally { Pop-Location } }
-  'results' { Read-Args | Out-Null; Need-Docker; Compose run --rm cli status }
-  'ship' { Read-Args | Out-Null; Need-Docker; if ($rest.Count) { Compose run --rm -it cli ship --winner $rest[0] } else { Compose run --rm -it cli ship } }
-  'revert' { Read-Args | Out-Null; Need-Docker; Compose run --rm -it cli revert }
+  'results' { Read-Args | Out-Null; Need-Docker; Compose --progress quiet run --rm cli status }
+  'ship' { Read-Args | Out-Null; Need-Docker; if ($rest.Count) { Compose --progress quiet run --rm -it cli ship --winner $rest[0] } else { Compose --progress quiet run --rm -it cli ship } }
+  'revert' { Read-Args | Out-Null; Need-Docker; Compose --progress quiet run --rm -it cli revert }
   'logs' { Read-Args | Out-Null; Need-Docker; $svc = if ($rest.Count) { $rest[0] } else { '' }; if ($svc -eq 'proxy') { $svc = 'turnout' }; if ($svc) { Compose logs -f --tail 50 $svc } else { Compose logs -f --tail 50 } }
   { $_ -in 'version', '--version', '-v' } { Say "turnout $(Get-Version)" }
   'open' { Read-Args | Out-Null; Start-Process "http://127.0.0.1:$ConsolePort"; Show-Banner }
-  'status' { Read-Args | Out-Null; Need-Docker; Compose ps; Compose run --rm cli doctor | Select-Object -Last 1 }
+  'status' { Read-Args | Out-Null; Need-Docker; Compose ps; Compose --progress quiet run --rm cli doctor | Select-Object -Last 1 }
   'down' { Read-Args | Out-Null; Need-Docker; Step "Stopping $Name"; Compose --profile sim down *> $null; Say 'Stopped. turnout compare with the same arguments starts it again, with its data.' }
   'reset' {
     Read-Args | Out-Null; Need-Docker
     if ($rest -notcontains '--yes') { $ok = Read-Host "Delete $Name's Turnout and Flagsmith data? [y/N]"; if ($ok -ne 'y') { exit 1 } }
     Step "Removing $Name's containers and data"; Compose --profile sim down -v *> $null; Remove-Item -Recurse -Force $State; Say 'Wiped. turnout compare starts fresh.'
   }
-  default { Show-Help }
+  { $_ -in 'help', '-h', '--help' } { Show-Help }
+  default { Show-Help; [Console]::Error.WriteLine("`nturnout: unknown command `"$cmd`" (the commands are above)."); exit 2 }
 }

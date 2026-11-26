@@ -571,7 +571,8 @@ async function loadYou() {
     try {
       const res = READONLY ? await fetch('/__turnout/receipt', { cache: 'no-store', credentials: 'same-origin' }) : await api('/api/you', { cache: 'no-store' });
       ui.you = res.ok ? await res.json() : READONLY && res.status === 404 ? { visited: false } : null;
-      if (READONLY && ui.you && !('visited' in ui.you)) ui.you.visited = true;
+      // The proxy answers visitor: null (200) before this browser has a cookie: that is "not visited", not a visit.
+      if (READONLY && ui.you && !('visited' in ui.you)) ui.you.visited = ui.you.visitor !== null;
     } catch {
       ui.you = null;
     }
