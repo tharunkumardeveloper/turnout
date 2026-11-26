@@ -111,10 +111,11 @@ describe('console UI files', () => {
     assert.match(read('app.js'), /prefers-reduced-motion: reduce/);
   });
 
-  test('the menu: judge mode, the console, setup, the feature map, every version, and a link to Flagsmith itself', () => {
+  test('one page: Judge mode is a switch beside Tour, not a page; the menu has setup, the feature map, every version, Flagsmith', () => {
     assert.match(html, /<link rel="stylesheet" href="\/menu\.css">/);
-    assert.match(html, /<a href="\/judge" data-page="judge">Judge mode<\/a>/);
-    assert.match(html, /<a href="\/" data-page="console" data-private>Console<\/a>/);
+    assert.doesNotMatch(html, /data-page="judge"|data-page="console"/);
+    assert.match(html, /id="mode-judge" type="button" role="switch" aria-checked="false"/);
+    assert.match(html, /<iframe id="judge-frame"/);
     for (const id of ['menu', 'menu-versions', 'versions-list', 'menu-flagsmith', 'signin-drop', 'signin-box']) assert.ok(html.includes(`id="${id}"`), id);
     assert.match(html, /<a href="#" id="menu-flagsmith" class="menu-ext" target="_blank"/, 'the menu opens Flagsmith; its login is on the page');
     assert.match(read('app.js'), /setupMenu\('console'\)/);
@@ -533,4 +534,23 @@ test('new comparison: the exact turnout compare command, quoted, or what is miss
   assert.match(F.compareCommand({ a: 'x', b: 'y', goal: 'signup' }).error, /POST \/signup/);
   assert.match(F.compareCommand({ a: 'x', b: 'y', split: 70 }).error, /1 to 50%/);
   assert.equal(F.compareCommand({ a: 'feature/x"$', b: 'y' }).command, 'turnout compare "feature/x\\"\\$" y');
+});
+
+const MODE: any = await import(pathToFileURL(join(UI, 'mode.js')).href);
+describe('mode.js: Judge mode, a switch on the one console page', () => {
+  const M = MODE;
+  test('the judge view comes from judge mode, Try it (your app), or the public judge page', () => {
+    const p = (q: string) => new URLSearchParams(q);
+    assert.equal(M.frameSrc('', p('mode=judge')), '/judge?embed=1');
+    assert.equal(M.frameSrc('', p('mode=judge&app=try&play=1')), '/try?embed=1&play=1');
+    assert.equal(M.frameSrc('/judge', p('mode=judge')), '/judge?embed=1');
+  });
+  test('on or off: the address first, then this browser, and the public page starts on', () => {
+    const p = (q: string) => new URLSearchParams(q);
+    assert.equal(M.initialMode(p('mode=judge'), 'console', false), true);
+    assert.equal(M.initialMode(p('mode=console'), 'judge', true), false);
+    assert.equal(M.initialMode(p(''), 'judge', false), true);
+    assert.equal(M.initialMode(p(''), null, false), false);
+    assert.equal(M.initialMode(p(''), null, true), true);
+  });
 });

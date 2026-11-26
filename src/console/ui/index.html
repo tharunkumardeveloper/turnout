@@ -28,14 +28,16 @@
       <span class="brand-name">Turnout</span>
     </a>
     <nav class="menu" id="menu" aria-label="Turnout">
-      <a href="/judge" data-page="judge">Judge mode</a>
-      <a href="/" data-page="console" data-private>Console</a>
       <a href="/setup" data-private>Setup check</a>
       <a href="/flagsmith" data-private>What we use</a>
       <details class="menu-drop" id="menu-versions"><summary>Versions</summary><div class="menu-panel" id="versions-list"><p class="menu-note">Loading…</p></div></details>
       <a href="#" id="menu-flagsmith" class="menu-ext" target="_blank" rel="noopener" data-private>Flagsmith <span aria-hidden="true">↗</span></a>
     </nav>
     <button class="btn btn-small try-btn" id="try-open" type="button" hidden>Try it with your app</button>
+    <button class="mode-switch" id="mode-judge" type="button" role="switch" aria-checked="false" title="Judge mode: the test step by step, one button at a time, with Play it for me" hidden>
+      <span class="mode-track" aria-hidden="true"><span class="mode-knob"></span></span>
+      <span class="mode-label">Judge mode</span>
+    </button>
     <button class="btn btn-ghost btn-small tour-btn" id="tour-open" type="button">Tour</button>
     <ul class="connections" aria-label="Connections">
       <li id="conn-state" class="conn" data-state="pending"><span class="conn-dot" aria-hidden="true"></span><span class="conn-text">Flagsmith: connecting…</span></li>
@@ -66,6 +68,11 @@
   </div>
 
   <div id="banner" class="banner" role="alert" hidden></div>
+
+  <!-- Judge mode (the switch above): the same test, step by step, in place of the console's cards. -->
+  <div id="judge-view" class="judge-view" hidden>
+    <iframe id="judge-frame" title="Judge mode" loading="eager"></iframe>
+  </div>
 
   <main id="main" class="cgrid">
     <section class="card site-card" id="site" aria-labelledby="site-title" hidden>
@@ -320,7 +327,7 @@
           <button id="try-example" class="btn btn-ghost" type="button" title="Two small self-contained Dockerfiles (nginx pages), so you can see it work without an app of your own">✨ Use an example</button>
           <button id="try-back" class="btn btn-ghost" type="button">← Back</button>
           <button id="try-next" class="btn" type="button">Next →</button>
-          <a id="try-open-page" class="btn" href="/try" hidden>Open the test page →</a>
+          <a id="try-open-page" class="btn" href="/?mode=judge&amp;app=try" hidden>Open the test page →</a>
           <button id="try-build" class="btn btn-primary try-go" type="button" disabled>🚀 Build and try</button>
         </div>
       </footer>

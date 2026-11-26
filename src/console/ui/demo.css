@@ -313,3 +313,7 @@ a.version-frame:hover::after, a.version-frame:focus-visible::after { opacity: 1;
 .blind p { margin: 0; }
 .blind-title { font-weight: 750; }
 .blind-score { color: var(--muted); font-size: 12.5px; }
+
+/* Inside the console (Judge mode on): the console's bar has the brand, menu and Tour; this bar keeps the test's controls. */
+.is-embed .top .brand, .is-embed .top .menu, .is-embed #tour-open, .is-embed .foot { display: none; }
+.is-embed .top { justify-content: space-between; }

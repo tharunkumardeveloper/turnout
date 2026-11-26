@@ -8,6 +8,7 @@ import * as M from './demo-model.js';
 import { createTour } from './tour.js';
 import { CONSOLE_STOPS, stopsFor } from './tour-stops.js';
 import { setupTry } from './try.js';
+import { setupMode } from './mode.js';
 
 const POLL_MS = 5000;
 const $ = (id) => /** @type {HTMLElement} */ (document.getElementById(id));
@@ -1468,8 +1469,10 @@ if (READONLY) {
   }
 }
 const tour = createTour({ stops: stopsFor(CONSOLE_STOPS, READONLY), seenKey: READONLY ? 'turnout-tour-public-console-seen' : 'turnout-tour-console-seen' });
-$('tour-open').addEventListener('click', () => tour.start());
-setTimeout(() => tour.offer(), 1500);
+// One page: Judge mode is the switch beside Tour; while it is on, Tour shows the judge view's tour.
+const mode = setupMode();
+$('tour-open').addEventListener('click', () => mode.tour() || tour.start());
+setTimeout(() => (mode.isOn() ? null : tour.offer()), 1500);
 
 setInterval(renderConnection, 1000);
 refreshNow();

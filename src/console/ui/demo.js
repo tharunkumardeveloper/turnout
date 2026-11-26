@@ -19,6 +19,21 @@ const BASE = document.querySelector('meta[name="turnout-base"]')?.getAttribute('
 const api = (path, init = {}) => fetch(BASE + path, { ...init, headers: { ...(init.headers ?? {}), [TOKEN_HEADER]: TOKEN } });
 if (READONLY) document.body.classList.add('is-readonly');
 
+// One page: judge mode is a switch on the console. This page is what the switch shows (?embed=1, inside the console);
+// opened on its own (an old link, a bookmark) it sends you to the console with the switch on.
+const QUERY = new URLSearchParams(location.search);
+export const EMBED = QUERY.has('embed') || window.self !== window.top;
+if (!EMBED) {
+  const tryPage = document.querySelector('meta[name="turnout-try"]') !== null;
+  const consolePath = BASE === '/judge' ? '/judge/console' : '/';
+  const next = new URLSearchParams({ mode: 'judge', ...(tryPage ? { app: 'try' } : {}), ...(QUERY.get('play') === '1' ? { play: '1' } : {}) });
+  location.replace(`${consolePath}?${next}`);
+} else {
+  document.body.classList.add('is-embed');
+  // Links inside open in the console's window, not in this frame (those with their own target keep it).
+  document.head.prepend(Object.assign(document.createElement('base'), { target: '_top' }));
+}
+
 // Try it with your app (/try): the same page for YOUR versions. Its words follow: visitors, not shoppers; your app,
 // not the shop; conversions, not orders.
 const TRY = document.querySelector('meta[name="turnout-try"]') !== null;
@@ -698,7 +713,12 @@ if (TRY) {
   document.title = 'Turnout: try it with your app';
 }
 $('tour-open').addEventListener('click', () => tour.start());
+// The console's Tour button, while Judge mode is on: the tour of this view.
+window.addEventListener('message', (e) => {
+  if (e.origin === location.origin && e.data?.turnout === 'tour') tour.start();
+});
 connectFeed();
 // /try?play=1 (the console's "Run your app's test"): play the whole test straight away, no tour.
 const playNow = TRY && new URLSearchParams(location.search).get('play') === '1';
-loadState().then(() => (playNow ? startAutoplay() : tour.offer()));
+// Inside the console the tour starts from its Tour button, not by itself.
+loadState().then(() => (playNow ? startAutoplay() : EMBED ? null : tour.offer()));
