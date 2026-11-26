@@ -35,7 +35,9 @@ export function generatedDockerfile(files: string[], read: Read): string | null 
     if (has('manage.py')) cmd = '["sh", "-c", "python manage.py migrate --noinput && exec python manage.py runserver 0.0.0.0:8000 --noreload"]';
     else if (/\bflask\b/.test(reqs)) cmd = `["python", "-m", "flask", "--app", "${has('app.py') ? 'app' : has('main.py') ? 'main' : 'wsgi'}", "run", "--host=0.0.0.0", "--port=8000"]`;
     else if (/\b(fastapi|uvicorn)\b/.test(reqs)) cmd = `["python", "-m", "uvicorn", "${has('main.py') ? 'main' : 'app'}:app", "--host", "0.0.0.0", "--port", "8000"]`;
-    return `FROM python:3.12-slim\nWORKDIR /app\nCOPY . .\n${install}\nEXPOSE 8000\nCMD ${cmd}\n`;
+    // Django's static files collected at build: with WhiteNoise's manifest storage every page is a 500 without them.
+    const statics = has('manage.py') ? 'RUN python manage.py collectstatic --noinput >/dev/null 2>&1 || true\n' : '';
+    return `FROM python:3.12-slim\nWORKDIR /app\nCOPY . .\n${install}\n${statics}EXPOSE 8000\nCMD ${cmd}\n`;
   }
   if (has('go.mod')) {
     // The newest Go builds any go.mod (GOTOOLCHAIN=auto fetches a newer one if it asks). The project's files go into the
@@ -49,7 +51,19 @@ export function generatedDockerfile(files: string[], read: Read): string | null 
     if (has('config.ru')) return `${head}EXPOSE 4567\nCMD ["bundle", "exec", "rackup", "-o", "0.0.0.0", "-p", "4567"]\n`;
     return `${head}EXPOSE 4567\nCMD ["ruby", "app.rb", "-o", "0.0.0.0", "-p", "4567"]\n`;
   }
-  if (files.some((f) => /^[^/]+\.php$/i.test(f)) || has('composer.json')) return 'FROM php:8.3-apache\nCOPY . /var/www/html/\n';
+  if (files.some((f) => /^[^/]+\.php$/i.test(f)) || has('composer.json')) {
+    // The served folder: the one a Procfile names (heroku-php-apache2 web/), else public/ or web/ when the front
+    // controller lives there (Laravel, Slim, Symfony), else the top. Composer's packages installed; rewrites on.
+    const named = (read('Procfile') ?? '').match(/heroku-php-(?:apache2|nginx)\s+([\w./-]+)/)?.[1]?.replace(/^\.?\/|\/$/g, '');
+    const root = named ?? (['public', 'web'].find((d) => has(`${d}/index.php`) && !has('index.php')) ?? '');
+    const lines = ['FROM php:8.4-apache', 'RUN a2enmod rewrite >/dev/null'];
+    if (root) lines.push(`ENV APACHE_DOCUMENT_ROOT=/var/www/html/${root}`, "RUN sed -ri 's!/var/www/html!${APACHE_DOCUMENT_ROOT}!g; s!AllowOverride None!AllowOverride All!g' /etc/apache2/sites-available/*.conf /etc/apache2/apache2.conf");
+    lines.push('COPY . /var/www/html/');
+    if (has('composer.json')) {
+      lines.push('RUN apt-get update -qq && apt-get install -y -qq unzip git >/dev/null && rm -rf /var/lib/apt/lists/*', 'COPY --from=composer:2 /usr/bin/composer /usr/bin/composer', 'RUN cd /var/www/html && composer install --no-dev --no-interaction --prefer-dist --optimize-autoloader');
+    }
+    return `${lines.join('\n')}\n`;
+  }
   if (has('index.html')) return 'FROM nginx:1.27-alpine\nCOPY . /usr/share/nginx/html\n';
   return null;
 }

@@ -191,3 +191,12 @@ test('before visitors, each version is warmed up straight at its container: home
   assert.ok(asked.every((u) => u.startsWith('http://try-a:3000/')), 'only the container, never the proxy');
   assert.ok(asked.includes('http://try-a:3000/about') && asked.includes('http://try-a:3000/'));
 });
+
+test("a version's home page status is read with its title, so an error page is reported, not compared", async () => {
+  const { homeStatus } = await import('../src/tryit/server.ts');
+  const page = (status: number, body: string) => (async () => new Response(body, { status })) as unknown as typeof fetch;
+  assert.deepEqual(await homeStatus('http://try-a.localhost:8000', page(400, '<title>\n DisallowedHost\n at / </title>')), { status: 400, title: 'DisallowedHost at /' });
+  assert.deepEqual(await homeStatus('http://try-a.localhost:8000', page(200, '<p>ok</p>')), { status: 200, title: '' });
+  const down = (async () => { throw new Error('refused'); }) as unknown as typeof fetch;
+  assert.deepEqual(await homeStatus('http://try-a.localhost:8000', down), { status: 0, title: '' });
+});

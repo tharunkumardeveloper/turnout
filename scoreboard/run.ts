@@ -133,6 +133,15 @@ async function runApp(app: string): Promise<Row> {
       if (stageOk(1)) set('start', false, st.error ?? st.status); // running, but the test didn't start
       return row;
     }
+    // Running isn't enough: each version's home page, through its preview, must be a page and not an error page
+    // (Django's DisallowedHost answered 400 on every page while the container ran fine).
+    for (const [label, url] of Object.entries((st.previews ?? {}) as Record<string, string>)) {
+      const status = await fetch(url, { redirect: 'manual', signal: AbortSignal.timeout(10_000) }).then((r) => r.status).catch(() => 0);
+      if (status === 0 || status >= 400) {
+        set('start', false, `${label}'s home page answers ${status ? `HTTP ${status}` : 'nothing'}`);
+        return row;
+      }
+    }
 
     const sent = await job('visitors', { visitors: VISITORS });
     const byRelease: Record<string, { visitors: number; orders: number }> = sent.result?.byRelease ?? {};

@@ -72,6 +72,20 @@ Turnout is what I wished existed while setting up Flagsmith's Experimentation on
 | **Result** | Flagsmith: 1.5 at 20.3% against 10.1%, >99.9% chance to win, page speed unchanged; shipped with one flag change, then 50 of 50 new visitors on 1.5. In the A/B/C test, 1.6 sells a little more but its pages are 2.8× slower, so it's out. |
 | **Honest about it** | Those shoppers are simulated (labelled) at rates I set. On the live demo, blind rounds draw the rates at random and hide them; the page reveals them next to Flagsmith's call and keeps a scoreboard. Real visitors who press *Be a visitor* count in a separate experiment, `shop_release_live`, whose goal is `add_to_cart` (it fires early enough for a few days of traffic) with `order_placed` watched. |
 
+## Proof
+
+| | Result |
+|---|---|
+| Your app, from an empty folder | `turnout compare` running in under 3.5 minutes; sign-ups counted end to end; after Ship, 100 of 100 new visitors on the winner |
+| Shipping under live traffic | 263 of 263 later visitors on the winner; 0 left behind |
+| Flagsmith down | 100 of 100 pages still served, 86 ms average |
+| Under load | 0 of 121,678 events lost at up to 200 visitors at once |
+| Any app, automatically | 12 sample apps (HTML, Vite, Next.js ×2, Express, Flask, Django, Go, PHP, no Dockerfile, needs a database, needs a setting): builds 12/12, goals 11/12, counts match Flagsmith 12/12, ships 12/12 (`npm run scoreboard`, [scoreboard/](scoreboard/README.md)) |
+| Real GitHub repos, pasted as links | 11 public repos (Heroku's Node, Python, Go, PHP and Ruby on Rails samples, Docker's tutorial apps, Render's Flask and Django, an Express + MongoDB app, Flask Microblog): 10 of 11 build, start, serve real pages (each home page checked, not just "it answered"), get Flagsmith results with matching counts, and ship. Most have no Dockerfile; three need Postgres or MongoDB, given as a throwaway one. Microblog's own Dockerfile fails to install its pinned packages. Goals found on 1: the rest only link off-site. ([github-run.json](scoreboard/github-run.json)) |
+| A server, rebooted | back by itself in 50 s, every check passing |
+
+Raw logs and numbers: [spikes/RESULTS.md](spikes/RESULTS.md). Not claimed: production users, or any simulated number as evidence about real people.
+
 ## See it in 2 minutes
 
 Open the **[live demo](https://172-198-62-67.sslip.io/judge)**: it runs real Flagsmith experiments by itself on a demo shop with three versions (1.4 Classic, 1.5 Express with a one-page checkout, 1.6 Bold with deliberately slower pages). Simulated shoppers are always labelled.
@@ -102,6 +116,34 @@ turnout compare localhost:3001 localhost:3002         # your two running version
 ```
 
 `compare` starts its own Flagsmith, creates the flag and the experiment, starts the proxy, checks everything and opens the console. Every new browser is a new visitor.
+
+## How Flagsmith is used
+
+Flagsmith runs self-hosted next to Turnout (its official Docker Compose file, Experimentation switched on, its own event store). Turnout computes no statistics: every number on its pages comes from Flagsmith's API. The console's *What we use* page shows each feature live.
+
+| Round | Flagsmith feature | What it does in Turnout |
+|---|---|---|
+| Create a flag | **Multivariate flag**, local evaluation | One flag per app; each variant's value names a version. The proxy evaluates it in-process with the server-side key. |
+| Pick a metric | **Metrics and events**, event store | Plain HTTP becomes Flagsmith events: page loads, page speed, server errors and the goal request. |
+| Split the traffic | **Experiments**, Bayesian results | Each test is a Flagsmith experiment (A/A, A/B, A/B/C). Its chance to win and credible interval decide Ship, Keep running or Revert. |
+| | **Segments**, **identity overrides** | A preview segment shows the next version to your team; *Pin my browser* is an identity override for your visitor id. Both stay out of the test. |
+| Ship the winner | **Environment default**, rollout | Ship and Revert set the flag's default and drain the split: everyone moves with one flag change. |
+| | **Feature Health**, tags, Code References | A losing safety check marks the flag Unhealthy in Flagsmith's dashboard; an opt-in guard can revert by itself. |
+
+Every Flagsmith fact, with its source file and line: [docs/FLAGSMITH.md](docs/FLAGSMITH.md).
+
+## Features
+
+| | |
+|---|---|
+| **Your app** | `turnout compare` for URLs, images or git branches, any number of versions; goals optional; `--env-file`; installers for Windows, macOS and Linux; `turnout deploy` |
+| **Guided** | Judge mode with an interactive tour; a console tour; one button runs a whole test; *Try it with your app* (Dockerfiles, git repos or images); *Be a visitor* with a YOU pin; *Pin my browser* (identity override) |
+| **Measuring** | Sticky visitor ids, bots never counted, bounces counted, goals from HTTP or one response header; 0 of 121,678 events lost under load |
+| **Deciding** | Flagsmith's results as returned; keep running while unsure; safety checks with a sensible margin (20 ms for page speed); A/A fairness checks |
+| **Releasing** | Ship and Revert that reach everyone; swing back with one edit; preview for your team; a release ledger and GitHub Releases |
+| **Tools** | `doctor` and `/setup` (28 checks); `check`, an Experiment Doctor for any Flagsmith experiment (also a GitHub Action); server mode with HTTPS and an autopilot |
+
+Everything, one line each: [FEATURES.md](FEATURES.md). How each part works: [docs/HOW_IT_WORKS.md](docs/HOW_IT_WORKS.md).
 
 ## Step-by-step setup
 
@@ -231,48 +273,6 @@ or, for Caddy, `reverse_proxy 127.0.0.1:8080`. Visitors keep your domain; the co
 - **"Flagsmith refused the refresh":** Flagsmith recomputes an experiment's results at most once every 5 minutes. Turnout holds a refresh back until new visits have arrived, so the window is never spent on nothing; the one-button run asks only after its visitors' events are in.
 - **Something else:** `turnout status`, or <http://127.0.0.1:8090/setup>, compares what's expected with what's there (28 checks).
 </details>
-
-## How Flagsmith is used
-
-Flagsmith runs self-hosted next to Turnout (its official Docker Compose file, Experimentation switched on, its own event store). Turnout computes no statistics: every number on its pages comes from Flagsmith's API. The console's *What we use* page shows each feature live.
-
-| Round | Flagsmith feature | What it does in Turnout |
-|---|---|---|
-| Create a flag | **Multivariate flag**, local evaluation | One flag per app; each variant's value names a version. The proxy evaluates it in-process with the server-side key. |
-| Pick a metric | **Metrics and events**, event store | Plain HTTP becomes Flagsmith events: page loads, page speed, server errors and the goal request. |
-| Split the traffic | **Experiments**, Bayesian results | Each test is a Flagsmith experiment (A/A, A/B, A/B/C). Its chance to win and credible interval decide Ship, Keep running or Revert. |
-| | **Segments**, **identity overrides** | A preview segment shows the next version to your team; *Pin my browser* is an identity override for your visitor id. Both stay out of the test. |
-| Ship the winner | **Environment default**, rollout | Ship and Revert set the flag's default and drain the split: everyone moves with one flag change. |
-| | **Feature Health**, tags, Code References | A losing safety check marks the flag Unhealthy in Flagsmith's dashboard; an opt-in guard can revert by itself. |
-
-Every Flagsmith fact, with its source file and line: [docs/FLAGSMITH.md](docs/FLAGSMITH.md).
-
-## Features
-
-| | |
-|---|---|
-| **Your app** | `turnout compare` for URLs, images or git branches, any number of versions; goals optional; `--env-file`; installers for Windows, macOS and Linux; `turnout deploy` |
-| **Guided** | Judge mode with an interactive tour; a console tour; one button runs a whole test; *Try it with your app* (Dockerfiles, git repos or images); *Be a visitor* with a YOU pin; *Pin my browser* (identity override) |
-| **Measuring** | Sticky visitor ids, bots never counted, bounces counted, goals from HTTP or one response header; 0 of 121,678 events lost under load |
-| **Deciding** | Flagsmith's results as returned; keep running while unsure; safety checks with a sensible margin (20 ms for page speed); A/A fairness checks |
-| **Releasing** | Ship and Revert that reach everyone; swing back with one edit; preview for your team; a release ledger and GitHub Releases |
-| **Tools** | `doctor` and `/setup` (28 checks); `check`, an Experiment Doctor for any Flagsmith experiment (also a GitHub Action); server mode with HTTPS and an autopilot |
-
-Everything, one line each: [FEATURES.md](FEATURES.md). How each part works: [docs/HOW_IT_WORKS.md](docs/HOW_IT_WORKS.md).
-
-## Proof
-
-| | Result |
-|---|---|
-| Your app, from an empty folder | `turnout compare` running in under 3.5 minutes; sign-ups counted end to end; after Ship, 100 of 100 new visitors on the winner |
-| Shipping under live traffic | 263 of 263 later visitors on the winner; 0 left behind |
-| Flagsmith down | 100 of 100 pages still served, 86 ms average |
-| Under load | 0 of 121,678 events lost at up to 200 visitors at once |
-| Any app, automatically | 12 sample apps (HTML, Vite, Next.js ×2, Express, Flask, Django, Go, PHP, no Dockerfile, needs a database, needs a setting): builds 12/12, goals 11/12, counts match Flagsmith 12/12, ships 12/12 (`npm run scoreboard`, [scoreboard/](scoreboard/README.md)) |
-| Real GitHub repos, pasted as links | 11 public repos (Heroku's Node, Python, Go, PHP and Ruby on Rails samples, Docker's tutorial apps, Render's Flask and Django, an Express + MongoDB app, Flask Microblog): 10 of 11 build, start, get Flagsmith results with matching counts, and ship. Most have no Dockerfile; three need Postgres or MongoDB, given as a throwaway one. Microblog's own Dockerfile fails to install its pinned packages. Goals found on 1: the rest only link off-site. ([github-run.json](scoreboard/github-run.json)) |
-| A server, rebooted | back by itself in 50 s, every check passing |
-
-Raw logs and numbers: [spikes/RESULTS.md](spikes/RESULTS.md). Not claimed: production users, or any simulated number as evidence about real people.
 
 ## Good to know
 

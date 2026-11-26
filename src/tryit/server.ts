@@ -150,6 +150,17 @@ export async function warmUp(base: string, goals: string[], rounds = 8, fetcher:
   return Math.round(sorted[Math.floor(sorted.length / 2)] ?? 0);
 }
 
+/** The home page's status and <title>, straight from the container (status 0: no answer). */
+export async function homeStatus(base: string, fetcher: typeof fetch = fetch): Promise<{ status: number; title: string }> {
+  try {
+    const res = await fetcher(new URL('/', base), { signal: AbortSignal.timeout(5000) });
+    const text = (await res.text()).slice(0, 20_000);
+    return { status: res.status, title: (text.match(/<title[^>]*>([^<]*)<\/title>/i)?.[1] ?? '').replace(/\s+/g, ' ').trim().slice(0, 120) };
+  } catch {
+    return { status: 0, title: '' };
+  }
+}
+
 /** Docker's answer when a repository can't be built, said so a person knows what to add. */
 export function gitBuildError(message: string): string {
   if (/locate specified Dockerfile|Dockerfile.*no such file|failed to read dockerfile/i.test(message)) {
@@ -398,7 +409,7 @@ export function startTryit(o: TryitOptions) {
     const secondary = (state.secondary ?? []).filter((x) => x.action !== state.goal).map((x) => ({ ...x, when: parseSuccess(x.action) }));
     const raw = {
       flag: TRY_FLAG,
-      releases: Object.fromEntries(LABELS.map((l) => [l, upstream[l] ?? `http://try-${l.slice(4)}:80`])),
+      releases: Object.fromEntries(LABELS.map((l) => [l, upstream[l] ?? `http://try-${l.slice(4)}.localhost:80`])),
       ...(goal ? { goal: { event: goal.path.replace(/[^a-z0-9]+/gi, '_').replace(/^_|_$/g, '').toLowerCase() || 'goal', when: goal } } : {}),
       guardrails: ['doc_latency_ms', 'server_error'],
       ...(goal && secondary.length ? { metrics: secondary.map((x) => ({ event: `${eventOf(x.when.path)}_${x.when.method.toLowerCase()}`, when: x.when })) } : {}),
@@ -593,9 +604,11 @@ export function startTryit(o: TryitOptions) {
         const name = `turnout-try-${slot.slot}`;
         await o.docker.remove(name);
         // One version (A/A): the same container answers as try-a and try-b.
-        const aliases = versions.length === 1 ? ['try-a', 'try-b'] : [`try-${slot.slot}`];
+        // Each version answers as try-x.localhost as well: Django's and Rails' development defaults accept any *.localhost
+        // host, and refuse a bare try-x (Django's DisallowedHost, Rails' Blocked hosts), so the app runs unchanged.
+        const aliases = (versions.length === 1 ? ['try-a', 'try-b'] : [`try-${slot.slot}`]).flatMap((a) => [a, `${a}.localhost`]);
         await o.docker.run({ name, image, network: NETWORK, aliases, env: [`PORT=${guess}`, ...dbEnv, ...parseEnv(req.env)] });
-        const port = await waitUp(name, `try-${slot.slot}`, guess, Boolean(v.port), run!).catch(async (error: Error) => {
+        const port = await waitUp(name, `try-${slot.slot}.localhost`, guess, Boolean(v.port), run!).catch(async (error: Error) => {
           // What it asked for: the settings its error names, and a database when those point at one.
           const tail = await o.docker.logs(name, 80).catch(() => '');
           const given = new Set([...dbEnv, ...parseEnv(req.env)].map((l) => l.slice(0, l.indexOf('='))));
@@ -607,7 +620,7 @@ export function startTryit(o: TryitOptions) {
         slot.port = port;
         run!.status = 'done';
         run!.detail = `answering on port ${port}`;
-        upstream[slot.label] = `http://try-${slot.slot}:${port}`;
+        upstream[slot.label] = `http://try-${slot.slot}.localhost:${port}`;
         previewUpstream[slot.label] = upstream[slot.label]!;
         note(`${slot.name} is running, answering on port ${port}`, slot.slot.toUpperCase(), 'ok');
       }
@@ -631,6 +644,12 @@ export function startTryit(o: TryitOptions) {
       // looked slower on page speed: on an A/A test of one Node + Mongo app, 82 ms against 182 ms.
       const warm = await Promise.all(versions.map((_, i) => warmUp(upstream[LABELS[i]!]!, found)));
       note(`Warmed up each version before any visitor (not counted): ${warm.map((ms, i) => `${LABELS[i]} ${ms} ms`).join(', ')} per page after warm-up`, 'Turnout');
+      // A version that runs but answers its home page with an error (a host it refuses, a missing table) would be
+      // compared on error pages: say so plainly, with the page's own title.
+      for (const [i, slot] of state.versions.entries()) {
+        const home = await homeStatus(upstream[LABELS[i]!]!);
+        if (home.status >= 400) note(`${slot.name} answers its home page with HTTP ${home.status}${home.title ? ` (${home.title})` : ''}: visitors would see that error. Check its settings, then build again.`, slot.slot.toUpperCase(), 'error');
+      }
       current = { versions, releases, upstream };
       await setUp(current);
     } catch (error) {

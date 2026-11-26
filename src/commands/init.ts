@@ -227,9 +227,13 @@ export async function init(opts: Options): Promise<void> {
       name: opts.config.flag,
       initial_value: controlRelease,
       default_enabled: true,
-      description: 'Release router managed by Turnout. Each variant value is the release it serves.',
+      description: FLAG_DESCRIPTION,
     });
     log(`✓ flag "${feature.name}" created`);
+  } else if (/^Release router managed by /.test(feature.description ?? '') && feature.description !== FLAG_DESCRIPTION) {
+    // Written by an earlier version (under an earlier name): brought up to date. A description a person wrote is kept.
+    await api.patch(`/api/v1/projects/${project.id}/features/${feature.id}/`, { description: FLAG_DESCRIPTION });
+    log(`✓ flag "${feature.name}" description updated`);
   }
   // A permanent tag marks it as the release router and keeps it out of Flagsmith's stale-flag detection.
   const tags = await api.list<{ id: number; label: string }>(`/api/v1/projects/${project.id}/tags/`);
@@ -440,3 +444,6 @@ export function writeEnv(path: string, values: Record<string, string>): void {
   }
   writeFileSync(path, text.trimStart());
 }
+
+/** The release flag's description in Flagsmith. */
+export const FLAG_DESCRIPTION = 'Release router managed by Turnout. Each variant value is the release it serves.';

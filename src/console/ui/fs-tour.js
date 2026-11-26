@@ -28,8 +28,9 @@
     return [
       { path: `${env}/features`, find: [c.flag], title: 'The release flag',
         text: `Turnout keeps one flag, ${c.flag}. Its value is the release everyone gets; its variations are the versions under test. The proxy reads it on every request, so changing it here moves real traffic.` },
-      { path: `${env}/features`, find: ['Healthy', 'Unhealthy'], title: 'Feature Health',
-        text: 'When a version loses a safety check, Turnout marks the flag Unhealthy here, through Flagsmith\'s Feature Health. With the guard on it also reverts, by itself.' },
+      // Pointed at the flag's row: the Unhealthy badge only exists while a version is losing a safety check.
+      { path: `${env}/features`, find: ['Unhealthy', c.flag], title: 'Feature Health',
+        text: 'When a version loses a safety check (slower pages, more errors), Turnout reports it through Flagsmith\'s Feature Health and an Unhealthy badge appears on this row. With the guard on it also reverts, by itself. No badge means every check passed.' },
       { path: `${env}/experiments`, find: ['Experiments', c.experimentName], title: 'Experiments',
         text: 'Every A/A, A/B or A/B/C test Turnout runs is a Flagsmith experiment on that flag: one running at a time, the older ones kept here.' },
       ...(c.experiment ? [{ path: `${env}/experiments/${c.experiment}`, find: ['Chance to win', 'chance to win', 'Results'], title: "Flagsmith's results",
@@ -38,8 +39,9 @@
         text: `The events Turnout's proxy sends for every visitor: the goal (${c.goal ?? 'page speed'}) and the safety checks (page speed, server errors). No code in your app.` },
       { path: `${env}/identities`, find: ['Identities', 'Identity'], title: 'Identities',
         text: 'Each visitor is an identity. The proxy gives every browser a lasting ID, so Flagsmith puts the same person in the same version every time.' },
-      { path: `/project/${c.project}/audit-log`, find: [c.flag, 'Audit'], title: 'Audit log',
-        text: 'Every Ship and Revert Turnout makes is a change to the flag, so it shows up here with who and when: the decision trail lives in Flagsmith.' },
+      // Not the Audit Log: on self-hosted Flagsmith it is an Enterprise feature, an empty page with "Contact Us".
+      { path: `${env}/features`, find: [c.flag], title: 'Ship and Revert',
+        text: `Ship is one change to ${c.flag}: Turnout drains the experiment's split and sets the flag's value to the winner, so every visitor gets it from their next page. Revert is the same change back. Nothing is redeployed.` },
     ];
   }
 
@@ -52,7 +54,7 @@
 @keyframes tt-in{from{opacity:0;transform:translateY(14px) scale(.97)}}
 .tt-top{display:flex;align-items:center;gap:8px;padding:10px 14px;background:linear-gradient(120deg,#7b51fb,#5f3dc4);color:#fff;font-weight:700;font-size:12.5px;letter-spacing:.02em}
 .tt-top span{flex:1}.tt-x{border:0;background:transparent;color:#fff;font-size:16px;cursor:pointer;opacity:.85}
-.tt-body{padding:14px 16px 6px}.tt-body h3{margin:0 0 6px;font-size:16px}.tt-body p{margin:0;color:#4b5565}
+.tt-body{padding:14px 16px 6px}.tt-body h3{margin:0 0 6px;font-size:16px;color:#1a2634!important}.tt-body p{margin:0;color:#4b5565!important}
 .tt-miss{margin-top:8px;font-size:12.5px;color:#9a6700}
 .tt-dots{display:flex;gap:5px;padding:10px 16px 0}.tt-dots i{width:7px;height:7px;border-radius:50%;background:#e2e8f0}.tt-dots i.on{background:#7b51fb;width:18px;border-radius:4px}
 .tt-foot{display:flex;gap:8px;justify-content:flex-end;padding:12px 16px 14px}

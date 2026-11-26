@@ -23,7 +23,7 @@ test('Python, Go, PHP and plain HTML each get their own', () => {
   assert.match(generatedDockerfile(['requirements.txt', 'app.py'], () => 'flask==3')!, /flask", "--app", "app"/);
   assert.match(generatedDockerfile(['requirements.txt', 'manage.py'], () => 'django')!, /manage.py migrate --noinput && exec python manage.py runserver/);
   assert.match(generatedDockerfile(['go.mod', 'main.go'], none)!, /golang/);
-  assert.match(generatedDockerfile(['index.php'], none)!, /php:8.3-apache/);
+  assert.match(generatedDockerfile(['index.php'], none)!, /php:8.4-apache/);
   assert.match(generatedDockerfile(['index.html', 'style.css'], none)!, /nginx/);
   assert.equal(generatedDockerfile(['notes.txt'], none), null);
 });
@@ -102,4 +102,15 @@ test('Ruby: Rails prepares its database and serves on 3000; gems with native par
   assert.match(rails, /FROM ruby:3\.4\n/);
   assert.match(rails, /ruby bin\/rails db:prepare && exec ruby bin\/rails server -b 0.0.0.0 -p 3000/);
   assert.match(generatedDockerfile(['Gemfile', 'config.ru'], none)!, /rackup/);
+});
+
+test('PHP serves the folder its front controller is in, with Composer packages; Django collects static files', () => {
+  // heroku/php-getting-started: "web: heroku-php-apache2 web/", Slim through Composer.
+  const php = generatedDockerfile(['composer.json', 'Procfile', 'web/index.php'], (p) => (p === 'Procfile' ? 'web: heroku-php-apache2 web/\n' : '{}'))!;
+  assert.match(php, /APACHE_DOCUMENT_ROOT=\/var\/www\/html\/web/);
+  assert.match(php, /composer install --no-dev/);
+  assert.match(generatedDockerfile(['composer.json', 'public/index.php'], () => '{}')!, /html\/public/);
+  assert.doesNotMatch(generatedDockerfile(['index.php'], none)!, /APACHE_DOCUMENT_ROOT|composer/);
+  // heroku/python-getting-started: WhiteNoise's manifest storage answers 500 until collectstatic has run.
+  assert.match(generatedDockerfile(['requirements.txt', 'manage.py'], () => 'django\nwhitenoise')!, /collectstatic --noinput/);
 });

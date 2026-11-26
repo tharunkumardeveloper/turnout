@@ -58,7 +58,7 @@ Each line is one thing to check, and what you should see. Start with `turnout de
 | Check | Do | Expected |
 |---|---|---|
 | Sign in | use the login from the console's **Sign in to Flagsmith** | Flagsmith's dashboard |
-| Turnout's tour | press **✦ Turnout tour** (bottom right) | seven stops on Flagsmith's own pages: the release flag, Feature Health, Experiments, the results, Metrics, Identities, Audit log; each highlights the part it talks about |
+| Turnout's tour | press **✦ Turnout tour** (bottom right) | seven stops on Flagsmith's own pages: the release flag, Feature Health, Experiments, the results, Metrics, Identities, Ship and Revert; each highlights the part it talks about |
 | Same Flagsmith | open <http://127.0.0.1:8000> | the same dashboard, without the tour |
 
 ## The public view (server mode)
