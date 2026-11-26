@@ -240,7 +240,7 @@ function Invoke-Compare([string[]]$a) {
       # A running experiment keeps its split and its main metric (Flagsmith fixes it at creation), so different
       # versions or settings need a new experiment, from scratch.
       Say "Different versions or settings start a new experiment: the previous one's data is discarded."
-      Compose down -v *> $null
+      Compose --profile sim down -v *> $null
       Get-ChildItem -Force $State | Remove-Item -Recurse -Force
     }
     $script:ProxyPort = Get-FreePort 8080
@@ -358,11 +358,11 @@ switch ($cmd) {
   'update' { Push-Location $HomeDir; try { git pull --ff-only; if ($LASTEXITCODE -eq 0) { Say 'Up to date. The next turnout compare or turnout demo uses it.' } } finally { Pop-Location } }
   'open' { Read-Args | Out-Null; Start-Process "http://127.0.0.1:$ConsolePort"; Show-Banner }
   'status' { Read-Args | Out-Null; Need-Docker; Compose ps; Compose run --rm cli doctor | Select-Object -Last 1 }
-  'down' { Read-Args | Out-Null; Need-Docker; Compose --profile sim down; Say 'Stopped. turnout compare with the same arguments starts it again, with its data.' }
+  'down' { Read-Args | Out-Null; Need-Docker; Step "Stopping $Name"; Compose --profile sim down *> $null; Say 'Stopped. turnout compare with the same arguments starts it again, with its data.' }
   'reset' {
     Read-Args | Out-Null; Need-Docker
     if ($rest -notcontains '--yes') { $ok = Read-Host "Delete $Name's Turnout and Flagsmith data? [y/N]"; if ($ok -ne 'y') { exit 1 } }
-    Compose --profile sim down -v; Remove-Item -Recurse -Force $State; Say 'Wiped. turnout compare starts fresh.'
+    Step "Removing $Name's containers and data"; Compose --profile sim down -v *> $null; Remove-Item -Recurse -Force $State; Say 'Wiped. turnout compare starts fresh.'
   }
   default { Show-Help }
 }

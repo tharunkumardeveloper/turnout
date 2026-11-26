@@ -240,7 +240,7 @@ app_port=$APP_PORT"
       # A running experiment keeps its split and its main metric (Flagsmith fixes it at creation), so different
       # versions or settings need a new experiment, from scratch.
       say "Different versions or settings start a new experiment: the previous one's data is discarded."
-      compose down -v >/dev/null 2>&1 || true
+      compose --profile sim down -v >/dev/null 2>&1 || true
       find "$STATE" -mindepth 1 -delete
     fi
     PROXY_PORT=$(free_port 8080); CONSOLE_PORT=$(free_port 8090)
@@ -356,10 +356,10 @@ case "$cmd" in
   update) cd "$HOME_DIR" && git pull --ff-only && say "Up to date. The next turnout compare or turnout demo uses it." ;;
   open) need_state; open_url "http://127.0.0.1:$CONSOLE_PORT"; banner ;;
   status) need_state; need_docker; compose ps; compose run --rm cli doctor | tail -1 ;;
-  down) need_state; need_docker; compose --profile sim down; say "Stopped. turnout compare with the same arguments starts it again, with its data." ;;
+  down) need_state; need_docker; step "Stopping $NAME"; compose --profile sim down >/dev/null 2>&1; say "Stopped. turnout compare with the same arguments starts it again, with its data." ;;
   reset)
     need_state; need_docker
     if [ "${1:-}" != --yes ]; then printf 'Delete %s'"'"'s Turnout and Flagsmith data? [y/N] ' "$NAME"; read -r ok; [ "$ok" = y ] || exit 1; fi
-    compose --profile sim down -v; rm -rf "$STATE"; say "Wiped. turnout compare starts fresh." ;;
+    step "Removing $NAME's containers and data"; compose --profile sim down -v >/dev/null 2>&1; rm -rf "$STATE"; say "Wiped. turnout compare starts fresh." ;;
   *) help_screen ;;
 esac
