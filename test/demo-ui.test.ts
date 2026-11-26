@@ -425,3 +425,19 @@ describe('demo.html and demo.js', () => {
     assert.match(js, /job\.action === 'ship' \|\| job\.action === 'revert'[\s\S]{0,200}await run\('verify'\)/);
   });
 });
+
+describe('blind rounds on the judge page (server mode)', () => {
+  test('hidden while a round runs; revealed next to Flagsmith’s call after it; a scoreboard throughout; nothing when off', () => {
+    assert.equal(M.blindView(base()), null);
+    assert.equal(M.blindView(base({ blind: { enabled: false } })), null);
+    const score = { rounds: 4, right: 3, wrong: 0, noCall: 1 };
+    const hidden = M.blindView(base({ blind: { enabled: true, round: { hidden: true }, score } }));
+    assert.equal(hidden.title, 'Blind round');
+    assert.match(hidden.text, /stay hidden until the decision/);
+    assert.match(hidden.score, /right in 3 of 4 blind rounds \(1 where it wasn't sure yet\)/);
+    const shown = M.blindView(base({ blind: { enabled: true, round: { hidden: false, truth: 'shop:1.5 better on orders (16% vs 10%)', round: { outcome: 'right' } }, score } }));
+    assert.equal(shown.title, 'Revealed: Flagsmith got it right');
+    assert.equal(shown.tone, 'good');
+    assert.match(shown.text, /^The truth: shop:1\.5 better on orders/);
+  });
+});

@@ -991,6 +991,7 @@ body.console-screen { height: 100vh; overflow: hidden; display: grid; grid-templ
 
 /* ==== Try it with your app (try.js) ========================================================================== */
 .console-screen .try-btn { flex: none; min-height: 32px; padding: 4px 12px; --c: var(--good); color: #fff; border-color: transparent; background: color-mix(in srgb, var(--good) 85%, black); }
+.console-screen .try-btn:hover:not(:disabled), .console-screen .try-btn:focus-visible { background: color-mix(in srgb, var(--good) 70%, black); color: #fff; }
 .try-dialog { width: min(960px, calc(100vw - 32px)); max-height: calc(100vh - 32px); }
 .try-inner { display: grid; gap: 10px; }
 .try-inner code { font-family: var(--mono); font-size: 12.5px; }
@@ -1028,3 +1029,23 @@ p.try-kindline { margin: 0; font-size: 13px; font-weight: 650; }
 .try-tile-name { font-weight: 700; font-size: 13px; }
 .try-frame { position: relative; display: block; height: 170px; overflow: hidden; border-radius: 6px; background: var(--surface-2); }
 .try-frame iframe { position: absolute; inset: 0 auto auto 0; width: 1100px; height: 800px; border: 0; transform: scale(.25); transform-origin: 0 0; pointer-events: none; }
+
+/* The traffic card: Previews | Traffic */
+.map-switch { display: inline-flex; gap: 2px; padding: 2px; border: 1px solid var(--border); border-radius: 9px; background: var(--surface-2); }
+.map-switch button { border: 0; background: transparent; padding: 3px 10px; border-radius: 7px; font: 650 12.5px var(--sans); color: var(--muted); cursor: pointer; }
+.map-switch button[aria-pressed='true'] { background: var(--text); color: var(--surface); }
+.map-previews { flex: 1; min-height: 0; display: grid; grid-template-columns: repeat(var(--n, 2), minmax(0, 1fr)); gap: 10px; }
+.map-previews[hidden] { display: none; }
+.map-preview { min-height: 0; display: flex; flex-direction: column; gap: 6px; padding: 6px; border: 1px solid var(--border); border-top: 4px solid var(--c); border-radius: 10px; text-decoration: none; color: var(--text); }
+.map-preview-name { font-weight: 700; font-size: 13px; display: flex; align-items: center; gap: 2px; }
+.map-preview-frame { flex: 1; min-height: 120px; position: relative; overflow: hidden; border-radius: 6px; background: var(--surface-2); }
+.map-preview-frame iframe { position: absolute; inset: 0 auto auto 0; width: 1000px; height: 1400px; border: 0; transform: scale(.25); transform-origin: 0 0; pointer-events: none; }
+.map-preview:hover { border-color: var(--good); }
+/* Try it: off, settings */
+.try-off { margin: 0; padding: 8px 10px; border-radius: 8px; background: color-mix(in srgb, var(--warn) 12%, transparent); color: var(--text); font-size: 13px; }
+.try-env-box > summary { cursor: pointer; font-weight: 650; font-size: 13px; }
+.try-env { width: 100%; margin-top: 6px; padding: 6px 8px; border: 1px solid var(--border); border-radius: 8px; background: var(--surface); color: var(--text); font: 12.5px/1.4 var(--mono); }
+.run-try { display: grid; gap: 6px; padding: 8px 10px; border-radius: 10px; background: color-mix(in srgb, var(--good) 8%, transparent); border: 1px solid color-mix(in srgb, var(--good) 30%, var(--border)); }
+.run-try[hidden] { display: none; }
+.run-try-line { margin: 0; font-size: 13px; }
+.run-try-go { --c: var(--good); justify-self: start; text-decoration: none; padding: 6px 14px; font-size: 13.5px; }

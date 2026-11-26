@@ -312,6 +312,7 @@ function render() {
   renderNext(s, m);
   renderResults(s, m);
   renderFlagsmith(s);
+  renderBlind(s);
   renderHistory(s);
   paintLive();
   scheduleAutoplay(m);
@@ -480,6 +481,19 @@ function renderNext(s, m) {
   a.querySelector('.action-explain')?.remove();
   a.querySelector('#go')?.setAttribute('title', m.action.explain);
   box.replaceChildren(a);
+}
+
+// Blind rounds (server mode): hidden while a round runs, revealed with Flagsmith's call after it, and the scoreboard.
+function renderBlind(s) {
+  const box = $('blind');
+  const v = M.blindView(s);
+  box.hidden = !v;
+  if (!v) return;
+  const key = JSON.stringify(v);
+  if (box.dataset.key === key) return;
+  box.dataset.key = key;
+  box.dataset.tone = v.tone;
+  box.replaceChildren(h('p', { class: 'blind-title' }, v.title), h('p', { class: 'blind-text' }, v.text), h('p', { class: 'blind-score' }, v.score));
 }
 
 function renderHistory(s) {
@@ -685,4 +699,6 @@ if (TRY) {
 }
 $('tour-open').addEventListener('click', () => tour.start());
 connectFeed();
-loadState().then(() => tour.offer());
+// /try?play=1 (the console's "Run your app's test"): play the whole test straight away, no tour.
+const playNow = TRY && new URLSearchParams(location.search).get('play') === '1';
+loadState().then(() => (playNow ? startAutoplay() : tour.offer()));

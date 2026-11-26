@@ -101,6 +101,7 @@ const parseCommandLine = () =>
       split: { type: 'string' },
       aa: { type: 'boolean' },
       'against-itself': { type: 'boolean' },
+      'config-metrics': { type: 'boolean' }, // release: the new experiment's metrics from the config (a changed goal)
       mde: { type: 'string' },
       'daily-visitors': { type: 'string' },
       project: { type: 'string' },
@@ -398,7 +399,7 @@ const commands: Record<string, () => Promise<void>> = {
     const { startTryit } = await import('./tryit/server.ts');
     const docker = createDocker();
     if (!(await docker.ping())) throw new Error("Can't reach Docker at /var/run/docker.sock: tryit needs the Docker socket mounted.");
-    startTryit({
+    const tryit = startTryit({
       docker,
       apiUrl: apiUrl(),
       adminKey: await adminKey(),
@@ -410,6 +411,15 @@ const commands: Record<string, () => Promise<void>> = {
       apiPort: Number(env('TRYIT_PORT', '8097')),
       stateDir: join(STATE_DIR, 'tryit'),
     });
+    // Stopping Try it (turnout stop) also stops the versions it started: they are its containers, not yours.
+    const { SLOTS } = await import('./tryit/server.ts');
+    const shutdown = async () => {
+      await Promise.all(SLOTS.map((slot) => docker.remove(`turnout-try-${slot}`).catch(() => {})));
+      await Promise.race([tryit.close(), new Promise((r) => setTimeout(r, 5000))]);
+      process.exit(0);
+    };
+    process.on('SIGTERM', shutdown);
+    process.on('SIGINT', shutdown);
   },
   'code-refs': async () => {
     // The project: --project, TURNOUT_PROJECT_ID, or the environment in TURNOUT_EXPERIMENT.
@@ -443,6 +453,17 @@ const commands: Record<string, () => Promise<void>> = {
       releases: new Set(config.releases.keys()),
       newRelease: label ?? '',
       hypothesis: cliFlags.hypothesis ?? defaultHypothesis(label ?? '', config.goal.event),
+      // --config-metrics: the new experiment's metrics from turnout.config.yml (its goal first, then the funnel
+      // metrics and the guardrails) instead of the previous experiment's: how a changed goal reaches Flagsmith.
+      ...(cliFlags['config-metrics'] === true
+        ? {
+            metrics: [
+              { name: config.goal.event, expected_direction: config.goal.speedOnly ? 'decrease' : 'increase' },
+              ...(config.metrics ?? []).map((m) => ({ name: m.event, expected_direction: 'increase' })),
+              ...config.guardrails.filter((g) => g !== config.goal.event).map((g) => ({ name: g, expected_direction: 'not_increase' })),
+            ],
+          }
+        : {}),
     });
     writeEnv(ENV_FILE, { TURNOUT_EXPERIMENT: `${envKey()}/${experimentId}` });
   },

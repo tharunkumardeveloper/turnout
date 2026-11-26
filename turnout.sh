@@ -29,9 +29,10 @@ usage() {
   echo "  stop    stop every container; data and keys are kept"
   echo "  reset   wipe Flagsmith's data, the ledger and the keys, then start fresh (--yes: don't ask)"
   echo "  server  server mode on <hostname>: HTTPS through Caddy, read-only judge view at https://<hostname>/judge"
+  echo "  tryit   start Try it with your app (opt-in: it builds and runs the versions you give it, over the Docker socket)"
 }
 case "$ACTION" in
-  start|demo|status|stop|reset|server) ;;
+  start|demo|status|stop|reset|server|tryit) ;;
   -h|--help|/?) usage; exit 0 ;;
   *) echo "Unknown option \"$ACTION\"."; usage; echo; echo " Not started."; exit 1 ;;
 esac
@@ -308,10 +309,19 @@ case "$ACTION" in
     links
     exit 0
     ;;
+  tryit)
+    if [ "$MODE" = server ]; then echo " Try it builds and runs code: it never runs in server mode."; exit 1; fi
+    echo
+    echo " Starting Try it with your app. It builds and runs the versions you give it over the Docker socket (root on"
+    echo " this machine), so it is off until you start it. Its proxy is on 127.0.0.1:8085 only."
+    dc --profile tryit up -d --build --wait tryit || failed
+    echo " Ready: on the console (http://127.0.0.1:8090) press Try it with your app. Stop: sh turnout.sh stop"
+    exit 0
+    ;;
   stop)
     echo
     echo " Stopping every container. Flagsmith's data, the keys in .env and the ledger are kept."
-    dc --profile tools down
+    dc --profile tools --profile tryit down
     echo " Stopped. Run sh turnout.sh to bring it back."
     exit 0
     ;;

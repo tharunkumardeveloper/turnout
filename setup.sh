@@ -7,7 +7,7 @@
 #    sh setup.sh --yes      check, and install what's missing without asking
 #
 #  Needed to run the demo:        Docker (Docker Desktop on macOS, Docker Engine on Linux), Docker Compose 2.20+,
-#                                 about 8 GB of RAM for Docker, free ports 8000, 8080, 8090 and 8091.
+#                                 about 4 GB of RAM for Docker, free ports 8000, 8080, 8090 and 8091.
 #  Needed only for development:   Node.js 24+ and npm (tests and typecheck), Git.
 #
 #  macOS installs with Homebrew. On Linux it prints the exact command (apt, dnf or Docker's official script) and,
@@ -168,9 +168,9 @@ if [ -z "$BYTES" ]; then
   warn "could not read the amount of memory"
 else
   GB=$(awk -v b="$BYTES" 'BEGIN { printf "%d", b / 1073741824 + 0.5 }')
-  # Docker Desktop reports a little under its setting (8 GB shows as about 7.7), hence 7.
-  if [ "$GB" -lt 7 ]; then
-    warn "$GB GB $WHAT: Flagsmith, Postgres and the demo want about 8 GB. It may be slow."
+  # Docker Desktop reports a little under its setting (4 GB shows as about 3.8), hence 3.
+  if [ "$GB" -lt 3 ]; then
+    warn "$GB GB $WHAT: Flagsmith, Postgres and the demo want about 4 GB (the stack peaked at 1.45 GB under load). It may be slow."
     [ "$OS" = Darwin ] && note "Docker Desktop: Settings > Resources > Memory"
   else
     ok "$GB GB $WHAT"

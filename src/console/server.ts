@@ -697,7 +697,7 @@ async function relayTry(url: string, req: http.IncomingMessage, res: http.Server
   } catch (error) {
     if (!res.headersSent) {
       res.writeHead(502, { 'content-type': 'application/json' });
-      res.end(JSON.stringify({ error: `The Try it service didn't answer: ${(error as Error).message}. Is the tryit container running? (docker compose up -d tryit)` }));
+      res.end(JSON.stringify({ error: `The Try it service didn't answer: ${(error as Error).message}. Try it is opt-in: start it with turnout.bat tryit (Windows) or sh turnout.sh tryit (macOS, Linux).` }));
     } else res.end();
   }
 }

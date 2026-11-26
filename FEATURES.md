@@ -21,7 +21,7 @@ Turnout is a reverse proxy in front of your web app. It turns every release into
 - **Release header.** The proxy sends the app an `X-Turnout-Release` header so the app knows which release served the request. Preview and debug requests also show a footer badge.
 
 ## Measurement (from HTTP, no SDK)
-- **Exposures** are recorded when a returning visitor loads a page, using the same evaluation that routed the request.
+- **Exposures** are recorded from a visitor's first page load in a browser (so one-page visits count), using the same evaluation that routed the request.
 - **Goals as HTTP rules.** A goal is written as a rule, such as `POST /checkout` returning 2xx → `order_placed`.
 - **Funnel metrics.** Secondary metrics such as `add_to_cart` are tracked but never act as guardrails.
 - **Built-in guardrails.** Every page load sends `doc_latency_ms` and `server_error`.
@@ -63,7 +63,8 @@ Turnout is a reverse proxy in front of your web app. It turns every release into
 ## CLI
 | Command | What it does |
 |---|---|
-| `new` | Asks four questions (which Flagsmith, which releases, the success rule, % of traffic) and writes the config and compose file for your app |
+| `compare` | **The main path**: your versions (URLs, images or branches) to a running A/B or A/B/C test, with no questions (see the top of this page) |
+| `new` | What `compare` runs underneath: writes the config and compose file for your app (asks four questions when run by hand) |
 | `init` | Sets up the flag, metrics, experiment and Feature Health in Flagsmith. It works with your own Flagsmith via `--project/--environment` |
 | `doctor` | Checks the whole setup and says what's missing (35 checks in server mode) |
 | `check` | **Experiment Doctor** for any Flagsmith experiment, proxy or not. It finds leftover splits and wiring problems. Also available as a GitHub Action |
@@ -73,7 +74,7 @@ Turnout is a reverse proxy in front of your web app. It turns every release into
 ## Console and judge mode
 - **Console** (`:8090`), the page `turnout compare` opens.
   - **Run a test, one button**: pick A/A, A/B or A/B/C and check the preview; one button starts the test in Flagsmith, sends simulated shoppers and asks Flagsmith for its results, waiting out Flagsmith's 5-minute refresh limit when it must. For your own app it only starts the test (no simulated shoppers).
-  - **Try it with your app**: one, two or three versions given as Dockerfiles, public git repos or images; Turnout builds and runs them locally behind a proxy of its own (flag `tryit_release`), shows previews, and opens judge mode for them at `/try`. One version is an A/A test, two an A/B, three an A/B/C. Local only (Docker socket); never on a server.
+  - **Try it with your app** (opt-in: `turnout.bat tryit` / `sh turnout.sh tryit`): one, two or three versions given as Dockerfiles, public git repos or images; Turnout builds and runs them locally behind a proxy of its own (flag `tryit_release`), shows previews, and opens judge mode for them at `/try`. One version is an A/A test, two an A/B, three an A/B/C. Local only (Docker socket); never on a server.
   - **Refresh guard**: Flagsmith recomputes results at most once every 5 minutes, so the console holds a refresh back while no new visit has arrived since the start or the last results.
   - **Open your site: be a visitor.** Your browser gets a version like any visitor; **Your visits** lists where it landed before the test, in it and after the decision. **Pin this browser** to one version: a Flagsmith identity override for your visitor id (outside the test).
   - **Traffic map**: every routed request rides to its version; ghost dots always move along the tracks the flag routes to now; a **YOU** pin marks your version.
@@ -95,6 +96,7 @@ Turnout is a reverse proxy in front of your web app. It turns every release into
 ## Server mode (public deployment)
 - **One command.** `sh turnout.sh server <hostname>` deploys with Caddy and automatic Let's Encrypt HTTPS.
 - **Read-only public console** at `/judge/console`: the traffic map, Flagsmith's results and the decisions, no buttons.
+- **Blind rounds** on the public page: random hidden rates per round, revealed next to Flagsmith's call after the decision, with a scoreboard.
 - **Watch-only public judge page.** The same judge page and tour, with no buttons; the current step says what the autopilot does next. It refuses every write, and rests while nobody has the page open.
 - **Autopilot** (on by default in server mode):
   - Runs the full story on a loop: visitors → results → decision → verify → preview → next release → reset.
@@ -123,7 +125,7 @@ Turnout is a reverse proxy in front of your web app. It turns every release into
 - **Caching.** Responses carry `Cache-Control: private` and `Vary: Cookie`. Turnout's cookies are stripped before requests reach the app.
 
 ## Quality
-- **Tests.** 605 tests (604 pass, 1 skipped) on Node's built-in test runner.
+- **Tests.** 616 tests (615 pass, 1 skipped) on Node's built-in test runner.
 - **Evidence.** Results measured on Flagsmith 2.291.0 are recorded in `spikes/RESULTS.md`.
 
 ## Not built yet

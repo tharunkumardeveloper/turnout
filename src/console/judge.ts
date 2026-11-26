@@ -240,6 +240,7 @@ export type JudgeOptions = {
   // false: a console for your own app (turnout compare). Tests still start, are scored and decided from the console,
   // but the demo shop's simulated shoppers never run: they would land in your real experiment.
   simulator?: boolean;
+  metrics?: { name: string; expected_direction: string }[]; // each new experiment's metrics, the goal first (Try it)
   deps?: Partial<JudgeDeps>;
 };
 
@@ -513,6 +514,7 @@ export function createJudge(opts: JudgeOptions, ctx: JudgeContext) {
         apiUrl: opts.apiUrl, adminKey: opts.adminKey, envKey, flag: opts.flag, releases: new Set(opts.releases), newRelease: label, hypothesis, log,
         ...(extra?.also?.length ? { also: extra.also } : {}),
         ...(extra?.aa ? { aa: true } : {}),
+        ...(opts.metrics?.length ? { metrics: opts.metrics } : {}),
       }),
     check: opts.serverKey ? (log) => runCheck({ apiUrl: opts.apiUrl, serverKey: opts.serverKey!, log }) : null,
     visit: () => freshVisitor(opts.proxyUrl, opts.previewToken),

@@ -21,20 +21,51 @@ function h(tag, props = {}, ...children) {
   return node;
 }
 
-// Two self-contained Dockerfiles (no other files needed), so anyone can see it work without an app of their own.
+// Two self-contained Dockerfiles (no other files needed), so anyone can see it work without an app of their own: the
+// same product ("Ledgerly", made up) as two complete landing pages, each with a pricing page (the example's goal) and
+// an about page. A is the classic design; B the bold one, with one clear call to action.
+function examplePage(v) {
+  const css = `*{box-sizing:border-box}body{margin:0;font-family:${v.font};color:#18202f;background:${v.bg}}a{color:inherit}`
+    + `.nav{display:flex;align-items:center;justify-content:space-between;padding:18px 48px;background:${v.nav};color:${v.navText}}`
+    + `.nav b{font-size:20px;letter-spacing:.02em}.nav span a{margin-left:22px;text-decoration:none;opacity:.9}`
+    + `.hero{padding:72px 48px 56px;max-width:1040px;margin:auto;text-align:${v.align}}.hero small{font-weight:700;letter-spacing:.12em;color:${v.accent}}`
+    + `.hero h1{font-size:${v.h1};line-height:1.1;margin:12px 0}.hero p{font-size:19px;color:#4b5565;max-width:640px;${v.align === 'center' ? 'margin:0 auto 26px' : 'margin:0 0 26px'}}`
+    + `.cta{display:inline-block;padding:${v.ctaPad};border-radius:${v.radius};background:${v.accent};color:#fff;font-weight:700;text-decoration:none;font-size:${v.ctaSize}}`
+    + `.ghost{margin-left:12px;color:${v.accent};font-weight:600}`
+    + `.cards{display:grid;grid-template-columns:repeat(3,1fr);gap:20px;max-width:1040px;margin:0 auto;padding:0 48px 48px}`
+    + `.card{background:#fff;border-radius:${v.radius};padding:22px;box-shadow:0 8px 24px -12px rgba(15,23,42,.25);border-top:4px solid ${v.accent}}.card h3{margin:0 0 6px}.card p{margin:0;color:#4b5565}`
+    + `.quote{max-width:760px;margin:0 auto 56px;padding:0 48px;font-size:20px;font-style:italic;color:#334155;text-align:center}`
+    + `.foot{padding:26px 48px;background:${v.nav};color:${v.navText};font-size:14px}`;
+  const nav = `<div class="nav"><b>${v.brand}</b><span><a href="/pricing.html">Pricing</a><a href="/about.html">About</a><a href="/pricing.html">Start free</a></span></div>`;
+  const page = (title, body) => `<!doctype html><html lang="en"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>${title}</title><style>${css}</style>${nav}${body}<div class="foot">${v.brand} &middot; version ${v.letter} &middot; served through Turnout</div></html>`;
+  const index = page(`${v.brand}: ${v.headline}`, `<div class="hero"><small>${v.kicker}</small><h1>${v.headline}</h1><p>${v.pitch}</p><a class="cta" href="/pricing.html">${v.cta}</a>${v.ghost ? `<a class="ghost" href="/about.html">${v.ghost}</a>` : ''}</div>`
+    + `<div class="cards">${v.cards.map(([h, p]) => `<div class="card"><h3>${h}</h3><p>${p}</p></div>`).join('')}</div><p class="quote">&ldquo;${v.quote}&rdquo;</p>`);
+  const pricing = page(`${v.brand} pricing`, `<div class="hero"><small>PRICING</small><h1>Simple plans</h1><p>Free for one person. Team: 9 a month per seat. Cancel any time.</p><a class="cta" href="/">Back home</a></div>`);
+  const about = page(`About ${v.brand}`, `<div class="hero"><small>ABOUT</small><h1>Made for small teams</h1><p>Invoices, expenses and payroll in one tidy place.</p><a class="cta" href="/pricing.html">See pricing</a></div>`);
+  const write = (file, html) => `printf '%s' '${html}' > /usr/share/nginx/html/${file}`;
+  return `# Example version ${v.letter}: ${v.name}. Self-contained: the pages are written here, no other files needed.\nFROM nginx:alpine\nRUN ${write('index.html', index)} \\\n && ${write('pricing.html', pricing)} \\\n && ${write('about.html', about)}`;
+}
+
 const EXAMPLE = [
-  `FROM nginx:alpine
-RUN printf '%s' '<!doctype html><title>Signup A</title><body style="font-family:sans-serif;background:#f4f6fb;padding:40px"><h1 style="color:#1d4ed8">Version A: the classic page</h1><p>A long sign-up form.</p><p><a href="/pricing.html">Pricing</a> · <a href="/about.html">About</a></p></body>' > /usr/share/nginx/html/index.html \\
- && printf '%s' '<!doctype html><h1>Pricing</h1><a href="/">Home</a>' > /usr/share/nginx/html/pricing.html \\
- && printf '%s' '<!doctype html><h1>About</h1><a href="/">Home</a>' > /usr/share/nginx/html/about.html`,
-  `FROM nginx:alpine
-RUN printf '%s' '<!doctype html><title>Signup B</title><body style="font-family:sans-serif;background:#ecfdf3;padding:40px"><h1 style="color:#15803d">Version B: the short page</h1><p>One field, one button.</p><p><a href="/pricing.html">Pricing</a> · <a href="/about.html">About</a></p></body>' > /usr/share/nginx/html/index.html \\
- && printf '%s' '<!doctype html><h1>Pricing</h1><a href="/">Home</a>' > /usr/share/nginx/html/pricing.html \\
- && printf '%s' '<!doctype html><h1>About</h1><a href="/">Home</a>' > /usr/share/nginx/html/about.html`,
+  examplePage({
+    letter: 'A', name: 'the classic page', brand: 'Ledgerly', font: 'Georgia,serif', bg: '#f5f7fb', nav: '#1e3a8a', navText: '#fff', accent: '#1d4ed8',
+    align: 'left', h1: '44px', radius: '6px', ctaPad: '12px 22px', ctaSize: '16px', kicker: 'BOOKKEEPING FOR SMALL TEAMS',
+    headline: 'Accounting software that keeps your books tidy', pitch: 'Ledgerly tracks invoices, expenses and payroll, reconciles your bank every night, and prepares your quarterly reports so you can focus on the work you love.',
+    cta: 'Start a free trial', ghost: 'Read how it works', quote: 'We closed our books in a day instead of a week.',
+    cards: [['Invoices', 'Send branded invoices and get paid online.'], ['Expenses', 'Snap a receipt; Ledgerly files it.'], ['Reports', 'Quarterly reports, ready for your accountant.']],
+  }),
+  examplePage({
+    letter: 'B', name: 'the bold page', brand: 'Ledgerly', font: 'system-ui,sans-serif', bg: '#effaf3', nav: '#14532d', navText: '#ecfdf3', accent: '#16a34a',
+    align: 'center', h1: '56px', radius: '999px', ctaPad: '16px 34px', ctaSize: '19px', kicker: 'FREE FOR ONE PERSON',
+    headline: 'Your books, done.', pitch: 'Invoices, expenses and payroll in one place. Set up in two minutes.',
+    cta: 'Get started free', ghost: '', quote: 'Two minutes to set up. I never looked back.',
+    cards: [['2-minute setup', 'Connect your bank and you are done.'], ['Paid faster', 'Online payments on every invoice.'], ['No surprises', 'One price. Cancel any time.']],
+  }),
 ];
 
 const rows = LETTERS.map((letter, i) => ({ letter, kind: 'dockerfile', value: '', port: '', rate: i === 0 ? '10' : '10' }));
 let polling = 0;
+let offline = false; // the tryit service isn't running: it is opt-in
 let ready = ''; // the line once a build is ready (kept until the versions change)
 
 function rowView(r, i) {
@@ -67,7 +98,7 @@ function filled() {
 function kindLine() {
   const n = filled().length;
   $('try-kind').textContent = ready || (n ? `${n} version${n > 1 ? 's' : ''}: ${KIND[n]}.` : 'Give at least version A.');
-  /** @type {HTMLButtonElement} */ ($('try-build')).disabled = !n || Boolean(polling);
+  /** @type {HTMLButtonElement} */ ($('try-build')).disabled = !n || Boolean(polling) || offline;
 }
 function render() {
   $('try-versions').replaceChildren(...rows.map(rowView));
@@ -90,7 +121,16 @@ function previews(state) {
 async function poll() {
   try {
     const res = await api('/api/try/status', { cache: 'no-store' });
-    const st = await res.json();
+    const st = await res.json().catch(() => ({}));
+    // Opt-in: the service runs only once started (sh turnout.sh tryit / turnout.bat tryit).
+    offline = res.status === 502;
+    const off = $('try-off');
+    off.hidden = !offline;
+    if (offline) {
+      off.textContent = 'Try it is off: it builds and runs code over the Docker socket, so it starts only when you ask. Start it with  turnout.bat tryit  (Windows) or  sh turnout.sh tryit  (macOS, Linux), then press Use an example or Build and try.';
+      polling = 0;
+      return kindLine();
+    }
     if (!res.ok) throw new Error(st.error ?? `HTTP ${res.status}`);
     const last = st.status === 'building' ? (st.log ?? []).filter((l) => !l.startsWith('  ')).at(-1) : null;
     $('try-progress').replaceChildren(...(st.versions ?? []).map(stageList), last ? h('li', { class: 'try-now' }, last) : null);
@@ -121,7 +161,7 @@ async function build() {
   $('try-error').hidden = true;
   $('try-previews').replaceChildren();
   $('try-open-page').hidden = true;
-  const res = await api('/api/try/build', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ versions, goal: /** @type {HTMLInputElement} */ ($('try-goal')).value, rates }) });
+  const res = await api('/api/try/build', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ versions, goal: /** @type {HTMLInputElement} */ ($('try-goal')).value, rates, env: /** @type {HTMLTextAreaElement} */ ($('try-env')).value }) });
   const body = await res.json().catch(() => ({}));
   if (!res.ok) {
     $('try-error').hidden = false;
@@ -133,6 +173,31 @@ async function build() {
   void poll();
 }
 
+// The console's Run a test card follows your Try it build: what it holds (A/A, A/B, A/B/C of your versions) and one
+// button that opens its test page and plays the whole test there.
+function renderRunTry(st) {
+  const box = document.getElementById('run-try');
+  if (!box) return;
+  box.hidden = st?.status !== 'ready';
+  if (box.hidden) return;
+  const names = (st.versions ?? []).map((v, i) => `${LETTERS[i]} · ${v.name}`);
+  const key = JSON.stringify([st.kind, names]);
+  if (box.dataset.key === key) return;
+  box.dataset.key = key;
+  box.replaceChildren(
+    h('p', { class: 'run-try-line' }, h('strong', {}, 'Your app (Try it): '), `an ${st.kind} test of ${names.length === 1 ? `${names[0]}, twice` : names.join(st.kind === 'A/B' ? ' against ' : ', ')}.`),
+    h('a', { class: 'btn btn-primary run-try-go', href: '/try?play=1', target: '_blank', rel: 'noopener', title: 'Opens its test page and plays the whole test: start, simulated visitors, the results from Flagsmith, the decision' }, `▶ Run your app's ${st.kind} test`));
+}
+async function watchTry() {
+  try {
+    const res = await api('/api/try/status', { cache: 'no-store' });
+    renderRunTry(res.ok ? await res.json() : null);
+  } catch {
+    renderRunTry(null);
+  }
+  setTimeout(watchTry, 8000);
+}
+
 export async function setupTry() {
   const open = document.getElementById('try-open');
   if (!open) return;
@@ -140,12 +205,15 @@ export async function setupTry() {
   const probe = await api('/api/try/status', { cache: 'no-store' }).catch(() => null);
   if (!probe || probe.status === 404 || probe.status === 403) return open.remove();
   open.hidden = false;
+  void watchTry();
   open.addEventListener('click', () => {
     /** @type {HTMLDialogElement} */ ($('try-dialog')).showModal();
     render();
     void poll();
   });
-  $('try-build').addEventListener('click', () => {
+  $('try-build').addEventListener('click', async () => {
+    await poll(); // started since the box opened?
+    if (offline) return;
     ready = '';
     void build();
   });

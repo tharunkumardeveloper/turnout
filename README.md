@@ -47,12 +47,35 @@ It works for any website in any language: a shop, a sign-up page, a dashboard. Y
 
 **Why not just Flagsmith?** Flagsmith decides who sees what and does the maths, but normally your app's code has to ask it, which works for one button, not for two whole releases. Turnout is that missing front door. **Why not a canary tool?** Tools like Argo Rollouts or Flagger shift traffic to protect uptime and judge a release on errors. Turnout asks a product question, *does the new release get more sign-ups?*, and keeps errors and speed as safety checks.
 
+## Track 03: why this exists
+
+Turnout is what we wished existed while setting up Flagsmith's Experimentation on our own server. Each piece answers a problem we hit:
+
+| We hit | So Turnout… |
+|---|---|
+| An experiment is app code at each touchpoint (`getExperimentFlag`, `trackEvent`, a visitor id). A whole new release has no single line to wrap. | Routes every request at the door, by one multivariate flag, and turns plain HTTP into Flagsmith events: no app code. |
+| After ending an experiment and setting the flag's default, 144 of 300 visitors were still on the old split until the next experiment started. | **Ship winner** drains the split first: 300 of 300 on the winner ([details](docs/FLAGSMITH.md#ending-an-experiment-what-the-docs-say-and-what-the-pinned-image-does)). |
+| The Node SDK dropped events tracked faster than one batch round-trip (28% in a minimal reproduction). | Holds its own events back while the SDK's buffer is full: 0 of 121,678 lost ([reproduction](spikes/sdk-buffer-repro/)). |
+| Results recompute at most once every 5 minutes, and a Refresh before any visit wastes that window. | Asks only after visitors' events are in, and holds a pointless refresh back. |
+| Outgoing webhooks refuse private addresses, so a self-hosted console can't receive them. | Reports health through Flagsmith's Feature Health provider instead. |
+| Getting a test running took a dozen manual steps. | `turnout compare` (one command), a setup check, installers for every OS, and *Try it with your app* from the console. |
+
+## Track 01: the experiment
+
+| | |
+|---|---|
+| **Hypothesis** | The one-page checkout (1.5 Express) gets more orders than the 3-step checkout (1.4 Classic), without slower pages or more errors. |
+| **Versions behind a flag** | `shop_release`, multivariate: `control` → 1.4, `v2` → 1.5 (and `v3` → 1.6 in the A/B/C test). |
+| **Metric from real events** | `order_placed`: the proxy's event when `POST /checkout` answers 2xx. Safety checks: page load time and server errors. `add_to_cart` is watched too. |
+| **Result** | Flagsmith: 1.5 at 20.3% against 10.1%, >99.9% chance to win, page speed unchanged; shipped with one flag change, then 50 of 50 new visitors on 1.5. In the A/B/C test, 1.6 sells a little more but its pages are 2.8× slower, so it's out. |
+| **Honest about it** | Those shoppers are simulated (labelled) at rates we set. On the live demo, blind rounds draw the rates at random and hide them; the page reveals them next to Flagsmith's call and keeps a scoreboard. Real visitors who press *Be a visitor* count in a separate experiment, `shop_release_live`, whose goal is `add_to_cart` (it fires early enough for a few days of traffic) with `order_placed` watched. |
+
 ## See it in 2 minutes
 
 Open the **[live demo](https://172-198-62-67.sslip.io/judge)**: it runs real Flagsmith experiments by itself on a demo shop with three versions (1.4 Classic, 1.5 Express with a one-page checkout, 1.6 Bold with deliberately slower pages). Simulated shoppers are always labelled.
 
 - **Watch a test happen:** start, send shoppers, ask Flagsmith, decide, in four steps on one screen.
-- **The story:** 1.5 beats 1.4 on orders and ships to everyone. Then 1.6 sells a little more than 1.5, but its pages are slower, so the safety check stops it.
+- **Blind rounds:** each round's true order rates are drawn at random and hidden (better, worse or the same). After the decision the page reveals them next to Flagsmith's call, and a scoreboard counts how often Flagsmith was right. When 1.6 is tested, its slower pages trip the safety check.
 - **Look inside Flagsmith:** the *In Flagsmith* tab shows the flag, its split and the route each shopper takes.
 - **Be a visitor:** press it, and Flagsmith gives you a version like any shopper. The route marks where you landed.
 - **The console, read-only:** [/judge/console](https://172-198-62-67.sslip.io/judge/console) shows the live traffic map, Flagsmith's results and the decisions the autopilot makes.
@@ -128,13 +151,13 @@ The full console is at <http://127.0.0.1:8090>: pick A/A, A/B or A/B/C in **Run 
 <details>
 <summary><b>2½. Try it with your app, from the console (no command line)</b></summary>
 
-On the console, press **Try it with your app** and give one, two or three versions, each as:
+Try it is **opt-in**: it builds and runs code over the Docker socket (root on your machine), so it starts only when you ask: `turnout.bat tryit` (Windows) or `sh turnout.sh tryit` (macOS, Linux). Then, on the console, press **Try it with your app** and give one, two or three versions, each as:
 
 - a **Dockerfile** (paste or upload it; it must be self-contained, since `COPY` needs your files),
 - a **public git repository** URL (Docker builds it straight from the URL, Dockerfile included), or
 - an **image** name (`nginx:alpine`, `myapp:1.1`).
 
-One version makes an A/A test (the same app twice, a fairness check), two an A/B test, three an A/B/C test. Turnout builds them on your machine, runs them behind a proxy of its own on a flag of its own (`tryit_release`), shows a live preview of each, and opens judge mode for them at <http://127.0.0.1:8090/try>, where **Play it for me** runs the whole test. Optional: a goal (`POST /signup`, `GET /pricing.html`) and the conversion rate simulated visitors use per version. **Use an example** fills in two small pages, so you can watch it work without an app of your own. Local only: it builds and runs code, so it never exists on a public server.
+One version makes an A/A test (the same app twice, a fairness check), two an A/B test, three an A/B/C test. Turnout builds them on your machine, runs them behind a proxy of its own on a flag of its own (`tryit_release`), shows a live preview of each, and opens judge mode for them at <http://127.0.0.1:8090/try>, where **Play it for me** runs the whole test. Optional: a goal (`POST /signup`, `GET /pricing.html`), the conversion rate simulated visitors use per version, and **settings for your app** (`KEY=value` lines, such as a database URL; your machine is `host.docker.internal`). **Use an example** fills in two small pages, so you can watch it work without an app of your own. Local only: it builds and runs code, so it never exists on a public server.
 </details>
 
 <details>

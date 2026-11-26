@@ -23,7 +23,7 @@ if "%ACTION%"=="" set "ACTION=start"
 if /i "%ACTION%"=="/?" goto :usage
 if /i "%ACTION%"=="-h" goto :usage
 if /i "%ACTION%"=="--help" goto :usage
-if /i not "%ACTION%"=="start" if /i not "%ACTION%"=="demo" if /i not "%ACTION%"=="status" if /i not "%ACTION%"=="stop" if /i not "%ACTION%"=="reset" if /i not "%ACTION%"=="server" (
+if /i not "%ACTION%"=="start" if /i not "%ACTION%"=="demo" if /i not "%ACTION%"=="status" if /i not "%ACTION%"=="stop" if /i not "%ACTION%"=="reset" if /i not "%ACTION%"=="server" if /i not "%ACTION%"=="tryit" (
   echo Unknown option "%ACTION%".
   goto :usage_error
 )
@@ -70,6 +70,7 @@ call :pick_mode
 if /i "%ACTION%"=="server" goto :server
 if /i "%ACTION%"=="status" goto :status
 if /i "%ACTION%"=="stop" goto :stop
+if /i "%ACTION%"=="tryit" goto :tryit
 if /i "%ACTION%"=="reset" goto :reset
 
 :start
@@ -171,8 +172,16 @@ endlocal & exit /b 0
 :stop
 echo.
 echo  Stopping every container. Flagsmith's data, the keys in .env and the ledger are kept.
-!DC! --profile tools down
+!DC! --profile tools --profile tryit down
 echo  Stopped. Run turnout.bat to bring it back.
+endlocal & exit /b 0
+
+:tryit
+echo.
+echo  Starting Try it with your app. It builds and runs the versions you give it over the Docker socket ^(root on
+echo  this machine^), so it is off until you start it. Its proxy is on 127.0.0.1:8085 only.
+!DC! --profile tryit up -d --build --wait tryit || goto :failed
+echo  Ready: on the console ^(http://127.0.0.1:8090^) press Try it with your app. Stop: turnout.bat stop
 endlocal & exit /b 0
 
 :reset
@@ -373,6 +382,7 @@ echo   status  show what's running, check the setup, and the links
 echo   stop    stop every container; data and keys are kept
 echo   reset   wipe Flagsmith's data, the ledger and the keys, then start fresh (/yes: don't ask)
 echo   server  server mode on ^<hostname^>: HTTPS through Caddy, read-only judge view at https://^<hostname^>/judge
+echo   tryit   start Try it with your app ^(opt-in: it builds and runs your versions over the Docker socket^)
 endlocal & exit /b 0
 
 :usage_error

@@ -126,6 +126,7 @@
         <h2 id="run-title">Run a test</h2>
         <div class="kinds" id="kinds" role="group" aria-label="Kind of test"></div>
       </div>
+      <div class="run-try" id="run-try" hidden></div>
       <p class="run-plan" id="run-plan"></p>
       <div class="run-row">
         <button id="run-go" class="btn btn-primary" type="button" disabled>Run</button>
@@ -188,9 +189,14 @@
     <section class="card map-card" id="traffic" aria-labelledby="traffic-title">
       <div class="card-head">
         <h2 id="traffic-title">Traffic map</h2>
-        <p class="card-sub">Each routed request is a dot · counters cover the last <span id="traffic-window">60</span> s</p>
+        <div class="map-switch" role="group" aria-label="Show">
+          <button id="map-show-previews" type="button" aria-pressed="false">Previews</button>
+          <button id="map-show-traffic" type="button" aria-pressed="true">Traffic</button>
+        </div>
+        <p class="card-sub" id="traffic-sub">Each routed request is a dot · counters cover the last <span id="traffic-window">60</span> s</p>
         <span id="merged-badge" class="merged-badge" hidden></span>
       </div>
+      <div id="map-previews" class="map-previews" hidden></div>
       <div id="map" class="map" aria-busy="true">
         <p class="map-empty">Waiting for the experiment…</p>
       </div>
@@ -233,6 +239,11 @@
       <label class="try-goal-label"><span>Goal <span class="card-sub">(optional)</span></span>
         <input id="try-goal" class="try-text" spellcheck="false" placeholder="none: versions are compared on page speed · or e.g. POST /signup, GET /product/*">
       </label>
+      <details class="try-env-box">
+        <summary>Settings for your app <span class="card-sub">(optional: a database URL, keys…)</span></summary>
+        <textarea id="try-env" class="try-env" rows="4" spellcheck="false" placeholder="KEY=value, one per line, passed to every version.&#10;Your machine is host.docker.internal, e.g. DATABASE_URL=postgresql://user:pass@host.docker.internal:5432/app"></textarea>
+      </details>
+      <p id="try-off" class="try-off" hidden></p>
       <p id="try-kind" class="try-kindline"></p>
       <ul id="try-progress" class="try-progress"></ul>
       <p id="try-error" class="new-error" role="alert" hidden></p>

@@ -305,3 +305,11 @@ a.version-frame:hover::after, a.version-frame:focus-visible::after { opacity: 1;
 
 /* ---- Try it with your app (/try) ---- */
 .try-chip { margin-left: 8px; padding: 2px 8px; border-radius: 999px; background: var(--good-bg); color: var(--go); font-size: 12px; font-weight: 750; letter-spacing: .02em; }
+
+/* ---- blind rounds: hidden truth, the reveal, the scoreboard ---- */
+.blind { margin-top: 10px; padding: 8px 10px; border-radius: 10px; border-left: 4px solid var(--wait); background: var(--wait-bg); font-size: 13.5px; display: grid; gap: 2px; }
+.blind[data-tone='good'] { border-left-color: var(--good); background: var(--good-bg); }
+.blind[data-tone='bad'] { border-left-color: var(--bad); background: var(--bad-bg); }
+.blind p { margin: 0; }
+.blind-title { font-weight: 750; }
+.blind-score { color: var(--muted); font-size: 12.5px; }

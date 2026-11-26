@@ -611,3 +611,19 @@ export function addVisit(journey, visit, at = new Date().toISOString(), max = 4)
   if (!visit || list.at(-1)?.key === visit.key) return list;
   return [...list, { ...visit, at }].slice(-max);
 }
+
+// ---- blind rounds (server mode's autopilot): the true rates hidden until the decision, then revealed -------------
+/**
+ * What the page says about a blind round: while it runs, that the truth is hidden; once decided, the truth next to
+ * Flagsmith's call (right, wrong, or not sure yet), and the scoreboard over every round. Null when blind rounds are off.
+ */
+export function blindView(s) {
+  const b = s?.blind;
+  if (!b?.enabled) return null;
+  const sc = b.score ?? { rounds: 0, right: 0, wrong: 0, noCall: 0 };
+  const score = sc.rounds ? `Scoreboard: Flagsmith's call was right in ${sc.right} of ${sc.rounds} blind rounds${sc.noCall ? ` (${sc.noCall} where it wasn't sure yet)` : ''}${sc.wrong ? `, wrong in ${sc.wrong}` : ''}.` : 'Scoreboard: no blind round decided yet.';
+  if (!b.round || b.round.hidden) return { tone: 'wait', title: 'Blind round', text: 'The true order rates were drawn at random and stay hidden until the decision: the new version may be better, worse or the same. Flagsmith has to find out.', score };
+  const r = b.round.round;
+  const verdict = r.outcome === 'right' ? 'Flagsmith got it right' : r.outcome === 'wrong' ? 'Flagsmith got it wrong' : "Flagsmith wasn't sure yet (no call)";
+  return { tone: r.outcome === 'right' ? 'good' : r.outcome === 'wrong' ? 'bad' : 'wait', title: `Revealed: ${verdict}`, text: `The truth: ${b.round.truth}.`, score };
+}

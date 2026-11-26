@@ -33,7 +33,7 @@ export const NETWORK = 'turnout-try';
 const LABELS = SLOTS.map((s) => `try:${s}`);
 
 export type VersionSource = { kind: 'dockerfile' | 'git' | 'image'; value: string; port?: number; name?: string };
-export type BuildRequest = { versions: VersionSource[]; goal?: string; rates?: number[] };
+export type BuildRequest = { versions: VersionSource[]; goal?: string; rates?: number[]; env?: string };
 type Stage = { title: string; status: 'todo' | 'running' | 'done' | 'failed'; detail?: string };
 export type BuildState = {
   status: 'idle' | 'building' | 'ready' | 'failed';
@@ -53,6 +53,15 @@ export function checkSource(v: VersionSource): string | null {
   if (v.kind === 'git') return /^(https:\/\/|git@)[\w.@:/~-]+?(\.git)?(#[\w./:-]*)?$/.test(value) ? null : 'should be a public git URL, such as https://github.com/you/app.git (optionally #branch:folder)';
   if (v.kind === 'image') return /^[\w.\-/:@]+$/.test(value) ? null : 'should be an image name, such as nginx:alpine';
   return 'has an unknown kind';
+}
+
+/** "KEY=value" lines (your app's settings) → Docker's Env list; blank lines and # comments skipped. */
+export function parseEnv(text: string | undefined): string[] {
+  return String(text ?? '')
+    .split(/\r?\n/)
+    .map((l) => l.trim())
+    .filter((l) => l && !l.startsWith('#') && /^[A-Za-z_][A-Za-z0-9_]*=/.test(l))
+    .slice(0, 100);
 }
 
 /** "A/A" for one version, "A/B" for two, "A/B/C" for three. */
@@ -165,7 +174,7 @@ export function startTryit(o: TryitOptions) {
         await o.docker.remove(name);
         // One version (A/A): the same container answers as try-a and try-b.
         const aliases = versions.length === 1 ? ['try-a', 'try-b'] : [`try-${slot.slot}`];
-        await o.docker.run({ name, image, network: NETWORK, aliases, env: [`PORT=${port}`] });
+        await o.docker.run({ name, image, network: NETWORK, aliases, env: [`PORT=${port}`, ...parseEnv(req.env)] });
         await waitUp(name, `http://try-${slot.slot}:${port}/`, run!);
         run!.status = 'done';
         run!.detail = `answering on port ${port}`;
@@ -200,6 +209,12 @@ export function startTryit(o: TryitOptions) {
           flag: TRY_FLAG, releases, goal: config.goal.event, apiUrl: o.apiUrl, adminKey: o.adminKey,
           proxyUrl: `http://127.0.0.1:${o.proxyPort}`, shopUrl: o.publicShop, dashboardUrl: o.dashboardUrl,
           previewToken: debugToken, serverKey: o.serverKey, rates, concurrency: 20,
+          // This build's goal first, then the safety checks: a new build can bring a new goal, and a test takes the
+          // metrics it is started with.
+          metrics: [
+            { name: config.goal.event, expected_direction: config.goal.speedOnly ? 'decrease' : 'increase' },
+            ...config.guardrails.filter((g) => g !== config.goal.event).map((g) => ({ name: g, expected_direction: 'not_increase' })),
+          ],
           deps: {
             // Your app isn't the demo shop: the explorer walks its own links and fills its forms (simulate-any.ts).
             simulate: async (opts) => {
@@ -280,7 +295,7 @@ export function startTryit(o: TryitOptions) {
             return send(res, 400, { error: (error as Error).message });
           }
         }
-        void build({ versions, goal: body.goal, rates: body.rates });
+        void build({ versions, goal: body.goal, rates: body.rates, env: typeof body.env === 'string' ? body.env.slice(0, 20_000) : undefined });
         return send(res, 202, { ok: true });
       }
       if (p === '/api/traffic') return feed.subscribe(res);

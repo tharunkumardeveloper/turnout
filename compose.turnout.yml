@@ -112,6 +112,7 @@ services:
   # service off), its API reached only through the console on 127.0.0.1, and its proxy published on 127.0.0.1.
   tryit:
     <<: *turnout-image
+    profiles: [tryit] # opt-in: sh turnout.sh tryit / turnout.bat tryit (or docker compose --profile tryit up -d tryit)
     command: tryit
     user: '0:0' # the Docker socket belongs to root
     restart: unless-stopped

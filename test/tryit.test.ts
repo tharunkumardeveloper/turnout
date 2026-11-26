@@ -41,3 +41,9 @@ test('a lone Dockerfile becomes a valid tar archive (the build context Docker re
   assert.equal(stored, header.reduce((a, b) => a + b, 0));
   assert.equal(tar.subarray(257, 262).toString('ascii'), 'ustar');
 });
+
+test("your app's settings: KEY=value lines become the containers' environment; comments and junk are skipped", async () => {
+  const { parseEnv } = await import('../src/tryit/server.ts');
+  assert.deepEqual(parseEnv('DATABASE_URL=postgresql://u:p@host.docker.internal:5433/db\r\n# a comment\n\nNEXTAUTH_SECRET=a=b\nnot a setting\n'), ['DATABASE_URL=postgresql://u:p@host.docker.internal:5433/db', 'NEXTAUTH_SECRET=a=b']);
+  assert.deepEqual(parseEnv(undefined), []);
+});

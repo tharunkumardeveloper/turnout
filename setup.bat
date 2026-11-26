@@ -6,7 +6,7 @@ rem    setup.bat            check, and ask before installing anything
 rem    setup.bat /check     check only: install nothing, change nothing (exit code 1 if something is missing)
 rem    setup.bat /yes       check, and install what's missing without asking
 rem
-rem  Needed to run the demo:        Docker Desktop (with WSL 2), Docker Compose 2.20+, about 8 GB of RAM,
+rem  Needed to run the demo:        Docker Desktop (with WSL 2), Docker Compose 2.20+, about 4 GB of RAM,
 rem                                 free ports 8000, 8080, 8090 and 8091.
 rem  Needed only for development:   Node.js 24+ and npm (tests and typecheck), Git.
 rem ===========================================================================================================
@@ -99,8 +99,8 @@ set "RAM_GB="
 for /f "tokens=*" %%m in ('powershell -NoProfile -Command "[math]::Round((Get-CimInstance Win32_ComputerSystem).TotalPhysicalMemory/1GB)" 2^>nul') do set "RAM_GB=%%m"
 if not defined RAM_GB (
   call :warn "could not read the amount of memory"
-) else if !RAM_GB! LSS 8 (
-  call :warn "!RAM_GB! GB of RAM: Flagsmith, Postgres and the demo want about 8 GB. It may be slow."
+) else if !RAM_GB! LSS 4 (
+  call :warn "!RAM_GB! GB of RAM: Flagsmith, Postgres and the demo want about 4 GB. It may be slow."
 ) else (
   call :ok "!RAM_GB! GB of RAM"
 )

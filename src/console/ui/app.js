@@ -314,6 +314,7 @@ function render() {
   renderGoalOptions();
   renderHeader(s);
   renderMap(s);
+  renderMapMode(s);
   renderResults(s);
   renderActions(s);
   renderSnapshots(s);
@@ -322,6 +323,53 @@ function render() {
   renderConnection();
   renderBanner();
 }
+
+// ---- the traffic card: previews before traffic, the map once shoppers flow -------------------------------------
+// Before a test has traffic the card shows each version, live (as judge mode does); once requests flow it shows the
+// traffic map. The switch overrides that until the page reloads.
+const mapView = { choice: null, framesKey: '' };
+function renderMapMode(s) {
+  const variants = s.experiment ? F.variantList(s.experiment) : [];
+  const flowing = Object.values(s.traffic?.byVariant ?? {}).some((v) => v.requests > 0) || flow.running;
+  const auto = s.experiment?.status === 'running' && flowing ? 'traffic' : 'previews';
+  const mode = s.site?.url && variants.length ? (mapView.choice ?? auto) : 'traffic';
+  $('map-show-previews').setAttribute('aria-pressed', String(mode === 'previews'));
+  $('map-show-traffic').setAttribute('aria-pressed', String(mode === 'traffic'));
+  $('map').hidden = mode !== 'traffic';
+  for (const node of document.querySelectorAll('#traffic .legend')) node.hidden = mode !== 'traffic';
+  $('traffic-title').textContent = mode === 'traffic' ? 'Traffic map' : 'The versions';
+  $('traffic-sub').hidden = mode !== 'traffic';
+  const box = $('map-previews');
+  box.hidden = mode !== 'previews';
+  if (mode !== 'previews') return;
+  const key = JSON.stringify([s.site?.url, variants.map((v) => v.label)]);
+  if (mapView.framesKey === key) return;
+  mapView.framesKey = key;
+  box.style.setProperty('--n', String(variants.length));
+  box.replaceChildren(...variants.map((v, i) => h('a', { class: 'map-preview', href: viewLink(s.site.url, v.label), target: '_blank', rel: 'noopener', title: `Open ${v.label} on its own (never counted)`, vars: { '--c': v.color } },
+    h('span', { class: 'map-preview-name' }, h('span', { class: 'you-chip', vars: { '--c': v.color } }, LETTERS[i] ?? '?'), v.label, h('span', { class: 'v-key' }, v.isControl ? ' current' : ' new')),
+    h('span', { class: 'map-preview-frame' }, h('iframe', { src: viewLink(s.site.url, v.label), title: `Preview of ${v.label}`, tabIndex: -1, onload: fitMapPreviews })))));
+  requestAnimationFrame(fitMapPreviews);
+}
+// Each preview is a 1,000 px wide page scaled to its tile, as tall as the tile at that scale.
+function fitMapPreviews() {
+  for (const box of document.querySelectorAll('.map-preview-frame')) {
+    const f = box.querySelector('iframe');
+    if (!f || !box.clientWidth) continue;
+    const scale = box.clientWidth / 1000;
+    f.style.transform = `scale(${scale.toFixed(4)})`;
+    f.style.height = `${Math.ceil(box.clientHeight / scale)}px`;
+  }
+}
+if (typeof ResizeObserver === 'function') new ResizeObserver(fitMapPreviews).observe($('map-previews'));
+$('map-show-previews').addEventListener('click', () => {
+  mapView.choice = 'previews';
+  if (app.state) renderMapMode(app.state);
+});
+$('map-show-traffic').addEventListener('click', () => {
+  mapView.choice = 'traffic';
+  if (app.state) renderMapMode(app.state);
+});
 
 function renderBanner() {
   const banner = $('banner');

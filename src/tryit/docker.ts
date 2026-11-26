@@ -112,7 +112,8 @@ export function createDocker(o: DockerOptions = {}) {
         Image: o.image,
         Env: o.env ?? [],
         Labels: { 'turnout.tryit': '1' },
-        HostConfig: { NetworkMode: o.network, Memory: (o.memoryMb ?? 768) * 1024 * 1024, RestartPolicy: { Name: 'unless-stopped' } },
+        // host.docker.internal: your machine (a database or service you run there), as in turnout compare.
+        HostConfig: { NetworkMode: o.network, Memory: (o.memoryMb ?? 768) * 1024 * 1024, RestartPolicy: { Name: 'unless-stopped' }, ExtraHosts: ['host.docker.internal:host-gateway'] },
         NetworkingConfig: { EndpointsConfig: { [o.network]: { Aliases: o.aliases } } },
       });
       await request('POST', `/containers/${encodeURIComponent(o.name)}/start`);

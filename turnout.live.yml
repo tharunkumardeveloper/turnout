@@ -6,10 +6,12 @@ releases:
   "shop:1.4": http://shop-1-4:8080
   "shop:1.5": http://shop-1-5:8080
   "shop:1.6": http://shop-1-6:8080 # only for "look at a version": the live experiment is 1.5 vs 1.4
+# Real visitors are few and a test runs for days, so the goal is the early step most visitors take (adding to the cart),
+# and the order, rarer and later, is watched next to it.
 goal:
-  event: order_placed
-  when: { method: POST, path: /checkout, status: 2xx }
+  event: add_to_cart
+  when: { method: POST, path: /cart/add, status: "2xx,303" }
 metrics:
-  - event: add_to_cart
-    when: { method: POST, path: /cart/add, status: "2xx,303" }
+  - event: order_placed
+    when: { method: POST, path: /checkout, status: 2xx }
 guardrails: [doc_latency_ms, server_error]

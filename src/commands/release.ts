@@ -18,6 +18,9 @@ type Options = {
   mde?: number; // relative lift the launch estimate sizes for, % (default 10)
   dailyVisitors?: number; // visitors a day through the experiment, for the estimate in days
   log?: (line: string) => void;
+  // The new experiment's metrics, by name, the goal first. Default: the previous experiment's (same goal, same
+  // guardrails). Try it with your app passes them: a new build can bring a new goal.
+  metrics?: { name: string; expected_direction: string }[];
 };
 
 // What every visitor outside an experiment gets today: a variant at 100% on the environment default, else its value.
@@ -85,10 +88,18 @@ export async function release(opts: Options): Promise<{ experimentId: number }> 
   const previous = experiments.sort((a, b) => b.id - a.id)[0];
   if (!previous) throw new Error('No previous experiment on this flag to take metrics from. Run turnout init first.');
   const previousDetail = await api.get<ExperimentDetail>(`${envPath}/experiments/${previous.id}/`);
-  const metrics = previousDetail.metrics.map((m) => ({
+  let metrics = previousDetail.metrics.map((m) => ({
     metric: m.metric,
     expected_direction: m.expected_direction,
   }));
+  if (opts.metrics?.length) {
+    const known = await api.list<{ id: number; name: string }>(`${envPath}/experiment-metrics/`);
+    metrics = opts.metrics.map((m) => {
+      const found = known.find((k) => k.name === m.name);
+      if (!found) throw new Error(`Flagsmith has no metric "${m.name}" in this environment. Run turnout init first.`);
+      return { metric: found.id, expected_direction: m.expected_direction };
+    });
+  }
 
   const flagPath = `/api/__future__/environments/${opts.envKey}/features/${feature.id}/`;
   const live = currentRelease(await api.get<FlagState>(flagPath), feature.multivariate_options);
