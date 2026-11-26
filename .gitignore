@@ -23,3 +23,7 @@ New Text Document*.txt
 # Scoreboard run logs (scoreboard/last-run.json is kept: the latest result)
 scoreboard/*.log
 scoreboard/ui-shots/
+
+# Local: Claude Code session files and an old release archive
+.claude/
+turnout.tar.gz
