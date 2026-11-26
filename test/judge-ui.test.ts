@@ -54,7 +54,11 @@ describe('judge.html and judge.js', () => {
     assert.match(html, /Every deploy becomes a Flagsmith experiment\./);
     assert.match(html, /name="tour-mode" value="guide" checked/);
     assert.match(html, /name="tour-mode" value="auto"/);
-    assert.match(js, /tour\.start\(mode, chosenLength\(\)\)/);
+    assert.match(js, /tour\.start\(mode, READONLY \? 'full' : chosenLength\(\)\)/);
+    // The public view: one "Watch the tour" button, a narration-only tour, no mode choices.
+    assert.match(js, /const mode = READONLY \? 'watch' : chosenMode\(\);/);
+    assert.match(js, /go\.textContent = 'Watch the tour'/);
+    assert.match(js, /querySelectorAll\('#welcome \.welcome-mode'\)\) el\.remove\(\)/);
     assert.match(html, /name="tour-length" value="quick" checked/, 'the quick tour is the default');
     assert.match(html, /name="tour-length" value="full"/);
     // "Explore on my own" is remembered for the session, and storage that throws (private mode) can't break the page.
@@ -611,5 +615,27 @@ describe('the tour bubble beside a small target', () => {
     assert.equal(T.bubbleSpot({ ...base, target: { x: 0, y: 0, w: 1440, h: 900 }, compact: false, bw: 380, bh: 341 }).side, 'overlap');
     const centre = T.bubbleSpot({ ...base, target: null, compact: false, bw: 380, bh: 341 });
     assert.deepEqual(centre, { side: 'center', x: (1440 - 380) / 2, y: (900 - 341) / 2 });
+  });
+});
+
+describe('autopilotLine: the public stage says what runs next', () => {
+  const NOW2 = Date.parse('2026-11-23T10:00:00Z');
+  test('running, waiting with a countdown, paused, off', () => {
+    assert.match(J.autopilotLine({ job: { status: 'running', action: 'visitors' } }, NOW2).text, /^Running automatically — now: /);
+    const next = (at: string) => ({ autopilot: { phase: 'waiting', next: { title: "Get Flagsmith's results", at } } });
+    assert.equal(J.autopilotLine(next('2026-11-23T10:00:20Z'), NOW2).text, "Running automatically — next: Get Flagsmith's results in ~20 s");
+    assert.equal(J.autopilotLine(next('2026-11-23T10:04:00Z'), NOW2).text, "Running automatically — next: Get Flagsmith's results in ~4 min");
+    assert.match(J.autopilotLine(next('2026-11-23T09:59:00Z'), NOW2).text, /any moment now$/);
+    assert.match(J.autopilotLine({ autopilot: { phase: 'paused', next: null } }, NOW2).text, /^Paused/);
+    assert.equal(J.autopilotLine({ autopilot: null }, NOW2).kind, 'off');
+  });
+
+  test('the public view: no stage buttons, no Flagsmith links, no guard API, no sign-in', () => {
+    assert.match(js, /const b = READONLY \? null : primaryButton\(c\);/);
+    assert.match(js, /if \(READONLY\) url = null;/);
+    assert.match(js, /if \(READONLY\) \{\s*ui\.health = null;/);
+    assert.match(js, /signin: async \(\) => \(READONLY \? null :/);
+    assert.match(js, /getElementById\('link-flagsmith'\)\?\.remove\(\)/);
+    assert.match(js, /if \(!frame \|\| ui\.tab === tab\) continue;/, 'no map or setup frame in the public view');
   });
 });

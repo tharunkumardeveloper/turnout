@@ -4,10 +4,11 @@
 // morphs (position, width, height) and its content cross-fades; it never fades out and back in.
 //
 // Two modes: "Guide me" (the judge reads and clicks) and "Play it for me" (autoplay: a timer advances, the cursor
-// glides to the button and clicks it). The script lives in tour-plan.js; judge.js tells the tour about every state
+// glides to the button and clicks it). A third, "watch", is for server mode's public, read-only view: narration only,
+// following the steps the autopilot runs (no clicks, no Flagsmith links). The script lives in tour-plan.js; judge.js tells the tour about every state
 // change through update(). Every string goes into the DOM through textContent.
 import * as P from './tour-plan.js';
-import { coachLine, JOB_STEP, actionText, formatInt } from './judge-format.js';
+import { autopilotLine, coachLine, JOB_STEP, actionText, formatInt } from './judge-format.js';
 
 const PAD = 10; // the spotlight's margin around its target
 const GAP = 18; // between the spotlight and the bubble
@@ -128,6 +129,7 @@ export function createTour(app) {
   const segs = h('div', { class: 'tour-segs', 'aria-hidden': 'true' });
   const guideBtn = h('button', { type: 'button', class: 'tour-mode-btn', 'data-mode': 'guide' }, 'Guide me');
   const autoBtn = h('button', { type: 'button', class: 'tour-mode-btn', 'data-mode': 'auto' }, 'Play it for me');
+  const modeGroup = h('div', { class: 'tour-mode', role: 'group', 'aria-label': 'Tour mode' }, guideBtn, autoBtn);
   const pauseIcon = h('span', { class: 'tour-pause-icon' });
   const pauseText = h('span', { class: 'tour-ctl-text' }, 'Pause');
   const pauseBtn = h('button', { type: 'button', class: 'tour-ctl tour-pause', 'aria-pressed': 'false', title: 'Pause or resume (Space)' }, pauseIcon, pauseText);
@@ -135,7 +137,7 @@ export function createTour(app) {
   const head = h(
     'div',
     { class: 'tour-head tour-more' },
-    h('div', { class: 'tour-head-row' }, h('div', { class: 'tour-mode', role: 'group', 'aria-label': 'Tour mode' }, guideBtn, autoBtn), pauseBtn, exitBtn),
+    h('div', { class: 'tour-head-row' }, modeGroup, pauseBtn, exitBtn),
     h('div', { class: 'tour-progress' }, chap, count, segs),
   );
   const look = h('span', { class: 'tour-look' }, h('span', { class: 'tour-look-dot', 'aria-hidden': 'true' }), 'Look here');
@@ -198,6 +200,7 @@ export function createTour(app) {
     jobNote: '',
     flavor: 'quick', // 'quick' (one loop) or 'full' (both releases, the map and the setup check)
     signinShown: false, // the Flagsmith sign-in was shown once, after the first Flagsmith link
+    afterFor: null, // the watch tour: the job whose after-beats were queued
   };
 
   // ---- placement: the hole, the four blockers around it, the bubble and its arrow --------------------------------
@@ -429,7 +432,8 @@ export function createTour(app) {
   function renderMode() {
     guideBtn.setAttribute('aria-pressed', String(t.mode === 'guide'));
     autoBtn.setAttribute('aria-pressed', String(t.mode === 'auto'));
-    pauseBtn.hidden = t.mode !== 'auto';
+    pauseBtn.hidden = t.mode === 'guide';
+    modeGroup.hidden = t.mode === 'watch';
     pauseBtn.setAttribute('aria-pressed', String(t.paused));
     pauseIcon.replaceChildren(icon(t.paused ? ICON.play : ICON.pause, 13));
     pauseText.textContent = t.paused ? 'Resume' : 'Pause';
@@ -440,7 +444,7 @@ export function createTour(app) {
   function renderFoot() {
     const b = t.beat;
     const p = t.phase;
-    const auto = t.mode === 'auto';
+    const auto = t.mode !== 'guide';
     nextBtn.hidden = !(p === 'read' || (p === 'armed' && auto) || p === 'failed');
     nextBtn.textContent = p === 'failed' ? 'Try again' : p === 'armed' ? 'Click it now' : b?.last ? 'Finish' : 'Next';
     timer.hidden = !(auto && ((p === 'read' && !b?.last) || p === 'armed'));
@@ -499,7 +503,7 @@ export function createTour(app) {
   function renderExtra(b) {
     const parts = [];
     tag.hidden = !(typeof b.target === 'string' && b.target.startsWith('#fs-'));
-    if (b.flagsmith) {
+    if (b.flagsmith && t.mode !== 'watch') {
       const reuse = t.fsWin && !t.fsWin.closed;
       let steered = false;
       // Autoplay moves a Flagsmith tab the judge already opened along with the story.
@@ -543,7 +547,7 @@ export function createTour(app) {
       );
       parts.push(skip);
     }
-    if (b.more && t.flavor === 'quick') {
+    if (b.more && t.flavor === 'quick' && t.mode !== 'watch') {
       parts.push(
         h(
           'div',
@@ -553,7 +557,7 @@ export function createTour(app) {
         ),
       );
     }
-    if (b.last) {
+    if (b.last && t.mode !== 'watch') {
       parts.push(
         h(
           'div',
@@ -687,6 +691,25 @@ export function createTour(app) {
 
     // EXPLAIN: the bubble opens to the full text.
     setSize('full');
+    if (b.watchJob) {
+      // A step the autopilot runs: its live stages here; the next beat comes when it ends.
+      setPhase('waiting');
+      const job = app.state()?.job;
+      if (job?.status !== 'running') return next();
+      work.hidden = false;
+      renderWork(job);
+      setStatus('Running by itself: nothing to click.');
+      renderFoot();
+      return;
+    }
+    if (b.watchIdle) {
+      // Between steps: the status line counts down to the autopilot's next one; update() moves on when it starts.
+      setPhase('waiting');
+      setStatus(autopilotLine(app.state()).text);
+      renderFoot();
+      if (app.state()?.job?.status === 'running') next();
+      return;
+    }
     if (b.wait) {
       setPhase('waiting');
       setStatus('Waiting for it to finish…');
@@ -701,7 +724,7 @@ export function createTour(app) {
   function startReading() {
     setPhase('read');
     renderFoot();
-    if (t.mode !== 'auto' || t.beat?.last) return;
+    if (t.mode === 'guide' || (t.beat?.last && t.mode !== 'watch')) return;
     startTimer(P.readingMs(t.beat, t.flavor), next);
   }
 
@@ -807,6 +830,7 @@ export function createTour(app) {
     if (t.queue.length) return show(t.queue.shift());
     const s = app.state();
     if (!s) return;
+    if (t.mode === 'watch') return show(watchBeat(s));
     if (s.job?.status === 'running') return show(P.waitBeat()); // a step started elsewhere: carry on when it ends
     if (t.flavor === 'quick' && t.outroDone) return end();
     if (s.current === 'reset') {
@@ -818,6 +842,24 @@ export function createTour(app) {
     const beat = P.actionBeat(s, app.recommended(s), t.flavor);
     if (!beat) return end();
     return show(beat);
+  }
+
+  /** The watch tour's next beat: the running step, what its end changed, or what the autopilot runs next. */
+  function watchBeat(s) {
+    const job = s.job;
+    if (job?.status === 'running') {
+      t.jobId = job.id;
+      return P.watchJobBeat(job, s);
+    }
+    if (job && job.id === t.jobId && t.afterFor !== job.id) {
+      t.afterFor = job.id;
+      const after = job.status === 'done' ? P.watchAfter(job.action, s) : [];
+      if (after.length) {
+        t.queue = after.slice(1);
+        return after[0];
+      }
+    }
+    return P.watchIdleBeat(s);
   }
 
   /** Enter, →, or the Next button: whatever "go on" means right now. */
@@ -902,6 +944,15 @@ export function createTour(app) {
     const job = s.job;
     const b = t.beat;
     const running = job?.status === 'running';
+    if (t.mode === 'watch') {
+      if (t.phase !== 'waiting') return;
+      if (b?.watchJob) return running && job.id === t.jobId ? renderWork(job) : next();
+      if (b?.watchIdle) {
+        if (running || P.watchIdleBeat(s).id !== b.id) return next();
+        setStatus(autopilotLine(s).text);
+      }
+      return;
+    }
     const mine = running && b?.action && (job.action === b.action || JOB_STEP[job.action] === JOB_STEP[b.action]);
     if (mine && (t.phase === 'show' || t.phase === 'armed' || t.phase === 'failed')) await startWorking(job);
     else if (running && job.id !== t.jobId && (t.phase === 'armed' || t.phase === 'read' || t.phase === 'failed')) {
@@ -943,7 +994,7 @@ export function createTour(app) {
   // ---- start, end, pause, keys ------------------------------------------------------------------------------------
 
   function setMode(mode) {
-    t.mode = mode === 'auto' ? 'auto' : 'guide';
+    t.mode = mode === 'auto' || mode === 'watch' ? mode : 'guide';
     if (t.mode === 'guide') t.paused = false;
     renderMode();
     app.onChange?.(t.active, t.mode);
@@ -957,7 +1008,7 @@ export function createTour(app) {
   }
 
   function togglePause() {
-    if (!t.active || t.mode !== 'auto') return;
+    if (!t.active || t.mode === 'guide') return;
     t.paused = !t.paused;
     renderMode();
     renderFoot();
@@ -969,7 +1020,10 @@ export function createTour(app) {
     t.run++;
     t.flavor = flavor === 'full' ? 'full' : 'quick';
     t.signinShown = false;
-    t.queue = P.introBeats(app.state(), t.flavor);
+    t.mode = mode === 'watch' ? 'watch' : t.mode;
+    t.queue = mode === 'watch' ? P.watchIntro(app.state()) : P.introBeats(app.state(), t.flavor);
+    t.jobId = null;
+    t.afterFor = null;
     t.shown = 0;
     t.total = 0;
     t.outroDone = false;
@@ -1043,7 +1097,7 @@ export function createTour(app) {
     } else if (ev.key === 'Enter' && !onControl) {
       ev.preventDefault();
       advance();
-    } else if ((ev.key === ' ' || ev.key === 'Spacebar') && !onControl && t.mode === 'auto') {
+    } else if ((ev.key === ' ' || ev.key === 'Spacebar') && !onControl && t.mode !== 'guide') {
       ev.preventDefault();
       togglePause();
     }

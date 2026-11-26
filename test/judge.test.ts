@@ -1004,6 +1004,7 @@ describe('the public, read-only judge view (server mode)', () => {
       uiDir: realUi,
       judgeToken: 'judge-token-0123456789',
       flagsmithLogin: { email: 'a@example.com', password: 'admin-password-123' },
+      autopilot: { pauseMs: 3_600_000 }, // on, but its first step is an hour away: nothing runs during the tests
       judge: {
         flag: 'shop_release',
         releases: RELEASES,
@@ -1048,8 +1049,27 @@ describe('the public, read-only judge view (server mode)', () => {
     const body = JSON.parse(text);
     assert.equal(body.readOnly, true);
     assert.equal(body.links.preview, null);
+    assert.equal(body.links.experiment, null, "Flagsmith's dashboard is private: no links to it");
+    assert.equal(body.links.flag, null);
+    assert.equal(body.dashboardUrl, null);
+    assert.equal(body.autopilot.enabled, true);
+    assert.ok(['starting', 'waiting'].includes(body.autopilot.phase), body.autopilot.phase);
     for (const secret of ['preview-token-secret', 'judge-token-0123456789', 'admin-password-123']) assert.ok(!text.includes(secret), 'no secret in the public state');
     assert.equal((await fetch(`${pub}/judge/api/judge/state`)).status, 403, 'the page token is required');
+  });
+
+  test('a write from the private console pauses the autopilot', async () => {
+    const port = (server.address() as AddressInfo).port;
+    const page = await (await fetch(`http://127.0.0.1:${port}/judge`)).text();
+    const own = page.match(/name="turnout-console" content="([^"]+)"/)?.[1] ?? '';
+    await fetch(`http://127.0.0.1:${port}/api/judge/run`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', 'x-turnout-console': own },
+      body: JSON.stringify({ action: 'not-an-action' }),
+    });
+    const body = (await (await fetch(`${pub}/judge/api/judge/state`, { headers: { 'x-turnout-console': token } })).json()) as { autopilot: { phase: string; pausedUntil: string | null } };
+    assert.equal(body.autopilot.phase, 'paused');
+    assert.ok(body.autopilot.pausedUntil);
   });
 
   test('every write, every other page and every other API answer is refused', async () => {

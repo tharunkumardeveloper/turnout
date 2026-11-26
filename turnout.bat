@@ -130,7 +130,7 @@ if defined SY_SERVER (
 echo.
 echo  [3/5] Starting Turnout, the console and the three shop releases...
 if defined SY_SERVER echo        and Caddy ^(HTTPS; the first certificate can take a minute^)
-!DC! up -d --build --wait
+!DC! up -d --build --wait --remove-orphans
 if errorlevel 1 (
   echo  Something didn't start. See:  !DC! ps   and   !DC! logs
   goto :failed

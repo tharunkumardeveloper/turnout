@@ -806,3 +806,11 @@ body.welcome-open { overflow: hidden; }
   .welcome-card { transform: none; }
   .step-item[data-working="false"] .step-progress-fill { transform: none; width: 100%; opacity: 0.25; }
 }
+
+/* Server mode's public view: the autopilot's status where the stage's button would be, and the live note on the welcome card. */
+.autopilot-line { display: inline-flex; align-items: center; gap: 8px; margin: 0; padding: 8px 12px; border-radius: 999px; border: 1px solid var(--border); font-size: 14px; font-weight: 600; }
+.autopilot-line::before { content: ''; width: 8px; height: 8px; border-radius: 50%; background: var(--treatment, #2f9e6b); flex: none; animation: autopilot-blink 1.6s ease-in-out infinite; }
+.autopilot-line[data-kind='paused']::before, .autopilot-line[data-kind='off']::before { background: var(--faint, #999); animation: none; }
+@keyframes autopilot-blink { 50% { opacity: 0.35; } }
+@media (prefers-reduced-motion: reduce) { .autopilot-line::before { animation: none; } }
+.welcome-live { margin: 0; padding: 10px 12px; border-radius: 10px; background: color-mix(in srgb, var(--treatment, #2f9e6b) 12%, transparent); font-size: 14px; }

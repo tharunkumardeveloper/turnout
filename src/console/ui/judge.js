@@ -27,14 +27,34 @@ const TOKEN_HEADER = 'x-turnout-console';
 // Server mode's public view (/judge on the server's hostname): the API lives under /judge/api/, every action is refused.
 const BASE = document.querySelector('meta[name="turnout-base"]')?.getAttribute('content') ?? '';
 const READONLY = document.querySelector('meta[name="turnout-readonly"]') !== null;
-const READONLY_TEXT = 'This is the public, read-only view. Actions run only from the console on the server.';
+const READONLY_TEXT = 'This is the public, read-only view. It runs by itself; actions run only from the console on the server.';
 if (READONLY) {
   document.body.classList.add('is-readonly');
-  // The setup check and the feature map are the console's, not public: drop their tabs.
+  // The setup check and the feature map are the console's, not public: drop their tabs. Flagsmith's dashboard and
+  // the full console are private (SSH tunnel): drop their links too.
   for (const tab of ['map', 'setup']) {
     document.querySelector(`.tab[data-tab="${tab}"]`)?.remove();
     document.getElementById(`tab-${tab}`)?.remove();
   }
+  document.getElementById('link-flagsmith')?.remove();
+  for (const a of document.querySelectorAll('.footer a[href="/"]')) a.remove();
+  // The welcome card: a live demo that runs on its own, and one button that narrates it.
+  for (const el of document.querySelectorAll('#welcome .welcome-mode')) el.remove();
+  const sub = document.querySelector('#welcome .welcome-sub');
+  sub?.after(
+    Object.assign(document.createElement('p'), {
+      className: 'welcome-live',
+      textContent:
+        "This is a live, read-only demo running on its own: Turnout's autopilot sends simulated visitors, asks Flagsmith for results and follows Turnout's recommendation, round and round. Nothing here needs a click or a sign-in.",
+    }),
+  );
+  const go = document.getElementById('tour-start');
+  if (go) go.textContent = 'Watch the tour';
+  const skip = document.getElementById('welcome-skip');
+  if (skip) skip.textContent = 'Just watch the dashboard';
+  const label = document.querySelector('#tour-open .appbar-tour-label');
+  if (label) label.textContent = 'Watch tour';
+  document.getElementById('tour-open')?.setAttribute('aria-label', 'Watch the tour');
 }
 
 /** fetch() for the console API, with the token header added. */
@@ -306,8 +326,8 @@ function render() {
   renderBanner();
   const s = ui.state;
   if (!s) return;
-  const fs = /** @type {HTMLAnchorElement} */ ($('link-flagsmith'));
-  if (s.dashboardUrl) fs.href = s.dashboardUrl;
+  const fs = /** @type {HTMLAnchorElement | null} */ (document.getElementById('link-flagsmith'));
+  if (fs && s.dashboardUrl) fs.href = s.dashboardUrl;
   renderContext(s);
   renderSteps(s);
   renderFlow(s);
@@ -607,17 +627,20 @@ function renderStage(s) {
   // One prominent button. After a ship, the optional swing sits beside it as a quiet secondary action; Ship anyway
   // and the visitor count live in the full console.
   const c = stageAction(s);
-  const b = primaryButton(c);
+  // The public view has no buttons: the autopilot runs the steps, and the stage says what it does next.
+  const b = READONLY ? null : primaryButton(c);
   const disabled = busy() || ui.error?.kind === 'expired' || !b || b.disabled;
   const btn = stageButton(b, done);
   if (btn) btn.disabled = disabled;
-  const swing = swingOffer(s);
-  setSlot($('stage-extra'), JSON.stringify([c.countdown, ui.runError, swing]), () => [
+  const swing = READONLY ? null : swingOffer(s);
+  const auto = READONLY ? J.autopilotLine(s) : null;
+  setSlot($('stage-extra'), JSON.stringify([c.countdown, ui.runError, swing, auto?.kind, s.autopilot?.next, s.autopilot?.phase, s.job?.status]), () => [
+    auto ? h('p', { class: 'autopilot-line', id: 'autopilot-line', role: 'status', 'data-kind': auto.kind }, auto.text) : null,
     swing
       ? h('button', { class: 'btn btn-small btn-ghost stage-swing', type: 'button', 'data-key': `btn-${swing.action}`, title: swing.note, on: { click: () => run(swing.action) } }, swing.label)
       : null,
     c.countdown ? h('p', { class: 'countdown', 'data-countdown': c.countdown }, J.countdownText(c.countdown)) : null,
-    ui.runError ? h('p', { class: 'jstep-error', role: 'alert' }, ui.runError) : null,
+    ui.runError && !READONLY ? h('p', { class: 'jstep-error', role: 'alert' }, ui.runError) : null,
   ]);
   const swingBtn = /** @type {HTMLButtonElement | null} */ ($('stage-extra').querySelector('.stage-swing'));
   if (swingBtn) swingBtn.disabled = busy() || ui.error?.kind === 'expired';
@@ -976,6 +999,7 @@ function releaseChip(releases, release) {
 
 /** "Open ↗": the same thing in Flagsmith's own dashboard, in its named tab (it refuses to be framed). */
 function openLink(slot, url, label) {
+  if (READONLY) url = null; // Flagsmith's dashboard is private on the server: the column itself is the view
   setSlot($(slot), url ?? '', () => (url ? h('a', { class: 'fs-open', href: url, target: FLAGSMITH_TAB, title: label, 'aria-label': label }, 'Open', icon(ICON_OUT)) : []));
 }
 
@@ -1078,6 +1102,12 @@ function renderFlagsmith(s) {
 // Feature Health, from the console's bridge (GET /api/guard). Not configured (404): the line stays hidden.
 // Resolves to the status Flagsmith was last told ('healthy' | 'unhealthy'), or null.
 async function loadHealth(force = false) {
+  // The public view has no guard API (it's the console's): Feature Health stays out of it.
+  if (READONLY) {
+    ui.health = null;
+    $('fs-health').hidden = true;
+    return null;
+  }
   if (ui.health === null || ui.error?.kind === 'expired' || (document.hidden && !force)) return null;
   try {
     const res = await api('/api/guard', { cache: 'no-store', signal: AbortSignal.timeout(5000) });
@@ -1173,8 +1203,8 @@ function preloadFrames(s) {
   ui.framesPreloaded = end;
   if (!edge) return;
   for (const tab of ['map', 'setup']) {
-    const frame = /** @type {HTMLIFrameElement} */ ($(FRAMES[tab]));
-    if (ui.tab === tab) continue; // never reload a frame the judge is looking at
+    const frame = /** @type {HTMLIFrameElement | null} */ (document.getElementById(FRAMES[tab]));
+    if (!frame || ui.tab === tab) continue; // the public view has no map or setup frame // never reload a frame the judge is looking at
     frame.loading = 'eager';
     frame.src = frameUrl(tab);
   }
@@ -1417,7 +1447,7 @@ const tour = createTour({
   loadShop,
   run: (action) => run(action),
   recommended: (s) => primaryButton(J.stepControls(s, 'decide'))?.action ?? 'ship',
-  signin: async () => (await api('/api/judge/signin', { cache: 'no-store' })).json(),
+  signin: async () => (READONLY ? null : (await api('/api/judge/signin', { cache: 'no-store' })).json()),
   // Also refreshes the flag card's Feature Health line, so the page shows the same answer the tour got.
   // null: Feature Health reporting isn't set up here, so the answer will never come.
   unhealthy: async () => {
@@ -1437,9 +1467,9 @@ const tour = createTour({
 });
 
 $('tour-start').addEventListener('click', () => {
-  const mode = chosenMode();
+  const mode = READONLY ? 'watch' : chosenMode();
   closeWelcome();
-  tour.start(mode, chosenLength());
+  tour.start(mode, READONLY ? 'full' : chosenLength());
 });
 
 // ---- tickers and start ---------------------------------------------------------------------------------------------
@@ -1455,6 +1485,8 @@ setInterval(() => {
     }
     setText(el, text);
   }
+  const line = document.getElementById('autopilot-line');
+  if (line && ui.state) setText(line, J.autopilotLine(ui.state).text);
   if (J.jobRunning(ui.state)) {
     const v = J.jobView(ui.state.job);
     if (v) setText(job.elapsed, v.elapsed);

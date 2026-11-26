@@ -263,3 +263,46 @@ describe('the tour script', () => {
     assert.ok(P.remainingBeats(at('visitors'), 'quick') < P.remainingBeats(at('visitors')));
   });
 });
+
+// Server mode's public view: the watch tour narrates what the autopilot does. Never a click, a Flagsmith link (the
+// dashboard is private there), the preview view or the Feature Health wait.
+describe('the watch tour (public, read-only view)', () => {
+  const noClicks = (beats: any[]) => {
+    for (const b of beats) {
+      assert.equal(b.action, undefined, `${b.id} asks for a click`);
+      assert.equal(b.bubbleAction, undefined, b.id);
+      assert.equal(b.flagsmith, undefined, `${b.id} links to Flagsmith`);
+      assert.notEqual(b.shop, 'preview', b.id);
+      assert.notEqual(b.tab, 'map', b.id);
+      assert.notEqual(b.tab, 'setup', b.id);
+      assert.ok(validTarget(b.target), `${b.id}: ${b.target}`);
+    }
+  };
+
+  test('intro: the idea and the page, then that it runs by itself; no restart click', () => {
+    for (const current of ['visitors', 'score', 'decide', 'reset']) {
+      const beats = P.watchIntro(at(current));
+      noClicks(beats);
+      assert.equal(beats.at(-1).id, 'intro:autopilot');
+    }
+  });
+
+  test('each step, while it runs and after it, is narration only', () => {
+    for (const action of ['visitors', 'score', 'ship', 'revert', 'keep-running', 'verify', 'preview', 'release', 'reset']) {
+      const s = at('visitors', { job: { id: 'j1', action, status: 'running' } });
+      const beat = P.watchJobBeat(s.job, s);
+      assert.equal(beat.watchJob, true);
+      assert.ok(beat.body.length > 20, action);
+      noClicks([beat]);
+      noClicks(P.watchAfter(action, at('verify')));
+    }
+  });
+
+  test('between steps: what comes next, or the end of the loop', () => {
+    const next = P.watchIdleBeat(at('visitors'));
+    assert.equal(next.watchIdle, true);
+    assert.match(next.title, /^Up next: Send simulated visitors/);
+    noClicks([next, P.watchIdleBeat(at('score')), P.watchIdleBeat(at('decide')), P.watchIdleBeat(at('release'))]);
+    assert.match(P.watchIdleBeat(at('reset')).title, /whole loop/);
+  });
+});

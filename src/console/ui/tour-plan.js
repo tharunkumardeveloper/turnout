@@ -88,6 +88,8 @@ const CHAPTERS = {
   'release-fs': 'Next release',
   outro: 'Wrap-up',
   wait: 'Running',
+  'watch-job': 'Running',
+  'watch-idle': 'Up next',
 };
 
 /** The bubble's chapter label for a beat ("Results", "Decision"): the tour's progress reads by chapter, not by number. */
@@ -624,4 +626,73 @@ export function remainingBeats(s, flavor = 'full') {
   for (const step of round.slice(i)) n += per(step);
   if (s.next) for (const step of ROUND.slice(0, 4)) n += per(step); // the next release's round
   return n + outro;
+}
+
+// ---- the watch tour (server mode's public view): narration only, following what the autopilot does --------------
+// No beat asks for a click, opens Flagsmith (its dashboard is private there) or shows the preview link (team only).
+
+const WATCH_JOB_TEXT = {
+  visitors: 'Simulated shoppers go through Turnout. For each one Flagsmith picks the current release or the new one; their pages and orders become Flagsmith events. Watch the dots on the map.',
+  score: "Turnout asks Flagsmith to compute the results: its Bayesian analysis on orders (the goal) and the page-speed and error guardrails. Turnout computes no statistics of its own.",
+  ship: "Flagsmith's results favour the new release, so it ships: the flag's default changes, the experiment drains and completes, and Flagsmith's numbers are saved first.",
+  revert: 'Everyone goes back to the current release: the experiment drains and completes the same careful way a ship does.',
+  'keep-running': "Flagsmith's credible interval still includes no difference, so the honest call is to keep the experiment running and send more visitors. Nothing changes in Flagsmith.",
+  verify: '50 brand-new visitors arrive. Every one of them should get the decided release, and no experiment split should be left on the flag.',
+  preview: 'A Flagsmith segment override gives the next release only to the team (a private preview link). Nobody else sees it.',
+  release: 'A new Flagsmith experiment starts on the same flag: the next release against the live one. No app code changes.',
+  reset: 'The story starts again: everyone goes back to the first release and a fresh experiment starts in Flagsmith.',
+};
+
+/** The watch tour's opening: the idea, the page's parts, and that it runs by itself. */
+export function watchIntro(s) {
+  const beats = introBeats(s, 'full').filter((b) => !b.action && !b.flagsmith);
+  beats.push({
+    id: 'intro:autopilot',
+    tab: 'story',
+    target: '#stage',
+    demo: 'stage-pulse',
+    title: 'It runs by itself',
+    body: "Nobody needs to click. Turnout's autopilot runs the same steps the console's buttons run: it sends visitors, asks Flagsmith for results, follows Turnout's recommendation, checks everyone got the decision, then releases the next version, and starts again. This tour explains each step as it happens.",
+  });
+  return beats;
+}
+
+// The beat the console would ask a click for; the autopilot sends fewer visitors than the button's 3,000.
+function watchStep(s) {
+  const b = actionBeat(s, s?.results?.recommendation?.call ?? 'ship', 'full');
+  return b && b.action === 'visitors' ? { ...b, title: 'Send simulated visitors' } : b;
+}
+
+/** While a step runs: what it does. */
+export function watchJobBeat(job, s) {
+  const step = watchStep(s);
+  const body = step && step.action === job?.action ? step.body : (WATCH_JOB_TEXT[job?.action] ?? 'A step is running.');
+  return { id: `watch-job:${job?.id ?? ''}`, tab: 'story', target: '#stage', title: `Now: ${step && step.action === job?.action ? step.title : (WATCH_JOB_TEXT[job?.action] ? labelOf(job.action) : 'a step')}`, body, watchJob: true };
+}
+
+const LABELS = { visitors: 'sending visitors', score: "getting Flagsmith's results", ship: 'shipping the winner', revert: 'reverting', 'keep-running': 'keep running', verify: 'checking everyone got it', preview: 'a team preview', release: 'releasing the next version', reset: 'starting again' };
+const labelOf = (action) => LABELS[action] ?? action;
+
+/** After a step: where to look, without Flagsmith links, the preview view or Feature Health's wait. */
+export function watchAfter(action, s) {
+  return afterBeats(action, s, { flavor: 'full' })
+    .filter((b) => b.shop !== 'preview' && !String(b.id).startsWith('health:'))
+    .map(({ flagsmith, ...b }) => b);
+}
+
+/** Between steps: what comes next. The bubble's status line counts down to it (autopilotLine). */
+export function watchIdleBeat(s) {
+  const step = watchStep(s);
+  const exp = s?.experiment?.id ?? 0;
+  if (!step) {
+    return {
+      id: `watch-idle:reset:${exp}`,
+      tab: 'story',
+      target: '#history',
+      title: "That's the whole loop",
+      body: "Every decision is in the release history, with Flagsmith's numbers. In a moment the autopilot starts the story again from the first release.",
+      watchIdle: true,
+    };
+  }
+  return { id: `watch-idle:${s.current}:${exp}`, tab: 'story', target: '#stage', title: `Up next: ${step.title}`, body: step.body, watchIdle: true };
 }

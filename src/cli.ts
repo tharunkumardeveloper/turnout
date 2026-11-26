@@ -16,6 +16,7 @@ import { loadConfig } from './config.ts';
 import { createFlagSource } from './flagsmith/flag-source.ts';
 import { DEFAULT_RATES, parseRates } from './console/judge.ts';
 import { createConsole, listenForOtherDevices, listenForPublic } from './console/server.ts';
+import { autopilotFromEnv } from './console/autopilot.ts';
 import { AdminClient } from './flagsmith/admin.ts';
 import { scanAndSubmit } from './flagsmith/code-refs.ts';
 import { Experiments, latestExperiment, parseExperimentRef } from './flagsmith/experiments.ts';
@@ -488,6 +489,8 @@ const commands: Record<string, () => Promise<void>> = {
       });
       watcher.start();
     }
+    const autopilot = process.env.CONSOLE_PUBLIC_PORT ? autopilotFromEnv(process.env) : null;
+    if (autopilot) console.log('autopilot on: the judge story runs by itself (TURNOUT_AUTOPILOT=on)');
     const server = createConsole({
       experiments: latest,
       lock,
@@ -505,6 +508,8 @@ const commands: Record<string, () => Promise<void>> = {
         : {}),
       doctor: () => runDoctor({ ...doctorOptions(true), adminKey: key }), // GET /api/doctor and the /setup page
       uiDir: fileURLToPath(new URL('./console/ui/', import.meta.url)),
+      // Server mode only: the public view is read-only, so the story runs by itself (compose.server.yml sets it).
+      ...(autopilot ? { autopilot } : {}),
     });
     // Loopback only, unless Compose publishes it (and binds the published port to 127.0.0.1 itself).
     const host = process.env.CONSOLE_HOST ?? '127.0.0.1';

@@ -4,7 +4,7 @@
 # Only networking, secrets and start-up change here: the proxy, the console and the experiment logic are the same.
 #
 #   https://<TURNOUT_HOSTNAME>/        the proxy (your app, through Turnout)
-#   https://<TURNOUT_HOSTNAME>/judge   judge mode, read-only (GET only; the console's public port, deploy/Caddyfile)
+#   https://<TURNOUT_HOSTNAME>/judge   judge mode, read-only and running by itself (GET only; the console's public port, deploy/Caddyfile)
 #   Flagsmith (:8000), the console (:8090) and the proxy's own port (:8080) stay on 127.0.0.1: reach them with an
 #   SSH tunnel (docs/SETUP.md, "Running on a server"). Needs Docker Compose 2.24+ (!override).
 #
@@ -62,6 +62,13 @@ services:
       CONSOLE_PUBLIC_PORT: 8092 # the read-only judge view; Caddy reaches it on the edge network, never published
       TURNOUT_PUBLIC_SHOP_URL: https://${TURNOUT_HOSTNAME}
       TURNOUT_CONSOLE_HOSTS: '' # other devices use the public, read-only view
+      # The public view is read-only, so the story runs by itself: the console's autopilot presses the judge buttons
+      # (visitors, Flagsmith's results, Turnout's recommendation, verify, preview, release, reset, again), waits out
+      # Flagsmith's 5-minute refresh limit, and steps aside for 10 minutes after any action from the private console.
+      # It also sends the visitors the public map shows. TURNOUT_AUTOPILOT=off turns it off.
+      TURNOUT_AUTOPILOT: ${TURNOUT_AUTOPILOT:-on}
+      TURNOUT_AUTOPILOT_VISITORS: ${TURNOUT_AUTOPILOT_VISITORS:-}
+      TURNOUT_AUTOPILOT_PAUSE: ${TURNOUT_AUTOPILOT_PAUSE:-}
     ports: !override
       - 127.0.0.1:8090:8090
       - 127.0.0.1:8091:8091
@@ -73,34 +80,6 @@ services:
       TURNOUT_EDGE_ADDRESS: caddy
       TURNOUT_RESTART_POLICIES: ${TURNOUT_RESTART_POLICIES:-}
     networks: [default, feed, edge]
-
-  # A small batch of labelled simulated visitors every 5 minutes, so the public judge view has live traffic.
-  # TURNOUT_TRAFFIC_VISITORS=0 turns it off.
-  traffic:
-    build: .
-    image: turnout:local
-    <<: *restart
-    entrypoint: ['sh', '-c']
-    command:
-      - |
-        while true; do
-          n=$${TURNOUT_TRAFFIC_VISITORS:-40}
-          if [ "$$n" -gt 0 ] 2>/dev/null; then
-            node src/cli.ts demo --visitors "$$n" --concurrency 4 --seed "$$(( $$(date +%s) % 4000000000 ))" || true
-          fi
-          sleep "$${TURNOUT_TRAFFIC_INTERVAL:-300}"
-        done
-    environment:
-      TURNOUT_PROXY_URL: http://turnout:8080
-      TURNOUT_PREVIEW_TOKEN: ${TURNOUT_PREVIEW_TOKEN:-} # reads the proxy's routing headers (labelled simulation)
-      TURNOUT_TRAFFIC_VISITORS: ${TURNOUT_TRAFFIC_VISITORS:-40}
-      TURNOUT_TRAFFIC_INTERVAL: ${TURNOUT_TRAFFIC_INTERVAL:-300}
-    volumes:
-      - ${TURNOUT_CONFIG_FILE:-./turnout.config.yml}:/app/turnout.config.yml:ro
-    networks: [feed]
-    depends_on:
-      turnout:
-        condition: service_healthy
 
   # Flagsmith and its Postgres: random secrets instead of the official file's placeholders, and restart on reboot.
   postgres:

@@ -775,3 +775,21 @@ export function routingDiff(before, after) {
   ];
   return rows.map(([label, b, a]) => ({ label, before: b, after: a, changed: a !== null && a !== b }));
 }
+
+/**
+ * Server mode's public view: what the autopilot is doing, for the stage (where the buttons would be) and the watch
+ * tour. state.autopilot comes from the console (autopilot.ts); null or missing: the autopilot is off.
+ */
+export function autopilotLine(state, nowMs = Date.now()) {
+  const job = state?.job;
+  if (job?.status === 'running') return { kind: 'running', text: `Running automatically — now: ${actionText(job.action)}` };
+  const ap = state?.autopilot;
+  if (!ap) return { kind: 'off', text: 'Read-only: steps run from the console on the server.' };
+  if (ap.phase === 'paused') return { kind: 'paused', text: 'Paused while someone uses the console on the server; it carries on by itself.' };
+  const next = ap.next;
+  if (!next) return { kind: 'starting', text: 'Running automatically — starting…' };
+  const at = parseTime(next.at);
+  const s = Number.isFinite(at) ? Math.ceil((at - nowMs) / 1000) : 0;
+  const when = s > 90 ? `in ~${Math.round(s / 60)} min` : s > 0 ? `in ~${s} s` : 'any moment now';
+  return { kind: 'waiting', text: `Running automatically — next: ${next.title} ${when}`, retrying: Boolean(ap.lastError) };
+}

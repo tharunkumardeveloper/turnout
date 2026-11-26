@@ -19,6 +19,7 @@ import { losingGuardrails, pickWinner, recommend, type Experiments, type StepRes
 import { createMapReader } from '../flagsmith/feature-map.ts';
 import { readLedger } from '../ledger.ts';
 import type { Watcher } from '../health.ts';
+import { createAutopilot, type AutopilotOptions } from './autopilot.ts';
 import { createJudge, shared, type JudgeOptions } from './judge.ts';
 
 export type ConsoleOptions = {
@@ -40,6 +41,8 @@ export type ConsoleOptions = {
   lock?: { busy: boolean }; // pass one to share it with the watcher's guard
   doctor?: () => Promise<DoctorReport>; // turnout doctor's checks: GET /api/doctor, shown on /setup
   cacheMs?: Partial<CacheTimes>; // how long each shared read is kept; defaults in CACHE_MS
+  // Server mode: runs the judge story by itself (autopilot.ts) while the console listens. Needs `judge`.
+  autopilot?: AutopilotOptions;
 };
 
 // Many pages poll the same few reads. Each read is shared by everyone who asks while it runs, then kept this long.
@@ -121,6 +124,8 @@ export function listenForPublic(server: http.Server, port: number, host: string,
 export const PUBLIC_BASE = '/judge';
 // What the public view serves: the judge page, its scripts, styles and icon, and three reads.
 const PUBLIC_READS = new Set(['/api/judge/state', '/api/judge/job', '/api/traffic']);
+// Writes from the private console: the autopilot steps aside for a while after one.
+const HUMAN_WRITES = new Set(['/api/judge/run', '/api/ship', '/api/revert', '/api/keep-running', '/api/refresh', '/api/guard']);
 const PUBLIC_ASSET_TYPES = new Set(['.js', '.css', '.svg']);
 
 class HttpError extends Error {
@@ -258,6 +263,7 @@ export function createConsole(opts: ConsoleOptions): http.Server {
     judge?.forget();
   };
   opts.watcher?.onRevert(forget); // the guard's automatic Revert is a write too
+  const autopilot = judge && opts.autopilot ? createAutopilot(judge, lock, { log: (line) => console.log(line), ...opts.autopilot }) : null;
 
   // Server mode's public, read-only judge view. GET and HEAD only; no admin password, no preview link, no writes.
   const redact = <T>(data: T): T => {
@@ -282,14 +288,21 @@ export function createConsole(opts: ConsoleOptions): http.Server {
       if (!judge) return json(res, 404, { error: 'Judge mode is not configured for this console.' });
       if (rest === '/api/judge/job') return json(res, 200, redact({ job: judge.job() }));
       const state = redact(await judge.state());
-      return json(res, 200, { ...state, links: { ...state.links, preview: null }, readOnly: true });
+      // Flagsmith's dashboard is private (SSH tunnel): no links to it, and no dashboard URL.
+      return json(res, 200, {
+        ...state,
+        dashboardUrl: null,
+        links: { experiment: null, flag: null, shop: state.links.shop, preview: null },
+        readOnly: true,
+        autopilot: autopilot?.status() ?? null,
+      });
     }
     const name = rest.slice(1);
     if (!PUBLIC_ASSET_TYPES.has(extname(name))) return void res.writeHead(404).end();
     return serveStatic(opts.uiDir, rest, res, publicToken);
   }
 
-  return http.createServer(async (req, res) => {
+  const server = http.createServer(async (req, res) => {
     for (const [k, v] of Object.entries(SECURITY_HEADERS)) res.setHeader(k, v);
     if (publicViewers.has(req.socket)) {
       try {
@@ -335,6 +348,7 @@ export function createConsole(opts: ConsoleOptions): http.Server {
       if (req.method === 'POST' && !isSameOriginJson(req)) {
         return json(res, 403, { error: 'Console actions must come from the console page.' });
       }
+      if (req.method === 'POST' && HUMAN_WRITES.has(url.pathname)) autopilot?.noteHuman();
 
       if (req.method === 'GET' && url.pathname === '/api/state') return json(res, 200, await apiState.get());
 
@@ -403,7 +417,7 @@ export function createConsole(opts: ConsoleOptions): http.Server {
 
       if (url.pathname.startsWith('/api/judge/')) {
         if (!judge) return json(res, 404, { error: 'Judge mode is not configured for this console.' });
-        if (req.method === 'GET' && url.pathname === '/api/judge/state') return json(res, 200, await judge.state());
+        if (req.method === 'GET' && url.pathname === '/api/judge/state') return json(res, 200, { ...(await judge.state()), ...(autopilot ? { autopilot: autopilot.status() } : {}) });
         if (req.method === 'GET' && url.pathname === '/api/judge/job') return json(res, 200, { job: judge.job() });
         // The tour's sign-in step. Another device (judge link) gets the email only: the password never leaves this machine.
         if (req.method === 'GET' && url.pathname === '/api/judge/signin') {
@@ -439,6 +453,11 @@ export function createConsole(opts: ConsoleOptions): http.Server {
       json(res, 500, { error: (error as Error).message });
     }
   });
+  if (autopilot) {
+    server.on('listening', () => autopilot.start());
+    server.on('close', () => void autopilot.stop());
+  }
+  return server;
 }
 
 type ActionBody = { experimentId: number; winner?: string; acceptLosingGuardrails?: boolean };

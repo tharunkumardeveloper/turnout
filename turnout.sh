@@ -254,7 +254,7 @@ start() {
   echo
   echo " [3/5] Starting Turnout, the console and the three shop releases..."
   [ "$MODE" = server ] && echo "       and Caddy (HTTPS for $(env_get TURNOUT_HOSTNAME); the first certificate can take a minute)"
-  if ! dc up -d --build --wait; then
+  if ! dc up -d --build --wait --remove-orphans; then
     echo " Something didn't start. See:  docker compose $COMPOSE_FILES ps   and   docker compose $COMPOSE_FILES logs"
     failed
   fi

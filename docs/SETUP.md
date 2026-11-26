@@ -102,7 +102,7 @@ What changes in server mode (`compose.server.yml`, `deploy/Caddyfile`):
 - `https://<hostname>/judge` is judge mode, read-only: GET and HEAD only, to a console port that is never published. Every action is refused there, and the setup check and feature map are left out.
 - Flagsmith (8000), the console (8090, 8091) and the proxy's own port (8080) are published on `127.0.0.1` only. Reach them with an SSH tunnel: `ssh -L 8000:127.0.0.1:8000 -L 8090:127.0.0.1:8090 you@<hostname>`.
 - Every service has `restart: unless-stopped`.
-- A `traffic` service sends a small batch of labelled simulated visitors every 5 minutes (`TURNOUT_TRAFFIC_VISITORS`, `TURNOUT_TRAFFIC_INTERVAL`; 0 visitors turns it off).
+- The console's autopilot runs the judge story by itself, round and round, so the public `/judge` always shows something happening: labelled simulated visitors, Flagsmith's results (at most one refresh per 5 minutes), Turnout's recommendation followed (ship, revert or keep running), verify, preview, the next release, then a reset. It uses the same jobs as the console's buttons, never while another one runs, and steps aside for 10 minutes after any action from the private console. `TURNOUT_AUTOPILOT=off` in `.env` turns it off; `TURNOUT_AUTOPILOT_VISITORS` and `TURNOUT_AUTOPILOT_PAUSE` (seconds between steps) tune it.
 - No browser is opened.
 - The start refuses to run while a Flagsmith secret, the Postgres password or a Turnout token is a placeholder (`cli server-check`).
 - `doctor` adds a "Server mode" section: HTTPS and the certificate, Secure cookies, 8000 and 8090 not public, no placeholder secrets, restart policies. These checks run only in server mode.

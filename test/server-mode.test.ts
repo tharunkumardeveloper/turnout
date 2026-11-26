@@ -141,13 +141,19 @@ describe('server mode: compose.server.yml and the Caddyfile', () => {
   });
 
   test('every long-running service restarts; the one-off migration only on failure', () => {
-    for (const name of ['caddy', 'turnout', 'console', 'traffic', 'postgres', 'flagsmith', 'flagsmith-task-processor', 'shop-1-4', 'shop-1-5', 'shop-1-6']) {
+    for (const name of ['caddy', 'turnout', 'console', 'postgres', 'flagsmith', 'flagsmith-task-processor', 'shop-1-4', 'shop-1-5', 'shop-1-6']) {
       assert.equal(services[name]!.restart, 'unless-stopped', name);
     }
     assert.equal(services['migrate-db']!.restart, 'on-failure');
     const base = [read('compose.flagsmith.yml'), read('compose.turnout.yml'), read('compose.demo.yml')]
       .flatMap((t) => Object.keys(parse(t, { merge: true }).services ?? {}));
     for (const name of base) if (name !== 'cli' && name !== 'migrate-db') assert.ok(services[name]?.restart, `${name} has no restart policy in server mode`);
+  });
+
+  test("the console's autopilot runs the public story (on by default); no separate traffic service doubles it up", () => {
+    assert.equal(services.console!.environment.TURNOUT_AUTOPILOT, '${TURNOUT_AUTOPILOT:-on}');
+    assert.equal(services.traffic, undefined);
+    assert.equal(services.console!.environment.CONSOLE_PUBLIC_PORT, 8092);
   });
 
   test('secure cookies on the proxy; the edge network has only Caddy, the proxy, the console (and doctor)', () => {
