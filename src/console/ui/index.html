@@ -65,6 +65,24 @@
         <p class="card-sub">Seen while people use your site. A goal starts a new experiment (Flagsmith fixes an experiment's main metric when it starts), so run your compare command again with it.</p>
         <ul id="suggest-list" class="suggest-list"></ul>
       </div>
+      <details class="site-new" id="site-new">
+        <summary>New comparison</summary>
+        <p class="card-sub">Two versions, a goal and a split: this writes the command. Run it in your project's folder (the console runs inside Docker, so it can't start Docker on your machine itself).</p>
+        <form id="new-form" class="new-form" autocomplete="off">
+          <label>Current version <input id="new-a" name="a" placeholder="localhost:3001, myapp:1.0 or main" required></label>
+          <label>New version <input id="new-b" name="b" placeholder="localhost:3002, myapp:1.1 or new-checkout" required></label>
+          <label>Goal <input id="new-goal" name="goal" list="new-goals" placeholder="none: judged on page speed"></label>
+          <datalist id="new-goals"></datalist>
+          <label>New version gets
+            <select id="new-split" name="split"><option value="50" selected>50% of visitors</option><option value="25">25%</option><option value="10">10%</option></select>
+          </label>
+        </form>
+        <p id="new-error" class="new-error" role="alert" hidden></p>
+        <div class="new-out">
+          <code id="new-command" class="new-command"></code>
+          <button id="new-copy" class="btn btn-small" type="button">Copy</button>
+        </div>
+      </details>
     </section>
 
     <section class="card map-card" id="traffic" aria-labelledby="traffic-title">

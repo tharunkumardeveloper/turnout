@@ -485,3 +485,15 @@ test('goal suggestions: successful form posts and API writes by path, ids folded
     { key: 'POST /api/orders/*', count: 1, flag: '--goal "POST /api/orders/*"' },
   ]);
 });
+
+test('new comparison: the exact turnout compare command, quoted, or what is missing', () => {
+  assert.deepEqual(F.compareCommand({ a: 'localhost:3001', b: 'localhost:3002' }), { command: 'turnout compare localhost:3001 localhost:3002' });
+  assert.deepEqual(F.compareCommand({ a: 'main', b: 'new-checkout', goal: 'post /signup 303', split: 10 }), { command: 'turnout compare main new-checkout --goal "post /signup 303" --split 10' });
+  assert.deepEqual(F.compareCommand({ a: 'myapp:1.0', b: 'myapp:1.1', goal: 'header signup' }), { command: 'turnout compare myapp:1.0 myapp:1.1 --goal "header signup"' });
+  assert.match(F.compareCommand({ a: 'x', b: '' }).error, /both versions/);
+  assert.match(F.compareCommand({ a: 'x', b: 'x' }).error, /the same/);
+  assert.match(F.compareCommand({ a: 'x', b: 'y; rm -rf /' }).error, /space/);
+  assert.match(F.compareCommand({ a: 'x', b: 'y', goal: 'signup' }).error, /POST \/signup/);
+  assert.match(F.compareCommand({ a: 'x', b: 'y', split: 70 }).error, /1 to 50/);
+  assert.equal(F.compareCommand({ a: 'feature/x"$', b: 'y' }).command, 'turnout compare "feature/x\\"\\$" y');
+});

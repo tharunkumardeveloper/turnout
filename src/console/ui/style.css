@@ -747,3 +747,14 @@ fieldset:disabled .choice { opacity: 0.55; cursor: not-allowed; }
 .guard-card .guard-toggle { margin: 10px 0; }
 .btn-guard-on { border-color: var(--treatment); box-shadow: inset 0 0 0 1px var(--treatment); }
 @media (prefers-color-scheme: dark) { .guard-card .guard-line[data-status="unhealthy"] { color: #fca5a5; } }
+
+/* New comparison: a form that writes the turnout compare command */
+.site-new { grid-column: 1 / -1; border-top: 1px solid var(--border); padding-top: 10px; }
+.site-new summary { cursor: pointer; font-weight: 650; font-size: 14px; }
+.new-form { display: grid; gap: 10px; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); margin: 10px 0; }
+.new-form label { display: grid; gap: 4px; font-size: 13px; font-weight: 600; }
+.new-form input, .new-form select { font: 14px var(--sans); padding: 7px 10px; border-radius: 10px; border: 1px solid var(--border-strong); background: var(--surface); color: var(--text); }
+.new-error { color: var(--bad, #b42318); font-size: 13px; margin: 0 0 8px; }
+.new-error[hidden] { display: none; }
+.new-out { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.new-command { font-family: var(--mono, ui-monospace, monospace); font-size: 13.5px; padding: 8px 10px; border-radius: 10px; background: var(--surface-2); border: 1px solid var(--border); overflow-wrap: anywhere; }

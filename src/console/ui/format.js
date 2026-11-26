@@ -542,3 +542,26 @@ export function goalFlag(key, codes = {}) {
   }
   return top && codes[top] > ok ? `--goal "${key} ${top}"` : `--goal "${key}"`;
 }
+
+// ---- new comparison: the command for two versions, a goal and a split ---------------------------------------------
+// The console runs inside Docker and can't start Docker on your machine, so the form writes the command to run.
+const SAFE_ARG = /^[A-Za-z0-9._:/@%+=,-]+$/;
+const shellArg = (s) => (SAFE_ARG.test(s) ? s : `"${String(s).replace(/(["\\$`])/g, '\\$1')}"`);
+/** `turnout compare <a> <b> [--goal "…"] [--split n]`, or { error } when something's missing. */
+export function compareCommand({ a, b, goal = '', split = 50 }) {
+  const live = String(a ?? '').trim();
+  const next = String(b ?? '').trim();
+  if (!live || !next) return { error: 'Give both versions: two addresses, two images or two branches.' };
+  if (live === next) return { error: 'The two versions are the same.' };
+  if (/\s/.test(live) || /\s/.test(next)) return { error: 'A version has a space in it: give an address, an image name or a branch name.' };
+  const g = String(goal ?? '').trim();
+  if (g && !/^(GET|POST|PUT|PATCH|DELETE)\s+\/\S*(\s+[1-5](xx|\d\d))?$/i.test(g) && !/^header\s+\S+$/i.test(g)) {
+    return { error: 'A goal looks like "POST /signup" (optionally with a status, e.g. "POST /signup 303"), or leave it empty.' };
+  }
+  const n = Math.round(Number(split));
+  if (!(n >= 1 && n <= 50)) return { error: 'The split is a share of visitors from 1 to 50%.' };
+  const parts = ['turnout', 'compare', shellArg(live), shellArg(next)];
+  if (g) parts.push('--goal', `"${g.replace(/\s+/g, ' ')}"`);
+  if (n !== 50) parts.push('--split', String(n));
+  return { command: parts.join(' ') };
+}

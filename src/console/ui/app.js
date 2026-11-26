@@ -254,10 +254,46 @@ function renderSuggestions(s) {
   );
 }
 
+// ---- new comparison: the form writes the command -------------------------------------------------------------------
+function setupNewForm() {
+  const out = () => {
+    const r = F.compareCommand({ a: $('new-a').value, b: $('new-b').value, goal: $('new-goal').value, split: $('new-split').value });
+    $('new-error').hidden = !r.error || (!$('new-a').value && !$('new-b').value);
+    $('new-error').textContent = r.error ?? '';
+    $('new-command').textContent = r.command ?? 'turnout compare <current> <new>';
+    $('new-copy').disabled = !r.command;
+  };
+  $('new-form').addEventListener('input', out);
+  $('new-form').addEventListener('submit', (e) => e.preventDefault());
+  $('new-copy').addEventListener('click', async () => {
+    const text = $('new-command').textContent;
+    try {
+      await navigator.clipboard.writeText(text);
+      $('new-copy').textContent = 'Copied';
+    } catch {
+      $('new-copy').textContent = 'Select and copy it';
+    }
+    setTimeout(() => ($('new-copy').textContent = 'Copy'), 2000);
+  });
+  out();
+}
+setupNewForm();
+
+/** The goals seen so far, offered in the form's goal box (with the status that counts them). */
+function renderGoalOptions() {
+  const list = $('new-goals');
+  const top = F.topSuggestions(app.suggestions, 8);
+  const sig = JSON.stringify(top.map((t) => t.flag));
+  if (list.dataset.sig === sig) return;
+  list.dataset.sig = sig;
+  list.replaceChildren(...top.map((t) => Object.assign(document.createElement('option'), { value: t.flag.replace(/^--goal "|"$/g, '') })));
+}
+
 function render() {
   const s = app.state;
   if (!s) return;
   renderSite(s);
+  renderGoalOptions();
   renderHeader(s);
   renderMap(s);
   renderResults(s);
