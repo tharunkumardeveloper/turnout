@@ -24,7 +24,7 @@ The shop is one example. Any web app with two or more releases you can reach ove
 
 ```sh
 # 1. Four questions (Flagsmith: bundled or yours; the releases; success, e.g. "POST /signup 2xx" or "header signup"; % of traffic)
-docker run --rm -it -v "$PWD:/work" -w /work ghcr.io/tharunkumardeveloper/turnout new
+docker run --rm -it -v "$PWD:/work" ghcr.io/tharunkumardeveloper/turnout new --dir /work
 # 2. Set up Flagsmith: the release flag, metrics, the experiment (yours: add --project <name|id> --environment <name|key>)
 docker compose -f turnout.compose.yml run --rm cli init
 # 3. Start the proxy (your app on :8080) and the console (:8090)

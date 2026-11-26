@@ -124,7 +124,7 @@ macOS and Windows don't need this.
 Turnout works against any self-hosted Flagsmith that has Experimentation on (`EXPERIMENTATION_ENABLED=true` on the API). You need its API URL and an Organisation API key for the organisation that owns your project.
 
 ```sh
-docker run --rm -it -v "$PWD:/work" -w /work ghcr.io/tharunkumardeveloper/turnout new \
+docker run --rm -it -v "$PWD:/work" ghcr.io/tharunkumardeveloper/turnout new --dir /work \
   --flagsmith https://flagsmith.example.com/api/v1/ --project "Web" --environment Production
 # put the Organisation API key in .env as TURNOUT_ADMIN_KEY (or pass --admin-key to new)
 docker compose -f turnout.compose.yml run --rm cli init     # reads TURNOUT_PROJECT / TURNOUT_ENVIRONMENT from .env

@@ -347,3 +347,35 @@ Azure VM, 2 vCPU, 7.7 GiB RAM, Ubuntu, Docker 29.10.0, Compose v5.8.0; Flagsmith
 | Is every public number labelled simulated? | Yes: a fixed "Simulated visitors" badge in the header, "Every visitor here is simulated" in the footer, and "simulated visitors sent" on the counter |
 
 Not done here (needs people): the 10-developer cold-start test against docs/PLUG_AND_PLAY.md.
+
+## Event loss under load: the cause, the fix, and the measured result (2026-11-24)
+
+Same VM (2 vCPU). Each run: 3,000 simulated visitors via `turnout demo --concurrency N`, autopilot off. Ground truth, not log lines: the proxy counts every event it hands to the SDK, by name (`/__turnout/health` with the debug token), and the run's rows in Flagsmith's `experimentation_sdkexperimentationevent` are counted per event, with duplicates (same identifier, event, timestamp and value).
+
+**What the earlier "1,130 lost at 20 concurrent" was.** Flagsmith was saturated (the 2 s Django health check, the autopilot's once-a-second state reads, 37 s results queries over an unpruned table), events POSTs timed out after 15 s, and Turnout's undelivered counter counted every failed *attempt*, including ones the SDK's retry later delivered. With those three fixed (above), 20 concurrent lost nothing, so the simulator limit of 5 was reverted to the default 20.
+
+**The real remaining cause: the SDK's buffer.** `@flagsmith/nodejs` 9.4.0 posts its whole buffer as one batch, one batch at a time, and while a batch is in flight a full buffer drops its oldest events, reported only as a log warning. Turnout's buffer can't grow much: the SDK never splits a batch, and Flagsmith rejects a body over 2 MiB (`experimentation/constants.py:39`); the largest event Turnout can send is 281 bytes, so 7,000 is the ceiling. Neither Flagsmith's events endpoint (validates each event, then one `bulk_create`) nor gunicorn (3 workers × 2 threads) was the bottleneck: the drops happened when one batch was slow (4–10 s) while the proxy produced ~700 events/s.
+
+| Configuration | Runs (concurrency) | Result |
+|---|---|---|
+| SDK flush 2 s, buffer 6,000, drops invisible | 20, 50, 100, 200 | 100: 119 of 5,407 page-speed events missing (2.2%), `undelivered` 0, so nobody would have known |
+| Flush 1 s, buffer 7,000, drops counted | 20, 50, 100, 100, 200, then 50 ×6 | 1 of 11 runs lost events: 50 concurrent, 2,689 dropped, now reported by `/__turnout/health` and doctor |
+| **Plus Turnout's hold-back queue** (its own events wait while the SDK buffer is over 6,500, fed in as it empties; cap 100,000, then counted) | 20, 50, 50, 50, 100, 100, 200, 200 | **0 lost, 0 dropped in every run; stored rows equal the proxy's counts exactly** (121,678 events in 72 batches). These runs did have slow batches (9 over 5 s, slowest 10.7 s), the condition that dropped events before. One identical row pair in the last run is two real page loads (counts still match; no batch failed, so nothing was retried) |
+
+Unit test: a real SDK against an events endpoint that holds a batch for 1.5 s while 25,000 events are tracked: all 25,000 arrive; with the hold-back disabled the same test fails.
+
+## `turnout compare` end to end (2026-11-24)
+
+Windows 11, Docker Desktop 29.9.3, the demo stack already running (ports 8000, 8080, 8090, 8091 taken). Two nginx sites ("Version ONE" on :3001, "Version TWO" on :3002). From an empty folder: `turnout compare localhost:3001 localhost:3002`, no questions.
+
+| Check | Result |
+|---|---|
+| Nothing to running, image built from the checkout (it can't be pulled: private) | 152 s; doctor 27 ok, 0 failing; app on 8081, console on 8092, Flagsmith on 8001 (each the next free port) |
+| Split over 200 new visitors | 86 / 114 (`--split 50`: half get the new version) |
+| One visitor, 20 more page loads | 20 / 20 on the same version |
+| Experiment with no goal | metrics `doc_latency_ms` (decrease, primary) and `server_error` (not_increase); hypothesis "v2 loads pages faster without more errors" |
+| Console first card | Open your site → 127.0.0.1:8081, Flagsmith dashboard → :8001, "No goal yet: judged on page speed" |
+| Run again, same arguments | resumed in 55 s, 27 ok |
+| `turnout down`, `turnout reset --yes` | stopped; wiped |
+
+Bugs the end-to-end run found and fixed: PowerShell 5.1 made git's stderr fatal; `$A` overwrote the argument list `$a` (PowerShell names ignore case); `-w /work` broke the image's start (also in README and SETUP); a stale `turnout:local` was reused (now always rebuilt, cached); `--split 50` put only 25% on the new version; doctor expected a count-up goal for a speed-only experiment; the "Check:" line was blank.
