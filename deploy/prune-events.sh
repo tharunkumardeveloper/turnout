@@ -33,15 +33,19 @@ prune_once() {
       protected="$protected${protected:+,}$id"
     fi
   done
-  floor="now() - interval '$HOURS hours'"
-  if [ -n "$protected" ]; then
-    floor="least($floor, (select min(coalesce(started_at, created_at)) from experimentation_experiment where id in ($protected)))"
-  fi
-  where="\"timestamp\" < $floor"
+  # A Flagsmith experiment counts only identities exposed to its flag since it started (an exposure event with the
+  # flag's feature_name), and their events. So every event of an identity exposed to a protected experiment's flag
+  # since that experiment's start is kept, whatever its age; other events older than RETENTION_HOURS go. (A floor at
+  # the oldest protected start would never delete anything while server mode's live experiment runs for days.)
+  keep="select distinct x.identifier from experimentation_sdkexperimentationevent x
+    join experimentation_experiment e on e.id in (${protected:-0})
+    join features_feature f on f.id = e.feature_id
+    where x.event = '\$flag_exposure' and x.feature_name = f.name and x.\"timestamp\" >= coalesce(e.started_at, e.created_at)"
+  where="\"timestamp\" < now() - interval '$HOURS hours' and identifier not in ($keep)"
   if [ "${DRY_RUN:-}" = 1 ]; then
     log "dry run: $($PSQL -c "select count(*) from experimentation_sdkexperimentationevent where $where") events would be deleted (protected experiments: ${protected:-none})"
   else
-    log "$($PSQL -c "delete from experimentation_sdkexperimentationevent where $where") events (older than $HOURS h and before every unfinished or unsnapshotted experiment; protected: ${protected:-none})"
+    log "$($PSQL -c "delete from experimentation_sdkexperimentationevent where $where") events (older than $HOURS h, of identities no unfinished or unsnapshotted experiment counts; protected: ${protected:-none})"
   fi
 }
 
