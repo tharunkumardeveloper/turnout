@@ -30,11 +30,12 @@ x-flagsmith-health: &flagsmith-health
   start_period: 120s
   start_interval: 3s
 
-# The shops answer only frames from their own origin: the public judge view is https://<hostname>/judge, same origin.
+# The shops answer only frames from their own origin (shop.<hostname>) and the public console's (https://<hostname>),
+# whose previews show each version.
 x-shop-frames: &shop-frames
   <<: *restart
   environment:
-    SHOP_FRAME_ANCESTORS: "'self'"
+    SHOP_FRAME_ANCESTORS: "'self' https://${TURNOUT_HOSTNAME}"
 
 services:
   caddy:
