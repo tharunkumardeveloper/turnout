@@ -1142,7 +1142,9 @@ export function createJudge(opts: JudgeOptions, ctx: JudgeContext) {
       `Setting ${s.experiment.feature.name}'s environment default to ${entry.variant} at ${weight}% (${expected}). ` +
         "It's the same edit as changing the default in Flagsmith's flag editor; no deploy, no Turnout command.",
     );
-    await s.exps.api.patch(flagPath, { environment_default: { enabled: true, variants: [{ id: option.id, weight }] } });
+    // Every variant (the others at 0): Flagsmith refuses a default that leaves one out once the flag has three.
+    const variants = s.experiment.feature.multivariate_options.map((o) => ({ id: o.id, weight: o.id === option.id ? weight : 0 }));
+    await s.exps.api.patch(flagPath, { environment_default: { enabled: true, variants } });
     stage(1);
     log('✓ Flagsmith saved the flag. Waiting for the proxy to pick it up (it re-reads the flag every few seconds)…');
     let served: string | null = null;

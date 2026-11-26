@@ -53,7 +53,8 @@ export async function preview(opts: Options): Promise<void> {
 
   // Everyone else keeps the live release (as control); v2 becomes the new release; the preview segment gets v2.
   await api.patch(flagPath, {
-    environment_default: { enabled: true, value: { type: 'string', value: live }, variants: [{ id: v2.id, weight: 0 }] },
+    // Every variant, all at 0: Flagsmith refuses a default that leaves one out ("Must include all feature's variants").
+    environment_default: { enabled: true, value: { type: 'string', value: live }, variants: feature.multivariate_options.map((o) => ({ id: o.id, weight: 0 })) },
   });
   // A full PUT: Flagsmith 2.291.0's option validator reads every field, so a partial PATCH answers 500
   // (KeyError in features/multivariate/serializers.py:85-86).

@@ -1,5 +1,5 @@
 {
-  "at": "2026-11-26T09:41:05.725Z",
+  "at": "2026-11-26T11:11:16.646Z",
   "rows": [
     {
       "app": "django",
@@ -18,23 +18,23 @@
         },
         "visitors": {
           "pass": true,
-          "note": "try:a 153 (17 goals), try:b 147 (34 goals)"
+          "note": "try:b 155 (28 goals), try:a 145 (11 goals)"
         },
         "results": {
           "pass": true,
-          "note": "v2 97%"
+          "note": "v2 96%"
         },
         "counts": {
           "pass": true,
-          "note": "try:a 153 vs 153, try:b 147 vs 147"
+          "note": "try:a 145 vs 145, try:b 155 vs 155"
         },
         "ship": {
           "pass": true,
           "note": ""
         }
       },
-      "seconds": 45,
-      "at": "2026-11-26T09:41:05.725Z"
+      "seconds": 53,
+      "at": "2026-11-26T11:11:16.646Z"
     },
     {
       "app": "express",
@@ -53,23 +53,23 @@
         },
         "visitors": {
           "pass": true,
-          "note": "try:a 153 (11 goals), try:b 147 (32 goals)"
+          "note": "try:a 136 (17 goals), try:b 164 (38 goals)"
         },
         "results": {
           "pass": true,
-          "note": "v2 98%"
+          "note": "v2 96%"
         },
         "counts": {
           "pass": true,
-          "note": "try:a 153 vs 153, try:b 147 vs 147"
+          "note": "try:a 136 vs 136, try:b 164 vs 164"
         },
         "ship": {
           "pass": true,
           "note": ""
         }
       },
-      "seconds": 43,
-      "at": "2026-11-26T09:41:05.725Z"
+      "seconds": 47,
+      "at": "2026-11-26T11:11:16.646Z"
     },
     {
       "app": "flask",
@@ -88,23 +88,23 @@
         },
         "visitors": {
           "pass": true,
-          "note": "try:b 147 (35 goals), try:a 153 (13 goals)"
+          "note": "try:b 152 (22 goals), try:a 148 (15 goals)"
         },
         "results": {
           "pass": true,
-          "note": "v2 98%"
+          "note": "v2 83%"
         },
         "counts": {
           "pass": true,
-          "note": "try:a 153 vs 153, try:b 147 vs 147"
+          "note": "try:a 148 vs 148, try:b 152 vs 152"
         },
         "ship": {
           "pass": true,
           "note": ""
         }
       },
-      "seconds": 43,
-      "at": "2026-11-26T09:41:05.725Z"
+      "seconds": 47,
+      "at": "2026-11-26T11:11:16.646Z"
     },
     {
       "app": "go",
@@ -123,23 +123,23 @@
         },
         "visitors": {
           "pass": true,
-          "note": "try:a 158 (19 goals), try:b 142 (30 goals)"
+          "note": "try:a 163 (18 goals), try:b 137 (20 goals)"
         },
         "results": {
           "pass": true,
-          "note": "v2 94%"
+          "note": "v2 79%"
         },
         "counts": {
           "pass": true,
-          "note": "try:a 158 vs 158, try:b 142 vs 142"
+          "note": "try:a 163 vs 163, try:b 137 vs 137"
         },
         "ship": {
           "pass": true,
           "note": ""
         }
       },
-      "seconds": 42,
-      "at": "2026-11-26T09:41:05.725Z"
+      "seconds": 45,
+      "at": "2026-11-26T11:11:16.646Z"
     },
     {
       "app": "needs-database",
@@ -158,23 +158,23 @@
         },
         "visitors": {
           "pass": true,
-          "note": "try:b 156 (27 goals), try:a 144 (13 goals)"
+          "note": "try:b 146 (32 goals), try:a 154 (17 goals)"
         },
         "results": {
           "pass": true,
-          "note": "v2 93%"
+          "note": "v2 96%"
         },
         "counts": {
           "pass": true,
-          "note": "try:a 144 vs 144, try:b 156 vs 156"
+          "note": "try:a 154 vs 154, try:b 146 vs 146"
         },
         "ship": {
           "pass": true,
           "note": ""
         }
       },
-      "seconds": 57,
-      "at": "2026-11-26T09:41:05.725Z"
+      "seconds": 60,
+      "at": "2026-11-26T11:11:16.646Z"
     },
     {
       "app": "needs-settings",
@@ -193,23 +193,23 @@
         },
         "visitors": {
           "pass": true,
-          "note": "try:a 153 (17 goals), try:b 147 (24 goals)"
+          "note": "try:a 146 (19 goals), try:b 154 (21 goals)"
         },
         "results": {
           "pass": true,
-          "note": "v2 86%"
+          "note": "v2 56%"
         },
         "counts": {
           "pass": true,
-          "note": "try:a 153 vs 153, try:b 147 vs 147"
+          "note": "try:a 146 vs 146, try:b 154 vs 154"
         },
         "ship": {
           "pass": true,
           "note": ""
         }
       },
-      "seconds": 59,
-      "at": "2026-11-26T09:41:05.725Z"
+      "seconds": 62,
+      "at": "2026-11-26T11:11:16.646Z"
     },
     {
       "app": "next-server",
@@ -228,23 +228,23 @@
         },
         "visitors": {
           "pass": true,
-          "note": "try:b 135 (29 goals), try:a 165 (13 goals)"
+          "note": "try:b 145 (24 goals), try:a 155 (18 goals)"
         },
         "results": {
           "pass": true,
-          "note": "v2 79%"
+          "note": "v2 73%"
         },
         "counts": {
           "pass": true,
-          "note": "try:a 165 vs 165, try:b 135 vs 135"
+          "note": "try:a 155 vs 155, try:b 145 vs 145"
         },
         "ship": {
           "pass": true,
           "note": ""
         }
       },
-      "seconds": 44,
-      "at": "2026-11-26T09:41:05.725Z"
+      "seconds": 64,
+      "at": "2026-11-26T11:11:16.646Z"
     },
     {
       "app": "next-static",
@@ -263,23 +263,23 @@
         },
         "visitors": {
           "pass": true,
-          "note": "try:a 145 (0 goals), try:b 155 (0 goals)"
+          "note": "try:b 129 (0 goals), try:a 171 (0 goals)"
         },
         "results": {
           "pass": true,
-          "note": "v2 89%"
+          "note": "v2 71%"
         },
         "counts": {
           "pass": true,
-          "note": "try:a 145 vs 145, try:b 155 vs 155"
+          "note": "try:a 171 vs 171, try:b 129 vs 129"
         },
         "ship": {
           "pass": true,
           "note": ""
         }
       },
-      "seconds": 47,
-      "at": "2026-11-26T09:41:05.725Z"
+      "seconds": 74,
+      "at": "2026-11-26T11:11:16.646Z"
     },
     {
       "app": "no-dockerfile",
@@ -298,23 +298,23 @@
         },
         "visitors": {
           "pass": true,
-          "note": "try:b 154 (23 goals), try:a 146 (9 goals)"
+          "note": "try:b 156 (31 goals), try:a 144 (14 goals)"
         },
         "results": {
           "pass": true,
-          "note": "v2 94%"
+          "note": "v2 95%"
         },
         "counts": {
           "pass": true,
-          "note": "try:a 146 vs 146, try:b 154 vs 154"
+          "note": "try:a 144 vs 144, try:b 156 vs 156"
         },
         "ship": {
           "pass": true,
           "note": ""
         }
       },
-      "seconds": 45,
-      "at": "2026-11-26T09:41:05.725Z"
+      "seconds": 79,
+      "at": "2026-11-26T11:11:16.646Z"
     },
     {
       "app": "php",
@@ -333,23 +333,23 @@
         },
         "visitors": {
           "pass": true,
-          "note": "try:b 156 (25 goals), try:a 144 (14 goals)"
+          "note": "try:b 144 (31 goals), try:a 156 (17 goals)"
         },
         "results": {
           "pass": true,
-          "note": "v2 89%"
+          "note": "v2 96%"
         },
         "counts": {
           "pass": true,
-          "note": "try:a 144 vs 144, try:b 156 vs 156"
+          "note": "try:a 156 vs 156, try:b 144 vs 144"
         },
         "ship": {
           "pass": true,
           "note": ""
         }
       },
-      "seconds": 45,
-      "at": "2026-11-26T09:41:05.725Z"
+      "seconds": 49,
+      "at": "2026-11-26T11:11:16.646Z"
     },
     {
       "app": "plain-html",
@@ -368,7 +368,7 @@
         },
         "visitors": {
           "pass": true,
-          "note": "try:b 161 (28 goals), try:a 139 (11 goals)"
+          "note": "try:a 157 (9 goals), try:b 143 (22 goals)"
         },
         "results": {
           "pass": true,
@@ -376,15 +376,15 @@
         },
         "counts": {
           "pass": true,
-          "note": "try:a 139 vs 139, try:b 161 vs 161"
+          "note": "try:a 157 vs 157, try:b 143 vs 143"
         },
         "ship": {
           "pass": true,
           "note": ""
         }
       },
-      "seconds": 42,
-      "at": "2026-11-26T09:41:05.725Z"
+      "seconds": 48,
+      "at": "2026-11-26T11:11:16.646Z"
     },
     {
       "app": "vite-spa",
@@ -403,15 +403,15 @@
         },
         "visitors": {
           "pass": true,
-          "note": "try:a 148 (13 goals), try:b 152 (30 goals)"
+          "note": "try:b 158 (32 goals), try:a 142 (16 goals)"
         },
         "results": {
           "pass": true,
-          "note": "v2 96%"
+          "note": "v2 94%"
         },
         "counts": {
           "pass": true,
-          "note": "try:a 148 vs 148, try:b 152 vs 152"
+          "note": "try:a 142 vs 142, try:b 158 vs 158"
         },
         "ship": {
           "pass": true,
@@ -419,7 +419,7 @@
         }
       },
       "seconds": 45,
-      "at": "2026-11-26T09:41:05.725Z"
+      "at": "2026-11-26T11:11:16.646Z"
     }
   ]
 }

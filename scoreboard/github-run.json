@@ -1,5 +1,5 @@
 {
-  "at": "2026-11-26T10:59:57.750Z",
+  "at": "2026-11-26T11:23:30.457Z",
   "rows": [
     {
       "app": "bradtraversy/nodekb",
@@ -18,24 +18,24 @@
         },
         "visitors": {
           "pass": true,
-          "note": "try:a 172 (11 goals), try:b 128 (28 goals)"
+          "note": "try:a 157 (22 goals), try:b 143 (36 goals)"
         },
         "results": {
           "pass": true,
-          "note": "v2 38%"
+          "note": "v2 70%"
         },
         "counts": {
           "pass": true,
-          "note": "try:a 172 vs 172, try:b 128 vs 128"
+          "note": "try:a 157 vs 157, try:b 143 vs 143"
         },
         "ship": {
           "pass": true,
           "note": ""
         }
       },
-      "seconds": 97,
+      "seconds": 80,
       "url": "https://github.com/bradtraversy/nodekb",
-      "at": "2026-11-26T09:23:10.486Z"
+      "at": "2026-11-26T11:23:30.457Z"
     },
     {
       "app": "digitalocean/sample-django",
@@ -198,24 +198,24 @@
         },
         "visitors": {
           "pass": true,
-          "note": "try:b 150 (0 goals), try:a 150 (0 goals)"
+          "note": "try:a 147 (0 goals), try:b 153 (0 goals)"
         },
         "results": {
           "pass": true,
-          "note": "v2 32%"
+          "note": "v2 95%"
         },
         "counts": {
           "pass": true,
-          "note": "try:a 150 vs 150, try:b 150 vs 150"
+          "note": "try:a 147 vs 147, try:b 153 vs 153"
         },
         "ship": {
           "pass": true,
           "note": ""
         }
       },
-      "seconds": 45,
+      "seconds": 49,
       "url": "https://github.com/docker/getting-started-app",
-      "at": "2026-11-26T09:23:10.486Z"
+      "at": "2026-11-26T11:23:30.457Z"
     },
     {
       "app": "docker/welcome-to-docker",
@@ -234,24 +234,24 @@
         },
         "visitors": {
           "pass": true,
-          "note": "try:a 145 (0 goals), try:b 155 (0 goals)"
+          "note": "try:a 143 (0 goals), try:b 157 (0 goals)"
         },
         "results": {
           "pass": true,
-          "note": "v2 70%"
+          "note": "v2 17%"
         },
         "counts": {
           "pass": true,
-          "note": "try:a 145 vs 145, try:b 155 vs 155"
+          "note": "try:a 143 vs 143, try:b 157 vs 157"
         },
         "ship": {
           "pass": true,
           "note": ""
         }
       },
-      "seconds": 44,
+      "seconds": 52,
       "url": "https://github.com/docker/welcome-to-docker",
-      "at": "2026-11-26T09:23:10.486Z"
+      "at": "2026-11-26T11:23:30.457Z"
     },
     {
       "app": "heroku/go-getting-started",
@@ -270,24 +270,24 @@
         },
         "visitors": {
           "pass": true,
-          "note": "try:b 163 (0 goals), try:a 137 (0 goals)"
+          "note": "try:a 150 (0 goals), try:b 150 (0 goals)"
         },
         "results": {
           "pass": true,
-          "note": "v2 61%"
+          "note": "v2 19%"
         },
         "counts": {
           "pass": true,
-          "note": "try:a 137 vs 137, try:b 163 vs 163"
+          "note": "try:a 150 vs 150, try:b 150 vs 150"
         },
         "ship": {
           "pass": true,
           "note": ""
         }
       },
-      "seconds": 52,
+      "seconds": 49,
       "url": "https://github.com/heroku/go-getting-started",
-      "at": "2026-11-26T09:23:10.486Z"
+      "at": "2026-11-26T11:23:30.457Z"
     },
     {
       "app": "heroku/java-getting-started",
@@ -342,24 +342,24 @@
         },
         "visitors": {
           "pass": true,
-          "note": "try:b 161 (0 goals), try:a 139 (0 goals)"
+          "note": "try:b 152 (0 goals), try:a 148 (0 goals)"
         },
         "results": {
           "pass": true,
-          "note": "v2 60%"
+          "note": "v2 20%"
         },
         "counts": {
           "pass": true,
-          "note": "try:a 139 vs 139, try:b 161 vs 161"
+          "note": "try:a 148 vs 148, try:b 152 vs 152"
         },
         "ship": {
           "pass": true,
           "note": ""
         }
       },
-      "seconds": 56,
+      "seconds": 52,
       "url": "https://github.com/heroku/node-js-getting-started",
-      "at": "2026-11-26T09:23:10.486Z"
+      "at": "2026-11-26T11:23:30.457Z"
     },
     {
       "app": "heroku/php-getting-started",
@@ -378,24 +378,24 @@
         },
         "visitors": {
           "pass": true,
-          "note": "try:b 156 (0 goals), try:a 144 (0 goals)"
+          "note": "try:b 149 (0 goals), try:a 151 (0 goals)"
         },
         "results": {
           "pass": true,
-          "note": "v2 83%"
+          "note": "v2 65%"
         },
         "counts": {
           "pass": true,
-          "note": "try:a 144 vs 144, try:b 156 vs 156"
+          "note": "try:a 151 vs 151, try:b 149 vs 149"
         },
         "ship": {
           "pass": true,
           "note": ""
         }
       },
-      "seconds": 133,
+      "seconds": 50,
       "url": "https://github.com/heroku/php-getting-started",
-      "at": "2026-11-26T09:31:42.799Z"
+      "at": "2026-11-26T11:23:30.457Z"
     },
     {
       "app": "heroku/python-getting-started",
@@ -414,24 +414,24 @@
         },
         "visitors": {
           "pass": true,
-          "note": "try:b 160 (0 goals), try:a 140 (0 goals)"
+          "note": "try:a 149 (0 goals), try:b 151 (0 goals)"
         },
         "results": {
           "pass": true,
-          "note": "v2 43%"
+          "note": "v2 32%"
         },
         "counts": {
           "pass": true,
-          "note": "try:a 140 vs 140, try:b 160 vs 160"
+          "note": "try:a 149 vs 149, try:b 151 vs 151"
         },
         "ship": {
           "pass": true,
           "note": ""
         }
       },
-      "seconds": 84,
+      "seconds": 111,
       "url": "https://github.com/heroku/python-getting-started",
-      "at": "2026-11-26T09:31:42.799Z"
+      "at": "2026-11-26T11:23:30.457Z"
     },
     {
       "app": "heroku/ruby-getting-started",
@@ -450,7 +450,7 @@
         },
         "visitors": {
           "pass": true,
-          "note": "try:a 139 (0 goals), try:b 161 (0 goals)"
+          "note": "try:b 133 (0 goals), try:a 167 (0 goals)"
         },
         "results": {
           "pass": true,
@@ -458,16 +458,16 @@
         },
         "counts": {
           "pass": true,
-          "note": "try:a 139 vs 139, try:b 161 vs 161"
+          "note": "try:a 167 vs 167, try:b 133 vs 133"
         },
         "ship": {
           "pass": true,
           "note": ""
         }
       },
-      "seconds": 97,
+      "seconds": 86,
       "url": "https://github.com/heroku/ruby-getting-started",
-      "at": "2026-11-26T09:23:10.486Z"
+      "at": "2026-11-26T11:23:30.457Z"
     },
     {
       "app": "miguelgrinberg/microblog",
@@ -477,9 +477,9 @@
           "note": "microblog (version A): The command '/bin/sh -c pip install -r requirements.txt' returned a non-zero code: 1. The app's own build failed; the build log shows why"
         }
       },
-      "seconds": 30,
+      "seconds": 33,
       "url": "https://github.com/miguelgrinberg/microblog",
-      "at": "2026-11-26T09:23:10.486Z"
+      "at": "2026-11-26T11:23:30.457Z"
     },
     {
       "app": "render-examples/create-react-app",
@@ -534,24 +534,24 @@
         },
         "visitors": {
           "pass": true,
-          "note": "try:a 158 (0 goals), try:b 142 (0 goals)"
+          "note": "try:a 156 (0 goals), try:b 144 (0 goals)"
         },
         "results": {
           "pass": true,
-          "note": "v2 92%"
+          "note": "v2 31%"
         },
         "counts": {
           "pass": true,
-          "note": "try:a 158 vs 158, try:b 142 vs 142"
+          "note": "try:a 156 vs 156, try:b 144 vs 144"
         },
         "ship": {
           "pass": true,
           "note": ""
         }
       },
-      "seconds": 85,
+      "seconds": 124,
       "url": "https://github.com/render-examples/django",
-      "at": "2026-11-26T09:23:10.486Z"
+      "at": "2026-11-26T11:23:30.457Z"
     },
     {
       "app": "render-examples/express-hello-world",
@@ -642,24 +642,24 @@
         },
         "visitors": {
           "pass": true,
-          "note": "try:b 151 (0 goals), try:a 149 (0 goals)"
+          "note": "try:b 157 (0 goals), try:a 143 (0 goals)"
         },
         "results": {
           "pass": true,
-          "note": "v2 11%"
+          "note": "v2 12%"
         },
         "counts": {
           "pass": true,
-          "note": "try:a 149 vs 149, try:b 151 vs 151"
+          "note": "try:a 143 vs 143, try:b 157 vs 157"
         },
         "ship": {
           "pass": true,
           "note": ""
         }
       },
-      "seconds": 41,
+      "seconds": 48,
       "url": "https://github.com/render-examples/flask-hello-world",
-      "at": "2026-11-26T09:23:10.486Z"
+      "at": "2026-11-26T11:23:30.457Z"
     },
     {
       "app": "render-examples/go-gin-web-server",
