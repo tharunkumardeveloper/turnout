@@ -54,7 +54,9 @@ describe('judge.html and judge.js', () => {
     assert.match(html, /Every deploy becomes a Flagsmith experiment\./);
     assert.match(html, /name="tour-mode" value="guide" checked/);
     assert.match(html, /name="tour-mode" value="auto"/);
-    assert.match(js, /tour\.start\(mode\)/);
+    assert.match(js, /tour\.start\(mode, chosenLength\(\)\)/);
+    assert.match(html, /name="tour-length" value="quick" checked/, 'the quick tour is the default');
+    assert.match(html, /name="tour-length" value="full"/);
     // "Explore on my own" is remembered for the session, and storage that throws (private mode) can't break the page.
     assert.match(js, /try \{\s*return sessionStorage\.getItem\(WELCOME_KEY\)/);
     assert.match(js, /try \{\s*sessionStorage\.setItem\(WELCOME_KEY, 'dismissed'\)/);

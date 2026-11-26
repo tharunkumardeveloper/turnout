@@ -109,6 +109,7 @@ const parseCommandLine = () =>
       port: { type: 'string' },
       image: { type: 'string' },
       'proxy-port': { type: 'string' },
+      'console-port': { type: 'string' },
       dir: { type: 'string' },
       force: { type: 'boolean' },
       flow: { type: 'string' },
@@ -327,7 +328,11 @@ function doctorOptions(self = false): DoctorOptions {
     healthWebhook: process.env.TURNOVER_HEALTH_WEBHOOK || undefined,
     proxyUrl: (local ? undefined : process.env.TURNOVER_PROXY_URL) || at(8080, 'turnover'),
     consoleUrl: self ? undefined : process.env.TURNOVER_CONSOLE_URL || at(8090, 'console'),
-    metricsUrl: (local ? undefined : process.env.FLAGSMITH_METRICS_URL) || `${at(9100, 'flagsmith')}/metrics`,
+    // Your own Flagsmith (not the bundled "flagsmith" service): its metrics port is yours to publish, so it's read
+    // only when FLAGSMITH_METRICS_URL names it.
+    metricsUrl:
+      (local ? undefined : process.env.FLAGSMITH_METRICS_URL) ||
+      (local || new URL(api).hostname === 'flagsmith' ? `${at(9100, 'flagsmith')}/metrics` : undefined),
     fromHost: local, // Compose doesn't publish 9100: an unreadable counter is skipped, not a warning
     stateDir: STATE_DIR, // Ship and Revert write here (the console's own copy when the console is asking)
     // init and release write .env; the console doesn't mount it, and a missing one is created by init.
@@ -578,6 +583,7 @@ async function newCommand(): Promise<void> {
       event: cliFlags.event,
       appPort: num(cliFlags.port, 'port'),
       proxyPort: num(cliFlags['proxy-port'], 'proxy-port'),
+      consolePort: num(cliFlags['console-port'], 'console-port'),
       image: cliFlags.image,
       project: project || undefined,
       environment,

@@ -21,6 +21,7 @@ export type NewAnswers = {
   appPort?: number | undefined; // the port your release images listen on
   image?: string | undefined; // the Turnover image
   proxyPort?: number | undefined;
+  consolePort?: number | undefined; // default 8090; change it to run next to another Turnover
   project?: string | undefined; // existing Flagsmith: project and environment init reuses
   environment?: string | undefined;
 };
@@ -124,13 +125,14 @@ export function renderCompose(a: NewAnswers, releases: Release[]): string {
   const api = bundled ? 'http://flagsmith:8000/api/v1/' : a.flagsmith;
   const image = a.image ?? DEFAULT_IMAGE;
   const port = a.proxyPort ?? 8080;
+  const consolePort = a.consolePort ?? 8090;
   const nets = bundled ? '\n    networks: [default, sdk]' : '';
   const waitFlagsmith = bundled ? '\n    depends_on:\n      flagsmith:\n        condition: service_healthy' : '';
   const apps = releases.filter((r) => r.image);
   return `# Written by "turnover new": Turnover in front of your app. Run it with
 #   docker compose -f turnover.compose.yml run --rm cli init
 #   docker compose -f turnover.compose.yml up -d
-# then open http://127.0.0.1:${port} (your app, through Turnover) and http://127.0.0.1:8090 (the console).
+# then open http://127.0.0.1:${port} (your app, through Turnover) and http://127.0.0.1:${consolePort} (the console).
 # ${image} is not published yet: build it from the Turnover repo with "docker build -t ${image} ." first.
 ${bundled ? 'include:\n  - flagsmith.compose.yml   # Flagsmith, from Turnover\'s compose.flagsmith.yml\n' : ''}
 x-turnover: &turnover
@@ -168,7 +170,7 @@ services:
       TURNOVER_PUBLIC_SHOP_URL: http://127.0.0.1:${port}
       CONSOLE_HOST: 0.0.0.0
     ports:
-      - 127.0.0.1:8090:8090 # holds the admin key: this machine only
+      - 127.0.0.1:${consolePort}:8090 # holds the admin key: this machine only
     volumes:
       - ./turnover.config.yml:/app/turnover.config.yml:ro
       - ./.turnover:/app/.turnover${nets}
@@ -183,6 +185,8 @@ services:
     environment:
       FLAGSMITH_API_URL: ${api}
       TURNOVER_PROXY_URL: http://turnover:8080
+      TURNOVER_PUBLIC_SHOP_URL: http://127.0.0.1:${port}
+      TURNOVER_PUBLIC_CONSOLE_PORT: '${consolePort}' # the judge link init prints
     volumes:
       - ./turnover.config.yml:/app/turnover.config.yml:ro
       - ./.env:/app/.env

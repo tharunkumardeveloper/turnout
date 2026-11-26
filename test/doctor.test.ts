@@ -344,6 +344,13 @@ describe('evaluate: each difference, with expected and actual', () => {
     const fromHost = await gatherFacts({ ...options, fromHost: true, metricsUrl: 'http://127.0.0.1:9/metrics' });
     assert.equal(fromHost.fromHost, true);
     assert.equal(find(evaluate(fromHost), "Flagsmith's counter").status, 'ok');
+    // Your own Flagsmith with no FLAGSMITH_METRICS_URL: nothing to read, so it's skipped rather than a warning.
+    const own = find(variant((f) => {
+      f.events = null;
+      f.metricsUrl = undefined;
+    }), "Flagsmith's counter");
+    assert.equal(own.status, 'ok');
+    assert.match(own.actual, /FLAGSMITH_METRICS_URL/);
   });
 
   test("the state folder and .env: checked only when given; one Ship or Revert can't write fails, with the chown fix", async () => {

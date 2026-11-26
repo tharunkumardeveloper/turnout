@@ -7,7 +7,7 @@ import { test } from 'node:test';
 import { parseEnv } from 'node:util';
 import YAML from 'yaml';
 import { loadConfig } from '../src/config.ts';
-import { DEFAULT_IMAGE, eventFromPath, parseReleases, parseSuccess, writeNew, type NewAnswers } from '../src/commands/new.ts';
+import { DEFAULT_IMAGE, eventFromPath, parseReleases, parseSuccess, renderCompose, writeNew, type NewAnswers } from '../src/commands/new.ts';
 
 const tmp = () => mkdtempSync(join(tmpdir(), 'turnover-new-'));
 const flagsmithCompose = readFileSync('compose.flagsmith.yml', 'utf8');
@@ -64,6 +64,12 @@ test('bundled Flagsmith: a loadable config, a compose file with the proxy, conso
   assert.ok(compose.services.cli.volumes.includes('./.env:/app/.env'));
   assert.equal(compose.services.turnover.depends_on.flagsmith.condition, 'service_healthy');
   assert.deepEqual(compose.services.console.ports, ['127.0.0.1:8090:8090']);
+  // Another Turnover next to it: both host ports move.
+  const other = YAML.parse(renderCompose({ ...base, proxyPort: 18080, consolePort: 18090 }, parseReleases(base.releases).releases), { merge: true });
+  assert.deepEqual(other.services.turnover.ports, ['127.0.0.1:18080:8080']);
+  assert.deepEqual(other.services.console.ports, ['127.0.0.1:18090:8090']);
+  assert.equal(other.services.cli.environment.TURNOVER_PUBLIC_CONSOLE_PORT, '18090');
+  assert.equal(other.services.cli.environment.TURNOVER_PUBLIC_SHOP_URL, 'http://127.0.0.1:18080');
   assert.equal(readFileSync(join(dir, 'flagsmith.compose.yml'), 'utf8'), flagsmithCompose);
   assert.ok(existsSync(join(dir, '.env')) && existsSync(join(dir, '.turnover')));
 });

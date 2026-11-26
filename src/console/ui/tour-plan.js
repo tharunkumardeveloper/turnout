@@ -11,7 +11,8 @@
 //   bubbleAction  the action's button lives in the bubble (#tour-action) with this label, not on the page
 //   flagsmith     { label, url }: a button that opens the same thing in the "Flagsmith" browser tab
 //   shop          'reload' | 'preview': what the Shop tab loads before the beat
-//   signin        the bubble shows the Flagsmith sign-in (the password only when the server returns it)
+//   more          the quick tour's guardrail beat: the bubble offers "Play round two" (carry on as the full tour)
+// The Flagsmith sign-in is no beat of its own: the bubble shows it the first time the judge opens a Flagsmith link.
 //   skippable     guide mode offers "Skip"
 //   last          the closing beat: Finish and "Start over"
 //   demo          the SHOW animation, one of DEMOS
@@ -40,14 +41,25 @@ export function phaseOf(current) {
 }
 
 /** How long autoplay leaves a beat's explanation on screen: enough to read it at a brisk pace. */
-export function readingMs(beat) {
+export function readingMs(beat, flavor = 'full') {
   const words = `${beat?.title ?? ''} ${beat?.body ?? ''}`.split(/\s+/).filter(Boolean).length;
+  if (flavor === 'quick') return Math.max(3000, Math.min(8000, 1200 + words * 130));
   return Math.max(4500, Math.min(13000, 2000 + words * 180));
+}
+
+/** The two tours: 'quick' (one loop, about 2–3 minutes) and 'full' (both releases, the map and the setup check). */
+export const FLAVORS = ['quick', 'full'];
+
+/** How long autoplay lets an action beat's text sit before its click. The quick tour clicks sooner: its text stays up while the job runs. */
+export function armMs(beat, flavor = 'full') {
+  const r = readingMs(beat, flavor);
+  return flavor === 'quick' ? Math.min(3000, Math.round(r * 0.5)) : Math.round(r * 0.8);
 }
 
 const CHAPTERS = {
   intro: 'Overview',
   'intro:restart': 'Fresh start',
+  guardrail: 'Round two',
   visitors: 'Send visitors',
   'visitors-after': 'Send visitors',
   'visitors-fs': 'Send visitors',
@@ -123,8 +135,8 @@ const vars = (s) => ({
 });
 
 /** The opening beats, before the first click. Mid-story, it ends with "start from the beginning". */
-export function introBeats(s) {
-  const beats = [
+export function introBeats(s, flavor = 'full') {
+  const beats = flavor === 'quick' ? quickIntro() : [
     {
       id: 'intro:flow',
       tab: 'story',
@@ -175,15 +187,6 @@ export function introBeats(s) {
       title: 'The app being released',
       body: 'This is the shop, loaded through Turnover. It contains no Flagsmith code at all. The line above it says which release this browser gets, straight from the flag.',
     },
-    {
-      id: 'intro:signin',
-      tab: 'story',
-      target: null,
-      signin: true,
-      title: "Flagsmith's own dashboard, side by side",
-      body: "At each step you can also open the same thing in Flagsmith's dashboard, in one separate browser tab. Sign in there once, then come back to this tab.",
-      flagsmith: s?.dashboardUrl ? { label: 'Open Flagsmith', url: s.dashboardUrl } : null,
-    },
   ];
   if (s && s.current === 'reset') {
     // The last run is complete: the page's own "Start over" button is the one to click.
@@ -214,8 +217,30 @@ export function introBeats(s) {
   return beats;
 }
 
+// The quick tour's intro: the idea, then the Flagsmith column. The sign-in only shows when a Flagsmith link is clicked.
+function quickIntro() {
+  return [
+    {
+      id: 'intro:flow',
+      tab: 'story',
+      target: '#flowline',
+      demo: 'flow-sweep',
+      title: 'Every deploy becomes a Flagsmith experiment',
+      body: 'A new release goes out, Flagsmith splits visitors between it and the current one, scores both, and you ship or revert on the same flag. The shop itself has no Flagsmith code.',
+    },
+    {
+      id: 'intro:fs',
+      tab: 'story',
+      target: '#fs-panel',
+      demo: 'fs-flash',
+      title: 'Flagsmith, read live',
+      body: "This column is read from Flagsmith's API: the experiment, the flag's split, the results and Feature Health. Each step also offers the same page in Flagsmith itself.",
+    },
+  ];
+}
+
 /** The beat that asks for the current step's click. Null when there is nothing to click (the story is complete). */
-export function actionBeat(s, rec) {
+export function actionBeat(s, rec, flavor = 'full') {
   if (!s || !s.experiment) return null;
   const v = vars(s);
   const exp = s.experiment.id;
@@ -224,6 +249,13 @@ export function actionBeat(s, rec) {
   const beat = (action, title, body, target = btn(action)) => ({ id: `${s.current}:${exp}`, tab: 'story', target, action, demo: 'stage-pulse', title, body });
   switch (s.current) {
     case 'visitors':
+      if (flavor === 'quick') {
+        return beat(
+          'visitors',
+          'Send 3,000 visitors',
+          `Simulated shoppers go through Turnover. For each one Flagsmith picks ${v.control} (what everyone has now) or ${v.v2} (the new release), about half each. Their pages and orders become Flagsmith events as you watch.`,
+        );
+      }
       return beat(
         'visitors',
         'Send 3,000 visitors',
@@ -283,6 +315,7 @@ export function afterBeats(action, s, extra = {}) {
   const exp = s?.experiment?.id ?? 0;
   const links = s?.links ?? {};
   const fs = (label, url) => (url ? { label, url } : null);
+  if (extra.flavor === 'quick') return quickAfter(action, s, extra);
   switch (action) {
     case 'visitors':
       return [
@@ -436,6 +469,99 @@ export function afterBeats(action, s, extra = {}) {
   }
 }
 
+// The quick tour: one beat per finished job, with the Flagsmith column and its link in that same beat.
+function quickAfter(action, s, extra) {
+  const v = vars(s);
+  const exp = s?.experiment?.id ?? 0;
+  const links = s?.links ?? {};
+  const fs = (label, url) => (url ? { label, url } : null);
+  switch (action) {
+    case 'score': {
+      const losing = s?.results?.losingGuardrails ?? [];
+      const beats = [
+        {
+          id: `results:${exp}`,
+          tab: 'story',
+          target: '#fs-results',
+          demo: 'fs-flash',
+          title: "Flagsmith's verdict",
+          body: [winnerLine(s).text, ...losing.map(losingText), "Every number is Flagsmith's own; a lead whose credible interval still crosses zero is never called a win."].join(' '),
+          flagsmith: fs("Open Flagsmith's results page", links.experiment),
+        },
+      ];
+      if (losing.length && extra.unhealthy) {
+        beats.push({
+          id: `health:${exp}`,
+          tab: 'story',
+          target: '#fs-flag',
+          demo: 'fs-flash',
+          title: 'Flagsmith marks the flag Unhealthy',
+          body: "Turnover reported the losing guardrail to Flagsmith's Feature Health, with Flagsmith's numbers as the reason.",
+          flagsmith: fs('See the flag in Flagsmith', links.flag),
+        });
+      }
+      return beats;
+    }
+    case 'ship':
+    case 'revert':
+      return [
+        {
+          id: `${action}-diff:${exp}`,
+          tab: 'story',
+          target: '#stage-visual',
+          demo: 'diff-flash',
+          title: 'Before → after, in Flagsmith',
+          body: `Read back from Flagsmith: the flag's default is now ${v.live} and the experiment's split is drained. No deploy happened, only a flag change.`,
+          flagsmith: fs('Open the flag in Flagsmith', links.flag),
+        },
+      ];
+    case 'verify':
+      return [
+        {
+          id: `verify-after:${exp}`,
+          tab: 'story',
+          target: '#stage-visual',
+          demo: 'verify-grow',
+          title: 'Everyone, on one release',
+          body: `All 50 brand-new visitors got ${v.live}, and no experiment split is left on the flag.`,
+        },
+      ];
+    default:
+      return [];
+  }
+}
+
+/** The quick tour's guardrail story in one beat: what round two shows, with the choice to play it (`more`). */
+export function guardrailBeat(s) {
+  const next = s?.next ?? 'The next release';
+  return {
+    id: 'guardrail',
+    tab: 'story',
+    target: '#steps-panel',
+    demo: 'steps-sweep',
+    title: 'Round two: a guardrail catches a bad release',
+    body: `${next} sells even more, but carries a deliberate, labelled 60 ms delay on every page. Flagsmith's page-speed guardrail scores it losing, the flag turns Unhealthy in Feature Health, and the call becomes Revert.`,
+    more: Boolean(s?.next),
+  };
+}
+
+/** The quick tour's ending: the guardrail beat, then the last beat with what this tour decided. */
+export function quickOutro(s, notes = []) {
+  const said = (notes ?? []).filter(Boolean);
+  const story = said.length ? `${said.join('; then ')}.` : "The release was decided on Flagsmith's numbers.";
+  return [
+    guardrailBeat(s),
+    {
+      id: 'outro:end',
+      tab: 'story',
+      target: '#history',
+      title: "That's the loop",
+      body: `${story} Every decision is in the release history with Flagsmith's numbers. The Feature map and Setup tabs show everything Turnover uses in Flagsmith.`,
+      last: true,
+    },
+  ];
+}
+
 /**
  * The closing beats: the feature map, the setup check, and the end. `notes` are the decisions this tour watched
  * (decisionNote), so the last beat says what really happened.
@@ -483,7 +609,11 @@ const ACTION_OF = { decide: 'ship' };
  * About how many beats are left from this state: each remaining step's click and what follows it, a final round when
  * there is a next release, and the outro. Only for "Step x of N"; it never has to be exact.
  */
-export function remainingBeats(s) {
+export function remainingBeats(s, flavor = 'full') {
+  if (flavor === 'quick') {
+    const left = { visitors: 8, score: 7, decide: 5, verify: 4 };
+    return s?.experiment ? (left[s.current] ?? 2) : 2;
+  }
   const outro = outroBeats().length;
   if (!s || !s.experiment) return outro;
   const i = ROUND.indexOf(s.current);

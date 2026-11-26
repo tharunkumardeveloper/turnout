@@ -1,6 +1,6 @@
 # Spikes: verify Flagsmith before building on it
 
-Small throwaway scripts, run against the pinned Flagsmith (`docker compose up -d`), that each answer one question the design depends on. Record each answer, with its output, in `RESULTS.md`. If an answer is "no", change the design, not the facts.
+Small scripts, run against the pinned Flagsmith (`docker compose up -d`), that each answer one question the design depends on. Record each answer, with its output, in `RESULTS.md`. If an answer is "no", change the design, not the facts.
 
 | # | Question | Design depends on it for | Source said |
 |---|---|---|---|

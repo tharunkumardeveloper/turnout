@@ -470,6 +470,8 @@ export function evaluate(f: DoctorFacts): DoctorCheck[] {
     // Not a problem with the setup: the port just isn't published. Inside Compose (cli doctor, the console's /setup) it is read.
     add(A, "Flagsmith's counter", 'ok', 'readable inside Compose',
       'not checked from the host: Flagsmith serves its Prometheus metrics on port 9100 inside Compose only (docker compose run --rm cli doctor, or the console\'s /setup page, reads it)');
+  } else if (!f.events && !f.metricsUrl) {
+    add(A, "Flagsmith's counter", 'ok', 'not checked', 'not checked: your own Flagsmith; set FLAGSMITH_METRICS_URL to its Prometheus metrics (port 9100) to read it');
   } else if (!f.events) {
     add(A, "Flagsmith's counter", 'warn', 'readable', `couldn't read ${f.metricsUrl ?? "Flagsmith's Prometheus metrics"}`,
       "Port 9100 is only reachable inside Compose: run docker compose run --rm cli doctor");

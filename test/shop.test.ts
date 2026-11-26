@@ -184,7 +184,9 @@ for (const version of ['1.4', '1.5']) {
       const css = await get(`${await base}/assets/style.css`);
       assert.equal(css.status, 200);
       assert.equal(css.headers.get('content-type'), 'text/css; charset=utf-8');
-      assert.match(await css.text(), /data-theme="green"/);
+      const text = await css.text();
+      assert.match(text, /data-theme="express"/);
+      assert.match(text, /data-theme="bold"/);
       const js = await get(`${await base}/assets/app.js?v=${version}`);
       assert.equal(js.status, 200);
       assert.equal(js.headers.get('content-type'), 'text/javascript; charset=utf-8');
@@ -194,15 +196,23 @@ for (const version of ['1.4', '1.5']) {
 }
 
 describe('release differences', () => {
-  test('1.4: blue theme, product links on the catalog, no express add', async () => {
+  test('each release has its own theme and hero', async () => {
+    const SHOP_1_6 = start({ version: '1.6' });
+    const pages = await Promise.all([SHOP_1_4, SHOP_1_5, SHOP_1_6].map(async (b) => (await get(`${await b}/`)).text()));
+    assert.match(pages[2] ?? '', /<html lang="en" data-theme="bold" data-release="1\.6">/);
+    const titles = pages.map((h) => h.match(/<h1>([^<]*)<\/h1>/)?.[1]);
+    assert.equal(new Set(titles).size, 3);
+  });
+
+  test('1.4: classic theme, product links on the catalog, no express add', async () => {
     const html = await (await get(`${await SHOP_1_4}/`)).text();
-    assert.match(html, /<html lang="en" data-theme="blue" data-release="1\.4">/);
+    assert.match(html, /<html lang="en" data-theme="classic" data-release="1\.4">/);
     assert.ok(!html.includes('data-express'));
   });
 
-  test('1.5: green theme and express add-to-cart on catalog cards', async () => {
+  test('1.5: express theme and express add-to-cart on catalog cards', async () => {
     const html = await (await get(`${await SHOP_1_5}/`)).text();
-    assert.match(html, /<html lang="en" data-theme="green" data-release="1\.5">/);
+    assert.match(html, /<html lang="en" data-theme="express" data-release="1\.5">/);
     assert.equal((html.match(/data-express/g) ?? []).length, PRODUCTS.length);
 
     const res = await post(`${await SHOP_1_5}/cart/add`, { slug: TRAIL.slug, qty: '1', return: '/' });

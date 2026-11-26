@@ -1318,6 +1318,10 @@ function chosenMode() {
   return /** @type {HTMLInputElement | null} */ (document.querySelector('input[name="tour-mode"]:checked'))?.value === 'auto' ? 'auto' : 'guide';
 }
 
+function chosenLength() {
+  return /** @type {HTMLInputElement | null} */ (document.querySelector('input[name="tour-length"]:checked'))?.value === 'full' ? 'full' : 'quick';
+}
+
 $('welcome-skip').addEventListener('click', () => {
   closeWelcome();
   $('tour-open').focus({ preventScroll: true });
@@ -1435,7 +1439,7 @@ const tour = createTour({
 $('tour-start').addEventListener('click', () => {
   const mode = chosenMode();
   closeWelcome();
-  tour.start(mode);
+  tour.start(mode, chosenLength());
 });
 
 // ---- tickers and start ---------------------------------------------------------------------------------------------

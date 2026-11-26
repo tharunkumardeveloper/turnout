@@ -213,7 +213,7 @@ export function createProxy(opts: Options): http.Server {
     const upstreamReq = client.request(url, { method, headers: upstreamHeaders, timeout: upstreamTimeoutMs }, (upstreamRes) => {
       const status = upstreamRes.statusCode ?? 502;
       const latencyMs = elapsed(); // time to the app's response headers
-      const headers = responseHeaders(upstreamRes.headers, upstream);
+      const headers = responseHeaders(upstreamRes.headers, upstream, secure);
       if (config.goal.header) appEvents = parseEventHeader(upstreamRes.headers[EVENT_HEADER]);
       if (debugging) {
         headers['x-turnover-variant'] = variant;
@@ -411,7 +411,11 @@ function stripHopByHop(headers: http.IncomingHttpHeaders): Record<string, string
 
 function forwardHeaders(req: http.IncomingMessage, upstream: URL, secure: boolean): http.OutgoingHttpHeaders {
   const headers = stripHopByHop(req.headers);
-  headers.host = upstream.host;
+  headers.host = upstream.host; // the app's own name, and the TLS server name for an https release
+  const origin = rewriteOrigin(header(req, 'origin'), req.headers.host, upstream, false);
+  if (origin) headers.origin = origin;
+  const referer = rewriteOrigin(header(req, 'referer'), req.headers.host, upstream, true);
+  if (referer) headers.referer = referer;
   delete headers['x-turnover-debug'];
   delete headers[RELEASE_HEADER]; // set by Turnover only, never by a client
   // Turnover's own cookies stay between the visitor and Turnover.
@@ -430,23 +434,61 @@ function forwardHeaders(req: http.IncomingMessage, upstream: URL, secure: boolea
   return headers;
 }
 
-function responseHeaders(incoming: http.IncomingHttpHeaders, upstream: URL): http.OutgoingHttpHeaders {
+function responseHeaders(incoming: http.IncomingHttpHeaders, upstream: URL, secure: boolean): http.OutgoingHttpHeaders {
   const headers: http.OutgoingHttpHeaders = stripHopByHop(incoming);
   delete headers[EVENT_HEADER]; // meant for Turnover only, on every path
   // Responses differ per visitor, so shared caches must never store them.
   headers['cache-control'] = privateCacheControl(incoming['cache-control']);
   headers.vary = appendVary(incoming.vary);
-  // The app sees its own host; a redirect to it must stay on the visitor's.
+  // The app sees its own host; a redirect to it must stay on the visitor's. A release mounted under a path
+  // (https://docs.example/guide/) has that prefix taken off again, since the proxy adds it to every request.
   const location = incoming.location;
   if (location) {
     try {
       const to = new URL(location, upstream);
-      if (to.origin === upstream.origin) headers.location = to.pathname + to.search + to.hash;
+      if (to.origin === upstream.origin) headers.location = stripPrefix(to.pathname, upstream) + to.search + to.hash;
     } catch {
       // leave an unparseable Location alone
     }
   }
+  // A cookie scoped to the app's own domain (Domain=example.com) would be refused by the browser on Turnover's
+  // host: make it a host-only cookie for the visitor's host instead. An https release's Secure cookies would be
+  // refused too when visitors reach Turnover over plain http (anywhere but localhost), so they lose Secure there.
+  const cookies = incoming['set-cookie'];
+  if (cookies) headers['set-cookie'] = cookies.map((c) => hostOnlyCookie(c, !secure));
   return headers;
+}
+
+function stripPrefix(pathname: string, upstream: URL): string {
+  const prefix = upstream.pathname.replace(/\/$/, '');
+  if (!prefix) return pathname;
+  if (pathname === prefix) return '/';
+  return pathname.startsWith(`${prefix}/`) ? pathname.slice(prefix.length) : pathname;
+}
+
+export function hostOnlyCookie(cookie: string, dropSecure = false): string {
+  // __Secure- and __Host- cookies are only ever accepted with Secure: leave those as they are.
+  const keepSecure = !dropSecure || /^\s*__(secure|host)-/i.test(cookie);
+  return cookie
+    .split(';')
+    .filter((part, i) => i === 0 || !(/^\s*domain\s*=/i.test(part) || (!keepSecure && /^\s*secure\s*$/i.test(part))))
+    .join(';');
+}
+
+// Origin and Referer name the visitor's host (Turnover's); an app that checks them against its own host (CSRF
+// protection in Django, Rails, many form handlers) would refuse every POST. Same-host values are rewritten to the
+// release's origin; anything else passes unchanged.
+function rewriteOrigin(value: string | undefined, visitorHost: string | undefined, upstream: URL, pathToo: boolean): string | undefined {
+  if (!value || !visitorHost) return value;
+  try {
+    const u = new URL(value);
+    if (u.host !== visitorHost) return value;
+    if (!pathToo) return upstream.origin;
+    const base = upstream.pathname.replace(/\/$/, '');
+    return upstream.origin + base + u.pathname + u.search;
+  } catch {
+    return value;
+  }
 }
 
 export type AppEvent = { event: string; value?: number };

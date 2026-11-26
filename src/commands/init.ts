@@ -341,7 +341,12 @@ export async function init(opts: Options): Promise<void> {
   for (const line of judgeLinks(judgeToken, opts.env ?? process.env)) log(line);
 }
 
-const CONSOLE_PORT = 8090; // this machine (Compose publishes it on 127.0.0.1 only)
+const CONSOLE_PORT = 8090; // this machine (Compose publishes it on 127.0.0.1 only); TURNOVER_PUBLIC_CONSOLE_PORT overrides it
+/** The console port published on this machine: TURNOVER_PUBLIC_CONSOLE_PORT (set by "turnover new --console-port"), else 8090. */
+export function consolePort(env: NodeJS.ProcessEnv): number {
+  const n = Number(env.TURNOVER_PUBLIC_CONSOLE_PORT?.trim());
+  return Number.isInteger(n) && n > 0 && n < 65536 ? n : CONSOLE_PORT;
+}
 export const DEVICE_PORT = 8091; // other devices: the console's judge-link-only port (CONSOLE_DEVICE_PORT)
 const isLoopback = (host: string) => host === 'localhost' || host === '[::1]' || host === '::1' || /^127\.\d+\.\d+\.\d+$/.test(host);
 const hostOf = (url: string | undefined): string | undefined => {
@@ -372,7 +377,7 @@ export function localHost(env: NodeJS.ProcessEnv): string {
 export function judgeLinks(token: string, env: NodeJS.ProcessEnv): string[] {
   const shopHost = hostOf(env.TURNOVER_PUBLIC_SHOP_URL || 'http://127.0.0.1:8080');
   const local = localHost(env);
-  const lines = [`Judge mode: http://${local}:${CONSOLE_PORT}/judge`];
+  const lines = [`Judge mode: http://${local}:${consolePort(env)}/judge`];
   const hosts = (env.TURNOVER_CONSOLE_HOSTS ?? '').split(',').map((h) => h.trim()).filter(Boolean);
   if (hosts.length === 0) {
     lines.push('Judge mode on other devices: set TURNOVER_CONSOLE_HOSTS and TURNOVER_PUBLISH_HOST=0.0.0.0 in .env (see .env.example), then run init again for the link.');

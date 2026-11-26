@@ -18,6 +18,8 @@ You need Docker with Compose 2.20+ and about 8 GB of RAM for Docker. Get the cod
 
 ## Use it with your app
 
+Step by step, with every flag and what to check: [docs/PLUG_AND_PLAY.md](docs/PLUG_AND_PLAY.md).
+
 The shop is one example. Any web app with two or more releases you can reach over HTTP works: containers, or apps on your machine (`http://host.docker.internal:3000`, on Linux too). In your project's folder:
 
 ```sh
@@ -39,7 +41,10 @@ A second, different example lives in [`examples/landing/`](examples/landing/READ
 
 - **Success is a web request.** For example "`POST /checkout` returned 2xx" or "`GET /thank-you` loaded". A click that only changes the page in the browser can't be measured, unless the app names the event in a response header (below).
 - **Both versions work with the same data.** They share the database, so schema changes must stay backward compatible.
-- **No hard-coded hostnames.** Use relative links (`/cart`, not `http://app-v2:3000/cart`) so visitors stay behind Turnover. Turnover already rewrites a redirect's `Location` header that points at the release's own address to a relative path; links inside pages, scripts and API responses are not rewritten.
+- **No hard-coded hostnames.** Use relative links (`/cart`, not `http://app-v2:3000/cart`) so visitors stay behind Turnover. Turnover already rewrites a redirect's `Location` header that points at the release's own address to a relative path; links inside pages, scripts and API responses are not rewritten. If the app must print absolute links, serve its public host name through Turnover so those links come back to the proxy.
+- **Give the `https://` URL for a release served over https.** Turnover calls each release at the address you gave it.
+- **Test with a browser, not `curl`.** Turnover treats `curl` and other non-browser user agents as bots: they are served but never counted. Use a browser, or send a browser `User-Agent`.
+- **Running next to another Turnover?** `turnover new --proxy-port <port> --console-port <port>` publishes the proxy and the console on free ports; `init` prints the judge link with that console port.
 - **No cookies named `tv_id` or `tv_preview`.** Those are Turnover's: `tv_id` keeps each visitor on the same version. The proxy removes those two from the request before it reaches your app; your app's own cookies pass through both ways untouched.
 - **A visitor counts from their second request.** The first response sets `tv_id`; exposures and events are recorded only once the browser sends it back, so a conversion on the very first request isn't counted.
 
@@ -70,8 +75,7 @@ Decisions read Flagsmith's own credible interval: when it crosses zero, Turnover
 
 ![Judge mode during an experiment: the steps on the left, the flow line, live numbers and the track map in the middle, and what Flagsmith holds right now on the right](docs/images/judge-dashboard.png)
 
-> **Status:** built for **Toggle Wars: The Flagsmith Experimentation Hackathon** (Nov 26–29, 2026), **Track 03: Build on Open Source Flagsmith**. Runs as an overlay on Flagsmith's official self-hosted Docker Compose. Licence: BSD-3-Clause.
-<!-- Before submission: replace the status line with the real submission status, and add the video link below it. -->
+Turnover runs as an overlay on Flagsmith's official self-hosted Docker Compose. Built for Toggle Wars: The Flagsmith Experimentation Hackathon (Nov 26–29, 2026), Track 03: Build on Open Source Flagsmith. Licence: BSD-3-Clause.
 
 ## The problem
 
@@ -135,7 +139,7 @@ While an experiment runs, the console reports the release flag's health to **Fla
 
 **The guard** is opt-in (`TURNOVER_GUARD=revert`, or the switch in judge mode). It asks Flagsmith for fresh results every 5 minutes, Flagsmith's own limit, and reverts when a guardrail's chance to win drops to 1% or below with at least 100 identities. **It never ships on its own.** The ledger says who decided: "Reverted to control (shop:1.5) automatically by Turnover's guard".
 
-![Judge mode at Decide on shop:1.6: Flagsmith's results show doc_latency_ms losing, Revert is recommended, and Flagsmith's Feature Health shows the flag Unhealthy](docs/images/judge-results.png)
+![Judge mode at Decide on shop:1.6: Flagsmith's results show order_placed winning but doc_latency_ms losing, so Revert is the recommended button](docs/images/judge-results.png)
 
 ### Releases on one flag
 
@@ -147,7 +151,6 @@ While an experiment runs, the console reports the release flag's health to **Fla
 
 **The release ledger.** Each decision is appended to `.turnover/ledger.jsonl` and rendered into `.turnover/RELEASES.md`: the experiment, the hypothesis, Flagsmith's results as returned, the decision, any guardrail you accepted and the decision snapshot's path. With `GITHUB_TOKEN` and `GITHUB_REPOSITORY` set, the same section goes into the GitHub Release for the release's tag (`shop:1.6` → `v1.6`). Flagsmith also writes each change to its audit log, but a free self-hosted plan shows 0 days of it, so the ledger is the record you can read.
 
-<!-- The GitHub Release writer is tested against a stub of GitHub's REST API (test/ledger.test.ts). Before submission: run it once against a real repo and link the release here. -->
 
 ## Running it by hand
 
@@ -165,9 +168,11 @@ Links use `127.0.0.1` rather than `localhost`: on Windows, a browser that tries 
 
 ## Judge mode
 
-<http://127.0.0.1:8090/judge> runs the whole story from a browser. A welcome screen offers **Guide me** (you click, the tour shows where) or **Play it for me** (an on-screen cursor clicks). Each tour beat first moves a spotlight to one thing on the page, then explains it. The page is a three-column dashboard: the seven demo steps and the release history; the flow line, live numbers and track map with the one thing to do now; and **In Flagsmith right now**, read from Flagsmith's API. Flagsmith's dashboard refuses to be framed, so "see it in Flagsmith" opens it in one separate browser tab. Played for you, the tour took 8 min 51 s from the welcome screen to its last beat (one timed run). After a ship, judge mode also offers an optional swing back; the full console at <http://127.0.0.1:8090/> adds a choice of how many visitors to send. Details: [docs/JUDGE_MODE.md](docs/JUDGE_MODE.md).
+<http://127.0.0.1:8090/judge> runs the whole story from a browser. A welcome screen offers **Guide me** (you click, the tour shows where) or **Play it for me** (an on-screen cursor clicks). Each tour beat first moves a spotlight to one thing on the page, then explains it. The page is a three-column dashboard: the seven demo steps and the release history; the flow line, live numbers and track map with the one thing to do now; and **In Flagsmith right now**, read from Flagsmith's API. Flagsmith's dashboard refuses to be framed, so "see it in Flagsmith" opens it in one separate browser tab. There are two tours. The **Quick tour** (the default, about 2.6 minutes played for you) runs one release through visitors, results and Ship, then sums up the guardrail story in one beat, with the option to play round two. The **Full tour** (about 9 to 10 minutes) runs both releases, including the guardrail revert, the feature map and the setup check. Flagsmith's sign-in details appear only when you open a Flagsmith link, not as a step of their own.
 
-![The judge tour's first beat: the spotlight on the flow line and the bubble explaining it](docs/images/judge-tour.png)
+Each shop release has its own look, so you can tell at a glance which one served you: 1.4 **Classic** (blue, multi-step checkout), 1.5 **Express** (green, one-page checkout) and 1.6 **Bold** (charcoal and orange, with the deliberate 60 ms test fault that trips the page-speed guardrail). After a ship, judge mode also offers an optional swing back; the full console at <http://127.0.0.1:8090/> adds a choice of how many visitors to send. Details: [docs/JUDGE_MODE.md](docs/JUDGE_MODE.md).
+
+![The quick tour at Flagsmith's verdict: the spotlight on the Results card in the In Flagsmith right now column](docs/images/judge-tour.png)
 
 ## `check` and `ship` on any Flagsmith experiment
 
@@ -175,7 +180,7 @@ These work without the proxy, on experiments your app runs through the SDK. `che
 
 ```yaml
 - uses: actions/checkout@v5
-- uses: <owner>/turnover@v1   # the hackathon repo, once published
+- uses: <owner>/<repo>@<ref>   # this repository
   with:
     api-url: https://flagsmith.example.com/api/v1/
     server-key: ${{ secrets.FLAGSMITH_SERVER_KEY }}
@@ -215,7 +220,6 @@ All on Flagsmith `2.291.0` and Node SDK `9.4.0`, Docker Desktop on Windows 11 un
 
 Seen in testing (shop:1.5 is about 0.7 ms slower than shop:1.4): the first experiment's latency guardrail read as losing in 2 of the 5 runs on record as of 18 Nov 2026, so Ship asked for that loss to be accepted. Losing: a fresh Windows stack (1,500 visitors, 3.0% chance to win) and experiment 23 (18,000 visitors, 2.6%). Inconclusive: the Linux run (21.5%). Not losing: the timed tour. Not recorded: the experiment 22 timing runs.
 
-<!-- Before submission: add the cold-start test with developers new to Turnover (n, raw minutes from git clone to the first result that isn't "Collecting data"), and links to any upstream issue or PR. Zeros stay zeros. -->
 
 **Not claimed:** production users, prevented incidents, or any simulated or seeded number as evidence about real users.
 
@@ -237,7 +241,6 @@ Without Flagsmith, Turnover can't route, enrol, measure, score, ship or keep its
 
 Turnover never redirects: Flagsmith's docs list "redirects that bypass bucketing" among causes of sample-ratio mismatch (`statistics.md:107`).
 
-<!-- Before submission: re-check each prior-art row on Nov 28 and date it. -->
 
 ## Limitations
 

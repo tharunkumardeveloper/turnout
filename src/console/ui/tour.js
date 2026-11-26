@@ -196,6 +196,8 @@ export function createTour(app) {
     healthWait: null, // Promise<boolean>: Flagsmith's Feature Health shows the flag Unhealthy
     notes: [], // what each decision this tour watched was based on, for the closing beat
     jobNote: '',
+    flavor: 'quick', // 'quick' (one loop) or 'full' (both releases, the map and the setup check)
+    signinShown: false, // the Flagsmith sign-in was shown once, after the first Flagsmith link
   };
 
   // ---- placement: the hole, the four blockers around it, the bubble and its arrow --------------------------------
@@ -408,7 +410,7 @@ export function createTour(app) {
 
   function renderHeader() {
     const s = app.state();
-    let rest = P.remainingBeats(s);
+    let rest = P.remainingBeats(s, t.flavor);
     if (t.outroDone) rest = 0;
     else if (t.beat?.action && !t.beat.bubbleAction && t.phase !== 'after') rest -= 1; // this click is counted in `shown`
     // Never shrink the bar's length mid-tour; only the filled part moves.
@@ -451,6 +453,47 @@ export function createTour(app) {
   function openFlagsmith(url) {
     // One named tab, reused at every step: autoplay may move it on later.
     t.fsWin = window.open(url, FLAGSMITH_TAB);
+    if (!t.signinShown) showSignin();
+  }
+
+  // The Flagsmith sign-in, in the bubble, the first time the judge opens a Flagsmith link (no beat of its own).
+  function showSignin() {
+    t.signinShown = true;
+    const seq = t.seq;
+    app.signin().then(
+      (login) => {
+        if (seq !== t.seq || !login?.email) return;
+        const copy = (label, value) =>
+          h(
+            'div',
+            { class: 'tour-cred' },
+            h('span', { class: 'tour-cred-label' }, label),
+            h('code', {}, value),
+            h('button', { type: 'button', class: 'tour-link', on: { click: (ev) => { navigator.clipboard?.writeText(value); ev.target.textContent = 'Copied'; } } }, 'Copy'),
+          );
+        extra.prepend(
+          h(
+            'div',
+            { class: 'tour-creds' },
+            h('p', { class: 'tour-fs-note' }, 'Sign in to Flagsmith once in that tab, then come back here.'),
+            copy('Email', login.email),
+            login.password ? copy('Password', login.password) : h('p', { class: 'tour-fs-note' }, 'Password: FLAGSMITH_ADMIN_PASSWORD in the .env file.'),
+          ),
+        );
+        syncHeight();
+      },
+      () => {},
+    );
+  }
+
+  // The quick tour's "Play round two": carry on as the full tour from where the demo is.
+  function playOn() {
+    if (!t.active) return;
+    t.flavor = 'full';
+    t.outroDone = false;
+    t.queue = [];
+    stopTimer();
+    next();
   }
 
   function renderExtra(b) {
@@ -500,6 +543,16 @@ export function createTour(app) {
       );
       parts.push(skip);
     }
+    if (b.more && t.flavor === 'quick') {
+      parts.push(
+        h(
+          'div',
+          { class: 'tour-fs' },
+          h('button', { type: 'button', class: 'btn tour-fs-btn', on: { click: playOn } }, 'Play round two (about 4 min)'),
+          h('span', { class: 'tour-fs-note' }, 'Or carry on: the quick tour ends here.'),
+        ),
+      );
+    }
     if (b.last) {
       parts.push(
         h(
@@ -524,31 +577,6 @@ export function createTour(app) {
       );
     }
     extra.replaceChildren(...parts);
-    if (b.signin) {
-      const seq = t.seq;
-      app.signin().then(
-        (login) => {
-          if (seq !== t.seq || !login?.email) return;
-          const copy = (label, value) =>
-            h(
-              'div',
-              { class: 'tour-cred' },
-              h('span', { class: 'tour-cred-label' }, label),
-              h('code', {}, value),
-              h('button', { type: 'button', class: 'tour-link', on: { click: (ev) => { navigator.clipboard?.writeText(value); ev.target.textContent = 'Copied'; } } }, 'Copy'),
-            );
-          extra.prepend(
-            h(
-              'div',
-              { class: 'tour-creds' },
-              copy('Email', login.email),
-              login.password ? copy('Password', login.password) : h('p', { class: 'tour-fs-note' }, 'Password: FLAGSMITH_ADMIN_PASSWORD in the .env file.'),
-            ),
-          );
-        },
-        () => {},
-      );
-    }
   }
 
   // ---- the cursor ------------------------------------------------------------------------------------------------
@@ -674,7 +702,7 @@ export function createTour(app) {
     setPhase('read');
     renderFoot();
     if (t.mode !== 'auto' || t.beat?.last) return;
-    startTimer(P.readingMs(t.beat), next);
+    startTimer(P.readingMs(t.beat, t.flavor), next);
   }
 
   // An action beat: wait for its button to be usable, then the judge clicks it (or autoplay does).
@@ -710,7 +738,7 @@ export function createTour(app) {
       }
       setStatus('Playing: the tour clicks it when the bar fills.');
       renderFoot();
-      startTimer(Math.round(P.readingMs(b) * 0.8), () => glideAndClick(btn, seq));
+      startTimer(P.armMs(b, t.flavor), () => glideAndClick(btn, seq));
     };
     poll();
   }
@@ -780,13 +808,14 @@ export function createTour(app) {
     const s = app.state();
     if (!s) return;
     if (s.job?.status === 'running') return show(P.waitBeat()); // a step started elsewhere: carry on when it ends
+    if (t.flavor === 'quick' && t.outroDone) return end();
     if (s.current === 'reset') {
       if (t.outroDone) return end();
       t.outroDone = true;
       t.queue = P.outroBeats(t.notes);
       return next();
     }
-    const beat = P.actionBeat(s, app.recommended(s));
+    const beat = P.actionBeat(s, app.recommended(s), t.flavor);
     if (!beat) return end();
     return show(beat);
   }
@@ -900,7 +929,12 @@ export function createTour(app) {
       // the results beats play; the Unhealthy beat waits for the answer and is dropped if it never comes.
       const losing = t.jobAction === 'score' && (s.results?.losingGuardrails?.length ?? 0) > 0;
       t.healthWait = losing ? waitUnhealthy(t.run) : null;
-      t.queue = P.afterBeats(t.jobAction, s, { unhealthy: losing });
+      t.queue = P.afterBeats(t.jobAction, s, { unhealthy: losing, flavor: t.flavor });
+      // The quick tour ends after one loop (or once Flagsmith says keep running): the guardrail story in one beat.
+      if (t.flavor === 'quick' && (t.jobAction === 'verify' || t.jobAction === 'keep-running')) {
+        t.queue.push(...P.quickOutro(s, t.notes));
+        t.outroDone = true;
+      }
       return next();
     }
     if (t.phase === 'waiting' && !running) return next();
@@ -929,11 +963,13 @@ export function createTour(app) {
     renderFoot();
   }
 
-  function start(mode) {
+  function start(mode, flavor = 'quick') {
     if (t.active) end();
     t.active = true;
     t.run++;
-    t.queue = P.introBeats(app.state());
+    t.flavor = flavor === 'full' ? 'full' : 'quick';
+    t.signinShown = false;
+    t.queue = P.introBeats(app.state(), t.flavor);
     t.shown = 0;
     t.total = 0;
     t.outroDone = false;

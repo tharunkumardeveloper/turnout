@@ -311,6 +311,8 @@ test('judge links: 127.0.0.1 on this machine; other devices need TURNOVER_CONSOL
   // An older .env keeps the shop on localhost: the console link follows it, so the Shop tab stays same-site.
   assert.equal(judgeLinks('tok', { TURNOVER_PUBLIC_SHOP_URL: 'http://localhost:8080' })[0], 'Judge mode: http://localhost:8090/judge');
   assert.equal(judgeLinks('tok', { TURNOVER_PUBLIC_SHOP_URL: 'not a url' })[0], 'Judge mode: http://127.0.0.1:8090/judge');
+  assert.equal(judgeLinks('tok', { TURNOVER_PUBLIC_CONSOLE_PORT: '18090' })[0], 'Judge mode: http://127.0.0.1:18090/judge');
+  assert.equal(judgeLinks('tok', { TURNOVER_PUBLIC_CONSOLE_PORT: 'x' })[0], 'Judge mode: http://127.0.0.1:8090/judge');
 });
 
 test("localHost: 127.0.0.1 unless the shop URL uses another loopback name (the CLI's console and watcher links use it)", () => {

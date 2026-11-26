@@ -742,6 +742,7 @@ body.welcome-open { overflow: hidden; }
 .wp-icon.wp-fs { color: var(--fs-text); background: color-mix(in srgb, var(--fs) 12%, transparent); }
 .wp-icon .ic { width: 18px; height: 18px; }
 .welcome-mode { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.welcome-mode + .welcome-mode { margin-top: 8px; }
 .mode-opt { position: relative; cursor: pointer; }
 .mode-opt input { position: absolute; opacity: 0; inset: 0; margin: 0; cursor: pointer; }
 .mode-opt span {

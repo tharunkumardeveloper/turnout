@@ -32,22 +32,22 @@ function everyBeat() {
 }
 
 describe('the tour script', () => {
-  test('the intro walks the dashboard: flow, steps, numbers, map, the Flagsmith column, the shop, then Flagsmith', () => {
+  test('the intro walks the dashboard: flow, steps, numbers, map, the Flagsmith column, then the shop (no sign-in beat)', () => {
     const fresh = P.introBeats(at('visitors'));
     assert.deepEqual(
       fresh.map((b: any) => b.id),
-      ['intro:flow', 'intro:steps', 'intro:kpis', 'intro:track', 'intro:fs', 'intro:shop', 'intro:signin'],
+      ['intro:flow', 'intro:steps', 'intro:kpis', 'intro:track', 'intro:fs', 'intro:shop'],
     );
     assert.deepEqual(
       fresh.map((b: any) => b.target),
-      ['#flowline', '#steps-panel', '#kpis', '#track-card', '#fs-panel', '#shop-frame', null],
+      ['#flowline', '#steps-panel', '#kpis', '#track-card', '#fs-panel', '#shop-frame'],
     );
     assert.deepEqual(
       fresh.slice(0, 5).map((b: any) => b.demo),
       ['flow-sweep', 'steps-sweep', 'kpi-count', 'track-burst', 'fs-flash'],
     );
     assert.equal(fresh[5].tab, 'shop');
-    assert.ok(fresh[6].signin);
+    assert.ok(fresh.every((b: any) => !b.signin), "the sign-in shows on the first Flagsmith link, not as a beat");
   });
 
   test('mid-story the intro offers a fresh start, its button in the bubble', () => {
@@ -229,5 +229,37 @@ describe('the tour script', () => {
     assert.equal(P.chapter({ id: 'outro:end' }), 'Wrap-up');
     assert.equal(P.chapter(null), 'Tour');
     for (const b of everyBeat()) assert.notEqual(P.chapter(b), 'Tour', b.id);
+  });
+
+  test('the quick tour: two intro beats, one loop, one beat per job with the Flagsmith link inline, then the guardrail and the end', () => {
+    const intro = P.introBeats(at('visitors'), 'quick');
+    assert.deepEqual(intro.map((b: any) => b.id), ['intro:flow', 'intro:fs']);
+    assert.equal(P.introBeats(at('decide'), 'quick').at(-1).id, 'intro:restart', 'mid-story it still offers a fresh start');
+    assert.equal(P.afterBeats('visitors', at('score'), { flavor: 'quick' }).length, 0, 'the split is explained while the visitors are sent');
+    const results = P.afterBeats('score', at('decide'), { flavor: 'quick' });
+    assert.equal(results.length, 1);
+    assert.equal(results[0].target, '#fs-results');
+    assert.match(results[0].body, /crosses zero/);
+    assert.ok(results[0].flagsmith);
+    const shipped = P.afterBeats('ship', at('verify'), { flavor: 'quick' });
+    assert.equal(shipped.length, 1);
+    assert.equal(shipped[0].demo, 'diff-flash');
+    assert.ok(shipped[0].flagsmith);
+    assert.equal(P.afterBeats('verify', at('preview'), { flavor: 'quick' }).length, 1);
+    const end = P.quickOutro(at('preview'), [P.decisionNote('ship', at('decide'))]);
+    assert.deepEqual(end.map((b: any) => b.id), ['guardrail', 'outro:end']);
+    assert.ok(end[0].more, 'the guardrail beat offers round two');
+    assert.match(end[0].body, /guardrail/);
+    assert.ok(end[1].last);
+    assert.match(end[1].body, /shipped on Flagsmith's verdict/);
+    for (const b of [...intro, ...results, ...shipped, ...end, ...['visitors', 'score', 'decide', 'verify'].map((c) => P.actionBeat(at(c), 'ship', 'quick'))]) {
+      assert.ok(validTarget(b.target), b.id);
+      assert.notEqual(P.chapter(b), 'Tour', b.id);
+      const r = P.readingMs(b, 'quick');
+      assert.ok(r >= 3000 && r <= 8000, `${b.id}: ${r}`);
+      assert.ok(r <= P.readingMs(b), 'the quick tour reads faster');
+    }
+    assert.ok(P.armMs({ title: 'x', body: 'word '.repeat(60) }, 'quick') <= 3000, 'the quick tour clicks soon and explains while the job runs');
+    assert.ok(P.remainingBeats(at('visitors'), 'quick') < P.remainingBeats(at('visitors')));
   });
 });

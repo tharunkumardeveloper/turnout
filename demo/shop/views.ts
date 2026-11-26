@@ -30,10 +30,40 @@ const favicon = `data:image/svg+xml,${encodeURIComponent(
   '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32"><circle cx="16" cy="16" r="16" fill="#334155"/><path d="M5 23l7-10 4 5 3-4 8 9z" fill="#fff"/></svg>',
 )}`;
 
+// Each release has its own look so a person can tell at a glance which one they are on: 1.4 "classic" (blue),
+// 1.5 "express" (green), 1.6 and later "bold" (charcoal and orange).
+export type Theme = 'classic' | 'express' | 'bold';
+export function themeFor(version: string): Theme {
+  if (version === '1.4') return 'classic';
+  if (version === '1.5') return 'express';
+  return 'bold';
+}
+
+const HERO: Record<Theme, { eyebrow: string; title: string; lead: string; cta: string }> = {
+  classic: {
+    eyebrow: 'New season, same promise',
+    title: 'Gear for the long way round.',
+    lead: 'Shoes, packs and shelter tested on wet ridges and cold mornings, and backed by repairs for life.',
+    cta: 'Shop the collection',
+  },
+  express: {
+    eyebrow: 'Order by 3pm, out the door today',
+    title: 'Pick it, pack it, go.',
+    lead: 'Add gear straight from the list and check out on one page. Repairs for life, as always.',
+    cta: 'Start shopping',
+  },
+  bold: {
+    eyebrow: 'Field tested. Built to last.',
+    title: 'Made for the hard miles.',
+    lead: 'Shoes, packs and shelter that take a beating on the ridge and come back for more. Repairs for life.',
+    cta: 'Gear up',
+  },
+};
+
 type PageOptions = { title: string; body: string; cartCount: number; description?: string };
 
 export function layout(r: Release, page: PageOptions): string {
-  const theme = r.onePage ? 'green' : 'blue';
+  const theme = themeFor(r.version);
   const asset = (name: string) => `/assets/${name}?v=${encodeURIComponent(r.version)}`;
   return `<!doctype html>
 <html lang="en" data-theme="${theme}" data-release="${e(r.version)}">
@@ -107,14 +137,15 @@ const heroArt = `<svg class="hero-art" viewBox="0 0 480 300" aria-hidden="true" 
 
 export function catalogPage(r: Release, cartCount: number, added?: Product): string {
   const cards = PRODUCTS.map((p) => productCard(r, p)).join('\n');
+  const hero = HERO[themeFor(r.version)];
   const body = `
 <section class="hero">
   <div class="wrap hero-inner">
     <div class="hero-copy">
-      <p class="eyebrow">New season, same promise</p>
-      <h1>Gear for the long way round.</h1>
-      <p class="lead">Shoes, packs and shelter tested on wet ridges and cold mornings, and backed by repairs for life.</p>
-      <a class="btn btn-large" href="#gear">Shop the collection</a>
+      <p class="eyebrow">${hero.eyebrow}</p>
+      <h1>${hero.title}</h1>
+      <p class="lead">${hero.lead}</p>
+      <a class="btn btn-large" href="#gear">${hero.cta}</a>
     </div>
     ${heroArt}
   </div>

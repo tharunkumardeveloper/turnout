@@ -20,6 +20,11 @@ It says what Turnover is in three points (no app code; Flagsmith decides; ship o
 - **Guide me.** The tour dims the page, puts a spotlight on the one thing to look at or click, and explains it in a bubble. You click the highlighted button and press **Next**.
 - **Play it for me.** The same tour, hands-free. An on-screen cursor glides to each button and clicks it. Each explanation stays up for 4.5 to 13 seconds, depending on its length.
 
+Either way you pick a tour:
+
+- **Quick tour** (the default, about 2.6 minutes played for you): one release through visitors, Flagsmith's results and Ship, one beat per finished job, then a single beat that sums up the guardrail story, with **Play round two** to carry on as the full tour.
+- **Full tour** (about 9 to 10 minutes): both releases, the guardrail revert, the feature map, the setup check and the release history.
+
 You can switch between the two, pause or leave the tour at any point from the bubble. **Explore on my own** closes the welcome screen without a tour.
 
 Each beat is shown in two phases. First the spotlight moves to its target, a short animation plays on it, and the bubble says only "Look here" and the title. Then the bubble opens to the full explanation.
@@ -42,13 +47,15 @@ Judge mode sends 3,000 simulated visitors per experiment: with 1,500, the first 
 
 ### Flagsmith's own dashboard
 
-Flagsmith's dashboard refuses to be shown in a frame, so each "see it in Flagsmith" step opens it in one separate browser tab and reuses that tab. The first time, the tour shows the admin login so you can sign in. The password appears only on this machine's console (port 8090, published on `127.0.0.1` only), never on the port other devices use (8091), whatever Host header a request sends.
+Flagsmith's dashboard refuses to be shown in a frame, so each "see it in Flagsmith" step opens it in one separate browser tab and reuses that tab. The sign-in details are not a tour step: the bubble shows the admin login only the first time you open a Flagsmith link. The password appears only on this machine's console (port 8090, published on `127.0.0.1` only), never on the port other devices use (8091), whatever Host header a request sends.
 
-### The tour, start to finish
+### The full tour, start to finish
 
-The tour runs the whole story: send visitors, get Flagsmith's results, ship the winner, check that everyone got it, preview the next release for your team, and release it. The second release sells more but loses the page-speed guardrail, so the tour reverts it. It ends on the feature map, the setup check and the release history. If the demo is part-way through an earlier run, the tour first offers to start from the beginning.
+The full tour runs the whole story: send visitors, get Flagsmith's results, ship the winner, check that everyone got it, preview the next release for your team, and release it. The second release sells more but loses the page-speed guardrail, so the tour reverts it. It ends on the feature map, the setup check and the release history. If the demo is part-way through an earlier run, the tour first offers to start from the beginning.
 
-Played for you at 1440×900 on the demo stack, the tour took 8 min 51 s from the welcome screen to its last beat, through 42 beats (one run on 18 Nov 2026; see [`spikes/RESULTS.md`](../spikes/RESULTS.md)). Most of that is the steps' own jobs and the reading time.
+Played for you at 1440×900 on the demo stack, the full tour took 8 min 51 s from the welcome screen to its last beat, through 42 beats (one run on 18 Nov 2026; see [`spikes/RESULTS.md`](../spikes/RESULTS.md)). Most of that is the steps' own jobs and the reading time.
+
+Each shop release has its own look: 1.4 **Classic** (blue, multi-step checkout), 1.5 **Express** (green, one-page checkout) and 1.6 **Bold** (charcoal and orange, with the deliberate 60 ms test fault behind the guardrail loss).
 
 On screens narrower than 640 px the bubble becomes a bottom sheet. To open judge mode on another device, see [SETUP.md](SETUP.md#judge-mode-on-another-device).
 
