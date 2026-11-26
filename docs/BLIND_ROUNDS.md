@@ -26,9 +26,11 @@ view of it is the other 58.
 |---|---|---|---|
 | B truly better (+60% orders) | 20 | B better, ≥ 95% | **20 of 20** |
 | B truly worse (−37% orders) | 18 | A better, ≤ 5% | **18 of 18** |
-| No difference | 20 | no call (5–95%) in 18; **a winner at ≥ 99% in 2** | 18 of 20 |
+| No difference | 20 | no call in 15; **a false call in 5**: B at ≥ 99% in 2, A at ≤ 5% in 3 | 15 of 20 |
 
-The two false winners (experiments 159 and 198) are the scoreboard's only two wrong rounds: A and B truly ordered at the
+In the three A-side calls (experiments 125, 133 and 139, at 4.6%, 2.9% and 3.7%) Flagsmith's interval still crossed zero, so Turnout kept testing instead of acting. The two B-side calls cleared zero, and Turnout shipped.
+
+Those two B-side calls (experiments 159 and 198) are the scoreboard's only two wrong rounds: A and B truly ordered at the
 same rate (10.4% in one round, 10.2% in the other), Flagsmith was 99.96% and 99.3% sure B was better (intervals +6% to +24% and +5% to +43%), and Turnout
 shipped. No safety check could catch it: the versions were identical.
 

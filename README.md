@@ -31,7 +31,7 @@
 | **Developer tools** | The `turnout` CLI (`compare`, `results`, `ship`, `revert`, `simulate`), a setup check with 28 checks, and Try it with your app (paste a GitHub link) |
 | **Easy for others to reuse** | One-line installers for Windows, macOS and Linux, a public image on GitHub Container Registry, and 53 real GitHub repos tested, 39 run end to end ([Proof](#proof)) |
 
-**Flagsmith's own calls, graded:** in 111 blind rounds with hidden true rates, Flagsmith caught every real lift and drop (38 of 38) and called a false winner in 2 of 20 rounds with no difference. [The write-up](docs/BLIND_ROUNDS.md).
+**Flagsmith's own calls, graded:** in 111 blind rounds with hidden true rates, Flagsmith caught every real lift and drop (38 of 38), and made a false call in 5 of 20 rounds with no difference; Turnout's interval check held back 3 of the 5. [The write-up](docs/BLIND_ROUNDS.md).
 
 ## In plain words
 

@@ -1187,6 +1187,16 @@ describe('public play (server mode): visitors run the guided demo, nothing else'
     assert.equal((await post({ action: 'visitors' })).status, 429, 'one step at a time');
   });
 
+  test("another visitor can't start a new test over someone's test in progress", async () => {
+    const other = await fetch(`${pub}/judge/api/judge/run`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', 'x-turnout-console': token, 'x-forwarded-for': '203.0.113.9' },
+      body: JSON.stringify({ action: 'start', arms: 3 }),
+    });
+    assert.equal(other.status, 409);
+    assert.match(((await other.json()) as { error: string }).error, /Someone else is running a test/);
+  });
+
   test('every other write stays refused', async () => {
     for (const method of ['PUT', 'DELETE', 'PATCH']) assert.equal((await fetch(`${pub}/judge`, { method })).status, 405);
     assert.equal((await fetch(`${pub}/judge/api/ship`, { method: 'POST', headers: { 'x-turnout-console': token } })).status, 405);

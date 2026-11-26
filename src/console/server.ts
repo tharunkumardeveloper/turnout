@@ -327,6 +327,7 @@ export function createConsole(opts: ConsoleOptions): http.Server {
   const PLAY_ACTIONS = new Set(['start', 'abc', 'visitors', 'score', 'ship', 'revert', 'keep-running', 'verify']);
   const lastClick = new Map<string, number>();
   let lastStart = 0;
+  let lastPlayer: { who: string; at: number } = { who: '', at: 0 };
   async function publicPlay(req: http.IncomingMessage, res: http.ServerResponse): Promise<void> {
     if (!judge) return json(res, 404, { error: 'not found' });
     const given = req.headers[TOKEN_HEADER];
@@ -338,7 +339,14 @@ export function createConsole(opts: ConsoleOptions): http.Server {
     const now = Date.now();
     if (now - (lastClick.get(who) ?? 0) < 3000) return json(res, 429, { error: 'One step at a time: try again in a few seconds.' });
     if ((action === 'start' || action === 'abc') && now - lastStart < 20_000) return json(res, 429, { error: 'A test just started: give it 20 seconds before starting another.' });
+    // Shared demo: someone else's test in progress isn't restarted under them. Anyone may carry it on (send shoppers,
+    // ask Flagsmith, decide); a new test waits until its visitor has been quiet for 3 minutes.
+    if ((action === 'start' || action === 'abc') && lastPlayer.who && lastPlayer.who !== who && now - lastPlayer.at < 180_000) {
+      const wait = Math.ceil((180_000 - (now - lastPlayer.at)) / 60_000);
+      return json(res, 409, { error: `Someone else is running a test right now. Watch it, or carry it on with the step buttons; a new test can start in about ${wait} min.` });
+    }
     lastClick.set(who, now);
+    lastPlayer = { who, at: now };
     if (lastClick.size > 5000) lastClick.clear();
     const body = { ...raw, ...(typeof raw?.visitors === 'number' ? { visitors: Math.min(Math.max(1, raw.visitors), 3000) } : {}) };
     autopilot?.noteHuman();
