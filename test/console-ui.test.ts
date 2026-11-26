@@ -577,3 +577,10 @@ test("the results headline names a version and takes that version's colour: ship
   assert.equal(F.winnerText(running, { key: 'v3', chanceToWin: 0.999 }, { recommendation: { call: 'ship', variant: 'v2' } }).variant, 'v2');
   assert.equal(F.winnerText(running, { key: 'v2', chanceToWin: 0.99 }).variant, 'v2');
 });
+
+test("your app's console lists only the versions you built: an A/B test has no C, though the flag keeps a slot for it", () => {
+  const variants = [{ key: 'control', label: 'try:a', isControl: true }, { key: 'v2', label: 'try:b', isControl: false }, { key: 'v3', label: 'try:c', isControl: false }];
+  const ab = { site: { previews: { 'try:a': 'http://127.0.0.1:8086', 'try:b': 'http://127.0.0.1:8087' } } };
+  assert.deepEqual(F.built(ab, variants).map((v: { label: string }) => v.label), ['try:a', 'try:b']);
+  assert.equal(F.built({ site: { url: 'http://127.0.0.1:8080' } }, variants).length, 3, "the demo shop's console: every release, as before");
+});

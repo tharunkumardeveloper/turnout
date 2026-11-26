@@ -334,7 +334,7 @@ function previewOf(site, label) {
   return site?.previews?.[label] ?? viewLink(site?.url, label);
 }
 function renderMapMode(s) {
-  const variants = s.experiment ? F.variantList(s.experiment) : [];
+  const variants = s.experiment ? F.built(s, F.variantList(s.experiment)) : [];
   const flowing = Object.values(s.traffic?.byVariant ?? {}).some((v) => v.requests > 0) || flow.running;
   const auto = s.experiment?.status === 'running' && flowing ? 'traffic' : 'previews';
   const mode = s.site?.url && variants.length ? (mapView.choice ?? auto) : 'traffic';
@@ -435,7 +435,7 @@ function renderHeader(s) {
 
 function renderMap(s) {
   const e = s.experiment;
-  const variants = F.variantList(e);
+  const variants = F.built(s, F.variantList(e));
   const r = F.routing(e, s.flag);
   map.setLayout(variants, r.shares, e.feature?.name ?? '');
   $('map').removeAttribute('aria-busy');
@@ -582,7 +582,7 @@ function selectedKey() {
 
 function renderActions(s) {
   const e = s.experiment;
-  const variants = F.variantList(e);
+  const variants = F.built(s, F.variantList(e));
   const completed = e.status === 'completed';
   const winnerKey = suggestedKey(s);
   const recommended = s.recommendation?.call === 'ship' && s.recommendation.variant === winnerKey;
@@ -1147,7 +1147,7 @@ function renderYou() {
   const box = $('you');
   const y = app.you;
   const e = app.state?.experiment;
-  const variants = e ? F.variantList(e) : [];
+  const variants = e ? F.built(app.state, F.variantList(e)) : [];
   const site = app.state?.site;
   setVersions(site?.url, variants.map((v) => v.label));
   // Every version in the experiment, each openable on its own through the proxy's view switch (never counted).

@@ -601,3 +601,14 @@ export function compareCommand({ a, b, more = '', goal = '', split = 'even' }) {
   if (!even && n !== max) parts.push('--split', String(n));
   return { command: parts.join(' ') };
 }
+
+/**
+ * The versions this test really has. Your app's console (Try it) knows which were built (one preview address each): the
+ * flag keeps a slot for C even in an A/B test (at 0%), and listing it showed a "C" whose preview was A's page and that
+ * Decide would have offered to ship. The demo shop's console shows every release on its flag, as before.
+ */
+export function built(state, variants) {
+  const previews = state?.site?.previews;
+  if (!previews || !Object.keys(previews).length) return variants;
+  return variants.filter((v) => v.isControl || previews[v.label]);
+}
