@@ -19,6 +19,14 @@ const BASE = document.querySelector('meta[name="turnout-base"]')?.getAttribute('
 const api = (path, init = {}) => fetch(BASE + path, { ...init, headers: { ...(init.headers ?? {}), [TOKEN_HEADER]: TOKEN } });
 if (READONLY) document.body.classList.add('is-readonly');
 
+// Try it with your app (/try): the same page for YOUR versions. Its words follow: visitors, not shoppers; your app,
+// not the shop; conversions, not orders.
+const TRY = document.querySelector('meta[name="turnout-try"]') !== null;
+const WORDS = [[/\bShoppers\b/g, 'Visitors'], [/\bshoppers\b/g, 'visitors'], [/\bShopper\b/g, 'Visitor'], [/\bshopper\b/g, 'visitor'],
+  [/\bthe demo shop\b/g, 'your app'], [/\bthe shop\b/g, 'your app'], [/\bOrders\b/g, 'Conversions'], [/\bordered\b/g, 'converted'], [/\borders\b/g, 'conversions'], [/\border\b/g, 'conversion']];
+const words = (t) => (TRY ? WORDS.reduce((x, [re, to]) => x.replace(re, to), String(t)) : String(t));
+if (TRY) document.body.classList.add('is-try');
+
 /** Small element builder; strings become text nodes, never HTML. */
 function h(tag, props = {}, ...children) {
   const node = document.createElement(tag);
@@ -29,14 +37,15 @@ function h(tag, props = {}, ...children) {
     else if (k === 'style') for (const [p, val] of Object.entries(v)) node.style.setProperty(p, val);
     else node.setAttribute(k, v === true ? '' : String(v));
   }
-  for (const c of children.flat()) if (c !== null && c !== undefined && c !== false) node.append(c instanceof Node ? c : String(c));
+  for (const c of children.flat()) if (c !== null && c !== undefined && c !== false) node.append(c instanceof Node ? c : words(c));
   return node;
 }
 const setText = (el, text) => {
-  if (el.textContent !== text) el.textContent = text;
+  const t = words(text);
+  if (el.textContent !== t) el.textContent = t;
 };
 
-const KIND_KEY = 'turnout-demo-kind';
+const KIND_KEY = TRY ? 'turnout-try-kind' : 'turnout-demo-kind';
 const storedKind = (() => {
   try {
     const n = Number(localStorage.getItem(KIND_KEY));
@@ -86,6 +95,15 @@ async function loadState() {
     const body = await res.json();
     if (!res.ok) throw new Error(body.error ?? `HTTP ${res.status}`);
     ui.state = body;
+    if (TRY) {
+      M.setNames(body.names);
+      // One version → an A/A test, two → A/B, three → A/B/C: the kind follows what you built.
+      const built = { 'A/A': 1, 'A/B': 2, 'A/B/C': 3 }[body.tryit?.kind];
+      if (built && ui.builtKind !== body.tryit.kind) {
+        ui.builtKind = body.tryit.kind;
+        ui.kind = built;
+      }
+    }
     if (body.job?.status === 'running' && !ui.job) followJob(body.job);
     if (ui.settle) {
       if (signature(body) !== ui.settle.sig || Date.now() > ui.settle.until) ui.settle = null;
@@ -272,7 +290,7 @@ function render() {
   if (!s) return;
 
   const links = s.links ?? {};
-  setVersions(links.shop, s.releases);
+  setVersions(links.shop, s.releases, TRY ? s.names : null);
   const rl = $('results-link');
   rl.hidden = !(links.experiment && s.results);
   rl.setAttribute('href', links.experiment ?? '#');
@@ -327,7 +345,7 @@ function renderVersions(s, m) {
     setText(tile.querySelector('.version-role'), v.key === 'control' ? 'current' : aaCopy ? 'copy of A (same shop)' : 'new');
     setText(tile.querySelector('.version-badge'), v.badge);
     const arm = m.plan ? null : goal?.arms?.[v.key]; // a preview has no numbers yet
-    setText(tile.querySelector('.version-fs'), arm ? `${(arm.mean * 100).toFixed(1)}% of ${arm.n.toLocaleString('en-GB')} shoppers ordered` : '');
+    setText(tile.querySelector('.version-fs'), arm ? (/_ms$/.test(goal.name) ? `${Math.round(arm.mean)} ms per page, ${arm.n.toLocaleString('en-GB')} shoppers` : `${(arm.mean * 100).toFixed(1)}% of ${arm.n.toLocaleString('en-GB')} shoppers ordered`) : '');
     // Once Flagsmith has counted, its numbers replace the live tally (one line, so the tiles stay short).
     tile.classList.toggle('has-results', Boolean(arm));
   });
@@ -658,7 +676,13 @@ if (READONLY) {
   });
 }
 void loadYou();
-const tour = createTour({ stops: stopsFor(JUDGE_STOPS, READONLY), seenKey: READONLY ? 'turnout-tour-public-seen' : 'turnout-tour-judge-seen' });
+const tour = createTour({ stops: stopsFor(JUDGE_STOPS, READONLY), seenKey: READONLY ? 'turnout-tour-public-seen' : TRY ? 'turnout-tour-try-seen' : 'turnout-tour-judge-seen' });
+if (TRY) {
+  const foot = document.querySelector('.foot');
+  if (foot?.firstChild) foot.firstChild.textContent = words(foot.firstChild.textContent ?? '');
+  document.querySelector('.brand')?.append(h('span', { class: 'try-chip' }, 'your app'));
+  document.title = 'Turnout: try it with your app';
+}
 $('tour-open').addEventListener('click', () => tour.start());
 connectFeed();
 loadState().then(() => tour.offer());

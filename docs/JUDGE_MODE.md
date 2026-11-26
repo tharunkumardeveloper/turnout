@@ -46,8 +46,10 @@ To open judge mode on another device, see [SETUP.md](SETUP.md#judge-mode-on-anot
 
 ## The full console
 
-- **Run a test:** A/A, A/B or A/B/C with a preview first, then Start; simulated visitors (the demo only) and, after a ship, swing back or forward.
-- **Your site:** **Open your site: be a visitor**, where you landed, **Your visits** over time, **Pin this browser**, each version on its own, the goal, goal suggestions from the requests it sees, a new comparison command, and the Flagsmith login.
+- **Run a test:** A/A, A/B or A/B/C with a preview first, then one button: start, simulated shoppers, Flagsmith's results (on the demo; for your own app it starts the test). More: send shoppers yourself, and after a ship, swing back or forward.
+- **Try it with your app:** one, two or three versions (Dockerfile, public git repo or image), built and run on this machine, then judge mode for them at `/try`. Local only.
+- **Refresh:** held back while no new visit has arrived since the test started or since Flagsmith's last results (Flagsmith allows one recompute every 5 minutes).
+- **Your site:** **Open your site: be a visitor**, one line on where you landed, each version on its own and the goal; under **More**: your visits over time, pin this browser, goal suggestions, a new comparison command and the Flagsmith login.
 - **Traffic map:** each routed request as a dot, counters for the last 60 seconds, ghost dots that always move along the tracks the flag routes to now, a **YOU** pin on your version.
 - **Decide:** Ship winner and Revert. The plan dialog lists the five steps with the API call each one makes. The pre-selected version is the best one that passes every safety check; one that loses a guardrail needs an explicit "ship anyway".
 - **Flagsmith's results:** the goal and each guardrail, as returned. Mean metrics are labelled "mean per exposed identity" ([details](FLAGSMITH.md#things-we-found-on-the-pinned-image)).

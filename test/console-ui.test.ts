@@ -84,7 +84,7 @@ describe('console UI files', () => {
   test('every API call carries the token; the event stream sends it as a query parameter', () => {
     const app = read('app.js');
     assert.doesNotMatch(app, /(?<![\w.])fetch\('\/api/, 'use api(), which adds the token header');
-    assert.match(app, /new EventSource\(`\/api\/traffic\?token=\$\{encodeURIComponent\(TOKEN\)\}`\)/);
+    assert.match(app, /new EventSource\(`\$\{BASE\}\/api\/traffic\?token=\$\{encodeURIComponent\(TOKEN\)\}`\)/);
     assert.match(app, /meta\[name="turnout-console"\]/);
   });
 
@@ -435,7 +435,7 @@ describe('demo controls: send visitors, swing back and forward', () => {
   const shipped = [{ experimentId: 7, decision: 'shipped', variant: 'v2', release: 'shop:1.5', replaced: 'shop:1.4', at: '2026-11-17T10:00:00Z' }];
 
   test('the card, its controls and its live status are in index.html, hidden until the console answers', () => {
-    for (const id of ['run', 'kinds', 'run-plan', 'run-start', 'run-cancel', 'visitors-form', 'visitors-count', 'visitors-btn', 'visitors-note', 'swing-back-btn', 'swing-forward-btn', 'swing-note', 'demo-progress', 'demo-status']) {
+    for (const id of ['run', 'kinds', 'run-plan', 'run-go', 'run-steps', 'run-cancel', 'visitors-form', 'visitors-count', 'visitors-btn', 'visitors-note', 'swing-back-btn', 'swing-forward-btn', 'swing-note', 'demo-progress', 'demo-status']) {
       assert.ok(html.includes(`id="${id}"`), `missing #${id}`);
     }
     assert.match(html, /<section class="card run-card" id="run" aria-labelledby="run-title" hidden>/);
@@ -450,7 +450,7 @@ describe('demo controls: send visitors, swing back and forward', () => {
     assert.match(app, /runDemo\('swing-back', \{ experimentId: app\.state\.experiment\.id \}\)/);
     assert.match(app, /runDemo\('swing-forward', \{ experimentId: app\.state\.experiment\.id \}\)/);
     assert.match(app, /if \(res\.status === 404\) \{\s*demo\.available = false;/, 'no judge options: the card stays hidden');
-    assert.match(app, /const busy = app\.busy \|\| demoRunning\(\);/, 'Ship and Revert wait for a running job');
+    assert.match(app, /const busy = app\.busy \|\| demoRunning\(\) \|\| READONLY;/, 'Ship and Revert wait for a running job, and are off on the public page');
   });
 
   test('the visitor count is clamped to what the console accepts', () => {

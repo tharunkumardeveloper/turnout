@@ -97,14 +97,22 @@ export const CONSOLE_STOPS = [
   },
   {
     target: '#run',
-    title: 'Run a test',
-    text: 'Pick A/A, A/B or A/B/C: the preview below shows what it will compare before anything starts. Start runs it in Flagsmith; on the demo you can also send simulated shoppers from here.',
+    title: 'Run a test: one button',
+    text: 'Pick A/A, A/B or A/B/C and check the preview, then one button does the rest: it starts the test in Flagsmith, sends simulated shoppers and asks Flagsmith for its results, waiting out Flagsmith’s 5-minute refresh limit if it has to.',
+    readonly: false,
+  },
+  {
+    target: '#try-open',
+    title: 'Try it with your own app',
+    text: 'Give Turnout one, two or three versions of your app (a Dockerfile, a public git repo or an image). It builds them, runs them behind its own proxy and opens the same test page as judge mode: previews, one-button runs and Flagsmith’s results. One version makes an A/A test, two an A/B, three an A/B/C.',
+    readonly: false,
   },
   {
     target: '#site-open',
     click: '#site-open',
     title: 'Be a visitor',
-    text: 'Click “Open your site”: it opens through Turnout in a new tab and Flagsmith gives you a version. Come back: the card below lists where you landed, before the test and after it.',
+    text: 'Click “Open your site”: it opens through Turnout in a new tab and Flagsmith gives you a version. Come back: the line under the button says which, and More lists your visits before and after the test.',
+    readonly: { click: undefined, text: 'Open the site through Turnout: Flagsmith gives you a version, and the line under the button says which.' },
   },
   {
     target: '#traffic',
@@ -115,16 +123,18 @@ export const CONSOLE_STOPS = [
     target: '#actions',
     title: 'Decide',
     text: 'Ship the winner or revert: each shows the exact Flagsmith calls first and asks you to confirm. The pre-selected version is the best one that passes every safety check.',
+    readonly: { text: 'On this public page the autopilot decides, by the same rules: ship the best version that passes every safety check, or revert. The private console has the buttons.' },
   },
   {
     target: '#results',
     title: "Flagsmith's results",
-    text: "The goal and the safety checks per version, exactly as Flagsmith's results API returns them. Refresh asks Flagsmith to recompute (it allows one every 5 minutes).",
+    text: "The goal and the safety checks per version, exactly as Flagsmith's results API returns them. Refresh asks Flagsmith to recompute: it allows one every 5 minutes, so Turnout holds a refresh back until new visits have arrived.",
   },
   {
     target: '#menu-flagsmith',
     title: 'Flagsmith itself',
-    text: 'Opens your self-hosted Flagsmith in a new tab. The sign-in details are in the “Sign in to Flagsmith” box on the left.',
+    text: 'Opens your self-hosted Flagsmith in a new tab. The sign-in details are under More in the Your site card.',
+    readonly: false,
   },
   {
     target: '#history-drop',

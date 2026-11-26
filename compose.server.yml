@@ -84,10 +84,16 @@ services:
       - 127.0.0.1:8080:8080 # whatever TURNOUT_PUBLISH_HOST says
     networks: [sdk, feed, apps] # simulated visitors only: the public way in is Caddy to turnout-live
 
+  # "Try it with your app" builds and runs code over the Docker socket: never on a public server.
+  tryit:
+    <<: *restart
+    profiles: [never]
+
   console:
     <<: *restart
     environment:
       CONSOLE_PUBLIC_PORT: 8092 # the read-only judge view; Caddy reaches it on the edge network, never published
+      TURNOUT_TRYIT_URL: '' # no Try it box on a server (it builds and runs code)
       TURNOUT_PUBLIC_SHOP_URL: https://${TURNOUT_HOSTNAME}
       TURNOUT_CONSOLE_HOSTS: '' # other devices use the public, read-only view
       # The public view is read-only, so the story runs by itself: the console's autopilot presses the judge buttons

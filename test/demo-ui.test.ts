@@ -339,7 +339,7 @@ describe('the tour: one engine (tour.js), a list of stops per page (tour-stops.j
     assert.match(tour, /Click the highlighted button/);
     assert.doesNotMatch(tour, /innerHTML|outerHTML|insertAdjacentHTML/);
     assert.match(js, /createTour\(\{ stops: stopsFor\(JUDGE_STOPS, READONLY\), seenKey:/);
-    assert.match(read('app.js'), /createTour\(\{ stops: CONSOLE_STOPS, seenKey: 'turnout-tour-console-seen' \}\)/);
+    assert.match(read('app.js'), /createTour\(\{ stops: stopsFor\(CONSOLE_STOPS, READONLY\), seenKey: READONLY \? 'turnout-tour-public-console-seen' : 'turnout-tour-console-seen' \}\)/);
     assert.match(html, /<link rel="stylesheet" href="\/tour\.css">/);
     assert.match(consoleHtml, /<link rel="stylesheet" href="\/tour\.css">/);
   });

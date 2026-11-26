@@ -35,8 +35,8 @@ export const viewLink = (shop, release) => `${String(shop ?? '').replace(/\/$/, 
 let versions = { shop: null, releases: [] };
 
 /** The versions this setup routes to, from the judge state (releases and the shop's public address). */
-export function setVersions(shop, releases) {
-  const key = JSON.stringify([shop, releases]);
+export function setVersions(shop, releases, names = null) {
+  const key = JSON.stringify([shop, releases, names]);
   if (versions.key === key) return;
   versions = { key, shop, releases: [...(releases ?? [])] };
   const box = document.getElementById('versions-list');
@@ -46,7 +46,7 @@ export function setVersions(shop, releases) {
     el('ul', { class: 'menu-list' }, ...versions.releases.map((r, i) =>
       el('li', {},
         el('span', { class: 'menu-letter', 'data-i': String(i) }, LETTERS[i] ?? '?'),
-        el('a', { href: viewLink(shop, r), target: '_blank', rel: 'noopener' }, label(r), el('span', { class: 'menu-sub' }, i === 0 ? ' · what everyone gets first' : ''))))),
+        el('a', { href: viewLink(shop, r), target: '_blank', rel: 'noopener' }, names?.[r] ?? label(r), el('span', { class: 'menu-sub' }, i === 0 ? ' · what everyone gets first' : ''))))),
     el('p', { class: 'menu-note' }, 'The plain shop link gives you a version the way a real visitor gets one: ',
       el('a', { href: String(shop ?? '#'), target: '_blank', rel: 'noopener' }, 'open the site ↗')),
   );
@@ -121,7 +121,16 @@ export function setupMenu(current) {
   const menu = document.getElementById('menu');
   if (!menu) return;
   for (const a of menu.querySelectorAll('a[data-page]')) if (a.dataset.page === current) a.setAttribute('aria-current', 'page');
-  if (READONLY) for (const node of document.querySelectorAll('[data-private]')) node.remove(); // the console, setup, Flagsmith: private
+  // The public page keeps judge mode, the read-only console and the versions; setup and Flagsmith stay private.
+  if (READONLY) {
+    const consoleLink = menu.querySelector('a[data-page="console"]');
+    if (consoleLink) {
+      consoleLink.setAttribute('href', `${BASE}/console`);
+      consoleLink.removeAttribute('data-private');
+    }
+    for (const brand of document.querySelectorAll('a.brand')) brand.setAttribute('href', BASE || '/');
+    for (const node of document.querySelectorAll('[data-private]')) node.remove();
+  }
   if (NO_JUDGE) for (const a of document.querySelectorAll('a[href="/judge"]')) a.remove();
   document.getElementById('menu-versions')?.addEventListener('toggle', (e) => e.currentTarget.open && loadVersions());
   if (!READONLY) void wireFlagsmithLink();

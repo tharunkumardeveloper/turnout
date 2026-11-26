@@ -12,9 +12,16 @@ export const shoppersFor = (versions) => Math.min(5000, SHOPPERS_PER_VERSION * M
 const NAMES = { 'shop:1.4': 'Classic', 'shop:1.5': 'Express', 'shop:1.6': 'Bold' };
 const LETTERS = 'ABCDEFGH';
 
+// Display names for other apps' releases (Try it with your app: try:a → the image or repository name).
+let EXTRA_NAMES = {};
+export function setNames(map) {
+  EXTRA_NAMES = map && typeof map === 'object' ? map : {};
+}
+
 /** "shop:1.5" → "1.5 Express"; an unknown label is shown as it is. */
 export function label(release) {
   if (!release) return 'no release';
+  if (EXTRA_NAMES[release]) return EXTRA_NAMES[release];
   const short = String(release).replace(/^[^:]*:/, '');
   return NAMES[release] ? `${short} ${NAMES[release]}` : short;
 }
@@ -163,13 +170,16 @@ export function verdict(s) {
   const a = list[0];
   const rec = r.recommendation;
   const goal = r.metrics.find((m) => m.role === 'goal');
-  const orders = (key) => (goal?.arms?.[key] && goal?.arms?.control ? ` (${pct(goal.arms[key].mean)} vs ${pct(goal.arms.control.mean)})` : '');
+  // No goal given: the primary metric is page speed (lower is better), and the words follow it.
+  const speed = /_ms$/.test(goal?.name ?? '');
+  const fmt = (x) => (speed ? `${Math.round(x)} ms` : pct(x));
+  const orders = (key) => (goal?.arms?.[key] && goal?.arms?.control ? ` (${fmt(goal.arms[key].mean)} vs ${fmt(goal.arms.control.mean)})` : '');
   const others = (except) =>
     list.slice(1).filter((x) => x.key !== except).map((x) => {
       const failed = failedChecks(s, x.key);
       const g = goal && inferenceOf(goal, x.key);
       if (failed.length) return `${x.name}${g?.verdict === 'winning' ? ' sold more too, but' : ':'} ${failed.join(' and ')}, so it's out.`;
-      if (g?.verdict === 'losing') return `${x.name} got fewer orders.`;
+      if (g?.verdict === 'losing') return speed ? `${x.name} loaded pages slower.` : `${x.name} got fewer orders.`;
       return `${x.name} wasn't clearly better.`;
     });
   if (isAA(s)) {
@@ -192,7 +202,7 @@ export function verdict(s) {
     const best = list.find((x) => x.key === rec?.variant);
     const c = rec?.chanceToWin;
     const sure = c == null || !best
-      ? 'Flagsmith has no result on orders yet.'
+      ? `Flagsmith has no result on ${speed ? 'page speed' : 'orders'} yet.`
       : c >= 0.95
         ? `Flagsmith is ${pct(c, 0)} sure ${best.name} beats A, but its likely range still includes no gain at all, so it won't call it yet.`
         : `Flagsmith is only ${pct(c, 0)} sure ${best.name} beats A; it calls a winner at 95%.`;
@@ -205,7 +215,7 @@ export function verdict(s) {
       variant: w.key,
       tone: 'good',
       title: `${w.name} wins`,
-      text: [`${w.name} gets more orders than A${orders(w.key)}, Flagsmith is ${pct(rec.chanceToWin, 0)} sure, and every safety check is fine.`, ...others(w.key)].join(' '),
+      text: [`${w.name} ${speed ? 'loads pages faster than' : 'gets more orders than'} A${orders(w.key)}, Flagsmith is ${pct(rec.chanceToWin, 0)} sure, and every safety check is fine.`, ...others(w.key)].join(' '),
     };
   }
   const failing = list.slice(1).filter((x) => failedChecks(s, x.key).length);

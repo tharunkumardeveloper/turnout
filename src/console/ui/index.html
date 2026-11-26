@@ -35,6 +35,7 @@
       <details class="menu-drop" id="menu-versions"><summary>Versions</summary><div class="menu-panel" id="versions-list"><p class="menu-note">Loading…</p></div></details>
       <a href="#" id="menu-flagsmith" class="menu-ext" target="_blank" rel="noopener" data-private>Flagsmith <span aria-hidden="true">↗</span></a>
     </nav>
+    <button class="btn btn-small try-btn" id="try-open" type="button" hidden>Try it with your app</button>
     <button class="btn btn-ghost btn-small tour-btn" id="tour-open" type="button">Tour</button>
     <ul class="connections" aria-label="Connections">
       <li id="conn-state" class="conn" data-state="pending"><span class="conn-dot" aria-hidden="true"></span><span class="conn-text">Flagsmith: connecting…</span></li>
@@ -74,41 +75,47 @@
       </div>
       <a class="btn btn-primary btn-big" id="site-open" href="#" target="_blank" rel="noopener" title="Be a visitor: each new browser gets one version from Flagsmith and keeps it.">Open your site (be a visitor)</a>
       <div class="you" id="you" aria-live="polite"><p class="you-line">Checking where you land…</p></div>
-      <div class="journey" id="journey" hidden><h3>Your visits</h3><ol id="journey-list" class="journey-list"></ol></div>
       <div class="site-versions" id="site-versions" hidden>
-        <h3>Each version on its own <span class="v-key">(never counted)</span></h3>
+        <span class="v-key">Each version on its own:</span>
         <ul id="site-version-list"></ul>
       </div>
       <p class="site-goal" id="site-goal"></p>
-      <div class="site-suggest" id="site-suggest" hidden>
-        <h3>Requests that could count as success</h3>
-        <p class="card-sub">A goal starts a new experiment, so run your compare command again with it.</p>
-        <ul id="suggest-list" class="suggest-list"></ul>
-      </div>
-      <details class="site-new" id="site-new">
-        <summary>New comparison</summary>
-        <div class="site-new-panel">
-          <p class="card-sub">Two versions make an A/B test, three an A/B/C test. This writes the command: run it in your project's folder.</p>
-          <form id="new-form" class="new-form" autocomplete="off">
-            <label>A: current version <input id="new-a" name="a" placeholder="localhost:3001, myapp:1.0 or main" required></label>
-            <label>B: new version <input id="new-b" name="b" placeholder="localhost:3002, myapp:1.1 or new-checkout" required></label>
-            <label>C, D…: more new versions <input id="new-more" name="more" placeholder="optional, separated by spaces"></label>
-            <label>Goal <input id="new-goal" name="goal" list="new-goals" placeholder="none: judged on page speed"></label>
-            <datalist id="new-goals"></datalist>
-            <label>Each new version gets
-              <select id="new-split" name="split"><option value="even" selected>an even share of everyone</option><option value="25">25% of visitors</option><option value="10">10% of visitors</option></select>
-            </label>
-          </form>
-          <p id="new-error" class="new-error" role="alert" hidden></p>
-          <div class="new-out">
-            <code id="new-command" class="new-command"></code>
-            <button id="new-copy" class="btn btn-small" type="button">Copy</button>
+      <details class="site-more" id="site-more">
+        <summary>More: your visits, pin this browser, goals, new comparison, sign in</summary>
+        <div class="site-more-body">
+          <div class="journey" id="journey" hidden><h3>Your visits</h3><ol id="journey-list" class="journey-list"></ol></div>
+          <div class="pin-box" id="pin-box" hidden></div>
+          <div class="site-suggest" id="site-suggest" hidden>
+            <h3>Requests that could count as success</h3>
+            <p class="card-sub">A goal starts a new experiment, so run your compare command again with it.</p>
+            <ul id="suggest-list" class="suggest-list"></ul>
           </div>
+          <details class="site-new" id="site-new">
+            <summary>New comparison</summary>
+            <div class="site-new-panel">
+              <p class="card-sub">Two versions make an A/B test, three an A/B/C test. This writes the command: run it in your project's folder.</p>
+              <form id="new-form" class="new-form" autocomplete="off">
+                <label>A: current version <input id="new-a" name="a" placeholder="localhost:3001, myapp:1.0 or main" required></label>
+                <label>B: new version <input id="new-b" name="b" placeholder="localhost:3002, myapp:1.1 or new-checkout" required></label>
+                <label>C, D…: more new versions <input id="new-more" name="more" placeholder="optional, separated by spaces"></label>
+                <label>Goal <input id="new-goal" name="goal" list="new-goals" placeholder="none: judged on page speed"></label>
+                <datalist id="new-goals"></datalist>
+                <label>Each new version gets
+                  <select id="new-split" name="split"><option value="even" selected>an even share of everyone</option><option value="25">25% of visitors</option><option value="10">10% of visitors</option></select>
+                </label>
+              </form>
+              <p id="new-error" class="new-error" role="alert" hidden></p>
+              <div class="new-out">
+                <code id="new-command" class="new-command"></code>
+                <button id="new-copy" class="btn btn-small" type="button">Copy</button>
+              </div>
+            </div>
+          </details>
+          <details class="site-signin" id="signin-drop">
+            <summary>Sign in to Flagsmith</summary>
+            <div id="signin-box"><p class="card-sub">Loading…</p></div>
+          </details>
         </div>
-      </details>
-      <details class="site-signin" id="signin-drop">
-        <summary>Sign in to Flagsmith</summary>
-        <div id="signin-box"><p class="card-sub">Loading…</p></div>
       </details>
     </section>
 
@@ -121,25 +128,29 @@
       </div>
       <p class="run-plan" id="run-plan"></p>
       <div class="run-row">
-        <button id="run-start" class="btn btn-primary" type="button" disabled>Start</button>
+        <button id="run-go" class="btn btn-primary" type="button" disabled>Run</button>
         <button id="run-cancel" class="btn btn-ghost" type="button" hidden>Cancel</button>
       </div>
-      <div class="run-row">
-        <form id="visitors-form" class="demo-row">
-          <label class="demo-label" for="visitors-count">Simulated visitors</label>
-          <input id="visitors-count" class="demo-count" type="number" min="50" max="5000" step="50" value="1500" inputmode="numeric" aria-describedby="visitors-note">
-          <button id="visitors-btn" class="btn btn-small" type="submit" disabled>Send</button>
-        </form>
-      </div>
-      <div class="run-row">
-        <span id="swing-label" class="demo-label">Swing</span>
-        <button id="swing-back-btn" class="btn btn-small" type="button" disabled>Back</button>
-        <button id="swing-forward-btn" class="btn btn-small" type="button" disabled>Forward</button>
-        <progress id="demo-progress" class="demo-progress" max="1" value="0" hidden></progress>
-      </div>
-      <p id="visitors-note" class="action-note"></p>
-      <p id="swing-note" class="action-note"></p>
+      <ol class="run-steps" id="run-steps" hidden></ol>
       <p id="demo-status" class="action-status" role="status" aria-live="polite"></p>
+      <details class="run-more" id="run-more">
+        <summary>More: send shoppers yourself, swing after a ship</summary>
+        <div class="run-row">
+          <form id="visitors-form" class="demo-row">
+            <label class="demo-label" for="visitors-count">Simulated visitors</label>
+            <input id="visitors-count" class="demo-count" type="number" min="50" max="5000" step="50" value="1500" inputmode="numeric" aria-describedby="visitors-note">
+            <button id="visitors-btn" class="btn btn-small" type="submit" disabled>Send</button>
+          </form>
+        </div>
+        <div class="run-row">
+          <span id="swing-label" class="demo-label">Swing</span>
+          <button id="swing-back-btn" class="btn btn-small" type="button" disabled>Back</button>
+          <button id="swing-forward-btn" class="btn btn-small" type="button" disabled>Forward</button>
+          <progress id="demo-progress" class="demo-progress" max="1" value="0" hidden></progress>
+        </div>
+        <p id="visitors-note" class="action-note"></p>
+        <p id="swing-note" class="action-note"></p>
+      </details>
     </section>
 
     <section class="card actions-card" id="actions" aria-labelledby="actions-title">
@@ -212,6 +223,28 @@
       <p id="refresh-status" class="refresh-status" role="status" aria-live="polite"></p>
     </section>
   </main>
+
+  <!-- Try it with your app: one, two or three versions (Dockerfile, git repo or image), built and run here (try.js). -->
+  <dialog id="try-dialog" class="dialog try-dialog" aria-labelledby="try-title">
+    <form method="dialog" class="dialog-inner try-inner">
+      <h2 id="try-title">Try Turnout with your app</h2>
+      <p class="dialog-intro">Give one, two or three versions. One makes an A/A test (the same app twice: a fairness check), two an A/B test, three an A/B/C test. Turnout builds them on this machine with Docker, runs them behind a proxy of its own on a flag of its own (<code>tryit_release</code>), and opens the same test page as judge mode, with previews and one-button runs.</p>
+      <div id="try-versions" class="try-versions"></div>
+      <label class="try-goal-label"><span>Goal <span class="card-sub">(optional)</span></span>
+        <input id="try-goal" class="try-text" spellcheck="false" placeholder="none: versions are compared on page speed · or e.g. POST /signup, GET /product/*">
+      </label>
+      <p id="try-kind" class="try-kindline"></p>
+      <ul id="try-progress" class="try-progress"></ul>
+      <p id="try-error" class="new-error" role="alert" hidden></p>
+      <div id="try-previews" class="try-previews"></div>
+      <div class="dialog-buttons">
+        <button class="btn btn-ghost" value="cancel" type="submit">Close</button>
+        <button id="try-example" class="btn btn-ghost" type="button" title="Two small self-contained Dockerfiles (nginx pages), so you can see it work without an app of your own">Use an example</button>
+        <a id="try-open-page" class="btn" href="/try" target="_blank" rel="noopener" hidden>Open the test page →</a>
+        <button id="try-build" class="btn btn-primary" type="button" disabled>Build and try</button>
+      </div>
+    </form>
+  </dialog>
 
   <dialog id="confirm-dialog" class="dialog" aria-labelledby="dialog-title" aria-describedby="dialog-intro">
     <form method="dialog" class="dialog-inner" id="dialog-form">

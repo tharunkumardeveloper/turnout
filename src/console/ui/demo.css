@@ -302,3 +302,6 @@ a.version-frame:hover::after, a.version-frame:focus-visible::after { opacity: 1;
 .pin { display: grid; gap: 4px; }
 .pin-row { display: flex; gap: 4px; flex-wrap: wrap; }
 .pin-btn[aria-pressed='true'] { background: var(--text); color: var(--surface); border-color: var(--text); }
+
+/* ---- Try it with your app (/try) ---- */
+.try-chip { margin-left: 8px; padding: 2px 8px; border-radius: 999px; background: var(--good-bg); color: var(--go); font-size: 12px; font-weight: 750; letter-spacing: .02em; }

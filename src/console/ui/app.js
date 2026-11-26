@@ -3,10 +3,11 @@
 // from the server goes in through textContent.
 import * as F from './format.js';
 import { TrafficMap } from './map.js';
-import { loadSignin, setupMenu, setVersions, signinBox, viewLink } from './menu.js';
+import { loadSignin, READONLY, setupMenu, setVersions, signinBox, viewLink } from './menu.js';
 import * as M from './demo-model.js';
 import { createTour } from './tour.js';
-import { CONSOLE_STOPS } from './tour-stops.js';
+import { CONSOLE_STOPS, stopsFor } from './tour-stops.js';
+import { setupTry } from './try.js';
 
 const POLL_MS = 5000;
 const $ = (id) => /** @type {HTMLElement} */ (document.getElementById(id));
@@ -15,9 +16,14 @@ const $ = (id) => /** @type {HTMLElement} */ (document.getElementById(id));
 const TOKEN = document.querySelector('meta[name="turnout-console"]')?.getAttribute('content') ?? '';
 const TOKEN_HEADER = 'x-turnout-console';
 
+// Server mode's public copy of this page (/judge/console) is read-only: its API lives under /judge/api/ (turnout-base)
+// and answers reads only; every button that changes something is off there.
+const BASE = document.querySelector('meta[name="turnout-base"]')?.getAttribute('content') ?? '';
+if (READONLY) document.body.classList.add('is-readonly');
+
 /** fetch() for the console API, with the token header added. */
 function api(path, init = {}) {
-  return fetch(path, { ...init, headers: { ...(init.headers ?? {}), [TOKEN_HEADER]: TOKEN } });
+  return fetch(BASE + path, { ...init, headers: { ...(init.headers ?? {}), [TOKEN_HEADER]: TOKEN } });
 }
 
 /** Small element builder; strings become text nodes, never HTML. */
@@ -111,7 +117,7 @@ function onTraffic(ev) {
 
 let feedBackoff = 1000;
 function connectFeed() {
-  const source = new EventSource(`/api/traffic?token=${encodeURIComponent(TOKEN)}`); // EventSource can't set headers
+  const source = new EventSource(`${BASE}/api/traffic?token=${encodeURIComponent(TOKEN)}`); // EventSource can't set headers
   source.onopen = () => {
     feedBackoff = 1000;
     app.feed = 'live';
@@ -487,6 +493,9 @@ $('refresh-btn').addEventListener('click', async () => {
     if (res.ok && body.ok) {
       status.dataset.tone = 'good';
       status.textContent = 'Refresh requested. Flagsmith recomputes in the background; new numbers appear here when it has.';
+    } else if (body.heldBack) {
+      status.dataset.tone = 'neutral';
+      status.textContent = body.reason;
     } else {
       status.dataset.tone = 'bad';
       status.textContent = `Flagsmith refused the refresh: ${F.refreshReason(body.reason ?? body.error ?? `HTTP ${res.status}`)} (Flagsmith allows one refresh every 5 minutes.)`;
@@ -548,8 +557,8 @@ function renderActions(s) {
     pick.hidden = input.value !== winnerKey;
     pick.textContent = recommended ? 'Recommended' : "Flagsmith's pick";
   }
-  // A demo job holds the console's lock too: Ship and Revert wait for it.
-  const busy = app.busy || demoRunning();
+  // A demo job holds the console's lock too: Ship and Revert wait for it. The public page decides nothing.
+  const busy = app.busy || demoRunning() || READONLY;
   /** @type {HTMLFieldSetElement} */ ($('ship-fieldset')).disabled = completed || busy;
 
   const sel = variants.find((v) => v.key === selected);
@@ -559,7 +568,8 @@ function renderActions(s) {
   ship.style.setProperty('--c', sel?.color ?? 'var(--muted)');
 
   let note;
-  if (completed) note = 'Experiment completed: the flag is a plain flag again. Edit it in Flagsmith to change who gets what.';
+  if (READONLY) note = 'Read-only: on this public page the autopilot decides, by the same rules. Ship and Revert run from the console on the server.';
+  else if (completed) note = 'Experiment completed: the flag is a plain flag again. Edit it in Flagsmith to change who gets what.';
   else if (!sel) note = 'Flagsmith shows no winner yet. Choose a release to ship it anyway, or wait for data.';
   else if (!s.winner) note = `Your choice: ${sel.key}. Flagsmith shows no winner yet.`;
   else if (recommended && sel.key === winnerKey && sel.key !== s.winner.key) note = `Pre-selected: ${sel.key} is clearly better than control and passes every safety check. ${s.winner.key} scores higher on the goal but fails a safety check.`;
@@ -959,7 +969,7 @@ async function runDemo(action, payload) {
 
 function renderDemo() {
   const card = $('run');
-  card.hidden = demo.available !== true;
+  card.hidden = demo.available !== true || READONLY; // the public page: the autopilot runs the tests
   if (card.hidden) return;
   renderRun();
   const s = app.state;
@@ -997,6 +1007,8 @@ function renderDemo() {
     text = F.demoJobText(job);
     tone = job.status === 'failed' ? 'bad' : 'good';
   } else if (demo.message) ({ text, tone } = demo.message);
+  // After the one-button run, its own summary (Flagsmith's verdict) stays, not the last job's "Done.".
+  if (flow.note && !flow.running) ({ note: text, tone } = flow);
   const status = $('demo-status');
   status.dataset.tone = tone;
   if (status.textContent !== text) status.textContent = text;
@@ -1038,11 +1050,18 @@ function renderSnapshots(s) {
 // without counting anything. Polled every few seconds while the page is visible.
 const YOU_POLL_MS = 4000;
 const LETTERS = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
-const JOURNEY_KEY = 'turnout-you-journey-console';
-try {
-  app.journey = JSON.parse(localStorage.getItem(JOURNEY_KEY) ?? '[]');
-} catch {
-  app.journey = [];
+// Your visits, per flag: two apps on the same port (the demo, then turnout compare) never mix their histories.
+let JOURNEY_KEY = 'turnout-you-journey-console';
+app.journey = [];
+function loadJourney(flag) {
+  const key = `turnout-you-journey-console:${flag}`;
+  if (key === JOURNEY_KEY) return;
+  JOURNEY_KEY = key;
+  try {
+    app.journey = JSON.parse(localStorage.getItem(JOURNEY_KEY) ?? '[]');
+  } catch {
+    app.journey = [];
+  }
 }
 const RECEIPT_WORDS = {
   accepted: 'Flagsmith accepted it',
@@ -1054,12 +1073,17 @@ const RECEIPT_WORDS = {
 async function loadYou() {
   if (!document.hidden) {
     try {
-      const res = await api('/api/you', { cache: 'no-store' });
-      app.you = res.ok ? await res.json() : null;
+      if (READONLY) {
+        const res = await fetch('/__turnout/receipt', { cache: 'no-store', credentials: 'same-origin' });
+        app.you = res.ok ? { visited: true, ...(await res.json()) } : res.status === 404 ? { visited: false } : null;
+      } else {
+        const res = await api('/api/you', { cache: 'no-store' });
+        app.you = res.ok ? await res.json() : null;
+      }
     } catch {
       app.you = null;
     }
-    if (app.you?.visited && run.judge?.releases?.length) await loadPin();
+    if (!READONLY && app.you?.visited && run.judge?.releases?.length) await loadPin();
     renderYou();
   }
   setTimeout(loadYou, YOU_POLL_MS);
@@ -1086,7 +1110,8 @@ function renderYou() {
   const running = e?.status === 'running';
   const seen = Boolean(y?.visited && !y.viewing && y.release);
   map.setYou(seen ? (running && y.enrolled ? y.variant : variants.find((v) => v.label === y.release)?.key ?? null) : null);
-  if (seen && app.state) { // only once the experiment is known: before that every visit would read "what everyone gets"
+  if (seen && app.state) {
+    loadJourney(e?.feature?.name ?? 'flag'); // only once the experiment is known: before that every visit would read "what everyone gets"
     const at = variants.findIndex((v) => v.key === y.variant);
     const where = app.pinned && app.pinned === y.release
       ? 'pinned by an identity override (not counted)'
@@ -1103,6 +1128,7 @@ function renderYou() {
       }
     }
   }
+  if (app.state && e?.feature?.name) loadJourney(e.feature.name);
   const jl = $('journey-list');
   const jkey = JSON.stringify(app.journey);
   if (jl.dataset.key !== jkey) {
@@ -1130,24 +1156,26 @@ function renderYou() {
   // Counted only once this browser has loaded a page (a receipt for its events); a cookie alone isn't a visit.
   const where = y.enrolled && e?.status === 'running'
     ? y.receipt
-      ? `in experiment ${e.id} as ${y.variant}${letter ? ` (${letter})` : ''}: Flagsmith counts your visits and your goal there.`
-      : `in experiment ${e.id} as ${y.variant}${letter ? ` (${letter})` : ''} once you open your site: Flagsmith will count your visits and your goal there.`
-    : e?.status === 'running'
-      ? 'outside the experiment: everyone outside it gets this version, and Flagsmith doesn\'t count you.'
-      : 'from the flag: no experiment is running, so everyone gets this version.';
+      ? `: ${letter ?? y.variant} in test #${e.id}, counted.`
+      : `: ${letter ?? y.variant} in test #${e.id}, counted from your first page.`
+    : app.pinned && app.pinned === y.release
+      ? ': pinned (not counted).'
+      : e?.status === 'running'
+        ? ': outside the test (not counted).'
+        : ': what everyone gets now.';
   const lines = [
-    h('p', { class: 'you-line' }, h('span', { class: 'you-chip', vars: { '--c': variants[i]?.color ?? 'var(--muted)' } }, letter ?? '•'), h('strong', {}, `You got ${y.release ?? 'no version'}`), ` ${where}`),
+    h('p', { class: 'you-line' }, h('span', { class: 'you-chip', vars: { '--c': variants[i]?.color ?? 'var(--muted)' } }, letter ?? '•'), h('strong', {}, `You got ${y.release ?? 'no version'}`), where),
   ];
-  if (y.receipt) {
-    lines.push(h('p', { class: 'you-sub' }, `Your last event: ${y.receipt.event}; ${RECEIPT_WORDS[y.receipt.status] ?? y.receipt.status}.`));
-  }
-  // Pin this browser to one version: an identity override in Flagsmith for its visitor id.
-  if (run.judge?.releases?.length) {
-    lines.push(h('div', { class: 'pin-row', title: 'An identity override in Flagsmith for your visitor id: this browser gets that version on every page, outside the test.' },
-      h('span', { class: 'you-sub' }, app.pinned ? `Pinned to ${app.pinned} (identity override):` : 'Pin this browser to:'),
-      ...run.judge.releases.map((r) => h('button', { class: 'btn btn-small pin-btn', type: 'button', 'aria-pressed': String(app.pinned === r), onclick: () => pinTo(r) }, r)),
-      app.pinned ? h('button', { class: 'btn btn-small', type: 'button', onclick: () => pinTo(null) }, 'Unpin') : null));
-    if (app.pinError) lines.push(h('p', { class: 'you-sub' }, app.pinError));
+  // Pin this browser to one version (an identity override in Flagsmith), under "More".
+  const pinBox = $('pin-box');
+  pinBox.hidden = READONLY || !run.judge?.releases?.length;
+  if (!pinBox.hidden) {
+    pinBox.replaceChildren(
+      h('h3', {}, 'Pin this browser'),
+      h('div', { class: 'pin-row', title: 'An identity override in Flagsmith for your visitor id: this browser gets that version on every page, outside the test.' },
+        ...run.judge.releases.map((r) => h('button', { class: 'btn btn-small pin-btn', type: 'button', 'aria-pressed': String(app.pinned === r), onclick: () => pinTo(r) }, r)),
+        app.pinned ? h('button', { class: 'btn btn-small', type: 'button', onclick: () => pinTo(null) }, 'Unpin') : null),
+      h('p', { class: 'you-sub' }, app.pinError || (app.pinned ? `Pinned to ${app.pinned} by an identity override in Flagsmith (outside the test).` : 'An identity override in Flagsmith: this browser gets that version on every page, outside the test.')));
   }
   if (y.error) lines.push(h('p', { class: 'you-sub' }, y.error));
   box.replaceChildren(...lines);
@@ -1225,26 +1253,150 @@ function renderRun() {
   if (run.plan !== null) {
     const versions = M.plannedVersions(s.releases, run.plan);
     // The new versions first ("B and C against A"), A last.
-    plan.replaceChildren('Preview: ', ...chips([...versions.slice(1), versions[0]]), `. Nothing changes until Start${current ? `; the running test #${s.experiment.id} stops first` : ''}.`);
+    plan.replaceChildren('Preview: ', ...chips([...versions.slice(1), versions[0]]), `. Nothing changes until you run it${current ? `; the running test #${s.experiment.id} stops first` : ''}.`);
   } else if (current) {
     const list = M.arms(s);
     plan.replaceChildren(`Running: ${M.kindLabel(current)} test #${s.experiment.id}, `, ...chips([...list.slice(1), list[0]]), '. Pick another kind to preview it.');
   } else {
-    plan.textContent = 'No test is running. Pick A/A, A/B or A/B/C to preview it, then Start.';
+    plan.textContent = 'No test is running. Pick A/A, A/B or A/B/C to preview it, then run it.';
   }
-  const start = /** @type {HTMLButtonElement} */ ($('run-start'));
-  start.disabled = run.plan === null || blocked;
-  start.textContent = run.plan === null ? 'Start' : `Start ${/^A/.test(M.kindLabel(run.plan)) ? 'an' : 'a'} ${M.kindLabel(run.plan)} test`;
-  $('run-cancel').hidden = run.plan === null;
+  renderFlowButton(s, current, blocked);
   // Simulated shoppers only on the demo: a console for your own app sends none (turnout simulate has its own).
   $('visitors-form').hidden = s.simulator === false;
 }
-$('run-start').addEventListener('click', () => {
-  if (run.plan === null) return;
-  const arms = run.plan;
-  run.plan = null;
-  void runDemo('start', { arms });
-});
+
+// ---- one button: start the test, send shoppers, ask Flagsmith ------------------------------------------------
+// The same judge jobs the steps run, one after the other, each waited for. Flagsmith recomputes results at most once
+// every 5 minutes, so the flow asks only after the shoppers' events have arrived, and if a window is still closed it
+// waits it out with a countdown and asks then. A console for your own app only starts the test (no shoppers).
+const FLOW_STEPS = [
+  { id: 'start', title: 'Start the test in Flagsmith' },
+  { id: 'visitors', title: 'Send simulated shoppers' },
+  { id: 'score', title: 'Ask Flagsmith for the results' },
+];
+const flow = { running: false, step: -1, done: [], note: '', tone: 'neutral', waitUntil: 0, timer: 0 };
+
+const kindNow = (s) => (s?.experiment && s.experiment.status !== 'completed' ? M.kindOf(s) : null);
+const wantedKind = (s) => run.plan ?? kindNow(s) ?? s?.releases?.length ?? 2;
+
+function renderFlowButton(s, current, blocked) {
+  const go = /** @type {HTMLButtonElement} */ ($('run-go'));
+  const kind = wantedKind(s);
+  const label = M.kindLabel(kind);
+  const article = /^A/.test(label) ? 'an' : 'a';
+  const sim = s.simulator !== false;
+  const fresh = run.plan !== null || !current;
+  const counted = s.results?.metrics?.find((m) => m.role === 'goal');
+  go.textContent = flow.running
+    ? 'Running…'
+    : !sim
+      ? `Start ${article} ${label} test`
+      : fresh
+        ? `▶ Run ${article} ${label} test`
+        : counted
+          ? '▶ Send more shoppers and ask Flagsmith again'
+          : '▶ Send shoppers and ask Flagsmith';
+  go.disabled = flow.running || (blocked && !flow.running) || (!sim && !fresh);
+  go.title = sim ? 'Starts the test if needed, sends simulated shoppers, then asks Flagsmith for its results: one click.' : 'Starts the test in Flagsmith. Then open your site to be a visitor, or run turnout simulate.';
+  $('run-cancel').hidden = run.plan === null || flow.running;
+  const steps = $('run-steps');
+  steps.hidden = flow.step < 0 && !flow.note;
+  const progress = demo.job?.status === 'running' && demo.job.action === 'visitors' && demo.job.progress?.total ? demo.job.progress : null;
+  const wait = flow.waitUntil > Date.now() ? Math.ceil((flow.waitUntil - Date.now()) / 1000) : 0;
+  steps.replaceChildren(
+    ...FLOW_STEPS.filter((st) => sim || st.id === 'start').map((st, i) => {
+      const status = flow.done.includes(st.id) ? 'done' : flow.step === i && flow.running ? 'current' : 'todo';
+      const extra = st.id === 'visitors' && status === 'current' && progress
+        ? ` (${progress.done.toLocaleString('en-GB')} of ${progress.total.toLocaleString('en-GB')})`
+        : st.id === 'score' && status === 'current' && wait
+          ? ` (Flagsmith allows the next look in ${Math.floor(wait / 60)}:${String(wait % 60).padStart(2, '0')})`
+          : '';
+      return h('li', { 'data-status': status }, `${status === 'done' ? '✓ ' : status === 'current' ? '… ' : ''}${st.title}${extra}`);
+    }),
+  );
+  if (flow.note) {
+    const status = $('demo-status');
+    status.dataset.tone = flow.tone;
+    status.textContent = flow.note;
+  }
+}
+
+async function postJob(action, payload) {
+  const res = await api('/api/judge/run', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ action, ...payload }) });
+  const body = await res.json().catch(() => ({}));
+  if (res.status !== 202 || !body.job) throw new Error(body.error || `HTTP ${res.status}`);
+  demo.mine.add(body.job.id);
+  trackDemoJob(body.job);
+  return body.job;
+}
+async function waitJob(id) {
+  for (;;) {
+    await new Promise((r) => setTimeout(r, 900));
+    const res = await api('/api/judge/job', { cache: 'no-store' }).catch(() => null);
+    const job = res?.ok ? (await res.json()).job : null;
+    if (job) trackDemoJob(job);
+    renderRun();
+    if (job && job.id === id && job.status !== 'running') return job;
+  }
+}
+async function stepJob(i, action, payload) {
+  flow.step = i;
+  renderRun();
+  const job = await waitJob((await postJob(action, payload)).id);
+  if (job.status === 'failed') throw Object.assign(new Error(job.error || `${action} failed`), { action });
+  flow.done.push(action === 'start' ? 'start' : action);
+  await loadRunState();
+}
+
+async function runFlow() {
+  const s = run.judge;
+  if (!s || flow.running) return;
+  const kind = wantedKind(s);
+  Object.assign(flow, { running: true, step: -1, done: [], note: '', tone: 'neutral', waitUntil: 0 });
+  renderRun();
+  try {
+    if (run.plan !== null || !kindNow(s) || kindNow(s) !== kind) {
+      run.plan = null;
+      await stepJob(0, 'start', { arms: kind });
+    } else flow.done.push('start');
+    if (run.judge.simulator === false) {
+      Object.assign(flow, { note: 'Started. Now open your site to be a visitor, or run turnout simulate; Refresh on the results asks Flagsmith once visitors have arrived.', tone: 'good' });
+      return;
+    }
+    const e = run.judge.experiment;
+    await stepJob(1, 'visitors', { experimentId: e.id, visitors: M.shoppersFor(M.arms(run.judge).length) });
+    // Flagsmith's refresh window: wait it out if it's still closed, then ask once.
+    for (let attempt = 0; attempt < 2; attempt++) {
+      const allowed = Date.parse(run.judge?.results?.refreshAllowedAt ?? '') || 0;
+      if (allowed > Date.now()) {
+        flow.step = 2;
+        flow.waitUntil = allowed;
+        while (Date.now() < flow.waitUntil) {
+          renderRun();
+          await new Promise((r) => setTimeout(r, 1000));
+        }
+        flow.waitUntil = 0;
+      }
+      try {
+        await stepJob(2, 'score', { experimentId: e.id });
+        break;
+      } catch (error) {
+        await loadRunState();
+        if (!/every 5 minutes/.test(error.message) || attempt) throw error;
+      }
+    }
+    const v = M.verdict(run.judge);
+    Object.assign(flow, { note: v ? `${v.title}. ${v.text} Decide below.` : "Done: Flagsmith's results are on the right. Decide below.", tone: v?.tone === 'good' ? 'good' : 'neutral' });
+  } catch (error) {
+    Object.assign(flow, { note: `Stopped: ${error.message}`, tone: 'bad' });
+  } finally {
+    flow.running = false;
+    flow.step = -1;
+    void refreshNow();
+    renderRun();
+  }
+}
+$('run-go').addEventListener('click', () => void runFlow());
 $('run-cancel').addEventListener('click', () => {
   run.plan = null;
   renderRun();
@@ -1254,12 +1406,20 @@ $('run-cancel').addEventListener('click', () => {
 setupMenu('console');
 void loadYou();
 void loadRunState();
-void loadSignin().then((x) => {
+if (!READONLY) void loadSignin().then((x) => {
   const drop = $('signin-drop');
   if (!x?.dashboardUrl) return void (drop.hidden = true);
   $('signin-box').replaceChildren(signinBox(x, { compact: true }));
 });
-const tour = createTour({ stops: CONSOLE_STOPS, seenKey: 'turnout-tour-console-seen' });
+if (!READONLY) void setupTry();
+else document.getElementById('try-open')?.remove();
+if (READONLY) {
+  for (const id of ['refresh-btn', 'signin-drop', 'site-new', 'site-suggest']) {
+    const node = document.getElementById(id);
+    if (node) node.hidden = true;
+  }
+}
+const tour = createTour({ stops: stopsFor(CONSOLE_STOPS, READONLY), seenKey: READONLY ? 'turnout-tour-public-console-seen' : 'turnout-tour-console-seen' });
 $('tour-open').addEventListener('click', () => tour.start());
 setTimeout(() => tour.offer(), 1500);
 

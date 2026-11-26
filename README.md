@@ -55,6 +55,7 @@ Open the **[live demo](https://172-198-62-67.sslip.io/judge)**: it runs real Fla
 - **The story:** 1.5 beats 1.4 on orders and ships to everyone. Then 1.6 sells a little more than 1.5, but its pages are slower, so the safety check stops it.
 - **Look inside Flagsmith:** the *In Flagsmith* tab shows the flag, its split and the route each shopper takes.
 - **Be a visitor:** press it, and Flagsmith gives you a version like any shopper. The route marks where you landed.
+- **The console, read-only:** [/judge/console](https://172-198-62-67.sslip.io/judge/console) shows the live traffic map, Flagsmith's results and the decisions the autopilot makes.
 
 On your own machine, judge mode is interactive: a guided tour tells you what to click at each step.
 
@@ -121,7 +122,19 @@ Your browser opens judge mode at <http://127.0.0.1:8090/judge>. Follow the tour,
 3. Open the **In Flagsmith** tab to see the flag, the split and the login for Flagsmith's own dashboard (<http://127.0.0.1:8000>).
 4. Press **Be a visitor** to get a version yourself, or **Pin my browser** to always get one (a Flagsmith identity override).
 
-The full console is at <http://127.0.0.1:8090>. `turnout demo stop` stops it; `turnout demo reset` starts from scratch.
+The full console is at <http://127.0.0.1:8090>: pick A/A, A/B or A/B/C in **Run a test** and press its one button (it starts the test, sends simulated shoppers and asks Flagsmith for the results). `turnout demo stop` stops it; `turnout demo reset` starts from scratch.
+</details>
+
+<details>
+<summary><b>2½. Try it with your app, from the console (no command line)</b></summary>
+
+On the console, press **Try it with your app** and give one, two or three versions, each as:
+
+- a **Dockerfile** (paste or upload it; it must be self-contained, since `COPY` needs your files),
+- a **public git repository** URL (Docker builds it straight from the URL, Dockerfile included), or
+- an **image** name (`nginx:alpine`, `myapp:1.1`).
+
+One version makes an A/A test (the same app twice, a fairness check), two an A/B test, three an A/B/C test. Turnout builds them on your machine, runs them behind a proxy of its own on a flag of its own (`tryit_release`), shows a live preview of each, and opens judge mode for them at <http://127.0.0.1:8090/try>, where **Play it for me** runs the whole test. Optional: a goal (`POST /signup`, `GET /pricing.html`) and the conversion rate simulated visitors use per version. **Use an example** fills in two small pages, so you can watch it work without an app of your own. Local only: it builds and runs code, so it never exists on a public server.
 </details>
 
 <details>
@@ -186,6 +199,7 @@ or, for Caddy, `reverse_proxy 127.0.0.1:8080`. Visitors keep your domain; the co
 - **A port is busy:** Turnout picks the next free one and says so.
 - **A version doesn't answer:** its last log lines are printed. If it needs a database, pass its settings with `--env-file`, or run the versions yourself and give their URLs.
 - **Out of memory:** Flagsmith and its database need about 1.5 GB; give Docker 4 GB.
+- **"Flagsmith refused the refresh":** Flagsmith recomputes an experiment's results at most once every 5 minutes. Turnout holds a refresh back until new visits have arrived, so the window is never spent on nothing; the one-button run asks only after its visitors' events are in.
 - **Something else:** `turnout status`, or <http://127.0.0.1:8090/setup>, compares what's expected with what's there (28 checks).
 </details>
 
@@ -209,7 +223,7 @@ Every Flagsmith fact, with its source file and line: [docs/FLAGSMITH.md](docs/FL
 | | |
 |---|---|
 | **Your app** | `turnout compare` for URLs, images or git branches, any number of versions; goals optional; `--env-file`; installers for Windows, macOS and Linux; `turnout deploy` |
-| **Guided** | Judge mode with an interactive tour; a console tour; previews of each version; *Be a visitor* with a YOU pin on the route; *Pin my browser* (identity override) |
+| **Guided** | Judge mode with an interactive tour; a console tour; one button runs a whole test; *Try it with your app* (Dockerfiles, git repos or images); *Be a visitor* with a YOU pin; *Pin my browser* (identity override) |
 | **Measuring** | Sticky visitor ids, bots never counted, bounces counted, goals from HTTP or one response header; 0 of 121,678 events lost under load |
 | **Deciding** | Flagsmith's results as returned; keep running while unsure; safety checks with a sensible margin (20 ms for page speed); A/A fairness checks |
 | **Releasing** | Ship and Revert that reach everyone; swing back with one edit; preview for your team; a release ledger and GitHub Releases |

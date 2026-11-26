@@ -11,9 +11,12 @@ const MAX_CLIENTS = 20;
 export class TrafficFeed {
   private clients = new Set<http.ServerResponse>();
   private recent: TrafficEvent[] = [];
+  private readonly since = Date.now(); // when this feed started counting
+  private lastEnrolledPageAt: number | null = null; // the last page view by a visitor in the experiment
 
   publish(event: TrafficEvent): void {
     this.recent.push(event);
+    if (event.enrolled && event.document) this.lastEnrolledPageAt = event.at;
     this.trim(event.at);
     if (this.recent.length > MAX_RECENT) this.recent.splice(0, this.recent.length - MAX_RECENT);
     const line = `data: ${JSON.stringify(event)}\n\n`;
@@ -28,7 +31,9 @@ export class TrafficFeed {
   }
 
   // Requests per variant over the last minute, for the lever and the counters.
-  summary(now = Date.now()): { windowSeconds: number; byVariant: Record<string, { requests: number; pages: number; conversions: number }> } {
+  // Also: since when this feed counts, and the last page view by an enrolled visitor (the console's refresh guard:
+  // asking Flagsmith to recompute with no new visits spends its one recompute per 5 minutes on nothing).
+  summary(now = Date.now()): { windowSeconds: number; since: number; lastEnrolledPageAt: number | null; byVariant: Record<string, { requests: number; pages: number; conversions: number }> } {
     this.trim(now);
     const byVariant: Record<string, { requests: number; pages: number; conversions: number }> = {};
     for (const e of this.recent) {
@@ -37,7 +42,7 @@ export class TrafficFeed {
       if (e.document) v.pages++;
       if (e.converted) v.conversions++;
     }
-    return { windowSeconds: WINDOW_MS / 1000, byVariant };
+    return { windowSeconds: WINDOW_MS / 1000, since: this.since, lastEnrolledPageAt: this.lastEnrolledPageAt, byVariant };
   }
 
   subscribe(res: http.ServerResponse): void {

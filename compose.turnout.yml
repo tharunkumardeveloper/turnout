@@ -85,6 +85,7 @@ services:
       TURNOUT_HEALTH_WEBHOOK: ${TURNOUT_HEALTH_WEBHOOK:-} # written by init: Flagsmith Feature Health
       TURNOUT_GUARD: ${TURNOUT_GUARD:-off} # "revert": revert automatically on a clearly losing guardrail
       TURNOUT_GUARD_THRESHOLD: ${TURNOUT_GUARD_THRESHOLD:-0.01}
+      TURNOUT_TRYIT_URL: ${TURNOUT_TRYIT_URL:-http://tryit:8097} # the Try it box; empty: no Try it (server mode)
     ports:
       # The console holds the admin key. :8090 is this machine's console and is only ever published on 127.0.0.1.
       # :8091 is for other devices: every request there needs the judge cookie, whatever Host header it sends.
@@ -101,6 +102,32 @@ services:
       interval: 10s
       timeout: 3s
       retries: 3
+    depends_on:
+      turnout:
+        condition: service_started
+
+  # "Try it with your app" (the console's Try it box): builds or pulls YOUR versions (a Dockerfile, a public git repo
+  # or an image) over the Docker socket, runs them as containers, and puts them behind a Turnout proxy of its own on
+  # the flag tryit_release. The Docker socket is root on this machine: local mode only (compose.server.yml turns this
+  # service off), its API reached only through the console on 127.0.0.1, and its proxy published on 127.0.0.1.
+  tryit:
+    <<: *turnout-image
+    command: tryit
+    user: '0:0' # the Docker socket belongs to root
+    restart: unless-stopped
+    environment:
+      FLAGSMITH_API_URL: http://flagsmith:8000/api/v1/
+      TURNOUT_ADMIN_KEY: ${TURNOUT_ADMIN_KEY:-}
+      TURNOUT_SERVER_KEY: ${TURNOUT_SERVER_KEY:-}
+      TURNOUT_EXPERIMENT: ${TURNOUT_EXPERIMENT:-}
+      FLAGSMITH_DASHBOARD_URL: ${FLAGSMITH_DASHBOARD_URL:-http://127.0.0.1:8000}
+      TURNOUT_TRYIT_SHOP_URL: http://127.0.0.1:8085
+      TURNOUT_STATE_DIR: /tmp/turnout-tryit
+    ports:
+      - 127.0.0.1:8085:8085 # your versions, through Turnout (previews, "be a visitor")
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+    networks: [default]
     depends_on:
       turnout:
         condition: service_started

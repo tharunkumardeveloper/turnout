@@ -436,3 +436,86 @@ describe("the guard's automatic Revert drops the console's kept reads", () => {
     }
   });
 });
+
+// Flagsmith recomputes an experiment's results at most once every 5 minutes; a recompute with nothing new spends it.
+describe("the refresh guard: no recompute before there's something new to count", () => {
+  test('held back with no visit since the start; allowed after one; held back again once results include it', async () => {
+    const saved = { started: state.experiment!.started_at, asOf: state.results!.as_of, status: state.experiment!.status };
+    try {
+      state.experiment!.status = 'running'; // earlier tests decide it
+      await new Promise((r) => setTimeout(r, 5)); // the feed (started with this file) is older than the experiment
+      state.experiment!.started_at = new Date().toISOString();
+      state.results!.as_of = '2026-11-17T01:00:00Z';
+      const none = await json(await post('/api/refresh', {}));
+      assert.equal(none.ok, false);
+      assert.equal(none.heldBack, true);
+      assert.match(none.reason, /No visitor in the experiment has loaded a page since it started/);
+
+      feed.publish({ at: Date.now(), variant: 'v2', release: 'shop:1.5', method: 'GET', path: '/', status: 200, latencyMs: 5, document: true, enrolled: true, converted: false });
+      const one = await json(await post('/api/refresh', {}));
+      assert.equal(one.ok, true, 'a visit since the start: Flagsmith is asked');
+
+      state.results!.as_of = new Date(Date.now() + 1000).toISOString(); // Flagsmith has recomputed since that visit
+      const done = await json(await post('/api/refresh', {}));
+      assert.equal(done.heldBack, true);
+      assert.match(done.reason, /already include every visit so far/);
+    } finally {
+      state.experiment!.started_at = saved.started;
+      state.results!.as_of = saved.asOf;
+      state.experiment!.status = saved.status;
+    }
+  });
+
+  test("the feed's summary says since when it counts, and the last page view by an enrolled visitor", () => {
+    const f = new TrafficFeed();
+    assert.equal(f.summary().lastEnrolledPageAt, null);
+    f.publish({ at: 123, variant: 'control', release: 'a', method: 'GET', path: '/x.css', status: 200, latencyMs: 1, document: false, enrolled: true, converted: false });
+    f.publish({ at: 124, variant: 'control', release: 'a', method: 'GET', path: '/', status: 200, latencyMs: 1, document: true, enrolled: false, converted: false });
+    assert.equal(f.summary(200).lastEnrolledPageAt, null, 'an asset, or a visitor outside the test, is not a counted visit');
+    f.publish({ at: 150, variant: 'v2', release: 'b', method: 'GET', path: '/', status: 200, latencyMs: 1, document: true, enrolled: true, converted: false });
+    assert.equal(f.summary(200).lastEnrolledPageAt, 150);
+    assert.equal(typeof f.summary().since, 'number');
+  });
+});
+
+describe('Try it with your app: the console relays to the tryit service, this machine only', () => {
+  test('off without TURNOUT_TRYIT_URL: /try and /api/try answer 404', async () => {
+    assert.equal((await get('/api/try/status')).status, 404);
+    assert.equal((await fetch(`${base}/try`)).status, 404);
+  });
+
+  test('on: /try is judge mode for your versions, /api/try/* and /try/api/* reach the service, the token is required', async () => {
+    const seen: string[] = [];
+    const tryit = http.createServer((req, res) => {
+      seen.push(`${req.method} ${req.url} cookie=${req.headers.cookie ?? ''}`);
+      res.writeHead(200, { 'content-type': 'application/json' }).end(JSON.stringify({ ok: true, path: req.url }));
+    });
+    const tryUrl = await listen(tryit);
+    const realUi = new URL('../src/console/ui/', import.meta.url).pathname.replace(/^\/([A-Za-z]:)/, '$1');
+    const server = createConsole({
+      experiments: new WithHistory(new AdminClient(fake.apiUrl, { apiKey: 'k' }), { envKey: ENV, experimentId: 7 }),
+      feedUrl: 'http://127.0.0.1:9', snapshotDir: mkdtempSync(join(tmpdir(), 'sy-try-snap-')), ledgerDir: mkdtempSync(join(tmpdir(), 'sy-try-led-')),
+      uiDir: decodeURIComponent(realUi), tryitUrl: tryUrl,
+    });
+    const url = await listen(server);
+    try {
+      const page = await fetch(`${url}/try`);
+      assert.equal(page.status, 200);
+      const html = await page.text();
+      assert.match(html, /<meta name="turnout-base" content="\/try"><meta name="turnout-try" content="1">/);
+      const t = html.match(/name="turnout-console" content="([^"]+)"/)![1]!;
+      assert.equal((await fetch(`${url}/api/try/status`)).status, 403, 'the page token is required');
+      assert.equal((await fetch(`${url}/try/api/judge/state`)).status, 403, 'under /try/api too');
+      const status: any = await (await fetch(`${url}/api/try/status`, { headers: { 'x-turnout-console': t } })).json();
+      assert.equal(status.path, '/api/try/status');
+      const st: any = await (await fetch(`${url}/try/api/judge/state`, { headers: { 'x-turnout-console': t, cookie: 'tn_id=abc' } })).json();
+      assert.equal(st.path, '/api/judge/state', '/try/api/x reaches the service as /api/x');
+      assert.ok(seen.some((l) => l.includes('cookie=tn_id=abc')), 'the browser cookie goes along (where you land, pins)');
+      assert.equal((await fetch(`${url}/try/api/doctor`, { headers: { 'x-turnout-console': t } })).status, 404, 'only the listed paths');
+      assert.match(page.headers.get('content-security-policy') ?? '', /frame-src 'self'[^;]* http:\/\/127\.0\.0\.1:8085/, 'its previews may frame the try proxy');
+    } finally {
+      server.close();
+      tryit.close();
+    }
+  });
+});

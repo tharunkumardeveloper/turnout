@@ -37,6 +37,8 @@ export type ConsoleOptions = {
   judgeToken?: string; // TURNOUT_JUDGE_TOKEN: /judge?key=<it> gives a browser the judge cookie
   judge?: JudgeOptions; // judge mode's jobs; without it /api/judge/* answers 404
   judgePage?: boolean; // the /judge page (the demo's guided page); default: on whenever judge is given
+  tryitUrl?: string; // the tryit service (Try it with your app, local only), e.g. http://tryit:8097; unset: off
+  tryitShopUrl?: string; // where a browser reaches its proxy (previews), default http://127.0.0.1:8085
   // Flagsmith's admin login, for the tour's "sign in to Flagsmith" step. The password goes only to loopback pages.
   flagsmithLogin?: { email: string; password?: string };
   watcher?: Watcher; // the Feature Health bridge and the guard: GET/POST /api/guard
@@ -80,12 +82,14 @@ const TYPES: Record<string, string> = {
 
 // Judge mode shows the setup check and the feature map as tabs (same-origin frames) and the shop through
 // Turnout (frame-src names the shop's origin). Nothing else may frame the console.
-function securityHeaders(shopUrl: string | undefined): Record<string, string> {
+function securityHeaders(shopUrl: string | undefined, extraFrames: string[] = []): Record<string, string> {
   let shop = '';
-  try {
-    if (shopUrl) shop = ` ${new URL(shopUrl).origin}`;
-  } catch {
-    // no shop frame
+  for (const url of [shopUrl, ...extraFrames]) {
+    try {
+      if (url) shop += ` ${new URL(url).origin}`;
+    } catch {
+      // no frame for it
+    }
   }
   return {
     'x-content-type-options': 'nosniff',
@@ -129,7 +133,7 @@ export function listenForPublic(server: http.Server, port: number, host: string,
 // The public view's prefix: Caddy sends /judge and /judge/* here, everything else on the hostname to the proxy.
 export const PUBLIC_BASE = '/judge';
 // What the public view serves: the judge page, its scripts, styles and icon, and three reads.
-const PUBLIC_READS = new Set(['/api/judge/state', '/api/judge/job', '/api/traffic']);
+const PUBLIC_READS = new Set(['/api/judge/state', '/api/judge/job', '/api/traffic', '/api/state']);
 // Writes from the private console: the autopilot steps aside for a while after one.
 const HUMAN_WRITES = new Set(['/api/judge/run', '/api/ship', '/api/revert', '/api/keep-running', '/api/refresh', '/api/guard']);
 const PUBLIC_ASSET_TYPES = new Set(['.js', '.css', '.svg']);
@@ -160,7 +164,8 @@ export function createConsole(opts: ConsoleOptions): http.Server {
     );
   }
   const mark = opts.judgeToken ? judgeMark(opts.judgeToken) : undefined;
-  const SECURITY_HEADERS = securityHeaders(opts.judge?.shopUrl);
+  // Try it with your app: its previews frame the tryit proxy (127.0.0.1:8085).
+  const SECURITY_HEADERS = securityHeaders(opts.judge?.shopUrl, opts.tryitUrl ? [opts.tryitShopUrl ?? 'http://127.0.0.1:8085'] : []);
   const ttl: CacheTimes = { ...CACHE_MS, ...opts.cacheMs };
   const resolve = opts.experiments;
   const latest = typeof resolve === 'function' ? shared(resolve, ttl.latest) : null;
@@ -266,6 +271,27 @@ export function createConsole(opts: ConsoleOptions): http.Server {
       lock.busy = false;
     }
   };
+  // Flagsmith recomputes an experiment's results at most once every 5 minutes. A recompute asked for before any new
+  // visit (right after Start, say) spends that window on nothing, and the real results then wait 5 minutes. So the
+  // console holds a refresh back while the proxy's feed has seen no page view from a visitor in the experiment since
+  // it started or since the last refresh. Unknown (an older proxy, or one started after the experiment): never held.
+  const lastRefreshAt = new Map<number, number>();
+  const refreshHeldBack = async (exps: Experiments): Promise<string | null> => {
+    const summary = (await fetchJson(`${opts.feedUrl}/summary`).catch(() => null)) as { since?: number; lastEnrolledPageAt?: number | null } | null;
+    if (!summary || typeof summary.since !== 'number') return null;
+    const detail = await exps.detail().catch(() => null);
+    const started = detail?.started_at ? Date.parse(detail.started_at) : NaN;
+    if (!detail || detail.status !== 'running' || !Number.isFinite(started)) return null;
+    // Results Flagsmith computed after the last visit already include it (judge mode's "Ask Flagsmith" refreshes too).
+    const asOf = Date.parse((await exps.results().catch(() => null))?.as_of ?? '') || 0;
+    const after = Math.max(started, lastRefreshAt.get(detail.id) ?? 0, asOf);
+    if (summary.since > after) return null; // the proxy restarted since: it can't tell
+    if ((summary.lastEnrolledPageAt ?? 0) >= after) return null;
+    return asOf > started
+      ? "Flagsmith's results already include every visit so far, so Turnout held the refresh back: Flagsmith allows one recompute per experiment every 5 minutes. Send more visitors, then Refresh."
+      : 'No visitor in the experiment has loaded a page since it started, so Turnout held the refresh back: Flagsmith allows one recompute per experiment every 5 minutes, and it would be spent on no data. Send visitors or open your site, then Refresh.';
+  };
+
   // Everything kept is dropped after a write from this console, judge mode's state included.
   const forget = () => {
     invalidate('all');
@@ -292,6 +318,8 @@ export function createConsole(opts: ConsoleOptions): http.Server {
     }
     const url = new URL(req.url ?? '/', 'http://console');
     if (url.pathname === PUBLIC_BASE || url.pathname === `${PUBLIC_BASE}/`) return servePublicPage(opts.uiDir, res, publicToken);
+    // The console, read-only: the same page as the private one, its data live, no button that changes anything.
+    if (url.pathname === `${PUBLIC_BASE}/console` || url.pathname === `${PUBLIC_BASE}/console/`) return servePublicPage(opts.uiDir, res, publicToken, 'index.html');
     if (!url.pathname.startsWith(`${PUBLIC_BASE}/`)) return json(res, 404, { error: 'not found' });
     const rest = url.pathname.slice(PUBLIC_BASE.length);
     if (rest.startsWith('/api/')) {
@@ -299,6 +327,13 @@ export function createConsole(opts: ConsoleOptions): http.Server {
       const given = req.headers[TOKEN_HEADER] ?? (rest === '/api/traffic' ? url.searchParams.get('token') : null);
       if (!sameSecret(typeof given === 'string' ? given : '', publicToken)) return json(res, 403, { error: 'Open the judge page to use its API.' });
       if (rest === '/api/traffic') return relayFeed(`${opts.feedUrl}/traffic`, res);
+      if (rest === '/api/state') {
+        lastViewer = Date.now();
+        const st = redact(await apiState.get());
+        // The shop is the public site itself (same origin); Flagsmith's dashboard stays private.
+        const shop = judge ? (await judge.state()).links.shop : (st.site?.url ?? null);
+        return json(res, 200, { ...st, readOnly: true, site: shop ? { url: shop, dashboardUrl: null, goal: st.site?.goal ?? null } : null });
+      }
       if (!judge) return json(res, 404, { error: 'Judge mode is not configured for this console.' });
       if (rest === '/api/judge/job') return json(res, 200, redact({ job: judge.job() }));
       // The public page is who the autopilot runs for: its state polls are what keep the story moving.
@@ -355,14 +390,31 @@ export function createConsole(opts: ConsoleOptions): http.Server {
         if (url.pathname.startsWith('/api/')) return json(res, 403, { error: 'Open the judge link on this device first.' });
         return page(res, 403, 'Open the judge link first', 'This console only answers other devices that opened the judge link (/judge?key=…).');
       }
-      if (url.pathname.startsWith('/api/')) {
-        const given = req.headers[TOKEN_HEADER] ?? (url.pathname === '/api/traffic' ? url.searchParams.get('token') : null);
+      const isApi = url.pathname.startsWith('/api/') || url.pathname.startsWith('/try/api/');
+      if (isApi) {
+        const given = req.headers[TOKEN_HEADER] ?? (url.pathname === '/api/traffic' || url.pathname === '/try/api/traffic' ? url.searchParams.get('token') : null);
         if (!sameSecret(typeof given === 'string' ? given : '', token)) {
           return json(res, 403, { error: 'Open the console page to use its API.' });
         }
       }
       if (req.method === 'POST' && !isSameOriginJson(req)) {
         return json(res, 403, { error: 'Console actions must come from the console page.' });
+      }
+
+      // Try it with your app: the console relays to the tryit service (it builds and runs code, so this machine only).
+      const tryPath = url.pathname === '/try' || url.pathname.startsWith('/try/') || url.pathname.startsWith('/api/try/');
+      if (tryPath) {
+        if (!opts.tryitUrl) return isApi || url.pathname.startsWith('/api/') ? json(res, 404, { error: 'Try it is off on this console (it needs local mode).' }) : page(res, 404, 'Try it is off here', 'Try it with your app runs only on a local Turnout (it builds and runs code).');
+        if (!thisMachine) return json(res, 403, { error: 'Try it is only available on the machine running Turnout.' });
+        if (req.method === 'GET' && (url.pathname === '/try' || url.pathname === '/try/')) return serveTryPage(opts.uiDir, res, token);
+        if (url.pathname === '/try/api/flagsmith-login') {
+          const login = opts.flagsmithLogin;
+          return json(res, 200, { dashboardUrl: opts.judge?.dashboardUrl ?? null, email: login?.email ?? null, password: login?.password ?? null });
+        }
+        const rest = url.pathname.startsWith('/try/api/') ? url.pathname.slice(4) : url.pathname;
+        const allowed = ['/api/try/status', '/api/try/build', '/api/judge/state', '/api/judge/job', '/api/judge/run', '/api/traffic', '/api/you', '/api/pin'];
+        if (!allowed.includes(rest)) return json(res, 404, { error: 'not found' });
+        return relayTry(`${opts.tryitUrl.replace(/\/$/, '')}${rest}`, req, res);
       }
       if (req.method === 'POST' && HUMAN_WRITES.has(url.pathname)) autopilot?.noteHuman();
 
@@ -401,7 +453,11 @@ export function createConsole(opts: ConsoleOptions): http.Server {
 
       if (req.method === 'POST' && url.pathname === '/api/refresh') {
         await readJson(req);
-        const refreshed = await (await current()).refreshResults();
+        const exps = await current();
+        const held = await refreshHeldBack(exps);
+        if (held) return json(res, 200, { ok: false, heldBack: true, reason: held });
+        const refreshed = await exps.refreshResults();
+        if (refreshed.ok) lastRefreshAt.set(exps.ref.experimentId, Date.now());
         forget();
         return json(res, 200, refreshed);
       }
@@ -615,6 +671,46 @@ export async function readEventCounter(metricsUrl: string | undefined): Promise<
   }
 }
 
+// Relays one request to the tryit service: the method, the JSON body, the browser's cookies (where you land, pins),
+// and the answer as it streams (the traffic feed is an event stream).
+async function relayTry(url: string, req: http.IncomingMessage, res: http.ServerResponse): Promise<void> {
+  const abort = new AbortController();
+  res.on('close', () => abort.abort());
+  try {
+    let body: string | undefined;
+    if (req.method === 'POST') {
+      body = '';
+      for await (const chunk of req) {
+        body += chunk;
+        if (body.length > 512 * 1024) throw new Error('too large');
+      }
+    }
+    const upstream = await fetch(url, {
+      method: req.method,
+      headers: { 'content-type': 'application/json', ...(req.headers.cookie ? { cookie: req.headers.cookie } : {}) },
+      ...(body !== undefined ? { body } : {}),
+      signal: abort.signal,
+    });
+    res.writeHead(upstream.status, { 'content-type': upstream.headers.get('content-type') ?? 'application/json', 'cache-control': 'no-store' });
+    if (upstream.body) for await (const chunk of upstream.body) res.write(chunk);
+    res.end();
+  } catch (error) {
+    if (!res.headersSent) {
+      res.writeHead(502, { 'content-type': 'application/json' });
+      res.end(JSON.stringify({ error: `The Try it service didn't answer: ${(error as Error).message}. Is the tryit container running? (docker compose up -d tryit)` }));
+    } else res.end();
+  }
+}
+
+// Judge mode's page for your own versions: the same demo.html, its API under /try/api/ (the tryit service).
+function serveTryPage(dir: string, res: http.ServerResponse, token: string): void {
+  const html = readFileSync(join(dir, 'demo.html'), 'utf8')
+    .replace(TOKEN_META, `<meta name="turnout-console" content="${token}"><meta name="turnout-base" content="/try"><meta name="turnout-try" content="1">`)
+    .replace('<title>Turnout demo</title>', '<title>Turnout: try it with your app</title>');
+  res.writeHead(200, { 'content-type': TYPES['.html']!, 'cache-control': 'no-store' });
+  res.end(html);
+}
+
 async function relayFeed(url: string, res: http.ServerResponse): Promise<void> {
   const abort = new AbortController();
   res.on('close', () => abort.abort());
@@ -648,8 +744,8 @@ const PAGES: Record<string, string> = { '/': 'index.html', '/judge': 'demo.html'
 
 // The public judge page: the same demo.html as /judge, read-only, its assets under /judge/ (Caddy sends only /judge* here, so
 // /style.css and friends stay the app's), and its API calls under /judge/api/ (the page reads turnout-base).
-function servePublicPage(dir: string, res: http.ServerResponse, token: string): void {
-  const html = readFileSync(join(dir, 'demo.html'), 'utf8')
+function servePublicPage(dir: string, res: http.ServerResponse, token: string, page = 'demo.html'): void {
+  const html = readFileSync(join(dir, page), 'utf8')
     .replace(
       TOKEN_META,
       `<meta name="turnout-console" content="${token}"><meta name="turnout-base" content="${PUBLIC_BASE}"><meta name="turnout-readonly" content="1">`,

@@ -68,7 +68,8 @@ button?.addEventListener('click', async () => {
   }
 });
 
-if (card) {
+// The public, read-only console has no guard (and no API for it).
+if (card && !document.querySelector('meta[name="turnout-readonly"]')) {
   refresh();
   setInterval(refresh, 5000);
 }

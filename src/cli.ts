@@ -391,6 +391,26 @@ const commands: Record<string, () => Promise<void>> = {
     if (problems.length) throw new Error(`server mode refuses to start: ${problems.length} setting${problems.length === 1 ? '' : 's'} above (values are never shown)`);
     console.log('Server mode: no placeholder secrets or tokens.');
   },
+  // "Try it with your app" (local only): builds or pulls your versions over the Docker socket and runs judge mode on
+  // them behind a proxy of its own (src/tryit/server.ts). Started by compose.turnout.yml's tryit service.
+  tryit: async () => {
+    const { createDocker } = await import('./tryit/docker.ts');
+    const { startTryit } = await import('./tryit/server.ts');
+    const docker = createDocker();
+    if (!(await docker.ping())) throw new Error("Can't reach Docker at /var/run/docker.sock: tryit needs the Docker socket mounted.");
+    startTryit({
+      docker,
+      apiUrl: apiUrl(),
+      adminKey: await adminKey(),
+      serverKey: serverKey(),
+      envKey: envKey(),
+      dashboardUrl: process.env.FLAGSMITH_DASHBOARD_URL || 'http://127.0.0.1:8000',
+      publicShop: process.env.TURNOUT_TRYIT_SHOP_URL || 'http://127.0.0.1:8085',
+      proxyPort: Number(env('TRYIT_PROXY_PORT', '8085')),
+      apiPort: Number(env('TRYIT_PORT', '8097')),
+      stateDir: join(STATE_DIR, 'tryit'),
+    });
+  },
   'code-refs': async () => {
     // The project: --project, TURNOUT_PROJECT_ID, or the environment in TURNOUT_EXPERIMENT.
     const api = await adminApi();
@@ -528,6 +548,7 @@ const commands: Record<string, () => Promise<void>> = {
       ...(judgeToken ? { judgeToken } : {}),
       judge: judgeOn ? judge : { ...judge, simulator: false },
       judgePage: judgeOn,
+      ...(process.env.TURNOUT_TRYIT_URL ? { tryitUrl: process.env.TURNOUT_TRYIT_URL } : {}),
       ...(process.env.FLAGSMITH_ADMIN_EMAIL
         ? { flagsmithLogin: { email: process.env.FLAGSMITH_ADMIN_EMAIL, ...(process.env.FLAGSMITH_ADMIN_PASSWORD ? { password: process.env.FLAGSMITH_ADMIN_PASSWORD } : {}) } }
         : {}),
