@@ -112,27 +112,21 @@ services:
     environment: *flagsmith-secrets
     healthcheck: *flagsmith-health
 
-  # Housekeeping for the always-on demo: the autopilot sends simulated visitors forever, and Flagsmith's SDK event
-  # table (experimentation_sdkexperimentationevent) only grows (Flagsmith's docs: it "never deletes events"; manage
-  # retention yourself). Measured on a 2-vCPU VM: 530,000 events (228 MB) after
-  # 10 hours made Flagsmith's results queries take 37 s and its health check time out. Every hour this deletes events
-  # older than TURNOUT_EVENT_RETENTION_HOURS (default 6, several story loops), so finished experiments' raw events go;
-  # their results are kept in Turnout's decision snapshots and ledger. TURNOUT_EVENT_RETENTION_HOURS=0 turns it off.
+  # Housekeeping for the always-on autopilot demo only (deploy/prune-events.sh has the rules): Flagsmith never deletes
+  # SDK events, and the autopilot sends visitors forever (530,572 events, 228 MB after 10 h made results queries take
+  # 37 s). Hourly, and only while TURNOUT_AUTOPILOT=on, it deletes events older than TURNOUT_EVENT_RETENTION_HOURS
+  # (default 6) that are also older than every running, paused or unsnapshotted experiment. Never in normal use.
   event-pruner:
     image: postgres:15.5-alpine
     <<: *restart
     environment:
       PGPASSWORD: ${POSTGRES_PASSWORD:?run sh turnout.sh server <hostname> (it writes random secrets)}
-      HOURS: ${TURNOUT_EVENT_RETENTION_HOURS:-6}
-    entrypoint: ['/bin/sh', '-c']
-    command:
-      - |
-        case "$$HOURS" in *[!0-9]*|"") echo "TURNOUT_EVENT_RETENTION_HOURS must be a whole number"; exit 1;; 0) echo "event pruning off"; exec sleep infinity;; esac
-        while :; do
-          psql -h postgres -U postgres -d flagsmith -Atc "DELETE FROM experimentation_sdkexperimentationevent WHERE \"timestamp\" < now() - interval '$$HOURS hours'" \
-            | sed "s/^/$$(date -u +%FT%TZ) events older than $$HOURS h deleted: /"
-          sleep 3600
-        done
+      AUTOPILOT: ${TURNOUT_AUTOPILOT:-on}
+      RETENTION_HOURS: ${TURNOUT_EVENT_RETENTION_HOURS:-6}
+    entrypoint: ['/bin/sh', '/prune-events.sh']
+    volumes:
+      - ./deploy/prune-events.sh:/prune-events.sh:ro
+      - ./.turnout/snapshots:/snapshots:ro
     depends_on:
       postgres:
         condition: service_healthy
