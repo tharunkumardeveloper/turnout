@@ -858,6 +858,10 @@ describe('judge mode from another device', () => {
       uiDir: UI,
       allowedHosts: ['judge.example'],
       judgeToken: JUDGE_TOKEN,
+      judge: {
+        flag: 'shop_release', releases: RELEASES, goal: 'order_placed', apiUrl: fake.apiUrl, adminKey: 'k',
+        proxyUrl: 'http://proxy.invalid:8080', shopUrl: 'http://127.0.0.1:8080', dashboardUrl: 'http://127.0.0.1:8000', rates: parseRates(DEFAULT_RATES),
+      },
     });
     await listen(server);
     port = (server.address() as AddressInfo).port;
@@ -901,7 +905,7 @@ describe('judge mode from another device', () => {
     const token = page.body.match(/content="([^"]+)"/)?.[1] ?? '';
     assert.match(token, /^[\w-]{32}$/);
     const api = await raw(port, '/api/judge/state', { host: 'judge.example:8090', cookie: pair, 'x-turnout-console': token });
-    assert.equal(api.status, 404, 'past the guards: judge jobs are not configured on this console');
+    assert.ok(![403, 421].includes(api.status), `past the guards (got ${api.status}; this console's Flagsmith is a stub)`);
     assert.equal((await raw(port, '/api/judge/state', { host: 'judge.example', cookie: pair })).status, 403, 'still needs the page token');
     assert.equal((await raw(port, '/judge', { host: 'judge.example', cookie: `${JUDGE_COOKIE}=forged` })).status, 403);
   });
@@ -1105,6 +1109,47 @@ describe('the public, read-only judge view (server mode)', () => {
       '/judge/api/guard', '/judge/api/judge/signin', '/judge/api/flagsmith-map', '/judge/judge.html', '/judge/setup.html', '/judge/index.html', '/judge/../index.html']) {
       const res = await fetch(`${pub}${path}`, { headers: h });
       assert.equal(res.status, 404, path);
+    }
+  });
+});
+
+// The autopilot rests while nobody watches. The public page is who it runs for, so the public page's own state polls
+// must wake it: before this, only the private console's reads counted, and the live demo stood still for good.
+describe('the public page keeps the autopilot awake', () => {
+  test('idle after 3 minutes without a viewer; one public state read wakes it', async (t) => {
+    t.mock.timers.enable({ apis: ['Date'], now: Date.now() });
+    const flagsmith = await startFlagsmith(initialState());
+    const server = createConsole({
+      experiments: () => latestExperiment(new AdminClient(flagsmith.apiUrl, { apiKey: 'k' }), ENV, 'shop_release'),
+      feedUrl: 'http://127.0.0.1:9',
+      snapshotDir: mkdtempSync(join(tmpdir(), 'sy-wake-snap-')),
+      ledgerDir: mkdtempSync(join(tmpdir(), 'sy-wake-ledger-')),
+      uiDir: fileURLToPath(new URL('../src/console/ui/', import.meta.url)),
+      autopilot: { pauseMs: 3_600_000 }, // on, but its first step is an hour away
+      judge: {
+        flag: 'shop_release', releases: RELEASES, goal: 'order_placed', apiUrl: flagsmith.apiUrl, adminKey: 'k',
+        proxyUrl: 'http://proxy.invalid:8080', shopUrl: 'https://turnout.example.com', dashboardUrl: 'http://127.0.0.1:8000',
+        previewToken: 'preview-token-secret', rates: parseRates(DEFAULT_RATES),
+      },
+    });
+    await listen(server);
+    const viewers = listenForPublic(server, 0, '127.0.0.1');
+    await once(viewers, 'listening');
+    const pub = `http://127.0.0.1:${(viewers.address() as AddressInfo).port}`;
+    try {
+      const html = await (await fetch(`${pub}/judge`, { headers: { host: 'turnout.example.com' } })).text();
+      const token = html.match(/name="turnout-console" content="([^"]+)"/)?.[1] ?? '';
+      const phase = async () => ((await (await fetch(`${pub}/judge/api/judge/state`, { headers: { 'x-turnout-console': token } })).json()) as { autopilot: { phase: string } }).autopilot.phase;
+      const settle = () => new Promise((r) => setTimeout(r, 1300)); // one autopilot poll (real timers)
+      t.mock.timers.tick(4 * 60_000); // nobody looked for 4 minutes
+      await settle();
+      assert.equal(await phase(), 'idle', 'resting while nobody watched');
+      await settle();
+      assert.notEqual(await phase(), 'idle', 'the public read above woke it');
+    } finally {
+      viewers.close();
+      server.close();
+      flagsmith.close();
     }
   });
 });

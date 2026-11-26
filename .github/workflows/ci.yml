@@ -167,7 +167,7 @@ jobs:
         run: |
           c() { curl -s --cacert caddy-root.crt -o body.txt -w '%{http_code}' "$@"; }
           [ "$(c https://localhost/judge)" = 200 ] && grep -q 'name="turnout-readonly"' body.txt
-          [ "$(c https://localhost/judge/judge.js)" = 200 ]
+          [ "$(c https://localhost/judge/demo.js)" = 200 ]
           [ "$(c -X POST -H 'content-type: application/json' -d '{}' https://localhost/judge/api/judge/run)" = 405 ]
           [ "$(c -X POST https://localhost/judge)" = 405 ]
           for path in /judge/api/state /judge/api/doctor /judge/api/guard /judge/api/judge/signin /judge/setup.html; do

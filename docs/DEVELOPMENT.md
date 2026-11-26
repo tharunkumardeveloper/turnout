@@ -35,13 +35,14 @@ src/
   console/judge.ts         judge mode's API: /api/judge/state and the jobs behind each step
   console/ui/              front end, no build step:
                              index.html, app.js, map.js, guard.js                    the full console (/)
-                             judge.html, judge.js, judge-format.js, judge.css,       judge mode (/judge)
-                               track.js, track.css, fx.js
-                             tour.js, tour-plan.js, tour.css                         the judge tour
+                             demo.html, demo.js, demo-model.js, demo.css             judge mode (/judge), also the
+                                                                                     server's public read-only page
+                             demo-tour.js                                            the two-minute tour
+                             menu.js, menu.css                                       the menu every page shares
                              setup.html, setup.js, setup.css                         /setup (doctor)
                              flagsmith.html, flagsmith.js, flagsmith.css             /flagsmith (feature map)
                              style.css                                               shared by every page
-                           format.js                                               shared by / and /judge
+                             format.js                                               the console's wording
 demo/shop/                 Ridgeline Supply Co., run as shop:1.4, 1.5 and 1.6 (no Flagsmith code; own Dockerfile)
 demo/simulator/            labelled simulated visitors with known true conversion rates
 spikes/                    checks against a real Flagsmith; answers and live measurements in spikes/RESULTS.md
@@ -88,7 +89,7 @@ After changing code, rebuild the images: `docker compose --profile tools build c
 npm install
 npm test             # all suites; no Flagsmith or Docker needed
 npm run typecheck    # npx tsc --noEmit
-node --check src/console/ui/judge.js   # the UI files are plain JavaScript; check each one you change
+node --check src/console/ui/demo.js    # the UI files are plain JavaScript; check each one you change
 node spikes/04-local-eval.ts   # against a running Flagsmith after init (the spikes use localhost:8000)
 node spikes/07-round04.ts
 ```
@@ -97,7 +98,7 @@ node spikes/07-round04.ts
 - `test/decide.test.ts` and `test/ship-command.test.ts` cover `decide()` and the `status`, `ship` and `revert` commands, including the guardrail prompts.
 - `test/ops.test.ts` checks the compose files (published ports, networks, users, the variables passed to each service), the CI workflow, the scripts' line endings and argument handling, and that `.env.example` lists every variable `src/` and `demo/` read. Its `.bat` test runs on Windows only and its `sh` tests need `sh`.
 - `test/admin.test.ts` drops sockets without an answer, the way Flagsmith's gunicorn closes an idle keep-alive connection: a read is sent once more, a write never is.
-- `test/*-ui.test.ts` test the front end's pure helpers (`format.js`, `judge-format.js`, `tour-plan.js`) and its markup.
+- `test/*-ui.test.ts` test the front end's pure helpers (`format.js`, `demo-model.js`, `demo-tour.js`) and its markup.
 
 ## How fresh the console's numbers are
 

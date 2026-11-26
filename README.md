@@ -4,7 +4,7 @@
 
 **Live demo, running by itself:** <https://172-198-62-67.sslip.io/judge> (read-only; no sign-in)
 
-![Ship in judge mode: visitors split between two releases, then all move to the winner](docs/images/judge-ship.gif)
+![Judge mode: an A/B/C test on the demo shop. Simulated shoppers go through, Flagsmith's results arrive, B ships and C is stopped by its slower pages, then 50 new shoppers all get B](docs/images/judge-ship.gif)
 
 ## In plain words
 
@@ -20,13 +20,16 @@ You build the two versions; Turnout never edits your site. It works for any webs
 
 **Why not just Flagsmith?** Flagsmith decides who sees what and does the maths. But something has to stand at the door and actually send each visitor to a version. Normally that's code inside your app, which works for one button, not for two whole releases. Turnout is that missing piece: *Flagsmith decides who sees what; Turnout makes that decision real for whole releases, without changing your app.*
 
+**Why not a canary tool?** Canary and blue/green tools (Argo Rollouts, Flagger, a load balancer's weights) shift traffic to protect uptime: they judge a release on errors and latency. Turnout keeps each visitor on one version and asks a product question, *does the new release get more sign-ups or orders?*, with Flagsmith's Bayesian results, while errors and page speed stay as safety checks.
+
 ## See it in 2 minutes
 
-Open the [live demo](https://172-198-62-67.sslip.io/judge). It runs a shop with three releases that look different at a glance (1.4 Classic blue, 3-step checkout · 1.5 Express green, one-page checkout · 1.6 Bold, deliberately slow).
+Open the [live demo](https://172-198-62-67.sslip.io/judge). A short tour starts on the first visit. Then the page runs real Flagsmith experiments by itself on a demo shop, with simulated shoppers (always labelled), on one screen:
 
-- **A blind round plays by itself.** Each round, the true order rates are drawn at random and hidden: the new release is better, worse, or identical. Simulated visitors (always labelled) flow through; Flagsmith has to find the winner, or say there is none. When the round is decided, the page reveals the truth next to Flagsmith's call, and a scoreboard counts how often it was right.
-- **Be a visitor.** Press the button: you're given a version for real and kept on it. Your visit counts in a separate live experiment, never mixed with the simulated one, and the page shows which version you got.
-- **Show details** opens the full dashboard: every step, Flagsmith's own numbers and the release history.
+- **Left: the test in four steps.** Start the test, send shoppers, ask Flagsmith, decide. The current step says what the autopilot does next.
+- **Right: the versions and Flagsmith's numbers.** A live preview of each version (1.4 Classic, blue, a 3-step checkout · 1.5 Express, green, a one-page checkout · 1.6 Bold, which sells a little more but has deliberately slower pages), and a table of what Flagsmith measured: orders as the goal, page speed and server errors as safety checks, each with Flagsmith's call against A.
+- **The story it plays:** 1.5 Express beats 1.4 Classic on orders and ships to everyone with one flag change. Then 1.6 Bold is tested against 1.5: it gets more orders, but its pages are slower, so the safety check stops it and everyone stays on 1.5. After each decision, 50 brand-new shoppers check that everyone really gets the result.
+- **The Versions menu** opens each version on its own (never counted), or the plain shop link, where you get a version the way a real visitor does.
 
 ## Try it with your app (about 5 minutes)
 
@@ -53,7 +56,7 @@ That's it: no questions, no app code. Turnout starts its own Flagsmith, creates 
 | Three or more versions: an A/B/C test | `turnout compare myapp:1.0 myapp:1.1 myapp:1.2` (URLs, images or branches; not a mix) |
 | A git project with a Dockerfile, two branches | `turnout compare main new-checkout` (each built from its last commit; your `.env` is passed; the port comes from `EXPOSE`) |
 
-- **No goal needed to start:** a version is judged on page speed, with server errors as the guardrail. To measure a conversion, add `--goal "POST /signup"`; the page lists the requests it sees, with the exact `--goal` for each.
+- **No goal needed to start:** a version is judged on page speed, with server errors as the guardrail. To measure a conversion, add `--goal "POST /signup"` (a 2xx answer or a 303 redirect counts, the usual answers to a form that worked; add a status to be exact, such as `"POST /signup 201"`). The page lists the requests it sees, with the exact `--goal` for each.
 - `--split 10` sends 10% of visitors to each new version (the rest get the first). By default every visitor is split evenly. Different versions or settings start a new experiment.
 - Ports already taken (8080, 8090, 8000) are skipped, and the next free ones are used. A version that crashes stops the run within seconds, with its last log lines.
 - **No visitors yet? `turnout simulate`** sends pretend visitors (500 by default) so results appear in minutes. They go to a separate Flagsmith environment, "Demo (simulated)", with its own console, so they can never touch your real experiment; their hidden rates are revealed at the end. They are real requests to your app, so with a goal it asks before sending them.
@@ -74,6 +77,23 @@ location / {
 ```
 
 or, for Caddy, `reverse_proxy 127.0.0.1:8080`. Visitors keep using your domain and never see a second link; Turnout picks their version. Its own port and the console stay on 127.0.0.1 (open the console over `ssh -L`).
+
+## How Flagsmith is used
+
+Flagsmith runs self-hosted next to Turnout (its official Docker Compose file, Experimentation switched on, its own event store). Turnout never computes statistics: every number and call on its pages comes from Flagsmith's API.
+
+| Flagsmith feature | What it does in Turnout |
+|---|---|
+| **Multivariate flag** | One flag per app; each variant's value names a version (`shop:1.5`). The proxy routes every visitor by it, evaluated locally with the Node SDK. |
+| **Experiments** | Each comparison is a Flagsmith experiment on that flag: A/B, A/B/C or A/A, with a hypothesis, created and started by Turnout's API calls. |
+| **Events and metrics** | Plain HTTP becomes Flagsmith events: page loads (exposures, page speed, server errors) and the goal request (`POST /checkout` → `order_placed`). |
+| **Bayesian results** | Flagsmith's chance to win and credible interval decide Ship, Keep running or Revert. A version that loses a safety check never ships. |
+| **Environment default and rollout** | Ship winner and Revert pause the experiment, set the flag's default, drain the split and complete it: everyone moves, in one flag change. |
+| **Segments** | A preview segment shows the next version to your team before the experiment, kept out of its data. |
+| **Feature Health** | A losing safety check marks the flag Unhealthy in Flagsmith's own dashboard; an opt-in guard can revert by itself. |
+| **Tags, Code References** | The flag is tagged `release` (permanent); Code References show where its name is configured. |
+
+Every Flagsmith fact above, with its source file and line: [docs/FLAGSMITH.md](docs/FLAGSMITH.md).
 
 ## What's inside
 

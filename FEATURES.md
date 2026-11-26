@@ -4,7 +4,7 @@ Turnout is a reverse proxy in front of your web app. It turns every release into
 
 ## One command for your app
 - **`turnout compare <live> <new> [<new2> …]`**: two versions make an A/B test, three an A/B/C test, and so on (an even split, each new version compared with the first). URLs, Docker images, or git branches (each built from its Dockerfile, the port from `EXPOSE`, your `.env` passed). No questions: a bundled Flagsmith, the flag, the experiment, the proxy and a check, then one page with **Open your site**.
-- **No goal needed**: a version is judged on page speed with server errors as the guardrail; `--goal "POST /signup"` adds a conversion, and the page suggests goals from the requests it sees (with the right status, e.g. a form post's 303).
+- **No goal needed**: a version is judged on page speed with server errors as the guardrail; `--goal "POST /signup"` adds a conversion (a 2xx or a 303 redirect counts; `"POST /signup 201"` to be exact), and the page suggests goals from the requests it sees.
 - **`--split 10`**: the share of visitors who get each new version (default: everyone, split evenly). Changed versions or settings start a new experiment.
 - **Fixes itself**: busy ports are skipped; a private image is built from the checkout; a crashing version stops the run in seconds with its log lines.
 - **`turnout deploy <domain>`**: the Caddy or Nginx lines to put your own web server in front. `down`, `reset`, `open`, `status`.
@@ -75,18 +75,18 @@ Turnout is a reverse proxy in front of your web app. It turns every release into
   - The `/setup` page shows what's missing.
 - **Judge mode** (`/judge`).
   - One desktop screen, no scrolling: four steps with one green button on the left; the versions (live previews) and Flagsmith's results on the right, one column per version with Flagsmith's call against A, and the verdict in one sentence.
-  - **Pick the kind of test**: A/A (the same version twice: a fairness check), A/B, A/B/C (one experiment, every new version against A). Switching mid-test asks first.
+  - **Pick the kind of test**: A/A (the same version twice: a fairness check), A/B, A/B/C (one experiment, every new version against A). One click starts it; a running test stops first and everyone goes back to A.
   - A/B/C decisions: the best new version that is safe and clearly better ships; one that fails a safety check (C, slower pages) is named and left out.
   - **Tour**: ten highlighted stops with a Next button, under two minutes, on the first visit and from the Tour button. **Play it for me** runs one whole test.
 - **Demo shop.** Three releases, each with its own look:
   - 1.4 Classic (blue)
   - 1.5 Express (green, one-page checkout)
   - 1.6 Bold (charcoal and orange, with a labelled 60 ms test fault that trips the guardrail)
-- **Traffic simulator.** Simulated visitors, always labelled as simulated.
+- **Traffic simulator.** Simulated visitors, always labelled as simulated. Judge mode is the demo's: a console for your own app (`turnout compare`) has none, so simulated shoppers never reach your real experiment (`turnout simulate` keeps its own in a separate environment).
 
 ## Server mode (public deployment)
 - **One command.** `sh turnout.sh server <hostname>` deploys with Caddy and automatic Let's Encrypt HTTPS.
-- **Watch-only public judge page.** It shows a welcome card and a narrated tour, has no action buttons, and refuses every write.
+- **Watch-only public judge page.** The same judge page and tour, with no buttons; the current step says what the autopilot does next. It refuses every write, and rests while nobody has the page open.
 - **Autopilot** (on by default in server mode):
   - Runs the full story on a loop: visitors → results → decision → verify → preview → next release → reset.
   - Any action from the private console pauses it for 10 minutes.
@@ -114,7 +114,7 @@ Turnout is a reverse proxy in front of your web app. It turns every release into
 - **Caching.** Responses carry `Cache-Control: private` and `Vary: Cookie`. Turnout's cookies are stripped before requests reach the app.
 
 ## Quality
-- **Tests.** 649 tests (648 pass, 1 skipped) on Node's built-in test runner.
+- **Tests.** 599 tests (598 pass, 1 skipped) on Node's built-in test runner.
 - **Evidence.** Results measured on Flagsmith 2.291.0 are recorded in `spikes/RESULTS.md`.
 
 ## Not built yet

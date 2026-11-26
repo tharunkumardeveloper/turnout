@@ -499,15 +499,26 @@ $('refresh-btn').addEventListener('click', async () => {
 
 // ---- actions -------------------------------------------------------------------------------------------------
 
+// The release Turnout suggests shipping: its recommendation when that is to ship (in an A/B/C test, the best release
+// that is clearly better AND passes every safety check), else Flagsmith's best on the goal. Before this, the console
+// pre-selected the best on the goal even when it failed a safety check, while judge mode shipped the safe one.
+function suggestedKey(s) {
+  if (!s || s.experiment?.status === 'completed') return null;
+  const rec = s.recommendation;
+  if (rec?.call === 'ship' && rec.variant) return rec.variant;
+  return s.winner?.key ?? null;
+}
+
 function selectedKey() {
-  return app.choice ?? app.state?.winner?.key ?? null;
+  return app.choice ?? suggestedKey(app.state);
 }
 
 function renderActions(s) {
   const e = s.experiment;
   const variants = F.variantList(e);
   const completed = e.status === 'completed';
-  const winnerKey = s.winner?.key ?? null;
+  const winnerKey = suggestedKey(s);
+  const recommended = s.recommendation?.call === 'ship' && s.recommendation.variant === winnerKey;
 
   const keys = variants.map((v) => `${v.key}=${v.label}`).join('|');
   if (keys !== app.choiceKeys) {
@@ -530,7 +541,9 @@ function renderActions(s) {
   for (const label of $('ship-choices').querySelectorAll('label')) {
     const input = /** @type {HTMLInputElement} */ (label.querySelector('input'));
     input.checked = input.value === selected;
-    /** @type {HTMLElement} */ (label.querySelector('.pick')).hidden = input.value !== winnerKey;
+    const pick = /** @type {HTMLElement} */ (label.querySelector('.pick'));
+    pick.hidden = input.value !== winnerKey;
+    pick.textContent = recommended ? 'Recommended' : "Flagsmith's pick";
   }
   // A demo job holds the console's lock too: Ship and Revert wait for it.
   const busy = app.busy || demoRunning();
@@ -546,6 +559,7 @@ function renderActions(s) {
   if (completed) note = 'Experiment completed: the flag is a plain flag again. Edit it in Flagsmith to change who gets what.';
   else if (!sel) note = 'Flagsmith shows no winner yet. Choose a release to ship it anyway, or wait for data.';
   else if (!s.winner) note = `Your choice: ${sel.key}. Flagsmith shows no winner yet.`;
+  else if (recommended && sel.key === winnerKey && sel.key !== s.winner.key) note = `Pre-selected: ${sel.key} is clearly better than control and passes every safety check. ${s.winner.key} scores higher on the goal but fails a safety check.`;
   else if (sel.key !== s.winner.key) note = `Your choice: ${sel.key}. Flagsmith's results page shows ${s.winner.key} ahead (${F.formatChance(s.winner.chanceToWin)}).`;
   else if (F.verdict(s.winner.chanceToWin).word === 'winning') note = `Pre-selected: Flagsmith's results page shows ${sel.key} winning (${F.formatChance(s.winner.chanceToWin)}).`;
   else note = `Pre-selected: Flagsmith's pick, but inconclusive (${F.formatChance(s.winner.chanceToWin)}, below 95%). Shipping now is your call.`;
@@ -571,7 +585,7 @@ function renderActions(s) {
 $('ship-choices').addEventListener('change', (ev) => {
   const t = /** @type {HTMLInputElement} */ (ev.target);
   if (t.name !== 'ship-variant') return;
-  app.choice = t.value === app.state?.winner?.key ? null : t.value;
+  app.choice = t.value === suggestedKey(app.state) ? null : t.value;
   if (app.state) renderActions(app.state);
 });
 
@@ -954,8 +968,9 @@ function renderDemo() {
   const sw = F.swingView(e, s?.ledger, s?.serving);
   const back = /** @type {HTMLButtonElement} */ ($('swing-back-btn'));
   const forward = /** @type {HTMLButtonElement} */ ($('swing-forward-btn'));
-  back.disabled = !sw.enabled || blocked;
-  forward.disabled = !sw.enabled || blocked;
+  // A swing to the release everyone already gets does nothing: only the other direction is offered.
+  back.disabled = !sw.enabled || blocked || (sw.back !== null && s?.serving === sw.back);
+  forward.disabled = !sw.enabled || blocked || (sw.forward !== null && s?.serving === sw.forward);
   back.textContent = sw.back ? `Swing back to ${sw.back}` : 'Swing back';
   forward.textContent = sw.forward ? `Swing forward to ${sw.forward}` : 'Swing forward';
   back.dataset.suggested = String(sw.enabled && sw.suggested === 'back');
@@ -1072,8 +1087,11 @@ function renderYou() {
   }
   const i = variants.findIndex((v) => v.key === y.variant);
   const letter = i >= 0 ? LETTERS[i] : null;
+  // Counted only once this browser has loaded a page (a receipt for its events); a cookie alone isn't a visit.
   const where = y.enrolled && e?.status === 'running'
-    ? `in experiment ${e.id} as ${y.variant}${letter ? ` (${letter})` : ''}: Flagsmith counts your visits and orders there.`
+    ? y.receipt
+      ? `in experiment ${e.id} as ${y.variant}${letter ? ` (${letter})` : ''}: Flagsmith counts your visits and your goal there.`
+      : `in experiment ${e.id} as ${y.variant}${letter ? ` (${letter})` : ''} once you open your site: Flagsmith will count your visits and your goal there.`
     : e?.status === 'running'
       ? 'outside the experiment: everyone outside it gets this version, and Flagsmith doesn\'t count you.'
       : 'from the flag: no experiment is running, so everyone gets this version.';

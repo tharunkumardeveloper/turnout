@@ -298,6 +298,8 @@ export function createConsole(opts: ConsoleOptions): http.Server {
       if (rest === '/api/traffic') return relayFeed(`${opts.feedUrl}/traffic`, res);
       if (!judge) return json(res, 404, { error: 'Judge mode is not configured for this console.' });
       if (rest === '/api/judge/job') return json(res, 200, redact({ job: judge.job() }));
+      // The public page is who the autopilot runs for: its state polls are what keep the story moving.
+      lastViewer = Date.now();
       const state = redact(await judge.state());
       // Flagsmith's dashboard is private (SSH tunnel): no links to it, and no dashboard URL.
       return json(res, 200, {
@@ -478,7 +480,12 @@ export function createConsole(opts: ConsoleOptions): http.Server {
         return relayFeed(`${opts.feedUrl}/traffic`, res);
       }
 
-      if (req.method === 'GET') return serveStatic(opts.uiDir, url.pathname, res, token);
+      // Without judge mode (turnout compare: your own app, not the demo shop), /judge is the console.
+      if (req.method === 'GET' && url.pathname === '/judge' && !judge) {
+        res.writeHead(302, { location: '/', 'cache-control': 'no-store' });
+        return void res.end();
+      }
+      if (req.method === 'GET') return serveStatic(opts.uiDir, url.pathname, res, token, !judge);
       json(res, 404, { error: 'not found' });
     } catch (error) {
       if (error instanceof HttpError) return json(res, error.status, { error: error.message });
@@ -632,7 +639,7 @@ function servePublicPage(dir: string, res: http.ServerResponse, token: string): 
   res.end(html);
 }
 
-function serveStatic(dir: string, pathname: string, res: http.ServerResponse, token: string): void {
+function serveStatic(dir: string, pathname: string, res: http.ServerResponse, token: string, noJudge = false): void {
   const name = PAGES[pathname] ?? pathname.slice(1);
   if (name.includes('..') || name.includes('/') || name.includes('\\') || !TYPES[extname(name)]) {
     res.writeHead(404).end();
@@ -645,6 +652,8 @@ function serveStatic(dir: string, pathname: string, res: http.ServerResponse, to
   }
   res.writeHead(200, { 'content-type': TYPES[extname(name)]!, 'cache-control': 'no-store' });
   // The page learns the API token here; only a same-origin page (Host checked above) can read it.
-  if (Object.values(PAGES).includes(name)) res.end(readFileSync(file, 'utf8').replace(TOKEN_META, `<meta name="turnout-console" content="${token}">`));
+  // No judge mode here: the pages' menus drop their links to it (menu.js reads turnout-no-judge).
+  const metas = `<meta name="turnout-console" content="${token}">${noJudge ? '<meta name="turnout-no-judge" content="1">' : ''}`;
+  if (Object.values(PAGES).includes(name)) res.end(readFileSync(file, 'utf8').replace(TOKEN_META, metas));
   else res.end(readFileSync(file));
 }

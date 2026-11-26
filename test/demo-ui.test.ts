@@ -123,6 +123,21 @@ describe('demo-model.js: what the simple judge page says', () => {
     assert.deepEqual(rows[2].cells.map((c: any) => c.word), ['', 'None', 'None']);
   });
 
+  test("a safety check Flagsmith calls losing but within Turnout's margin is never shown as a failure", () => {
+    // B is 2 ms slower and Flagsmith is sure of it, but that is under the 20 ms floor: B still ships, so no red.
+    const results = {
+      ...abcResults,
+      metrics: [abcResults.metrics[0], metric('doc_latency_ms', 'guardrail', 'mean', 'down', { control: 57, v2: 59, v3: 152 }, { v2: ['losing', 0.01], v3: ['losing', 0] }), abcResults.metrics[2]],
+    };
+    const rows = M.findings(base({ results }));
+    assert.deepEqual(rows[1].cells.map((c: any) => [c.word, c.tone, c.note]), [
+      ['', 'base', ''],
+      ['Slightly worse', 'neutral', 'within the safety margin'],
+      ['Worse', 'bad', '2.7× slower'],
+    ]);
+    assert.match(M.verdict(base({ results })).text, /every safety check is fine/);
+  });
+
   test('every new version failing: roll back to A', () => {
     const results = {
       ...abcResults,
@@ -261,10 +276,13 @@ describe('demo-model.js: the picker, you, and the autopilot', () => {
     const s = base();
     assert.equal(M.youText(null, s), '');
     assert.match(M.youText({ visited: false }, s), /not in the shop yet/);
-    assert.equal(M.youText({ visited: true, variant: 'v3', release: 'shop:1.6', enrolled: true }, s), 'You got C · 1.6 Bold: Flagsmith counts you in this test.');
+    const r = { at: 1, event: 'doc_latency_ms', status: 'accepted', httpStatus: 202 };
+    assert.equal(M.youText({ visited: true, variant: 'v3', release: 'shop:1.6', enrolled: true, receipt: r }, s), 'You got C · 1.6 Bold: Flagsmith counts you in this test.');
+    assert.equal(M.youText({ visited: true, variant: 'v3', release: 'shop:1.6', enrolled: true, receipt: null }, s), "You'll get C · 1.6 Bold when you open the shop, and count in this test.", 'a cookie without a page load is not counted yet');
     assert.equal(M.youText({ visited: true, variant: 'control', release: 'shop:1.4', enrolled: false }, s), 'You got 1.4 Classic, outside the test (not counted).');
     assert.equal(M.youText({ viewing: true, release: 'shop:1.5' }, s), "You're looking at 1.5 Express on its own (not counted).");
-    assert.equal(M.youText({ visited: true, variant: 'v2', release: 'shop:1.5', enrolled: true }, s, true), 'You got 1.5 Express: Flagsmith counts you in the live test for real visitors.');
+    assert.equal(M.youText({ visited: true, variant: 'v2', release: 'shop:1.5', enrolled: true, receipt: r }, s, true), 'You got 1.5 Express: Flagsmith counts you in the live test for real visitors.');
+    assert.equal(M.youText({ visited: true, variant: 'v2', release: 'shop:1.5', enrolled: true, receipt: null }, s, true), "You'll get 1.5 Express when you open the shop.");
   });
 
   test("server mode: the autopilot's next step in place of a button", () => {

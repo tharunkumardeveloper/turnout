@@ -241,7 +241,7 @@ describe('console API', () => {
 
   test('serves the UI with the token injected and nothing outside it', async () => {
     const res = await fetch(`${base}/`);
-    assert.equal(await res.text(), `<head><meta name="turnout-console" content="${token}"></head><h1>console</h1>`);
+    assert.equal(await res.text(), `<head><meta name="turnout-console" content="${token}"><meta name="turnout-no-judge" content="1"></head><h1>console</h1>`, 'no judge mode here: the menu drops its links');
     assert.equal(res.headers.get('x-frame-options'), 'SAMEORIGIN', 'judge mode shows the setup check and the feature map as tabs');
     assert.match(res.headers.get('content-security-policy') ?? '', /frame-ancestors 'self'/);
     assert.equal(res.headers.get('x-content-type-options'), 'nosniff');
@@ -258,7 +258,8 @@ describe('console API', () => {
     assert.match((await json(state)).error, /Judge mode is not configured/);
     assert.equal((await post('/api/judge/run', { action: 'visitors' })).status, 404);
     assert.equal((await fetch(`${base}/api/judge/state`)).status, 403, 'still behind the page token');
-    assert.equal((await fetch(`${base}/judge`)).status, 404, 'no judge.html in this UI folder');
+    const page = await fetch(`${base}/judge`, { redirect: 'manual' });
+    assert.deepEqual([page.status, page.headers.get('location')], [302, '/'], 'no judge mode: /judge is the console');
     assert.equal((await fetch(`${base}/judge?key=x`, { redirect: 'manual' })).status, 403);
   });
 

@@ -27,8 +27,11 @@ test('releases: label=url, a bare url, or an image (a service on the app port); 
   assert.throws(() => parseReleases(['ftp://a', 'http://b']), /neither/);
 });
 
-test('success: "METHOD /path status", status defaulting to 2xx; the event is named after the path', () => {
-  assert.deepEqual(parseSuccess('post /signup'), { method: 'POST', path: '/signup', status: '2xx' });
+test('success: "METHOD /path status", status defaulting to 2xx (2xx or 303 for a write); the event is named after the path', () => {
+  assert.deepEqual(parseSuccess('post /signup'), { method: 'POST', path: '/signup', status: '2xx,303' }, 'a form post that redirects (303) counts too');
+  assert.deepEqual(parseSuccess('GET /welcome'), { method: 'GET', path: '/welcome', status: '2xx' });
+  assert.deepEqual(parseSuccess('POST /signup 201'), { method: 'POST', path: '/signup', status: '201' });
+  assert.deepEqual(parseSuccess('POST /signup 2XX,302'), { method: 'POST', path: '/signup', status: '2xx,302' });
   assert.deepEqual(parseSuccess('PUT /api/orders/* 201'), { method: 'PUT', path: '/api/orders/*', status: '201' });
   assert.throws(() => parseSuccess('signup'), /POST \/signup 2xx/);
   assert.equal(eventFromPath('/signup'), 'signup');
@@ -46,6 +49,10 @@ test('bundled Flagsmith: a loadable config, a compose file with the proxy, conso
   assert.equal(config.flag, 'landing_release');
   assert.deepEqual([...config.releases].map(([l, u]) => [l, u.href]), [['landing:1', 'http://landing-1:8080/'], ['landing:2', 'http://landing-2:8080/']]);
   assert.deepEqual(config.goal, { event: 'signup', when: { method: 'POST', path: '/signup', status: '2xx' }, header: false });
+  // A status list survives the YAML round trip: unquoted, "2xx,303" in a flow mapping is two entries ("303" a key).
+  const listedDir = tmp();
+  writeNew({ answers: { ...base, success: 'POST /signup' }, dir: listedDir, flagsmithCompose, log: quiet });
+  assert.equal(loadConfig(join(listedDir, 'turnout.config.yml')).goal.when?.status, '2xx,303');
   assert.equal(config.traffic, 50);
 
   const compose = YAML.parse(readFileSync(join(dir, 'turnout.compose.yml'), 'utf8'), { merge: true });

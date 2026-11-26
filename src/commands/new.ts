@@ -65,10 +65,14 @@ export function parseReleases(entries: string[], appPort = 8080): { releases: Re
   return { releases, notes };
 }
 
+// Without a status, a GET counts on 2xx and a form-style write on 2xx or 303: the usual way a form post succeeds is
+// a 303 redirect to a thank-you page (post/redirect/get), and "POST /signup" counting none of those silently showed
+// 0 conversions. A status given ("POST /signup 201", "POST /signup 2xx,302") is used as written.
 export function parseSuccess(text: string): { method: string; path: string; status: string } {
-  const m = text.trim().match(/^(GET|POST|PUT|PATCH|DELETE)\s+(\/\S*)(?:\s+([1-5](?:xx|\d\d)))?$/i);
-  if (!m) throw new Error(`success should look like "POST /signup 2xx", got "${text}"`);
-  return { method: m[1]!.toUpperCase(), path: m[2]!, status: m[3] ?? '2xx' };
+  const m = text.trim().match(/^(GET|POST|PUT|PATCH|DELETE)\s+(\/\S*)(?:\s+([1-5](?:xx|\d\d)(?:,[1-5](?:xx|\d\d))*))?$/i);
+  if (!m) throw new Error(`success should look like "POST /signup", "POST /signup 2xx" or "POST /signup 2xx,303", got "${text}"`);
+  const method = m[1]!.toUpperCase();
+  return { method, path: m[2]!, status: m[3]?.toLowerCase() ?? (method === 'GET' ? '2xx' : '2xx,303') };
 }
 
 // "header" or "header <event>": success comes from the app's X-Turnout-Event response header.
@@ -107,7 +111,7 @@ export function renderConfig(a: NewAnswers, releases: Release[]): string {
     ? `# Success: the request that counts as a conversion, sent to Flagsmith as an event.
 goal:
   event: ${event}
-  when: { method: ${rule.method}, path: ${yamlString(rule.path)}, status: ${rule.status} }`
+  when: { method: ${rule.method}, path: ${yamlString(rule.path)}, status: ${yamlString(rule.status)} }`
     : `# Success: your app answers the converting request with the response header "X-Turnout-Event: ${event}".
 # Turnout sends it to Flagsmith as an event and removes the header before the visitor sees it.
 goal:
@@ -183,6 +187,7 @@ services:
       TURNOUT_FEED_URL: http://turnout:8081
       TURNOUT_PROXY_URL: http://turnout:8080
       TURNOUT_PUBLIC_SHOP_URL: http://127.0.0.1:${port}${bundled ? `\n      FLAGSMITH_DASHBOARD_URL: http://127.0.0.1:${a.flagsmithPort ?? 8000}` : ''}
+      TURNOUT_JUDGE: 'off' # judge mode is the demo shop's: its simulated shoppers must never reach your experiment
       CONSOLE_HOST: 0.0.0.0
     ports:
       - 127.0.0.1:${consolePort}:8090 # holds the admin key: this machine only
@@ -230,6 +235,7 @@ services:
       FLAGSMITH_API_URL: ${api}
       TURNOUT_FEED_URL: http://turnout-sim:8081
       TURNOUT_PROXY_URL: http://turnout-sim:8080
+      TURNOUT_JUDGE: 'off'
       TURNOUT_SIMULATED: '1' # the console says on its first card that every visitor here is simulated${bundled ? `\n      FLAGSMITH_DASHBOARD_URL: http://127.0.0.1:${a.flagsmithPort ?? 8000}` : ''}
       CONSOLE_HOST: 0.0.0.0
     ports:

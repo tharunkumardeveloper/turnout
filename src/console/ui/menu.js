@@ -9,6 +9,8 @@ const meta = (name) => (typeof document === 'undefined' ? null : document.queryS
 const TOKEN = meta('turnout-console')?.getAttribute('content') ?? '';
 const BASE = meta('turnout-base')?.getAttribute('content') ?? '';
 export const READONLY = meta('turnout-readonly') !== null;
+// Judge mode drives the demo shop; a console for your own app (turnout compare) has none, so no links to it.
+export const NO_JUDGE = meta('turnout-no-judge') !== null;
 const api = (path) => fetch(BASE + path, { cache: 'no-store', headers: { 'x-turnout-console': TOKEN } });
 
 const NAMES = { 'shop:1.4': 'Classic', 'shop:1.5': 'Express', 'shop:1.6': 'Bold' };
@@ -111,6 +113,7 @@ export function setupMenu(current) {
   if (!menu) return;
   for (const a of menu.querySelectorAll('a[data-page]')) if (a.dataset.page === current) a.setAttribute('aria-current', 'page');
   if (READONLY) for (const node of document.querySelectorAll('[data-private]')) node.remove(); // the console, setup, Flagsmith: private
+  if (NO_JUDGE) for (const a of document.querySelectorAll('a[href="/judge"]')) a.remove();
   document.getElementById('menu-versions')?.addEventListener('toggle', (e) => e.currentTarget.open && loadVersions());
   document.getElementById('menu-flagsmith')?.addEventListener('toggle', (e) => e.currentTarget.open && loadSignin());
   document.addEventListener('click', (e) => {

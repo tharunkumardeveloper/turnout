@@ -56,7 +56,7 @@ Hand-wiring an experiment into an app commonly goes wrong in four ways. Turnout'
 
 Decisions read Flagsmith's own credible interval: when it crosses zero, Turnout recommends **Keep running** rather than a ship. `turnout release --aa` runs an A/A test (the same release on both sides), and `turnout check` is an Experiment Doctor for any Flagsmith team, proxy or not.
 
-![Judge mode during an experiment: the steps on the left, the flow line, live numbers and the track map in the middle, and what Flagsmith holds right now on the right](images/judge-dashboard.png)
+![Judge mode after an A/B/C test: the four steps on the left, the versions and Flagsmith's results on the right; B shipped, C stopped by its slower pages](images/judge-dashboard.png)
 
 Turnout runs as an overlay on Flagsmith's official self-hosted Docker Compose. Built for Toggle Wars: The Flagsmith Experimentation Hackathon (Nov 26–29, 2026), Track 03: Build on Open Source Flagsmith. Licence: BSD-3-Clause.
 
@@ -80,7 +80,7 @@ Turnout runs as an overlay on Flagsmith's official self-hosted Docker Compose. B
 3. `turnout preview shop:1.6`: only your team's browsers see it. `turnout release shop:1.6` starts the next experiment on the same flag.
 4. `shop:1.6` carries a **deliberate test fault**: a labelled 60 ms delay on every page (`SEEDED_DELAY_MS`), there to show a guardrail catching a release that wins on orders. It wins on orders, but Flagsmith shows it losing on `doc_latency_ms`; the Ship dialog says so in red and asks you to accept that. You **Revert** instead, and the release notes record why.
 
-![Ship winner in judge mode: the 50/50 experiment track drains into one track to shop:1.5 while new visitors keep arriving](images/judge-ship.gif)
+![Judge mode playing an A/B/C test: shoppers go through, Flagsmith's results arrive, B ships to everyone and 50 new shoppers all get it](images/judge-ship.gif)
 
 ## How it works
 
@@ -124,7 +124,7 @@ While an experiment runs, the console reports the release flag's health to **Fla
 
 **The guard** is opt-in (`TURNOUT_GUARD=revert`, or the switch in judge mode). It asks Flagsmith for fresh results every 5 minutes, Flagsmith's own limit, and reverts when a guardrail's chance to win drops to 1% or below with at least 100 identities. **It never ships on its own.** The ledger says who decided: "Reverted to control (shop:1.5) automatically by Turnout's guard".
 
-![Judge mode at Decide on shop:1.6: Flagsmith's results show order_placed winning but doc_latency_ms losing, so Revert is the recommended button](images/judge-results.png)
+![Flagsmith's results in judge mode: 1.6 Bold wins on orders but loses on page load time (2.8× slower), so it is out; 1.5 Express ships](images/judge-results.png)
 
 ### Releases on one flag
 
@@ -152,11 +152,11 @@ Links use `127.0.0.1` rather than `localhost`: on Windows, a browser that tries 
 
 ## Judge mode
 
-<http://127.0.0.1:8090/judge> runs the whole story from a browser. A welcome screen offers **Guide me** (you click, the tour shows where) or **Play it for me** (an on-screen cursor clicks). Each tour beat first moves a spotlight to one thing on the page, then explains it. The page is a three-column dashboard: the seven demo steps and the release history; the flow line, live numbers and track map with the one thing to do now; and **In Flagsmith right now**, read from Flagsmith's API. Flagsmith's dashboard refuses to be framed, so "see it in Flagsmith" opens it in one separate browser tab. There are two tours. The **Quick tour** (the default, about 2.6 minutes played for you) runs one release through visitors, results and Ship, then sums up the guardrail story in one beat, with the option to play round two. The **Full tour** (about 9 to 10 minutes) runs both releases, including the guardrail revert, the feature map and the setup check. Flagsmith's sign-in details appear only when you open a Flagsmith link, not as a step of their own.
+<http://127.0.0.1:8090/judge> runs a whole test from one desktop screen. Pick the kind of test (A/A, A/B or A/B/C), then follow the four steps (start the test, send shoppers, ask Flagsmith, decide), one green button at a time, or press **Play it for me**. The right side shows a live preview of each version and Flagsmith's results, a column per version with Flagsmith's call against A. A ten-stop tour (under two minutes) opens on the first visit. Flagsmith's dashboard refuses to be framed, so the Flagsmith menu opens it in a separate tab, with the login.
 
-Each shop release has its own look, so you can tell at a glance which one served you: 1.4 **Classic** (blue, multi-step checkout), 1.5 **Express** (green, one-page checkout) and 1.6 **Bold** (charcoal and orange, with the deliberate 60 ms test fault that trips the page-speed guardrail). After a ship, judge mode also offers an optional swing back; the full console at <http://127.0.0.1:8090/> adds a choice of how many visitors to send. Details: [docs/JUDGE_MODE.md](JUDGE_MODE.md).
+Each shop release has its own look, so you can tell at a glance which one served you: 1.4 **Classic** (blue, multi-step checkout), 1.5 **Express** (green, one-page checkout) and 1.6 **Bold** (charcoal and orange, with the deliberate 60 ms test fault that trips the page-speed guardrail). The full console at <http://127.0.0.1:8090/> adds the traffic map, a choice of how many visitors to send, and the swing back after a ship. Details: [docs/JUDGE_MODE.md](JUDGE_MODE.md).
 
-![The quick tour at Flagsmith's verdict: the spotlight on the Results card in the In Flagsmith right now column](images/judge-tour.png)
+![The tour at stop 5 of 10: the spotlight on what Flagsmith measured, with orders as the goal and page speed and errors as safety checks](images/judge-tour.png)
 
 ## `check` and `ship` on any Flagsmith experiment
 

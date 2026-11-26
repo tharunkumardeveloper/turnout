@@ -458,7 +458,7 @@ const commands: Record<string, () => Promise<void>> = {
       dashboardUrl: process.env.FLAGSMITH_DASHBOARD_URL || 'http://127.0.0.1:8000',
       rates: parseRates(process.env.TURNOUT_DEMO_RATES || DEFAULT_RATES),
       ...(Number(process.env.TURNOUT_STATE_CACHE_MS) >= 250 ? { stateCacheMs: Math.min(30_000, Number(process.env.TURNOUT_STATE_CACHE_MS)) } : {}),
-      // Blind rounds: hidden random rates per experiment (TURNOUT_BLIND=on; server mode turns it on). The store also
+      // Blind rounds: hidden random rates per experiment (TURNOUT_BLIND=on; off by default, server mode too). The store also
       // keeps Flagsmith's chance-to-win history for the page's chart. The demo's deliberately slow release is 1.6.
       blind: {
         store: createBlindStore(join(STATE_DIR, 'blind.json'), { slowRelease: process.env.TURNOUT_DEMO_SLOW_RELEASE ?? 'shop:1.6' }),
@@ -503,12 +503,15 @@ const commands: Record<string, () => Promise<void>> = {
         },
         links: (e) => [
           { title: "Flagsmith's results page", url: `${dashboard}/project/${environment.project}/environment/${envKey()}/experiments/${e.id}` },
-          { title: 'Turnout judge mode', url: `http://${localHost(process.env)}:${port}/judge` },
+          { title: judgeOn ? 'Turnout judge mode' : 'Turnout console', url: `http://${localHost(process.env)}:${port}${judgeOn ? '/judge' : '/'}` },
         ],
         log: (line) => console.log(line),
       });
       watcher.start();
     }
+    // Judge mode runs the demo shop's simulated shoppers. A console for your own app (turnout new/compare write
+    // TURNOUT_JUDGE=off) has none: its simulated shoppers would land in your real experiment.
+    const judgeOn = (process.env.TURNOUT_JUDGE ?? 'on').trim().toLowerCase() !== 'off';
     const autopilot = process.env.CONSOLE_PUBLIC_PORT ? autopilotFromEnv(process.env) : null;
     if (autopilot) console.log('autopilot on: the judge story runs by itself (TURNOUT_AUTOPILOT=on)');
     const server = createConsole({
@@ -522,7 +525,7 @@ const commands: Record<string, () => Promise<void>> = {
       ...(github() ? { github: github()! } : {}),
       ...(hosts?.length ? { allowedHosts: hosts } : {}),
       ...(judgeToken ? { judgeToken } : {}),
-      judge,
+      ...(judgeOn ? { judge } : {}),
       ...(process.env.FLAGSMITH_ADMIN_EMAIL
         ? { flagsmithLogin: { email: process.env.FLAGSMITH_ADMIN_EMAIL, ...(process.env.FLAGSMITH_ADMIN_PASSWORD ? { password: process.env.FLAGSMITH_ADMIN_PASSWORD } : {}) } }
         : {}),

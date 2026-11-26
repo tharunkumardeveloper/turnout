@@ -123,12 +123,22 @@ export function findings(s) {
       const verdict = x?.verdict ?? (m.verdict === 'no-events' ? 'no-events' : 'collecting');
       let word = 'No clear difference';
       let tone = 'neutral';
+      // A safety check Flagsmith calls losing but within Turnout's margin (more than 5% worse and, for page speed,
+      // at least 20 ms) isn't a failure: the decision ignores it, so the table mustn't show it in red.
+      const failsHere = m.role !== 'guardrail' || (s.results?.losingByArm?.[a.key] ?? (a.key === 'v2' ? s.results?.losingGuardrails : []) ?? []).some((g) => g.metric === m.name);
       if (verdict === 'winning') [word, tone] = ['Better', 'good'];
+      else if (verdict === 'losing' && !failsHere) [word, tone] = ['Slightly worse', 'neutral'];
       else if (verdict === 'losing') [word, tone] = ['Worse', 'bad'];
       else if (verdict === 'collecting') word = m.verdict === 'no-events' ? 'None' : 'Not enough data';
       else if (verdict === 'no-events') word = 'None';
       if (m.verdict === 'no-events') [word, tone] = ['None', 'neutral'];
-      const note = m.verdict === 'no-events' ? '' : m.role === 'goal' && x ? `${pct(x.chanceToWin, 0)} sure it beats A` : changeText(m, a.key);
+      const note = m.verdict === 'no-events'
+        ? ''
+        : m.role === 'goal' && x
+          ? `${pct(x.chanceToWin, 0)} sure it beats A`
+          : word === 'Slightly worse'
+            ? 'within the safety margin'
+            : changeText(m, a.key);
       return { key: a.key, value, word, tone, note };
     }),
   }));
@@ -477,12 +487,18 @@ export function autopilotLine(s, nowMs = Date.now()) {
 export function youText(you, s, live = false) {
   if (!you) return '';
   if (you.viewing) return `You're looking at ${label(you.release)} on its own (not counted).`;
-  if (!you.visited && !you.release) return 'You: not in the shop yet. Open it from the Versions menu, or the plain shop link, to get a version.';
+  if (!you.visited && !you.release) return 'You: not in the shop yet (the Versions menu has its link).';
+  // A browser that has a visitor cookie but never loaded a page (no event sent for it yet) isn't counted anywhere:
+  // say which version it will get, never that Flagsmith counts it.
+  const seen = Boolean(you.receipt);
   // Server mode: real visitors are counted in their own live experiment, never in the simulated test on this page.
-  if (live) return `You got ${label(you.release)}${you.enrolled ? ': Flagsmith counts you in the live test for real visitors' : ''}.`;
+  if (live) {
+    if (!seen) return `You'll get ${label(you.release)} when you open the shop.`;
+    return `You got ${label(you.release)}${you.enrolled ? ': Flagsmith counts you in the live test for real visitors' : ''}.`;
+  }
   const list = arms(s);
   const mine = list.find((a) => a.key === you.variant);
   const running = s?.experiment?.status === 'running';
-  if (mine && you.enrolled && running) return `You got ${mine.name}: Flagsmith counts you in this test.`;
+  if (mine && you.enrolled && running) return seen ? `You got ${mine.name}: Flagsmith counts you in this test.` : `You'll get ${mine.name} when you open the shop, and count in this test.`;
   return `You got ${label(you.release)}${running ? ', outside the test (not counted)' : ''}.`;
 }

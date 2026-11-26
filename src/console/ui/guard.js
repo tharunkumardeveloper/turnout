@@ -44,10 +44,13 @@ function render(state) {
   button.classList.toggle('btn-guard-on', state.guard.enabled);
 }
 
+let configured = true; // a 404 means this console has no health bridge (turnout compare): stop asking
 async function refresh() {
-  if (document.hidden) return;
+  if (document.hidden || !configured) return;
   try {
-    render(await api('GET'));
+    const state = await api('GET');
+    if (state === null) configured = false;
+    render(state);
   } catch {
     // the main page shows session problems; this card just waits for the next poll
   }

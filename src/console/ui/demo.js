@@ -326,7 +326,12 @@ function frameFor(s, key, release) {
 function fitFrames() {
   for (const box of document.querySelectorAll('.version-frame')) {
     const f = box.querySelector('iframe');
-    if (f && box.clientWidth) f.style.transform = `scale(${(box.clientWidth / 1280).toFixed(4)})`;
+    if (!f || !box.clientWidth) continue;
+    // A 1280 px wide page, scaled to the tile; tall enough to fill the tile at that scale (a fixed height left the
+    // lower part of narrow tiles blank in an A/B/C test).
+    const scale = box.clientWidth / 1280;
+    f.style.transform = `scale(${scale.toFixed(4)})`;
+    f.style.height = `${Math.ceil(Math.max(box.clientHeight, 1) / scale)}px`;
   }
 }
 new ResizeObserver(fitFrames).observe(document.documentElement);

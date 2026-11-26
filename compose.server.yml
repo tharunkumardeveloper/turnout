@@ -95,9 +95,10 @@ services:
       # Flagsmith's 5-minute refresh limit, and steps aside for 10 minutes after any action from the private console.
       # It also sends the visitors the public map shows. TURNOUT_AUTOPILOT=off turns it off.
       TURNOUT_AUTOPILOT: ${TURNOUT_AUTOPILOT:-on}
-      # Blind rounds: each experiment's true order rates are drawn at random and hidden until the round is decided,
-      # so Flagsmith has to find the winner (or say there is none); the page keeps a scoreboard.
-      TURNOUT_BLIND: ${TURNOUT_BLIND:-on}
+      # Blind rounds (random hidden order rates per experiment) are off: the judge page has no reveal or scoreboard,
+      # so they only made the public story slower ("not sure yet", then Flagsmith's 5-minute refresh wait). With the
+      # demo's own rates the public page tells the same story as the local one: B wins, C is stopped by its slower pages.
+      TURNOUT_BLIND: ${TURNOUT_BLIND:-off}
       # One read of the judge state, shared by every viewer for 3 s (1.5 s locally): half the Flagsmith reads.
       TURNOUT_STATE_CACHE_MS: ${TURNOUT_STATE_CACHE_MS:-3000}
       TURNOUT_LIVE_FLAG: shop_release_live # turnout.live.yml: real visitors, shown next to the simulated story

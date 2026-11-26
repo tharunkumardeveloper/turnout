@@ -13,51 +13,34 @@ Every number about results comes from Flagsmith as returned; the console compute
 
 ## Judge mode
 
-### The welcome screen
+One desktop screen, no scrolling (checked at 1366×768 and 1920×1080). Every number on it is Flagsmith's, read from its API; every shopper is simulated, and the page says so.
 
-It says what Turnout is in three points (no app code; Flagsmith decides; ship or revert on one flag) and offers two ways to run the tour:
-
-- **Guide me.** The tour dims the page, puts a spotlight on the one thing to look at or click, and explains it in a bubble. You click the highlighted button and press **Next**.
-- **Play it for me.** The same tour, hands-free. An on-screen cursor glides to each button and clicks it. Each explanation stays up for 4.5 to 13 seconds, depending on its length.
-
-Either way you pick a tour:
-
-- **Quick tour** (the default, about 2.6 minutes played for you): one release through visitors, Flagsmith's results and Ship, one beat per finished job, then a single beat that sums up the guardrail story, with **Play round two** to carry on as the full tour.
-- **Full tour** (about 9 to 10 minutes): both releases, the guardrail revert, the feature map, the setup check and the release history.
-
-You can switch between the two, pause or leave the tour at any point from the bubble. **Explore on my own** closes the welcome screen without a tour.
-
-Each beat is shown in two phases. First the spotlight moves to its target, a short animation plays on it, and the bubble says only "Look here" and the title. Then the bubble opens to the full explanation.
+![Judge mode after an A/B/C test: B shipped to everyone, C stopped by its slower pages, 50 of 50 new shoppers on B](images/judge-dashboard.png)
 
 ### The page
 
-Four tabs: **Story**, **Shop** (the shop through Turnout, which has no Flagsmith code), **What we use** (the `/flagsmith` page) and **Setup check** (the `/setup` page). The tour moves between them on its own.
+- **Top bar.** The menu (Judge mode, Console, Setup check, What we use, **Versions**, **Flagsmith**), the kind of test, **Tour**, **Play it for me** and **Earlier tests**.
+- **The kind of test.** A/A (the same version on both sides: Flagsmith should find no difference, a check that the split and the counting are fair), A/B, or A/B/C (two new versions at once, each against A). Clicking one starts it; a running test stops first and everyone goes back to A.
+- **Left: the test in four steps.** Start the test, Send shoppers, Ask Flagsmith, Decide. Only the current step has a button (one green button at a time), each finished step keeps a one-line result, and a running step shows its progress.
+- **Right, top: the versions.** A live preview of each version in the test (A is what everyone gets now), its share of shoppers, and once Flagsmith has counted, its order rate. Clicking a preview opens that version on its own, never counted. The line above says which version this browser gets.
+- **Right, bottom: what Flagsmith measured.** A row per metric (orders as the goal, page load time and server errors as safety checks, added to cart as a funnel step), a column per version, and Flagsmith's call for each new version against A. The verdict underneath says what to do in one sentence. A safety check Flagsmith calls slightly worse but within Turnout's margin (more than 5% worse and, for page speed, at least 20 ms) is shown as such, not as a failure.
+- **After a decision.** The Decide step shows what changed in Flagsmith, before → after, and then a check that 50 brand-new shoppers all get the result with no test split left on the flag.
 
-The Story tab is a three-column dashboard:
+**Play it for me** clicks each green button through one whole test, in about a minute for an A/B/C test. The **Tour** (ten stops, under two minutes) opens on the first visit and from the Tour button; it points at each part of the page and says what it is.
 
-- **Left: Demo steps and Release history.** The seven steps are: send simulated visitors, get Flagsmith's results, decide (Ship winner or Revert), check that everyone gets the decision, swing back (optional, only after a ship), preview the next release for your team, and release it. The history shows the latest three decisions, with **Show all** for the rest. The column stays in place while you scroll only when it fits on the screen.
-- **Centre: the flow and the one thing to do now.**
-  - A flow line, Deploy → Split → Measure → Decide → Everyone. The current stage lights up, and pulses while a step runs.
-  - Four tiles: visitors in this experiment, live requests per second, events accepted and rejected (Flagsmith's own counter) and the chance to win (from Flagsmith).
-  - A live track map drawn from the flag: your team (the preview segment), the experiment's split with its percentages, and everyone else. Every request rides its track as a dot, coloured by the release that served it.
-  - A stage card with the step's button. While a step runs it shows a checklist of the step's stages and, for visitors, a progress bar. When it finishes it shows a **before → after** card of what changed in Flagsmith. At Decide, when Flagsmith shows the winner losing a guardrail, Revert is the main button and **Ship anyway…** needs you to accept the loss first. After a ship, the swing back appears as a smaller, optional button.
-- **Right: In Flagsmith right now**, read from Flagsmith's API: the experiment, the release flag and its split, Feature Health and the results.
+### The demo shop
 
-Judge mode sends 3,000 simulated visitors per experiment: with 1,500, the first experiment's result lands below Flagsmith's 95% bar about one run in three.
+Three releases with their own look: 1.4 **Classic** (blue, a 3-step checkout), 1.5 **Express** (green, a one-page checkout) and 1.6 **Bold** (charcoal and orange, with a labelled 60 ms test fault on every page). The simulated shoppers order at 10%, 20% and 22% (`TURNOUT_DEMO_RATES`; inputs, not evidence), so with 700 shoppers per version Flagsmith decides on its first look: B ships, and C, which sells a little more, is stopped by its slower pages.
 
 ### Flagsmith's own dashboard
 
-Flagsmith's dashboard refuses to be shown in a frame, so each "see it in Flagsmith" step opens it in one separate browser tab and reuses that tab. The sign-in details are not a tour step: the bubble shows the admin login only the first time you open a Flagsmith link. The password appears only on this machine's console (port 8090, published on `127.0.0.1` only), never on the port other devices use (8091), whatever Host header a request sends.
+The **Flagsmith** menu has its address and the admin login, so you can see the same flag, experiment and results there. Flagsmith's dashboard refuses to be shown in a frame, so it opens in a separate tab. The password appears only on this machine's console (port 8090, published on `127.0.0.1` only), never on the port other devices use (8091) or on the public page.
 
-### The full tour, start to finish
+### The public page (server mode)
 
-The full tour runs the whole story: send visitors, get Flagsmith's results, ship the winner, check that everyone got it, preview the next release for your team, and release it. The second release sells more but loses the page-speed guardrail, so the tour reverts it. It ends on the feature map, the setup check and the release history. If the demo is part-way through an earlier run, the tour first offers to start from the beginning.
+The same page, read-only, at `https://<host>/judge`: no buttons, no console, no Flagsmith links or login. The autopilot runs the story by itself (A/B: 1.5 against 1.4, then 1.6 against the shipped 1.5, then it starts over), and the current step says what it does next. It rests while nobody has the page open and carries on when someone does.
 
-Played for you at 1440×900 on the demo stack, the full tour took 8 min 51 s from the welcome screen to its last beat, through 42 beats (one run on 18 Nov 2026; see [`spikes/RESULTS.md`](../spikes/RESULTS.md)). Most of that is the steps' own jobs and the reading time.
-
-Each shop release has its own look: 1.4 **Classic** (blue, multi-step checkout), 1.5 **Express** (green, one-page checkout) and 1.6 **Bold** (charcoal and orange, with the deliberate 60 ms test fault behind the guardrail loss).
-
-On screens narrower than 640 px the bubble becomes a bottom sheet. To open judge mode on another device, see [SETUP.md](SETUP.md#judge-mode-on-another-device).
+To open judge mode on another device, see [SETUP.md](SETUP.md#judge-mode-on-another-device).
 
 ## The full console
 

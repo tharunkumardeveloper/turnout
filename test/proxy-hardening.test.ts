@@ -296,3 +296,48 @@ test('page-level view (?__turnout_view=): that release for this page, uncounted,
     app.close();
   }
 });
+
+test("a viewed page's assets, API calls and links follow its release (Referer), uncounted; other hosts' Referers don't", async () => {
+  const { createProxy, VIEW_PARAM, refererView } = await import('../src/proxy/server.ts');
+  const { parseConfig } = await import('../src/config.ts');
+  const apps = await Promise.all(['A', 'B'].map(async (name) => {
+    const s = http.createServer((req, res) => res.writeHead(200, { 'content-type': req.url?.endsWith('.css') ? 'text/css' : 'text/html' }).end(`${name} ${req.url}`));
+    await new Promise<void>((r) => s.listen(0, '127.0.0.1', r));
+    return { s, url: `http://127.0.0.1:${(s.address() as AddressInfo).port}` };
+  }));
+  const exposures: string[] = [];
+  const tracked: string[] = [];
+  const flags = {
+    async assign(id: string, o: { recordExposure: boolean }) { if (o.recordExposure) exposures.push(id); return { variant: 'control', release: 'app:a', enrolled: true }; },
+    track: (e: string) => void tracked.push(e),
+  };
+  const config = parseConfig({ flag: 'f', releases: { 'app:a': apps[0]!.url, 'app:b': apps[1]!.url }, guardrails: ['doc_latency_ms', 'server_error'] });
+  const proxy = createProxy({ config, flags, viewSwitch: true, log: () => {}, warn: () => {} });
+  await new Promise<void>((r) => proxy.listen(0, '127.0.0.1', r));
+  const host = `127.0.0.1:${(proxy.address() as AddressInfo).port}`;
+  const base = `http://${host}`;
+  const viewed = `${base}/?${VIEW_PARAM}=app%3Ab`;
+  try {
+    // The page's stylesheet: release B's, and no visitor cookie.
+    const css = await fetch(`${base}/assets/app.css`, { headers: { 'user-agent': 'Mozilla/5.0 x', referer: viewed, 'sec-fetch-dest': 'style' } });
+    assert.equal(await css.text(), 'B /assets/app.css');
+    assert.equal(css.headers.get('set-cookie'), null, 'an asset of a preview never makes a visitor');
+    // A link clicked on the viewed page: redirected to the same page with the view in its address.
+    const link = await fetch(`${base}/products?id=2`, { redirect: 'manual', headers: { 'user-agent': 'Mozilla/5.0 x', accept: 'text/html', 'sec-fetch-dest': 'document', referer: viewed } });
+    assert.equal(link.status, 302);
+    assert.equal(link.headers.get('location'), `/products?id=2&${VIEW_PARAM}=app%3Ab`);
+    // A form posted from the viewed page: release B, not counted.
+    const post = await fetch(`${base}/checkout`, { method: 'POST', headers: { 'user-agent': 'Mozilla/5.0 x', referer: viewed }, body: 'x=1' });
+    assert.equal(await post.text(), 'B /checkout');
+    await new Promise((r) => setTimeout(r, 20));
+    assert.deepEqual([exposures, tracked], [[], []], 'nothing from a preview is counted');
+    // Another site's Referer naming a view changes nothing: a normal visitor.
+    const other = await fetch(`${base}/`, { headers: { 'user-agent': 'Mozilla/5.0 x', accept: 'text/html', 'sec-fetch-dest': 'document', referer: `http://evil.example/?${VIEW_PARAM}=app%3Ab` } });
+    assert.equal(await other.text(), 'A /');
+    assert.equal(refererView(`http://evil.example/?${VIEW_PARAM}=x`, host), undefined);
+    assert.equal(refererView('not a url', host), undefined);
+  } finally {
+    proxy.close();
+    for (const a of apps) a.s.close();
+  }
+});

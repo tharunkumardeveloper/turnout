@@ -119,7 +119,13 @@ need_image() {
   docker build -q -t turnout:local "$HOME_DIR" >/dev/null || die "building turnout:local failed: run docker build -t turnout:local $HOME_DIR to see why."
 }
 
-port_free() { curl -s -o /dev/null -m 1 "http://127.0.0.1:$1/" 2>/dev/null; [ $? -eq 7 ]; }
+# Free: nothing accepts a connection there. curl says 7 (refused); on Windows (Git Bash) a refused loopback connection
+# takes about 2 s, so a short timeout (28) with no connection made is free too.
+port_free() {
+  t=$(curl -s -o /dev/null -w '%{time_connect}' --connect-timeout 3 -m 4 "http://127.0.0.1:$1/" 2>/dev/null)
+  rc=$?
+  [ "$rc" -eq 7 ] || { [ "$rc" -eq 28 ] && [ "$t" = "0.000000" ]; }
+}
 free_port() {
   p=$1
   while ! port_free "$p"; do p=$((p + 1)); [ "$p" -lt $(($1 + 50)) ] || die "no free port from $1 to $p"; done

@@ -149,9 +149,28 @@ export function createProxy(opts: Options): http.Server {
       query.delete(VIEW_PARAM); // the app never sees it
       target.search = query.size ? `?${query}` : '';
     }
-    const viewing = opts.viewSwitch ? (viewedRelease(viewParam) ?? viewedRelease(readCookie(req.headers.cookie, VIEW_COOKIE))) : undefined;
+    // A view link names its release for one page only. That page's assets, its API calls and the links clicked on it
+    // carry its address as the Referer, so they show the same release, uncounted: without this, a preview's styles
+    // and scripts came from whatever release the browser was assigned (an app with per-release asset names broke),
+    // and the first link clicked in a preview made a counted visitor.
+    const viewedVia = (): string | undefined => {
+      if (!opts.viewSwitch) return undefined;
+      const fromRef = refererView(header(req, 'referer'), req.headers.host);
+      return fromRef ? viewedRelease(fromRef) : undefined;
+    };
+    const ownView = opts.viewSwitch ? (viewedRelease(viewParam) ?? viewedRelease(readCookie(req.headers.cookie, VIEW_COOKIE))) : undefined;
+    const inherited = ownView ? undefined : viewedVia();
+    const viewing = ownView ?? inherited;
     if (target.pathname.startsWith(OWN_PREFIX)) {
+      // A viewed page's own script asking for its receipt (the shop's badge) gets that view too.
       return ownEndpoint({ req, res, url: target, identity: known ? cookieId : undefined, previewing, viewing });
+    }
+    // A page opened from a viewed page: put the view in its own address, so its assets and links follow it too.
+    if (inherited && method === 'GET' && isDocumentRequest(req)) {
+      const q = new URLSearchParams(target.search);
+      q.set(VIEW_PARAM, inherited);
+      res.writeHead(302, { location: `${target.pathname}?${q}`, 'cache-control': 'no-store' });
+      return void res.end();
     }
 
     const bot = BOT_RE.test(req.headers['user-agent'] ?? '');
@@ -396,6 +415,18 @@ export function originForm(raw: string): { pathname: string; search: string } | 
     return { pathname: url.pathname, search: url.search };
   } catch {
     return null;
+  }
+}
+
+/** The release a same-host Referer was viewing (its __turnout_view parameter), if any. */
+export function refererView(referer: string | undefined, host: string | undefined): string | undefined {
+  if (!referer || !host) return undefined;
+  try {
+    const from = new URL(referer);
+    if (from.host !== host) return undefined;
+    return from.searchParams.get(VIEW_PARAM) ?? undefined;
+  } catch {
+    return undefined;
   }
 }
 
