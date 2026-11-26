@@ -61,7 +61,7 @@ type Scene = { name: string; path: string; w: number; dark?: boolean; click?: st
 const WIDTHS = [390, 820, 1280, 1440];
 const scenes: Scene[] = [];
 for (const w of WIDTHS) {
-  scenes.push({ name: `console-${w}`, path: '/', w }, { name: `app-${w}`, path: '/app', w }, { name: `setup-${w}`, path: '/setup', w }, { name: `flagsmith-${w}`, path: '/flagsmith', w });
+  scenes.push({ name: `console-${w}`, path: '/', w }, { name: `app-${w}`, path: '/app', w }, { name: `setup-${w}`, path: '/setup', w }, { name: `flagsmith-${w}`, path: '/flagsmith', w }, { name: `guided-${w}`, path: '/judge?embed=1', w });
   scenes.push({ name: `tryit-${w}`, path: '/', w, click: ['#try-open'] }, { name: `your-test-${w}`, path: '/app', w, click: ['#tp-open'] });
 }
 scenes.push({ name: 'console-dark', path: '/', w: 1440, dark: true }, { name: 'your-test-dark', path: '/app', w: 1440, dark: true, click: ['#tp-open'] });

@@ -212,6 +212,8 @@ export function createConsole(opts: ConsoleOptions): http.Server {
     readEvents,
     ledgerDir: opts.ledgerDir,
   });
+  // Read once soon after start, so the first visit to What we use doesn't wait ~10 s for Flagsmith.
+  setTimeout(() => void flagsmithMap.read().catch(() => {}), 5000).unref();
 
   // GET /api/state. The flag waits only for the detail (it needs the feature id); everything else runs at once.
   async function readApiState() {

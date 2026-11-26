@@ -159,7 +159,11 @@ export function buildFlagsmithMap(f: MapFacts, opts: { dashboardUrl: string; now
     source: 'app/settings/common.py:1116-1119 (workflows_logic only when installed), projects/urls.py:105-111',
   });
 
-  const refRepos = f.codeReferences ?? [];
+  // Only repositories scanned around the latest scan: an old scan of a renamed or deleted repository (its files long
+  // gone) stays in Flagsmith and would be listed as if it were current.
+  const scans = (f.codeReferences ?? []).map((r) => Date.parse(r.scannedAt)).filter(Number.isFinite);
+  const newest = scans.length ? Math.max(...scans) : 0;
+  const refRepos = (f.codeReferences ?? []).filter((r) => !newest || !Number.isFinite(Date.parse(r.scannedAt)) || newest - Date.parse(r.scannedAt) < 7 * 86_400_000);
   const refCount = refRepos.reduce((n, r) => n + r.references.length, 0);
   items.push({
     id: 'menu.integrations',
@@ -552,7 +556,10 @@ export function createMapReader(o: {
   return {
     read: async () => {
       if (cached && now() - cached.at < MAP_CACHE_MS) return cached.map;
-      if (pending) return pending;
+      if (pending && !cached) return pending;
+      // Expired (nothing written since): the last map at once, a new read behind it. The page took ~10 s otherwise.
+      if (pending && cached) return cached.map;
+      const stale = cached?.map ?? null;
       const mine = generation;
       const read = (async () => {
         try {
@@ -574,6 +581,10 @@ export function createMapReader(o: {
         }
       })();
       pending = read;
+      if (stale) {
+        read.catch(() => {}); // a failed refresh keeps showing the last map
+        return stale;
+      }
       return read;
     },
     // After a write (Ship, Revert, a judge job): the next read asks Flagsmith again.

@@ -221,7 +221,8 @@ describe('reading the facts from Flagsmith', () => {
     await reader.read();
     assert.equal(reads() - before, 1);
     t += 2;
-    await reader.read();
+    assert.equal(await reader.read(), a, 'expired: the last map at once, a new read behind it');
+    await new Promise((r) => setTimeout(r, 300));
     assert.equal(reads() - before, 2);
     assert.equal(byName(a, 'Experiments').live, `experiment ${SEED.experimentId} is completed; 1 experiment on shop_release so far`);
   });

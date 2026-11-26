@@ -349,3 +349,10 @@ a.version-frame:hover::after, a.version-frame:focus-visible::after { opacity: 1;
 .yours-steps code[hidden] { display: none; }
 .yours-note { margin: 10px 0 0; font-size: 13px; color: var(--muted, #9aa4b2); }
 @media (max-width: 760px) { .yours-steps li { grid-template-columns: 22px 1fr auto; } .yours-steps span { grid-column: 2 / 4; } .yours-steps code { grid-column: 1 / 3; } }
+/* Phones: the versions header wraps (title, then where you landed and Be a visitor) instead of squeezing into columns. */
+@media (max-width: 760px) {
+  #versions-title { flex-wrap: wrap; row-gap: 6px; }
+  #versions-title > .card-meta { flex-basis: 100%; order: 3; }
+  #versions-title .you-line { max-width: none; flex: 1 1 auto; margin-left: 0; white-space: normal; }
+  #versions-title .btn-visit { margin-left: auto; }
+}
