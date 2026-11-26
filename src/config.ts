@@ -139,6 +139,13 @@ function parseSpeedOnly(doc: Record<string, unknown>, flag: string, releases: Ma
   };
 }
 
+/** The goal in words for people ("POST /signup 2xx", "X-Turnout-Event: signup"); null when there is none yet. */
+export function describeGoal(g: Config['goal']): string | null {
+  if (g.speedOnly) return null;
+  const parts = [g.when ? `${g.when.method} ${g.when.path} ${g.when.status}` : '', g.header ? `X-Turnout-Event: ${g.event}` : ''].filter(Boolean);
+  return `${g.event} (${parts.join(' or ')})`;
+}
+
 /** The hypothesis Turnout writes for a release when nobody gave one. */
 export const defaultHypothesis = (release: string, goalEvent: string): string =>
   goalEvent === SPEED_GOAL ? `${release} loads pages faster without more errors` : `${release} raises ${goalEvent} without hurting latency or errors`;

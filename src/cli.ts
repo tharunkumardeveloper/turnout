@@ -12,7 +12,7 @@ import { preview } from './commands/preview.ts';
 import { release } from './commands/release.ts';
 import { revert, ship, status } from './commands/ship.ts';
 import { simulate } from '../demo/simulator/simulate.ts';
-import { defaultHypothesis, loadConfig } from './config.ts';
+import { defaultHypothesis, describeGoal, loadConfig } from './config.ts';
 import { createFlagSource } from './flagsmith/flag-source.ts';
 import { DEFAULT_RATES, parseRates } from './console/judge.ts';
 import { createConsole, listenForOtherDevices, listenForPublic } from './console/server.ts';
@@ -510,6 +510,11 @@ const commands: Record<string, () => Promise<void>> = {
         : {}),
       doctor: () => runDoctor({ ...doctorOptions(true), adminKey: key }), // GET /api/doctor and the /setup page
       uiDir: fileURLToPath(new URL('./console/ui/', import.meta.url)),
+      site: {
+        url: process.env.TURNOUT_PUBLIC_SHOP_URL || 'http://127.0.0.1:8080',
+        dashboardUrl: process.env.FLAGSMITH_DASHBOARD_URL || 'http://127.0.0.1:8000',
+        goal: describeGoal(config.goal),
+      },
       // Server mode only: the public view is read-only, so the story runs by itself (compose.server.yml sets it).
       ...(autopilot ? { autopilot } : {}),
     });

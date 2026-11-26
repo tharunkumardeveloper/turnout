@@ -41,6 +41,9 @@ export type ConsoleOptions = {
   lock?: { busy: boolean }; // pass one to share it with the watcher's guard
   doctor?: () => Promise<DoctorReport>; // turnout doctor's checks: GET /api/doctor, shown on /setup
   cacheMs?: Partial<CacheTimes>; // how long each shared read is kept; defaults in CACHE_MS
+  // The console's first card: where visitors open the app through Turnout, the Flagsmith dashboard, and the goal
+  // (null: none yet, the experiment is judged on page speed).
+  site?: { url: string; dashboardUrl: string; goal: string | null };
   // Server mode: runs the judge story by itself (autopilot.ts) while the console listens. Needs `judge`.
   autopilot?: AutopilotOptions;
 };
@@ -215,6 +218,7 @@ export function createConsole(opts: ConsoleOptions): http.Server {
       snapshots: listSnapshots(opts.snapshotDir),
       history,
       ledger: readLedger(opts.ledgerDir).filter((e) => e.flag === experiment.feature.name),
+      site: opts.site ?? null,
     };
   }
 

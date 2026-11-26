@@ -467,3 +467,21 @@ describe('demo controls: send visitors, swing back and forward', () => {
     assert.equal(F.demoJobText({ action: 'visitors', status: 'failed', error: 'no token' }), 'Stopped: no token.');
   });
 });
+
+test('goal suggestions: successful form posts and API writes by path, ids folded, Turnout and failures left out', () => {
+  const counts = new Map();
+  const ev = (method: string, path: string, status = 200) => F.noteSuggestion(counts, { method, path, status });
+  ev('POST', '/signup', 303);
+  ev('POST', '/signup?ref=x', 201);
+  ev('post', '/api/orders/123', 201);
+  ev('PATCH', '/api/orders/0b7e2f0c-1f2a-4d0e-9c1b-2a3b4c5d6e7f');
+  ev('GET', '/pricing');
+  ev('POST', '/login', 401);
+  ev('POST', '/__turnout/preview');
+  ev('POST', '/signup', 303);
+  assert.deepEqual(F.topSuggestions(counts), [
+    { key: 'POST /signup', count: 3, flag: '--goal "POST /signup 303"' }, // a form post that redirects
+    { key: 'PATCH /api/orders/*', count: 1, flag: '--goal "PATCH /api/orders/*"' },
+    { key: 'POST /api/orders/*', count: 1, flag: '--goal "POST /api/orders/*"' },
+  ]);
+});

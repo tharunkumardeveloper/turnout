@@ -47,6 +47,7 @@ const app = {
   prevEvents: null,
   eventsDelta: 0,
   live: {}, // per-variant traffic since the last /api/state, so counters move between polls
+  suggestions: new Map(), // goal suggestions from the live feed (format.js noteSuggestion)
   timer: 0,
   feed: 'pending',
   feedRetryAt: 0,
@@ -99,6 +100,7 @@ function onTraffic(ev) {
   c.requests++;
   if (ev.document) c.pages++;
   if (ev.converted) c.conversions++;
+  if (F.noteSuggestion(app.suggestions, ev)) queueSuggestions();
   map.spawn(ev);
   queueCounts();
 }
@@ -185,9 +187,77 @@ async function refreshNow() {
   schedule();
 }
 
+// ---- the first card: open your site, the goal, and requests that could become one -----------------------------
+function renderSite(s) {
+  const card = $('site');
+  if (!s.site) {
+    card.hidden = true;
+    return;
+  }
+  card.hidden = false;
+  $('site-open').href = s.site.url;
+  $('site-open').textContent = `Open your site (${s.site.url.replace(/^https?:\/\//, '')})`;
+  $('site-flagsmith').href = s.site.dashboardUrl;
+  const goal = $('site-goal');
+  goal.textContent = '';
+  if (s.site.goal) {
+    goal.append('Goal: ');
+    const b = document.createElement('strong');
+    b.textContent = s.site.goal;
+    goal.append(b, '. Page speed and server errors are guardrails.');
+  } else {
+    goal.append('No goal yet: each version is judged on ');
+    const b = document.createElement('strong');
+    b.textContent = 'page speed';
+    goal.append(b, ', with server errors as the guardrail. Use your site, and requests that could count as success appear below.');
+  }
+  renderSuggestions(s);
+}
+
+let suggestTimer = 0;
+function queueSuggestions() {
+  if (suggestTimer) return;
+  suggestTimer = setTimeout(() => {
+    suggestTimer = 0;
+    if (app.state) renderSuggestions(app.state);
+  }, 1000);
+}
+
+function renderSuggestions(s) {
+  const top = F.topSuggestions(app.suggestions, 5);
+  const box = $('site-suggest');
+  box.hidden = !s.site || top.length === 0;
+  const list = $('suggest-list');
+  list.replaceChildren(
+    ...top.map((t) => {
+      const li = document.createElement('li');
+      const code = document.createElement('code');
+      code.textContent = t.key;
+      const count = document.createElement('span');
+      count.className = 'suggest-count';
+      count.textContent = `${F.formatInt(t.count)} seen`;
+      const btn = document.createElement('button');
+      btn.type = 'button';
+      btn.className = 'btn btn-small';
+      btn.textContent = 'Use as goal';
+      btn.addEventListener('click', async () => {
+        try {
+          await navigator.clipboard.writeText(t.flag);
+          btn.textContent = `Copied: ${t.flag}`;
+        } catch {
+          btn.textContent = `Add ${t.flag} to your compare command`;
+        }
+      });
+      li.append(code, count, btn);
+      return li;
+    }),
+  );
+}
+
 function render() {
   const s = app.state;
   if (!s) return;
+  renderSite(s);
   renderHeader(s);
   renderMap(s);
   renderResults(s);

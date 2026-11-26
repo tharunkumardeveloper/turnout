@@ -498,3 +498,47 @@ export function sidings(history, currentId, ledger) {
       decision: ledgerDecisionText(latestEntryFor(ledger, e.id)),
     }));
 }
+
+// ---- goal suggestions: the requests visitors make that could count as success -----------------------------------
+// From the live traffic feed: successful (2xx/3xx) POST, PUT, PATCH and DELETE requests, grouped by path, with ids in
+// the path folded to * (/orders/123 → /orders/*). Turnout's own paths never count.
+const ID_SEGMENT = /^(\d+|[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}|[0-9a-f]{16,})$/i;
+export function suggestionKey(ev) {
+  if (!ev || typeof ev.path !== 'string' || typeof ev.method !== 'string') return null;
+  const method = ev.method.toUpperCase();
+  if (!['POST', 'PUT', 'PATCH', 'DELETE'].includes(method)) return null;
+  if (!(ev.status >= 200 && ev.status < 400)) return null;
+  if (ev.path.startsWith('/__turnout')) return null;
+  const path = ev.path.split('?')[0].split('/').map((s) => (ID_SEGMENT.test(s) ? '*' : s)).join('/') || '/';
+  return `${method} ${path}`;
+}
+
+/** Counts one traffic event into `counts` (a Map of key → { count, codes: { status: n } }); returns the key or null. */
+export function noteSuggestion(counts, ev) {
+  const key = suggestionKey(ev);
+  if (!key) return null;
+  const s = counts.get(key) ?? { count: 0, codes: {} };
+  s.count++;
+  s.codes[ev.status] = (s.codes[ev.status] ?? 0) + 1;
+  counts.set(key, s);
+  return key;
+}
+
+/** The most frequent suggestions first, at most n, each with the goal flag that counts it. */
+export function topSuggestions(counts, n = 5) {
+  return [...counts]
+    .sort((a, b) => b[1].count - a[1].count || a[0].localeCompare(b[0]))
+    .slice(0, n)
+    .map(([key, s]) => ({ key, count: s.count, flag: goalFlag(key, s.codes) }));
+}
+
+/** What to add to `turnout compare`: mostly 2xx answers → the default (2xx); mostly redirects → that exact code. */
+export function goalFlag(key, codes = {}) {
+  let ok = 0;
+  let top = null;
+  for (const [code, n] of Object.entries(codes)) {
+    if (code.startsWith('2')) ok += n;
+    else if (!top || n > codes[top]) top = code;
+  }
+  return top && codes[top] > ok ? `--goal "${key} ${top}"` : `--goal "${key}"`;
+}
