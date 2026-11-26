@@ -485,6 +485,9 @@ const commands: Record<string, () => Promise<void>> = {
   },
   console: async () => {
     const port = Number(env('CONSOLE_PORT', '8090'));
+    // Flagsmith with Turnout's tour on top (local): the console's Flagsmith links open it there.
+    const tourPort = Number(process.env.FLAGSMITH_TOUR_PORT || 0);
+    if (tourPort) process.env.FLAGSMITH_DASHBOARD_URL = process.env.FLAGSMITH_TOUR_URL || `http://127.0.0.1:${tourPort}`;
     const key = await adminKey();
     const hosts = process.env.TURNOUT_CONSOLE_HOSTS?.split(',').map((h) => h.trim()).filter(Boolean);
     const judgeToken = process.env.TURNOUT_JUDGE_TOKEN || undefined;
@@ -594,6 +597,28 @@ const commands: Record<string, () => Promise<void>> = {
     // Other devices: a second port, where every request needs the judge cookie and never gets the admin password.
     // Compose publishes it on TURNOUT_PUBLISH_HOST and the main port on 127.0.0.1 only. Unset: no second port.
     const devicePort = process.env.CONSOLE_DEVICE_PORT ? Number(process.env.CONSOLE_DEVICE_PORT) : undefined;
+    if (tourPort) {
+      const { createFlagsmithTour } = await import('./console/flagsmith-tour.ts');
+      const admin = new AdminClient(apiUrl(), { apiKey: key });
+      const tour = createFlagsmithTour({
+        upstream: process.env.FLAGSMITH_TOUR_UPSTREAM || new URL(apiUrl()).origin,
+        uiDir: fileURLToPath(new URL('./console/ui/', import.meta.url)),
+        config: async () => {
+          const env = await admin.get<{ project: number }>(`/api/v1/environments/${envKey()}/`);
+          const exp = await latest().then((e) => e.detail()).catch(() => null);
+          return {
+            project: env.project,
+            environment: envKey(),
+            flag: config.flag,
+            experiment: exp?.id ?? null,
+            experimentName: exp?.name ?? null,
+            goal: config.goal.event,
+            metrics: (exp?.metrics ?? []).map((m) => m.metric_name),
+          };
+        },
+      });
+      tour.listen(tourPort, host, () => console.log(`Flagsmith with Turnout's tour on ${host}:${tourPort} (open ${process.env.FLAGSMITH_DASHBOARD_URL})`));
+    }
     server.listen(port, host, () => {
       const here = localHost(process.env);
       console.log(`turnout console on ${host}:${port} (open http://${here}:${port})`);

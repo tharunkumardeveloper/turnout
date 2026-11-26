@@ -95,6 +95,7 @@ services:
       CONSOLE_PUBLIC_PORT: 8092 # the read-only judge view; Caddy reaches it on the edge network, never published
       TURNOUT_TRYIT_URL: '' # no Try it box on a server (it builds and runs code)
       TURNOUT_TRYIT_CONSOLE_URL: '' # nor your app's console
+      FLAGSMITH_TOUR_PORT: '' # Flagsmith's dashboard stays private (SSH tunnel)
       TURNOUT_PUBLIC_SHOP_URL: https://${TURNOUT_HOSTNAME}
       TURNOUT_CONSOLE_HOSTS: '' # other devices use the public, read-only view
       # The public view is read-only, so the story runs by itself: the console's autopilot presses the judge buttons

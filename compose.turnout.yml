@@ -86,12 +86,16 @@ services:
       TURNOUT_GUARD: ${TURNOUT_GUARD:-off} # "revert": revert automatically on a clearly losing guardrail
       TURNOUT_GUARD_THRESHOLD: ${TURNOUT_GUARD_THRESHOLD:-0.01}
       TURNOUT_TRYIT_URL: ${TURNOUT_TRYIT_URL:-http://tryit:8097} # the Try it box; empty: no Try it (server mode)
+      # Flagsmith's dashboard with Turnout's tour on top (:8001, this machine only); the console's Flagsmith links open it.
+      FLAGSMITH_TOUR_PORT: ${FLAGSMITH_TOUR_PORT:-8001}
+      FLAGSMITH_TOUR_UPSTREAM: http://flagsmith:8000
     ports:
       # The console holds the admin key. :8090 is this machine's console and is only ever published on 127.0.0.1.
       # :8091 is for other devices: every request there needs the judge cookie, whatever Host header it sends.
       # TURNOUT_PUBLISH_HOST=0.0.0.0 lets phones on your network reach :8091; that requires TURNOUT_JUDGE_TOKEN
       # and TURNOUT_CONSOLE_HOSTS.
       - 127.0.0.1:8090:8090
+      - 127.0.0.1:8001:8001 # Flagsmith with Turnout's tour
       - ${TURNOUT_PUBLISH_HOST:-127.0.0.1}:8091:8091
     volumes:
       - *config

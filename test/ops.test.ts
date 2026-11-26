@@ -31,6 +31,7 @@ describe('compose: published ports', () => {
     const published = Object.entries(services).flatMap(([name, s]) => (s.ports ?? []).map((p) => `${name} ${p}`));
     assert.deepEqual(published.sort(), [
       'console ${TURNOUT_PUBLISH_HOST:-127.0.0.1}:8091:8091', // judge link only: the cookie is always required
+      'console 127.0.0.1:8001:8001', // Flagsmith's dashboard with Turnout's tour, this machine only
       'console 127.0.0.1:8090:8090', // this machine's console: loopback Host names are trusted here only
       'flagsmith 127.0.0.1:8000:8000', // the dashboard and admin API keep the official placeholder secrets
       'tryit 127.0.0.1:8085:8085', // Try it with your app: your versions through Turnout, this machine only
