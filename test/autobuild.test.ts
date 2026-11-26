@@ -20,7 +20,7 @@ test('a Node project with only a build script is served as a static site', () =>
 });
 
 test('Python, Go, PHP and plain HTML each get their own', () => {
-  assert.match(generatedDockerfile(['requirements.txt', 'app.py'], () => 'flask==3')!, /flask", "--app", "app"/);
+  assert.match(generatedDockerfile(['requirements.txt', 'app.py'], () => 'flask==3')!, /FLASK_APP=app exec python -m flask run/);
   assert.match(generatedDockerfile(['requirements.txt', 'manage.py'], () => 'django')!, /manage.py migrate --noinput && exec python manage.py runserver/);
   assert.match(generatedDockerfile(['go.mod', 'main.go'], none)!, /golang/);
   assert.match(generatedDockerfile(['index.php'], none)!, /php:8.4-apache/);
@@ -154,4 +154,36 @@ test('a start script that is a development server is built and served instead (i
 test('NextAuth without a secret is recognised as a missing setting', () => {
   const log = '[next-auth][error][NO_SECRET] \nhttps://next-auth.js.org/errors#no_secret Please define a `secret` in production. Error [MissingSecretError]';
   assert.deepEqual(missingSettings(log).sort(), ['AUTH_SECRET', 'NEXTAUTH_SECRET']);
+});
+
+test('thirty-repo fixes: templates, package managers, Node version, Laravel, PHP extensions, Procfiles, cgo', () => {
+  // startbootstrap-sb-admin-2: index.html at the top, gulp tooling: served as is, no npm.
+  assert.equal(generatedDockerfile(['package.json', 'index.html'], () => JSON.stringify({ scripts: { start: 'gulp watch', build: 'gulp' } })), 'FROM nginx:1.27-alpine\nCOPY . /usr/share/nginx/html\n');
+  // A Vite app has index.html at the top too, as source: built, not served raw.
+  assert.match(generatedDockerfile(['package.json', 'index.html'], () => JSON.stringify({ scripts: { dev: 'vite', build: 'vite build' } }))!, /run build/);
+  // shadcn/taxonomy: pnpm; .nvmrc names the Node major; old webpack gets the OpenSSL retry.
+  const pnpm = generatedDockerfile(['package.json', 'pnpm-lock.yaml', '.nvmrc'], (p) => (p === '.nvmrc' ? 'v18\n' : JSON.stringify({ scripts: { start: 'next start', build: 'next build' } })))!;
+  assert.match(pnpm, /FROM node:18-alpine/);
+  assert.match(pnpm, /corepack enable && pnpm install/);
+  assert.match(pnpm, /pnpm run build \|\| NODE_OPTIONS=--openssl-legacy-provider pnpm run build/);
+  assert.match(generatedDockerfile(['package.json', 'server.js'], () => JSON.stringify({ scripts: { start: 'node server.js' } }))!, /--legacy-peer-deps/);
+  // laravel/laravel: PHP, served from public/, set up with a key and SQLite (it has a package.json for Vite too).
+  const laravel = generatedDockerfile(['artisan', 'composer.json', 'package.json', 'public/index.php'], () => '{"require":{"php":"^8.2"}}')!;
+  assert.match(laravel, /php:8\.4-apache/);
+  assert.match(laravel, /artisan key:generate/);
+  // symfony/demo: the PHP extensions composer.json asks for.
+  assert.match(generatedDockerfile(['composer.json', 'public/index.php'], () => '{"require":{"ext-intl":"*","ext-pdo_sqlite":"*"}}')!, /install-php-extensions intl\n/);
+  // railwayapp-templates/flask: its own start command, on 0.0.0.0:8000.
+  const flask = generatedDockerfile(['requirements.txt', 'main.py', 'railway.json'], (p) => (p === 'railway.json' ? '{"deploy":{"startCommand":"gunicorn main:app"}}' : 'Flask==1.1.2\ngunicorn==20.0.4'))!;
+  assert.match(flask, /gunicorn main:app --bind 0\.0\.0\.0:8000/);
+  assert.match(generatedDockerfile(['requirements.txt', 'app.py'], () => 'flask')!, /FLASK_APP=app/);
+  // gothinkster/golang-gin-realworld: gorm's SQLite needs cgo.
+  assert.match(generatedDockerfile(['go.mod', 'main.go'], () => 'require gorm.io/driver/sqlite v1.5.7')!, /CGO_ENABLED=1/);
+});
+
+test('pnpm follows the lockfile; Python gets setuptools; Symfony runs in production mode', () => {
+  const lock = (p: string) => (p === 'pnpm-lock.yaml' ? "lockfileVersion: '6.0'\n" : JSON.stringify({ scripts: { start: 'next start', build: 'next build' } }));
+  assert.match(generatedDockerfile(['package.json', 'pnpm-lock.yaml'], lock)!, /corepack prepare pnpm@8 --activate && pnpm install/);
+  assert.match(generatedDockerfile(['requirements.txt', 'app.py'], () => 'flask')!, /pip install --no-cache-dir "setuptools<81"/);
+  assert.match(generatedDockerfile(['composer.json', 'bin/console', 'public/index.php'], () => '{"require":{"symfony/framework-bundle":"*"}}')!, /APP_ENV=prod/);
 });

@@ -170,6 +170,11 @@ export function gitBuildError(message: string): string {
   if (/locate specified Dockerfile|Dockerfile.*no such file|failed to read dockerfile/i.test(message)) {
     return 'this repository has no Dockerfile at its root (or at the folder after the colon in repo.git#branch:folder). Turnout runs any app that has a working Dockerfile: add one to the repository, or build the image yourself and paste its name instead.';
   }
+  // The repository's own Dockerfile copies something the repository doesn't have (gothinkster/node-express-realworld:
+  // it read as "couldn't fetch the repository").
+  if (/COPY failed|file not found in build context|excluded by \.dockerignore/i.test(message)) {
+    return `the repository's own Dockerfile copies a file that isn't in the repository (${message.trim()}). Fix that COPY line in the repository, or remove its Dockerfile and Turnout writes one.`;
+  }
   if (/returned a non-zero code/i.test(message)) return `${message.trim()}. The app's own build failed; the build log shows why. If it needs keys while it is built (API keys, NEXT_PUBLIC_* values), add them to Settings for your app: Turnout passes them to the build as well.`;
   if (/COPY with more than one source file/i.test(message)) return `the repository's own Dockerfile has a mistake: ${message.trim()} (a COPY of several files must end its destination with /, e.g. COPY a b /app/). Fix that line in the repository; the build log shows which step.`;
   if (/couldn't find remote ref/i.test(message)) return `that branch doesn't exist in the repository (${message.trim()}). Leave the branch out to use the repository's default one.`;
@@ -593,8 +598,20 @@ export function startTryit(o: TryitOptions) {
           // (an A/A test, or A and B from one repo) is cloned once per version: each gets its own tar.
           const tar = join(uploads, `${randomBytes(12).toString('hex')}.tar`);
           try {
-            await gitToTar(v.value, tar, (l) => note(l, slot.slot.toUpperCase()));
-            await fromFolder(tar).catch(folderError);
+            // The Dockerfile is decided while cloning and written into the archive: the archive goes to Docker as it is.
+            const own = v.dockerfile || 'Dockerfile';
+            let dockerfile = own;
+            await gitToTar(v.value, tar, (l) => note(l, slot.slot.toUpperCase()), (files, read) => {
+              if (files.includes(own)) return null;
+              if (files.includes('Dockerfile.turnout')) return (dockerfile = 'Dockerfile.turnout'), null;
+              if (v.dockerfile) return null; // a named Dockerfile that isn't there: Docker says so below
+              const made = generatedDockerfile(files, read);
+              if (!made) throw new Error(UNKNOWN_PROJECT);
+              dockerfile = 'Dockerfile.turnout';
+              note(`${slot.name} has no Dockerfile: Turnout wrote one (${made.split('\n')[0]})`, slot.slot.toUpperCase());
+              return { name: 'Dockerfile.turnout', content: made };
+            }).catch(folderError);
+            await o.docker.buildFolder(image, tar, dockerfile, onLog, buildArgs).catch(folderError);
           } finally {
             rmSync(tar, { force: true });
           }

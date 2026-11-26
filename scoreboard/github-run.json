@@ -1,6 +1,42 @@
 {
-  "at": "2026-11-26T12:54:01.111Z",
+  "at": "2026-11-26T16:29:01.813Z",
   "rows": [
+    {
+      "app": "bradtraversy/50projects50days",
+      "stages": {
+        "build": {
+          "pass": true,
+          "note": ""
+        },
+        "start": {
+          "pass": true,
+          "note": "port 80"
+        },
+        "goals": {
+          "pass": false,
+          "note": "none found on the running app"
+        },
+        "visitors": {
+          "pass": true,
+          "note": "try:b 150 (0 goals), try:a 150 (0 goals)"
+        },
+        "results": {
+          "pass": true,
+          "note": "v2 3%"
+        },
+        "counts": {
+          "pass": true,
+          "note": "try:a 150 vs 150, try:b 150 vs 150"
+        },
+        "ship": {
+          "pass": true,
+          "note": ""
+        }
+      },
+      "seconds": 58,
+      "url": "https://github.com/bradtraversy/50projects50days",
+      "at": "2026-11-26T15:51:42.552Z"
+    },
     {
       "app": "bradtraversy/nodekb",
       "stages": {
@@ -36,6 +72,62 @@
       "seconds": 80,
       "url": "https://github.com/bradtraversy/nodekb",
       "at": "2026-11-26T11:23:30.457Z"
+    },
+    {
+      "app": "cornflourblue/node-mongo-signup-verification-api",
+      "stages": {
+        "build": {
+          "pass": true,
+          "note": ""
+        },
+        "start": {
+          "pass": false,
+          "note": "try:a's home page answers HTTP 404"
+        },
+        "goals": {
+          "pass": false,
+          "note": "none found on the running app"
+        }
+      },
+      "seconds": 59,
+      "url": "https://github.com/cornflourblue/node-mongo-signup-verification-api",
+      "at": "2026-11-26T15:51:42.552Z"
+    },
+    {
+      "app": "dawidolko/Website-Templates",
+      "stages": {
+        "build": {
+          "pass": true,
+          "note": ""
+        },
+        "start": {
+          "pass": true,
+          "note": "port 80"
+        },
+        "goals": {
+          "pass": false,
+          "note": "none found on the running app"
+        },
+        "visitors": {
+          "pass": true,
+          "note": "try:a 157 (0 goals), try:b 143 (0 goals)"
+        },
+        "results": {
+          "pass": true,
+          "note": "v2 24%"
+        },
+        "counts": {
+          "pass": true,
+          "note": "try:a 157 vs 157, try:b 143 vs 143"
+        },
+        "ship": {
+          "pass": true,
+          "note": ""
+        }
+      },
+      "seconds": 143,
+      "url": "https://github.com/dawidolko/Website-Templates",
+      "at": "2026-11-26T16:26:37.127Z"
     },
     {
       "app": "digitalocean/sample-django",
@@ -108,6 +200,78 @@
       "seconds": 55,
       "url": "https://github.com/digitalocean/sample-flask",
       "at": "2026-11-26T10:49:19.367Z"
+    },
+    {
+      "app": "digitalocean/sample-golang",
+      "stages": {
+        "build": {
+          "pass": true,
+          "note": ""
+        },
+        "start": {
+          "pass": true,
+          "note": "port 8080"
+        },
+        "goals": {
+          "pass": false,
+          "note": "none found on the running app"
+        },
+        "visitors": {
+          "pass": true,
+          "note": "try:b 157 (0 goals), try:a 143 (0 goals)"
+        },
+        "results": {
+          "pass": true,
+          "note": "v2 76%"
+        },
+        "counts": {
+          "pass": true,
+          "note": "try:a 143 vs 143, try:b 157 vs 157"
+        },
+        "ship": {
+          "pass": true,
+          "note": ""
+        }
+      },
+      "seconds": 97,
+      "url": "https://github.com/digitalocean/sample-golang",
+      "at": "2026-11-26T15:51:42.552Z"
+    },
+    {
+      "app": "digitalocean/sample-html",
+      "stages": {
+        "build": {
+          "pass": true,
+          "note": ""
+        },
+        "start": {
+          "pass": true,
+          "note": "port 80"
+        },
+        "goals": {
+          "pass": false,
+          "note": "none found on the running app"
+        },
+        "visitors": {
+          "pass": true,
+          "note": "try:a 136 (0 goals), try:b 164 (0 goals)"
+        },
+        "results": {
+          "pass": true,
+          "note": "v2 11%"
+        },
+        "counts": {
+          "pass": true,
+          "note": "try:a 136 vs 136, try:b 164 vs 164"
+        },
+        "ship": {
+          "pass": true,
+          "note": ""
+        }
+      },
+      "seconds": 55,
+      "url": "https://github.com/digitalocean/sample-html",
+      "at": "2026-11-26T15:51:42.552Z"
     },
     {
       "app": "digitalocean/sample-nodejs",
@@ -254,6 +418,138 @@
       "at": "2026-11-26T11:23:30.457Z"
     },
     {
+      "app": "fastify/demo",
+      "stages": {
+        "build": {
+          "pass": true,
+          "note": ""
+        },
+        "start": {
+          "pass": false,
+          "note": "turnout-try-a keeps stopping right after it starts (restarted 3 times). Its last log lines: > fastify-demo@0.0.0 build > tsc > fastify-demo@0.0.0 start > npm ru"
+        },
+        "goals": {
+          "pass": false,
+          "note": "none found on the running app"
+        }
+      },
+      "seconds": 135,
+      "url": "https://github.com/fastify/demo",
+      "at": "2026-11-26T15:51:42.552Z"
+    },
+    {
+      "app": "gothinkster/aspnetcore-realworld-example-app",
+      "stages": {
+        "build": {
+          "pass": true,
+          "note": ""
+        },
+        "start": {
+          "pass": false,
+          "note": "turnout-try-a keeps stopping right after it starts (restarted 4 times). Its last log lines: ) in /src/src/Conduit/ServicesExtensions.cs:line 117 at Program.<Mai"
+        },
+        "goals": {
+          "pass": false,
+          "note": "none found on the running app"
+        }
+      },
+      "seconds": 215,
+      "url": "https://github.com/gothinkster/aspnetcore-realworld-example-app",
+      "at": "2026-11-26T15:51:42.552Z"
+    },
+    {
+      "app": "gothinkster/flask-realworld-example-app",
+      "stages": {
+        "build": {
+          "pass": false,
+          "note": "flask-realworld-example-app (version A): The command '/bin/sh -c pip install --no-cache-dir -r requirements.txt' returned a non-zero code: 1. The app's own buil"
+        }
+      },
+      "seconds": 20,
+      "url": "https://github.com/gothinkster/flask-realworld-example-app",
+      "at": "2026-11-26T16:09:25.243Z"
+    },
+    {
+      "app": "gothinkster/golang-gin-realworld-example-app",
+      "stages": {
+        "build": {
+          "pass": true,
+          "note": ""
+        },
+        "start": {
+          "pass": false,
+          "note": "try:a's home page answers HTTP 404"
+        },
+        "goals": {
+          "pass": false,
+          "note": "none found on the running app"
+        }
+      },
+      "seconds": 213,
+      "url": "https://github.com/gothinkster/golang-gin-realworld-example-app",
+      "at": "2026-11-26T16:09:25.243Z"
+    },
+    {
+      "app": "gothinkster/node-express-realworld-example-app",
+      "stages": {
+        "build": {
+          "pass": false,
+          "note": "node-express-realworld-example-app (version A): the repository's own Dockerfile copies a file that isn't in the repository (COPY failed: file not found in build"
+        }
+      },
+      "seconds": 2,
+      "url": "https://github.com/gothinkster/node-express-realworld-example-app",
+      "at": "2026-11-26T16:09:25.243Z"
+    },
+    {
+      "app": "gothinkster/react-redux-realworld-example-app",
+      "stages": {
+        "build": {
+          "pass": true,
+          "note": ""
+        },
+        "start": {
+          "pass": true,
+          "note": "port 80"
+        },
+        "goals": {
+          "pass": false,
+          "note": "none found on the running app"
+        },
+        "visitors": {
+          "pass": true,
+          "note": "try:b 151 (0 goals), try:a 149 (0 goals)"
+        },
+        "results": {
+          "pass": true,
+          "note": "v2 48%"
+        },
+        "counts": {
+          "pass": true,
+          "note": "try:a 149 vs 149, try:b 151 vs 151"
+        },
+        "ship": {
+          "pass": true,
+          "note": ""
+        }
+      },
+      "seconds": 195,
+      "url": "https://github.com/gothinkster/react-redux-realworld-example-app",
+      "at": "2026-11-26T15:51:42.552Z"
+    },
+    {
+      "app": "gothinkster/vue-realworld-example-app",
+      "stages": {
+        "build": {
+          "pass": false,
+          "note": "vue-realworld-example-app (version A): The command '/bin/sh -c npm run build || NODE_OPTIONS=--openssl-legacy-provider npm run build' returned a non-zero code: "
+        }
+      },
+      "seconds": 75,
+      "url": "https://github.com/gothinkster/vue-realworld-example-app",
+      "at": "2026-11-26T16:09:25.243Z"
+    },
+    {
       "app": "heroku/go-getting-started",
       "stages": {
         "build": {
@@ -342,24 +638,24 @@
         },
         "visitors": {
           "pass": true,
-          "note": "try:b 152 (0 goals), try:a 148 (0 goals)"
+          "note": "try:a 153 (0 goals), try:b 147 (0 goals)"
         },
         "results": {
           "pass": true,
-          "note": "v2 20%"
+          "note": "v2 44%"
         },
         "counts": {
           "pass": true,
-          "note": "try:a 148 vs 148, try:b 152 vs 152"
+          "note": "try:a 153 vs 153, try:b 147 vs 147"
         },
         "ship": {
           "pass": true,
           "note": ""
         }
       },
-      "seconds": 52,
+      "seconds": 100,
       "url": "https://github.com/heroku/node-js-getting-started",
-      "at": "2026-11-26T11:23:30.457Z"
+      "at": "2026-11-26T16:26:37.127Z"
     },
     {
       "app": "heroku/php-getting-started",
@@ -506,6 +802,114 @@
       "at": "2026-11-26T12:54:01.111Z"
     },
     {
+      "app": "laravel/laravel",
+      "stages": {
+        "build": {
+          "pass": true,
+          "note": ""
+        },
+        "start": {
+          "pass": true,
+          "note": "port 80"
+        },
+        "goals": {
+          "pass": false,
+          "note": "none found on the running app"
+        },
+        "visitors": {
+          "pass": true,
+          "note": "try:a 148 (0 goals), try:b 152 (0 goals)"
+        },
+        "results": {
+          "pass": true,
+          "note": "v2 10%"
+        },
+        "counts": {
+          "pass": true,
+          "note": "try:a 148 vs 148, try:b 152 vs 152"
+        },
+        "ship": {
+          "pass": true,
+          "note": ""
+        }
+      },
+      "seconds": 67,
+      "url": "https://github.com/laravel/laravel",
+      "at": "2026-11-26T16:26:37.127Z"
+    },
+    {
+      "app": "mdn/beginner-html-site-styled",
+      "stages": {
+        "build": {
+          "pass": true,
+          "note": ""
+        },
+        "start": {
+          "pass": true,
+          "note": "port 80"
+        },
+        "goals": {
+          "pass": false,
+          "note": "none found on the running app"
+        },
+        "visitors": {
+          "pass": true,
+          "note": "try:b 144 (0 goals), try:a 156 (0 goals)"
+        },
+        "results": {
+          "pass": true,
+          "note": "v2 66%"
+        },
+        "counts": {
+          "pass": true,
+          "note": "try:a 156 vs 156, try:b 144 vs 144"
+        },
+        "ship": {
+          "pass": true,
+          "note": ""
+        }
+      },
+      "seconds": 53,
+      "url": "https://github.com/mdn/beginner-html-site-styled",
+      "at": "2026-11-26T15:51:42.552Z"
+    },
+    {
+      "app": "mdn/todo-react",
+      "stages": {
+        "build": {
+          "pass": true,
+          "note": ""
+        },
+        "start": {
+          "pass": true,
+          "note": "port 80"
+        },
+        "goals": {
+          "pass": false,
+          "note": "none found on the running app"
+        },
+        "visitors": {
+          "pass": true,
+          "note": "try:b 149 (0 goals), try:a 151 (0 goals)"
+        },
+        "results": {
+          "pass": true,
+          "note": "v2 34%"
+        },
+        "counts": {
+          "pass": true,
+          "note": "try:a 151 vs 151, try:b 149 vs 149"
+        },
+        "ship": {
+          "pass": true,
+          "note": ""
+        }
+      },
+      "seconds": 103,
+      "url": "https://github.com/mdn/todo-react",
+      "at": "2026-11-26T15:51:42.552Z"
+    },
+    {
       "app": "miguelgrinberg/microblog",
       "stages": {
         "build": {
@@ -516,6 +920,150 @@
       "seconds": 33,
       "url": "https://github.com/miguelgrinberg/microblog",
       "at": "2026-11-26T11:23:30.457Z"
+    },
+    {
+      "app": "nestjs/typescript-starter",
+      "stages": {
+        "build": {
+          "pass": true,
+          "note": ""
+        },
+        "start": {
+          "pass": true,
+          "note": "port 3000"
+        },
+        "goals": {
+          "pass": false,
+          "note": "none found on the running app"
+        },
+        "visitors": {
+          "pass": true,
+          "note": "try:a 139 (0 goals), try:b 161 (0 goals)"
+        },
+        "results": {
+          "pass": true,
+          "note": "v2 51%"
+        },
+        "counts": {
+          "pass": true,
+          "note": "try:a 139 vs 139, try:b 161 vs 161"
+        },
+        "ship": {
+          "pass": true,
+          "note": ""
+        }
+      },
+      "seconds": 122,
+      "url": "https://github.com/nestjs/typescript-starter",
+      "at": "2026-11-26T15:51:42.552Z"
+    },
+    {
+      "app": "Novpix/free-html-templates",
+      "stages": {
+        "build": {
+          "pass": true,
+          "note": ""
+        },
+        "start": {
+          "pass": true,
+          "note": "port 80"
+        },
+        "goals": {
+          "pass": false,
+          "note": "none found on the running app"
+        },
+        "visitors": {
+          "pass": true,
+          "note": "try:b 156 (0 goals), try:a 144 (0 goals)"
+        },
+        "results": {
+          "pass": true,
+          "note": "v2 75%"
+        },
+        "counts": {
+          "pass": true,
+          "note": "try:a 144 vs 144, try:b 156 vs 156"
+        },
+        "ship": {
+          "pass": true,
+          "note": ""
+        }
+      },
+      "seconds": 52,
+      "url": "https://github.com/Novpix/free-html-templates",
+      "at": "2026-11-26T15:51:42.552Z"
+    },
+    {
+      "app": "puikinsh/adminator-admin-dashboard",
+      "stages": {
+        "build": {
+          "pass": true,
+          "note": ""
+        },
+        "start": {
+          "pass": true,
+          "note": "port 80"
+        },
+        "goals": {
+          "pass": false,
+          "note": "none found on the running app"
+        },
+        "visitors": {
+          "pass": true,
+          "note": "try:b 154 (0 goals), try:a 146 (0 goals)"
+        },
+        "results": {
+          "pass": true,
+          "note": "v2 37%"
+        },
+        "counts": {
+          "pass": true,
+          "note": "try:a 146 vs 146, try:b 154 vs 154"
+        },
+        "ship": {
+          "pass": true,
+          "note": ""
+        }
+      },
+      "seconds": 170,
+      "url": "https://github.com/puikinsh/adminator-admin-dashboard",
+      "at": "2026-11-26T15:51:42.552Z"
+    },
+    {
+      "app": "railwayapp-templates/flask",
+      "stages": {
+        "build": {
+          "pass": true,
+          "note": ""
+        },
+        "start": {
+          "pass": true,
+          "note": "port 8000"
+        },
+        "goals": {
+          "pass": false,
+          "note": "none found on the running app"
+        },
+        "visitors": {
+          "pass": true,
+          "note": "try:b 146 (0 goals), try:a 154 (0 goals)"
+        },
+        "results": {
+          "pass": true,
+          "note": "v2 51%"
+        },
+        "counts": {
+          "pass": true,
+          "note": "try:a 154 vs 154, try:b 146 vs 146"
+        },
+        "ship": {
+          "pass": true,
+          "note": ""
+        }
+      },
+      "seconds": 89,
+      "url": "https://github.com/railwayapp-templates/flask",
+      "at": "2026-11-26T16:29:01.813Z"
     },
     {
       "app": "RayVelez27/instalanding.ai",
@@ -534,24 +1082,36 @@
         },
         "visitors": {
           "pass": true,
-          "note": "try:a 145 (0 goals), try:b 155 (0 goals)"
+          "note": "try:b 159 (0 goals), try:a 141 (0 goals)"
         },
         "results": {
           "pass": true,
-          "note": "v2 58%"
+          "note": "v2 36%"
         },
         "counts": {
           "pass": true,
-          "note": "try:a 145 vs 145, try:b 155 vs 155"
+          "note": "try:a 141 vs 141, try:b 159 vs 159"
         },
         "ship": {
           "pass": true,
           "note": ""
         }
       },
-      "seconds": 195,
+      "seconds": 83,
       "url": "https://github.com/RayVelez27/instalanding.ai",
-      "at": "2026-11-26T12:21:32.021Z"
+      "at": "2026-11-26T16:26:37.127Z"
+    },
+    {
+      "app": "remix-run/indie-stack",
+      "stages": {
+        "build": {
+          "pass": false,
+          "note": "indie-stack (version A): The command '/bin/sh -c apt-get update && apt-get install -y openssl sqlite3' returned a non-zero code: 100. The app's own build failed"
+        }
+      },
+      "seconds": 24,
+      "url": "https://github.com/remix-run/indie-stack",
+      "at": "2026-11-26T15:51:42.552Z"
     },
     {
       "app": "render-examples/create-react-app",
@@ -804,6 +1364,278 @@
       "seconds": 83,
       "url": "https://github.com/render-examples/sveltekit",
       "at": "2026-11-26T10:55:39.333Z"
+    },
+    {
+      "app": "sahat/hackathon-starter",
+      "stages": {
+        "build": {
+          "pass": true,
+          "note": ""
+        },
+        "start": {
+          "pass": true,
+          "note": "port 3000"
+        },
+        "goals": {
+          "pass": false,
+          "note": "none found on the running app"
+        },
+        "visitors": {
+          "pass": true,
+          "note": "no answer 193 (0 goals), try:b 57 (0 goals), try:a 50 (0 goals)"
+        },
+        "results": {
+          "pass": true,
+          "note": "v2 6%"
+        },
+        "counts": {
+          "pass": false,
+          "note": "try:a 50 vs 152, try:b 57 vs 148"
+        },
+        "ship": {
+          "pass": true,
+          "note": ""
+        }
+      },
+      "seconds": 461,
+      "url": "https://github.com/sahat/hackathon-starter",
+      "at": "2026-11-26T15:51:42.552Z"
+    },
+    {
+      "app": "shadcn/taxonomy",
+      "stages": {
+        "build": {
+          "pass": false,
+          "note": "taxonomy (version A): The command '/bin/sh -c pnpm run build || NODE_OPTIONS=--openssl-legacy-provider pnpm run build' returned a non-zero code: 1. The app's ow"
+        }
+      },
+      "seconds": 195,
+      "url": "https://github.com/shadcn/taxonomy",
+      "at": "2026-11-26T16:26:37.127Z"
+    },
+    {
+      "app": "spring-projects/spring-petclinic",
+      "stages": {
+        "build": {
+          "pass": true,
+          "note": ""
+        },
+        "start": {
+          "pass": true,
+          "note": "port 8080"
+        },
+        "goals": {
+          "pass": true,
+          "note": "GET /owners/find* (of GET /owners/find*, GET /vets.html, GET /owners, GET /owners/new*)"
+        },
+        "visitors": {
+          "pass": true,
+          "note": "try:b 154 (37 goals), try:a 146 (15 goals)"
+        },
+        "results": {
+          "pass": true,
+          "note": "v2 79%"
+        },
+        "counts": {
+          "pass": true,
+          "note": "try:a 146 vs 146, try:b 154 vs 154"
+        },
+        "ship": {
+          "pass": true,
+          "note": ""
+        }
+      },
+      "seconds": 193,
+      "url": "https://github.com/spring-projects/spring-petclinic",
+      "at": "2026-11-26T15:51:42.552Z"
+    },
+    {
+      "app": "startbootstrap/startbootstrap-agency",
+      "stages": {
+        "build": {
+          "pass": true,
+          "note": ""
+        },
+        "start": {
+          "pass": true,
+          "note": "port 3000"
+        },
+        "goals": {
+          "pass": false,
+          "note": "none found on the running app"
+        },
+        "visitors": {
+          "pass": true,
+          "note": "try:a 148 (0 goals), try:b 152 (0 goals)"
+        },
+        "results": {
+          "pass": true,
+          "note": "v2 29%"
+        },
+        "counts": {
+          "pass": true,
+          "note": "try:a 148 vs 148, try:b 152 vs 152"
+        },
+        "ship": {
+          "pass": true,
+          "note": ""
+        }
+      },
+      "seconds": 182,
+      "url": "https://github.com/startbootstrap/startbootstrap-agency",
+      "at": "2026-11-26T15:51:42.552Z"
+    },
+    {
+      "app": "startbootstrap/startbootstrap-clean-blog",
+      "stages": {
+        "build": {
+          "pass": true,
+          "note": ""
+        },
+        "start": {
+          "pass": true,
+          "note": "port 3000"
+        },
+        "goals": {
+          "pass": true,
+          "note": "GET /contact.html (of GET /contact.html, GET /about.html, GET /post.html)"
+        },
+        "visitors": {
+          "pass": true,
+          "note": "try:a 150 (13 goals), try:b 150 (30 goals)"
+        },
+        "results": {
+          "pass": true,
+          "note": "v2 97%"
+        },
+        "counts": {
+          "pass": true,
+          "note": "try:a 150 vs 150, try:b 150 vs 150"
+        },
+        "ship": {
+          "pass": true,
+          "note": ""
+        }
+      },
+      "seconds": 131,
+      "url": "https://github.com/startbootstrap/startbootstrap-clean-blog",
+      "at": "2026-11-26T15:51:42.552Z"
+    },
+    {
+      "app": "startbootstrap/startbootstrap-sb-admin-2",
+      "stages": {
+        "build": {
+          "pass": true,
+          "note": ""
+        },
+        "start": {
+          "pass": true,
+          "note": "port 80"
+        },
+        "goals": {
+          "pass": true,
+          "note": "GET /register.html (of GET /register.html, GET /login.html, GET /buttons.html, GET /cards.html)"
+        },
+        "visitors": {
+          "pass": true,
+          "note": "try:a 148 (12 goals), try:b 152 (37 goals)"
+        },
+        "results": {
+          "pass": true,
+          "note": "v2 98%"
+        },
+        "counts": {
+          "pass": true,
+          "note": "try:a 148 vs 148, try:b 152 vs 152"
+        },
+        "ship": {
+          "pass": true,
+          "note": ""
+        }
+      },
+      "seconds": 75,
+      "url": "https://github.com/startbootstrap/startbootstrap-sb-admin-2",
+      "at": "2026-11-26T16:26:37.127Z"
+    },
+    {
+      "app": "sveltejs/realworld",
+      "stages": {
+        "build": {
+          "pass": false,
+          "note": "realworld (version A): The command '/bin/sh -c for d in dist build out public; do if [ -f \"$d/index.html\" ]; then cp -r \"$d\" /site; break; fi; done; test -d /si"
+        }
+      },
+      "seconds": 55,
+      "url": "https://github.com/sveltejs/realworld",
+      "at": "2026-11-26T15:51:42.552Z"
+    },
+    {
+      "app": "sveltejs/template",
+      "stages": {
+        "build": {
+          "pass": true,
+          "note": ""
+        },
+        "start": {
+          "pass": true,
+          "note": "port 3000"
+        },
+        "goals": {
+          "pass": false,
+          "note": "none found on the running app"
+        },
+        "visitors": {
+          "pass": true,
+          "note": "try:b 152 (0 goals), try:a 148 (0 goals)"
+        },
+        "results": {
+          "pass": true,
+          "note": "v2 36%"
+        },
+        "counts": {
+          "pass": true,
+          "note": "try:a 148 vs 148, try:b 152 vs 152"
+        },
+        "ship": {
+          "pass": true,
+          "note": ""
+        }
+      },
+      "seconds": 76,
+      "url": "https://github.com/sveltejs/template",
+      "at": "2026-11-26T15:51:42.552Z"
+    },
+    {
+      "app": "symfony/demo",
+      "stages": {
+        "build": {
+          "pass": true,
+          "note": ""
+        },
+        "start": {
+          "pass": false,
+          "note": "try:a's home page answers HTTP 500"
+        },
+        "goals": {
+          "pass": false,
+          "note": "none found on the running app"
+        }
+      },
+      "seconds": 77,
+      "url": "https://github.com/symfony/demo",
+      "at": "2026-11-26T16:26:37.127Z"
+    },
+    {
+      "app": "tiangolo/full-stack-fastapi-template",
+      "stages": {
+        "build": {
+          "pass": false,
+          "note": "full-stack-fastapi-template (version A): The command '/bin/sh -c pip install --no-cache-dir .' returned a non-zero code: 1. The app's own build failed; the buil"
+        }
+      },
+      "seconds": 20,
+      "url": "https://github.com/tiangolo/full-stack-fastapi-template",
+      "at": "2026-11-26T15:51:42.552Z"
     }
   ]
 }

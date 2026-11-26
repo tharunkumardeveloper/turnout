@@ -2,7 +2,7 @@
 // everything a folder gets, a Dockerfile written for it when it has none included. Docker's own git build can only
 // use a repository's Dockerfile, and most small repositories don't have one.
 import { execFile } from 'node:child_process';
-import { createWriteStream, mkdtempSync, readdirSync, rmSync, statSync } from 'node:fs';
+import { createWriteStream, mkdtempSync, readdirSync, readFileSync, rmSync, statSync } from 'node:fs';
 import { readFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -50,7 +50,10 @@ function filesOf(root: string, dir = ''): string[] {
 }
 
 /** Clones the repository and writes it to `tarFile` as a folder upload. Returns the commit it got. */
-export async function gitToTar(url: string, tarFile: string, onLog: (line: string) => void = () => {}): Promise<string> {
+/** A file to add to the archive, decided from the cloned files (Try it's generated Dockerfile). */
+export type Extra = (files: string[], read: (path: string) => string | null) => { name: string; content: string } | null;
+
+export async function gitToTar(url: string, tarFile: string, onLog: (line: string) => void = () => {}, extra?: Extra): Promise<string> {
   const { repo, ref, folder } = parseGitSource(url);
   if (!/^https:\/\//.test(repo)) throw new Error('only https git URLs can be cloned here, such as https://github.com/you/app');
   const work = mkdtempSync(join(tmpdir(), 'turnout-git-'));
@@ -67,6 +70,10 @@ export async function gitToTar(url: string, tarFile: string, onLog: (line: strin
     // Written file by file, giving the event loop a turn every few files: a 400 MB repository read in one go blocked
     // Try it for long enough that the console said it wasn't running.
     const paths = filesOf(root);
+    // Decided from the files on disk (a few small reads), so the archive is never read back: a 400 MB one, read and
+    // rewritten whole to add a Dockerfile, kept Try it from answering.
+    const readSmall = (path: string) => (paths.includes(path) && statSync(join(root, path)).size < 1024 ** 2 ? readFileSync(join(root, path), 'utf8') : null);
+    const added = extra?.(paths, readSmall) ?? null;
     let total = 0;
     const out = createWriteStream(tarFile);
     const write = (chunk: Uint8Array) => new Promise<void>((ok, fail) => (out.write(chunk, (e) => (e ? fail(e) : ok()))));
@@ -80,6 +87,10 @@ export async function gitToTar(url: string, tarFile: string, onLog: (line: strin
         const parts: Uint8Array[] = tarParts([{ path, size: data.length, data, mode }]);
         for (const part of parts.slice(0, -1)) await write(part); // the last part is the archive's end, written once below
         if (i % 50 === 49) await new Promise((r) => setImmediate(r));
+      }
+      if (added) {
+        const data = new TextEncoder().encode(added.content);
+        for (const part of (tarParts([{ path: added.name, size: data.length, data }]) as Uint8Array[]).slice(0, -1)) await write(part);
       }
       await write(new Uint8Array(1024));
     } finally {

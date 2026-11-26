@@ -106,7 +106,7 @@ Turnout is what I wished existed while setting up Flagsmith's Experimentation on
 | Flagsmith down | 100 of 100 pages still served, 86 ms average |
 | Under load | 0 of 121,678 events lost at up to 200 visitors at once |
 | Any app, automatically | 12 sample apps (HTML, Vite, Next.js ×2, Express, Flask, Django, Go, PHP, no Dockerfile, needs a database, needs a setting): builds 12/12, goals 11/12, counts match Flagsmith 12/12, ships 12/12 (`npm run scoreboard`, [scoreboard/](scoreboard/README.md)) |
-| Real GitHub repos, pasted as links | 23 public repos: Heroku's Node, Python, Go, PHP, Ruby on Rails and Java (Spring Boot) samples, DigitalOcean's Node, PHP, Django and Flask samples, Render's Express, Flask, FastAPI, Django, Gin, SvelteKit and Create React App examples, Docker's two tutorial apps, an Express + MongoDB app, a gallery of static HTML pages, a CSS library and Flask Microblog. **22 of 23** build, start, serve real pages (each home page is checked, not just "it answered"), get Flagsmith results with matching counts, and ship. Most have no Dockerfile; three need Postgres or MongoDB, given as a throwaway one. Microblog's own Dockerfile fails to install its pinned packages. ([github-run.json](scoreboard/github-run.json)) |
+| Real GitHub repos, pasted as links | 53 public repos, from hello-world samples to harder ones on purpose (framework starters, Laravel, Spring PetClinic, NestJS, realworld apps, 400 MB template galleries): **39 of 53** build, start, serve real pages (each home page checked), get Flagsmith results with matching counts, and ship. Most have no Dockerfile. The 14 that don't: their own Dockerfile is broken (3), an API with no home page (2), build-time keys or a database they don't say how to set up (5), no .NET support yet (1), and three more listed in [github-run.json](scoreboard/github-run.json). |
 | A server, rebooted | back by itself in 50 s, every check passing |
 
 Raw logs and numbers: [spikes/RESULTS.md](spikes/RESULTS.md). Not claimed: production users, or any simulated number as evidence about real people.
@@ -330,7 +330,7 @@ or, for Caddy, `reverse_proxy 127.0.0.1:8080`. Visitors keep your domain; the co
 | Console | Plain HTML, CSS and JavaScript modules: no framework, no bundler; SVG traffic map |
 | Try it with your app | Docker Engine API over the socket, shallow `git` clones, generated Dockerfiles for Node, Python, Go, PHP, Ruby, Java and static sites |
 | Live demo | Docker Compose on an Azure VM, Caddy with automatic HTTPS, `sslip.io` hostnames |
-| Quality | 668 tests on Node's built-in test runner, `tsc` typecheck, GitHub Actions CI (including the full server stack), a scoreboard of 12 sample apps and 23 real GitHub repos |
+| Quality | 668 tests on Node's built-in test runner, `tsc` typecheck, GitHub Actions CI (including the full server stack), a scoreboard of 12 sample apps and 53 real GitHub repos |
 
 ## Development
 
