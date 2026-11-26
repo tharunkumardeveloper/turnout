@@ -1,12 +1,15 @@
 # turnout (Windows): put Turnout in front of two versions of your app and watch Flagsmith compare them.
 #
 #   turnout compare <live> <new> [--goal "POST /signup"] [--split 50] [--port 3000]
+#       --split: % of visitors who get <new>, up to 50 (the rest get <live>); default 50
 #       <live>/<new>: two URLs (localhost:3001, http://localhost:3002) or two Docker images (myapp:1.0)
 #       --port: the port your images listen on (default 8080); not needed for URLs
 #   turnout open | status | down | reset [--yes]
 #
 # Same behaviour as bin/turnout (macOS, Linux). Files live in %USERPROFILE%\.turnout\projects\<this folder's name>.
-$ErrorActionPreference = 'Stop'
+# Continue, not Stop: Windows PowerShell 5.1 turns any stderr line from git or docker into a fatal error under Stop,
+# even when redirected. Every native call's exit code is checked instead.
+$ErrorActionPreference = 'Continue'
 $HomeDir = Split-Path -Parent $PSScriptRoot
 $Image = if ($env:TURNOUT_IMAGE) { $env:TURNOUT_IMAGE } else { 'ghcr.io/tharunkumardeveloper/turnout:latest' }
 $Name = ((Split-Path -Leaf (Get-Location)).ToLower() -replace '[^a-z0-9]+', '-').Trim('-')
@@ -29,10 +32,9 @@ function Need-Image {
   docker image inspect $script:Image *> $null; if ($LASTEXITCODE -eq 0) { return }
   docker pull -q $script:Image *> $null; if ($LASTEXITCODE -eq 0) { return }
   $script:Image = 'turnout:local'
-  docker image inspect $script:Image *> $null
-  if ($LASTEXITCODE -eq 0) { Say "Using turnout:local (the published image can't be pulled)."; return }
   if (-not (Test-Path (Join-Path $HomeDir 'Dockerfile'))) { Die "can't pull the image and there's no Turnout checkout at $HomeDir to build from." }
-  Say "The published image can't be pulled, so building turnout:local from $HomeDir (once, about a minute)."
+  # Always rebuilt, so it matches this checkout; Docker's cache makes that seconds when nothing changed.
+  Say "The published image can't be pulled, so using turnout:local, built from $HomeDir (the first build takes about a minute)."
   docker build -q -t turnout:local $HomeDir *> $null
   if ($LASTEXITCODE -ne 0) { Die "building turnout:local failed: run docker build -t turnout:local `"$HomeDir`" to see why." }
 }
@@ -72,7 +74,7 @@ function Show-Banner {
 
 function Invoke-Compare([string[]]$a) {
   if ($a.Count -lt 2) { Die 'usage: turnout compare <live> <new> [--goal "POST /signup"] [--split 50] [--port 3000]' }
-  $A = Normalise $a[0]; $B = Normalise $a[1]
+  $Live = Normalise $a[0]; $New = Normalise $a[1]
   $Goal = 'none'; $Split = '50'; $AppPort = ''
   for ($i = 2; $i -lt $a.Count; $i += 2) {
     switch ($a[$i]) {
@@ -82,7 +84,10 @@ function Invoke-Compare([string[]]$a) {
       default { Die "unknown option $($a[$i])" }
     }
   }
-  foreach ($r in @($A, $B)) {
+  $n = 0
+  if (-not [int]::TryParse($Split, [ref]$n) -or $n -lt 1 -or $n -gt 50) { Die '--split is a whole percentage from 1 to 50 (Flagsmith splits the experiment''s visitors evenly)' }
+  $Traffic = [string]($n * 2)   # visitors in the experiment, split evenly between <live> and <new>
+  foreach ($r in @($Live, $New)) {
     if ($r -notmatch '^https?://' -and (Get-Command git -ErrorAction SilentlyContinue)) {
       git rev-parse --verify --quiet "refs/heads/$r" *> $null
       if ($LASTEXITCODE -eq 0) { Die "`"$r`" is a git branch. Comparing branches isn't built yet: run both versions (e.g. on ports 3001 and 3002) and give their URLs." }
@@ -91,24 +96,24 @@ function Invoke-Compare([string[]]$a) {
   Need-Docker
   Need-Image
   New-Item -ItemType Directory -Force $State | Out-Null
-  $want = @("releases=$A $B", "goal=$Goal", "split=$Split", "app_port=$AppPort")
+  $want = @("releases=$Live $New", "goal=$Goal", "split=$Split", "app_port=$AppPort")
   $argsFile = Join-Path $State 'compare.args'
   $old = if (Test-Path $argsFile) { @(Get-Content $argsFile | Where-Object { $_ -notlike '*_port=*' -or $_ -like 'app_port=*' }) } else { $null }
   if ($old -and (($old -join "`n") -eq ($want -join "`n"))) {
     Read-Args | Out-Null
-    Say "Resuming ${Name}: $A vs $B."
+    Say "Resuming ${Name}: $Live vs $New."
   } else {
     if ($old) { Say "New versions or settings: setting $Name up again."; Compose down *> $null }
     $script:ProxyPort = Get-FreePort 8080
     $script:ConsolePort = Get-FreePort 8090 @($ProxyPort)
     $fsPort = Get-FreePort 8000 @($ProxyPort, $ConsolePort)
     if ($ProxyPort -ne 8080) { Say "Port 8080 is busy: your app will be on $ProxyPort." }
-    $newArgs = @('run', '--rm', '-v', "${State}:/work", '-w', '/work', $Image, 'new', '--yes', '--force',
-      '--release', $A, '--release', $B, '--success', $Goal, '--traffic', $Split,
+    $newArgs = @('run', '--rm', '-v', "${State}:/work", $Image, 'new', '--dir', '/work', '--yes', '--force',
+      '--release', $Live, '--release', $New, '--success', $Goal, '--traffic', $Traffic,
       '--proxy-port', $ProxyPort, '--console-port', $ConsolePort, '--flagsmith-port', $fsPort, '--image', $Image)
     if ($AppPort) { $newArgs += @('--port', $AppPort) }
     docker @newArgs *> (Join-Path $State 'new.log')
-    if ($LASTEXITCODE -ne 0) { Get-Content (Join-Path $State 'new.log'); Die "couldn't write the setup for $A and $B." }
+    if ($LASTEXITCODE -ne 0) { Get-Content (Join-Path $State 'new.log'); Die "couldn't write the setup for $Live and $New." }
     Set-Content -Encoding ascii $argsFile ($want + @("proxy_port=$ProxyPort", "console_port=$ConsolePort"))
   }
   Say 'Starting Flagsmith and Turnout (the first time takes a few minutes)...'
@@ -119,7 +124,7 @@ function Invoke-Compare([string[]]$a) {
   }
   $doc = Join-Path $State 'doctor.log'
   Compose run --rm cli doctor *> $doc
-  Say "Check: $(Get-Content $doc -Tail 1)"
+  Say "Check: $(Get-Content $doc | Where-Object { $_.Trim() } | Select-Object -Last 1)"
   Show-Banner
   Start-Process "http://127.0.0.1:$ConsolePort"
 }

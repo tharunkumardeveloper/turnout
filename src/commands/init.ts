@@ -1,6 +1,6 @@
 import { randomBytes } from 'node:crypto';
 import { existsSync, readFileSync, statSync, writeFileSync } from 'node:fs';
-import type { Config } from '../config.ts';
+import { defaultHypothesis, type Config } from '../config.ts';
 import {
   AdminClient,
   type Environment,
@@ -305,7 +305,7 @@ export async function init(opts: Options): Promise<void> {
     experiment = await api.post<Experiment>(`${envPath}/experiments/`, {
       feature: feature.id,
       name: `${opts.config.flag}: ${v2Release} vs ${controlRelease}`,
-      hypothesis: `${v2Release} raises ${opts.config.goal.event} without hurting latency or errors`,
+      hypothesis: defaultHypothesis(v2Release, opts.config.goal.event),
       metrics,
       experiment_rollout: {
         enabled: true,

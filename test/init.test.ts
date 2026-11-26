@@ -521,4 +521,5 @@ test('no goal in the config: page speed is the primary metric (lower is better),
     ['server_error', 'not_increase'],
   ]);
   assert.equal(state.experiments[0]!.status, 'running');
+  assert.equal(state.experiments[0]!.hypothesis, 'app:1.1 loads pages faster without more errors');
 });

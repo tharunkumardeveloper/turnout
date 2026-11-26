@@ -2,6 +2,7 @@
 # turnout: put Turnout in front of two versions of your app and watch Flagsmith compare them.
 #
 #   turnout compare <live> <new> [--goal "POST /signup"] [--split 50] [--port 3000]
+#       --split: % of visitors who get <new>, up to 50 (the rest get <live>); default 50
 #       <live>/<new>: two URLs (localhost:3001, http://localhost:3002) or two Docker images (myapp:1.0)
 #       --port: the port your images listen on (default 8080); not needed for URLs
 #   turnout open | status | down | reset [--yes]
@@ -31,9 +32,9 @@ need_image() {
   docker image inspect "$IMAGE" >/dev/null 2>&1 && return
   if docker pull -q "$IMAGE" >/dev/null 2>&1; then return; fi
   IMAGE=turnout:local
-  docker image inspect "$IMAGE" >/dev/null 2>&1 && { say "Using turnout:local (the published image can't be pulled)."; return; }
-  [ -f "$HOME_DIR/Dockerfile" ] || die "can't pull $IMAGE and there's no Turnout checkout at $HOME_DIR to build from."
-  say "The published image can't be pulled, so building turnout:local from $HOME_DIR (once, about a minute)."
+  [ -f "$HOME_DIR/Dockerfile" ] || die "can't pull the image and there's no Turnout checkout at $HOME_DIR to build from."
+  # Always rebuilt, so it matches this checkout; Docker's cache makes that seconds when nothing changed.
+  say "The published image can't be pulled, so using turnout:local, built from $HOME_DIR (the first build takes about a minute)."
   docker build -q -t turnout:local "$HOME_DIR" >/dev/null || die "building turnout:local failed: run docker build -t turnout:local $HOME_DIR to see why."
 }
 
@@ -93,6 +94,9 @@ cmd_compare() {
       fi ;;
     esac
   done
+  case "$SPLIT" in *[!0-9]*|"") die "--split is a whole percentage from 1 to 50" ;; esac
+  [ "$SPLIT" -ge 1 ] && [ "$SPLIT" -le 50 ] || die "--split is a whole percentage from 1 to 50 (Flagsmith splits the experiment's visitors evenly)"
+  TRAFFIC=$((SPLIT * 2))   # visitors in the experiment, split evenly between <live> and <new>
   need_docker
   need_image
   mkdir -p "$STATE"
@@ -110,8 +114,8 @@ app_port=$APP_PORT"
     [ "$CONSOLE_PORT" = "$PROXY_PORT" ] && CONSOLE_PORT=$(free_port $((PROXY_PORT + 1)))
     FLAGSMITH_PORT=$(free_port 8000)
     [ "$PROXY_PORT" = 8080 ] || say "Port 8080 is busy: your app will be on $PROXY_PORT."
-    docker run --rm -v "$STATE:/work" -w /work "$IMAGE" new --yes --force \
-      --release "$A" --release "$B" --success "$GOAL" --traffic "$SPLIT" \
+    docker run --rm -v "$STATE:/work" "$IMAGE" new --dir /work --yes --force \
+      --release "$A" --release "$B" --success "$GOAL" --traffic "$TRAFFIC" \
       --proxy-port "$PROXY_PORT" --console-port "$CONSOLE_PORT" --flagsmith-port "$FLAGSMITH_PORT" \
       ${APP_PORT:+--port "$APP_PORT"} --image "$IMAGE" >"$STATE/new.log" 2>&1 \
       || { cat "$STATE/new.log" >&2; die "couldn't write the setup for $A and $B."; }
@@ -122,7 +126,7 @@ app_port=$APP_PORT"
   compose run --rm cli init >"$STATE/init.log" 2>&1 || { tail -20 "$STATE/init.log" >&2; die "setting up Flagsmith failed (full log: $STATE/init.log)."; }
   compose up -d --wait >"$STATE/up.log" 2>&1 || { tail -20 "$STATE/up.log" >&2; die "starting failed (full log: $STATE/up.log)."; }
   compose run --rm cli doctor >"$STATE/doctor.log" 2>&1 || true
-  say "Check: $(tail -1 "$STATE/doctor.log")"
+  say "Check: $(grep -v '^[[:space:]]*$' "$STATE/doctor.log" | tail -1)"
   banner
   open_url "http://127.0.0.1:$CONSOLE_PORT"
 }

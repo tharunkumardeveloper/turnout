@@ -65,7 +65,7 @@ export type ProxyHealth = {
 export type DoctorFacts = {
   apiUrl: string;
   expectedVersion: string;
-  config: { flag: string; releases: { label: string; host: string }[]; goal: string; guardrails: string[] };
+  config: { flag: string; releases: { label: string; host: string }[]; goal: string; speedOnly?: boolean; guardrails: string[] };
   given: { adminKey: boolean; serverKey: boolean; envKey: string | undefined; previewToken: boolean; healthWebhook: string | undefined };
   version: Got<VersionInfo>;
   // Undefined: not read, because something it depends on is missing (and that has its own check).
@@ -116,6 +116,7 @@ export async function gatherFacts(o: DoctorOptions): Promise<DoctorFacts> {
       flag: o.config.flag,
       releases: [...o.config.releases].map(([label, url]) => ({ label, host: url.hostname })),
       goal: o.config.goal.event,
+      ...(o.config.goal.speedOnly ? { speedOnly: true } : {}),
       guardrails: [...o.config.guardrails],
     },
     given: { adminKey: !!o.adminKey, serverKey: !!o.serverKey, envKey, previewToken: !!o.previewToken, healthWebhook: o.healthWebhook || undefined },
@@ -358,7 +359,9 @@ export function evaluate(f: DoctorFacts): DoctorCheck[] {
   if (f.metrics && !isOk(f.metrics)) add(A, 'Metrics', 'fail', 'readable', f.metrics.error);
   else if (isOk(f.metrics)) {
     const wanted = [
-      { event: f.config.goal, aggregation: 'occurrence', direction: 'up', role: 'goal' },
+      f.config.speedOnly
+        ? { event: f.config.goal, aggregation: 'mean', direction: 'down', role: 'goal: page speed' }
+        : { event: f.config.goal, aggregation: 'occurrence', direction: 'up', role: 'goal' },
       ...f.config.guardrails.map((g) => ({ event: g, aggregation: 'mean', direction: 'down', role: 'guardrail' })),
     ];
     for (const w of wanted) {
