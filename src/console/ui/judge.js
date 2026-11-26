@@ -56,6 +56,12 @@ if (READONLY) {
   );
   const go = document.getElementById('tour-start');
   if (go) go.textContent = 'Watch the tour';
+  // Visitors on the map are simulated; "Be a visitor" is real, counted in its own experiment.
+  for (const p of document.querySelectorAll('.footer p')) {
+    if (p.textContent.includes('Every visitor here is simulated')) {
+      p.textContent = "Flagsmith decides; Turnout never computes its own statistics. The visitors on the map are simulated; \"Be a visitor\" is real, counted in its own experiment.";
+    }
+  }
   const skip = document.getElementById('welcome-skip');
   if (skip) skip.textContent = 'Just watch the dashboard';
   const label = document.querySelector('#tour-open .appbar-tour-label');
@@ -400,7 +406,7 @@ function renderRound(s) {
 // The public page and the shop share one origin (Caddy sends everything but /judge to the live proxy), so this
 // browser's visitor cookie goes with a same-origin request to the proxy's receipt: which release it got, and what
 // Flagsmith said about its last event. Polled only while the card shows and the tab is visible.
-const visitor = { receipt: null, polling: false };
+const visitor = { receipt: null, polling: false, checked: false };
 async function pollReceipt() {
   if (visitor.polling || document.hidden) return;
   visitor.polling = true;
@@ -411,6 +417,7 @@ async function pollReceipt() {
     visitor.receipt = null;
   } finally {
     visitor.polling = false;
+    visitor.checked = true;
   }
   if (ui.state) renderVisitor(ui.state);
 }
@@ -427,7 +434,9 @@ function renderVisitor(s) {
   }
   const r = visitor.receipt;
   const mine = r?.release ?? null;
-  setSlot($('visitor-you'), JSON.stringify([mine, r?.receipt?.event, r?.receipt?.status]), () => {
+  setSlot($('visitor-you'), JSON.stringify([visitor.checked, mine, r?.receipt?.event, r?.receipt?.status]), () => {
+    $('visitor-you').setAttribute('aria-busy', String(!visitor.checked));
+    if (!visitor.checked) return [h('span', { class: 'loading-dots' }, "Checking this browser's visit")];
     if (!mine) return ["You haven't visited yet. Press the button, look around the shop, maybe buy something."];
     const parts = ['You got ', h('strong', {}, mine), r.enrolled ? ', in the live experiment.' : '.'];
     if (r.receipt) parts.push(` Your last event, ${r.receipt.event}, ${r.receipt.status === 'accepted' ? 'was accepted by Flagsmith' : `was ${r.receipt.status.replace(/_/g, ' ')}`}.`);

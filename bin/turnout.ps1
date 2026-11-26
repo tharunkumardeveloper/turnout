@@ -5,6 +5,7 @@
 #       <live>/<new>: two URLs (localhost:3001, http://localhost:3002), two Docker images (myapp:1.0), or two
 #       branches of the git project you're in (main new-checkout: each built from its Dockerfile; your .env is passed)
 #       --port: the port your app listens on in its container (default: the Dockerfile's EXPOSE, else 8080)
+#   turnout demo: the demo shop and judge mode (stop: turnout demo stop)    turnout update: get the latest Turnout
 #   turnout deploy [domain]: the Caddy or Nginx lines to put your web server in front of Turnout
 #   turnout open | status | down | reset [--yes]
 #
@@ -237,6 +238,12 @@ $rest = if ($args.Count -gt 1) { [string[]]$args[1..($args.Count - 1)] } else { 
 switch ($cmd) {
   'compare' { Invoke-Compare $rest }
   'deploy' { Invoke-Deploy $rest }
+  'demo' {
+    Need-Docker
+    $what = if ($rest.Count) { $rest[0] } else { 'start' }   # start (opens judge mode), or: stop, status, reset
+    Push-Location $HomeDir; try { & cmd /c "turnout.bat $what" } finally { Pop-Location }
+  }
+  'update' { Push-Location $HomeDir; try { git pull --ff-only; if ($LASTEXITCODE -eq 0) { Say 'Up to date. The next turnout compare or turnout demo uses it.' } } finally { Pop-Location } }
   'open' { Read-Args | Out-Null; Start-Process "http://127.0.0.1:$ConsolePort"; Show-Banner }
   'status' { Read-Args | Out-Null; Need-Docker; Compose ps; Compose run --rm cli doctor | Select-Object -Last 1 }
   'down' { Read-Args | Out-Null; Need-Docker; Compose down; Say 'Stopped. turnout compare with the same arguments starts it again, with its data.' }
@@ -245,5 +252,5 @@ switch ($cmd) {
     if ($rest -notcontains '--yes') { $ok = Read-Host "Delete $Name's Turnout and Flagsmith data? [y/N]"; if ($ok -ne 'y') { exit 1 } }
     Compose down -v; Remove-Item -Recurse -Force $State; Say 'Wiped. turnout compare starts fresh.'
   }
-  default { Get-Content $PSCommandPath -TotalCount 10 | ForEach-Object { $_ -replace '^# ?', '' } }
+  default { Get-Content $PSCommandPath -TotalCount 11 | ForEach-Object { $_ -replace '^# ?', '' } }
 }

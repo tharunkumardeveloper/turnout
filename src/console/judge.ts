@@ -173,8 +173,15 @@ export type LiveVisitors = {
 };
 
 /** The live experiment's summary from Flagsmith: who it has counted, per release. */
-export async function readLiveVisitors(exps: Experiments): Promise<LiveVisitors> {
-  const [experiment, results] = await Promise.all([exps.detail(), exps.results()]);
+// Nobody presses "refresh" on the live experiment, so this asks Flagsmith to recompute its results whenever they're
+// older than its 5-minute limit; the counts on the page then follow real visitors with at most that delay.
+const LIVE_REFRESH_MS = 5 * 60_000 + 5_000;
+export async function readLiveVisitors(exps: Experiments, now: () => number = Date.now): Promise<LiveVisitors> {
+  let [experiment, results] = await Promise.all([exps.detail(), exps.results()]);
+  const age = results?.as_of ? now() - Date.parse(results.as_of) : Infinity;
+  if (experiment.status === 'running' && age > LIVE_REFRESH_MS && (await exps.refreshResults().catch(() => ({ ok: false }))).ok) {
+    results = (await exps.results().catch(() => results)) ?? results;
+  }
   const goal = results?.payload?.metrics.find((m) => m.metric_id === experiment.metrics[0]?.metric);
   const keys = [CONTROL, ...experiment.feature.multivariate_options.flatMap((o) => (o.key ? [o.key] : []))];
   const tested = experiment.name.match(/: (.+) vs (.+)$/);

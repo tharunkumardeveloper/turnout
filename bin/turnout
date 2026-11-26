@@ -6,6 +6,7 @@
 #       <live>/<new>: two URLs (localhost:3001, http://localhost:3002), two Docker images (myapp:1.0), or two
 #       branches of the git project you're in (main new-checkout: each built from its Dockerfile; your .env is passed)
 #       --port: the port your app listens on in its container (default: the Dockerfile's EXPOSE, else 8080)
+#   turnout demo: the demo shop and judge mode (stop: turnout demo stop)    turnout update: get the latest Turnout
 #   turnout deploy [domain]: the Caddy or Nginx lines to put your web server in front of Turnout
 #   turnout open | status | down | reset [--yes]
 #
@@ -244,6 +245,8 @@ cmd="${1:-help}"; [ $# -gt 0 ] && shift
 case "$cmd" in
   compare) cmd_compare "$@" ;;
   deploy) cmd_deploy "$@" ;;
+  demo) need_docker; cd "$HOME_DIR" && exec sh turnout.sh "${1:-start}" ;;   # start (opens judge mode), or: stop, status, reset
+  update) cd "$HOME_DIR" && git pull --ff-only && say "Up to date. The next turnout compare or turnout demo uses it." ;;
   open) need_state; open_url "http://127.0.0.1:$CONSOLE_PORT"; banner ;;
   status) need_state; need_docker; compose ps; compose run --rm cli doctor | tail -1 ;;
   down) need_state; need_docker; compose down; say "Stopped. turnout compare with the same arguments starts it again, with its data." ;;
@@ -251,5 +254,5 @@ case "$cmd" in
     need_state; need_docker
     if [ "${1:-}" != --yes ]; then printf 'Delete %s'"'"'s Turnout and Flagsmith data? [y/N] ' "$NAME"; read -r ok; [ "$ok" = y ] || exit 1; fi
     compose down -v; rm -rf "$STATE"; say "Wiped. turnout compare starts fresh." ;;
-  *) sed -n '2,11p' "$0" | sed 's/^# \{0,1\}//' ;;
+  *) sed -n '2,12p' "$0" | sed 's/^# \{0,1\}//' ;;
 esac

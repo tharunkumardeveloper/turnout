@@ -869,3 +869,8 @@ body.welcome-open { overflow: hidden; }
 .visitor-note { margin-top: 12px !important; }
 .round-sim { font-weight: 500; color: var(--muted); font-size: 0.85em; }
 .round-chart-box text { font-size: 13px; }
+
+/* Anything still loading says so: three dots that pulse (still under reduced motion: no pulse). */
+.loading-dots::after { content: '…'; display: inline-block; animation: dots-pulse 1.2s ease-in-out infinite; }
+@keyframes dots-pulse { 50% { opacity: 0.25; } }
+@media (prefers-reduced-motion: reduce) { .loading-dots::after { animation: none; } }
