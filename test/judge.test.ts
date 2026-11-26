@@ -1179,8 +1179,11 @@ describe('public play (server mode): visitors run the guided demo, nothing else'
   });
 
   test("a guided step runs, and a second click within seconds is held back", async () => {
-    const first = await post({ action: 'start', arms: 2 });
-    assert.ok(first.status < 500, `start answered ${first.status}`);
+    // Through the public gate to the judge, which then asks for the experiment: a 400 from the judge, not the gate's
+    // 403. (A real start left a background job running that could keep this file from finishing.)
+    const first = await post({ action: 'score' });
+    assert.equal(first.status, 400, 'a guided step reaches the judge');
+    assert.match(((await first.json()) as { error: string }).error, /experimentId is required/);
     assert.equal((await post({ action: 'visitors' })).status, 429, 'one step at a time');
   });
 

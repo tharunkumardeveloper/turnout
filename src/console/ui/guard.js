@@ -1,5 +1,7 @@
 // Guided demo's "Health and guard" card: Flagsmith Feature Health reports and the opt-in guard (GET/POST /api/guard).
 const token = document.querySelector('meta[name="turnout-console"]')?.content ?? '';
+// The page's own API base (/app for your app's console, /judge on the public page): never the demo shop's guard by mistake.
+const base = document.querySelector('meta[name="turnout-base"]')?.getAttribute('content') ?? '';
 const card = document.getElementById('guard');
 const button = document.getElementById('guard-button');
 const healthLine = document.getElementById('health-line');
@@ -8,7 +10,7 @@ const guardLine = document.getElementById('guard-line');
 const time = (iso) => (iso ? new Date(iso).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' }) : '');
 
 async function api(method, body) {
-  const res = await fetch('/api/guard', {
+  const res = await fetch(`${base}/api/guard`, {
     method,
     headers: { 'x-turnout-console': token, ...(body ? { 'content-type': 'application/json' } : {}) },
     ...(body ? { body: JSON.stringify(body) } : {}),
