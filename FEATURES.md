@@ -3,9 +3,9 @@
 Turnout is a reverse proxy in front of your web app. It turns every release into a Flagsmith experiment without any change to the app's code. When the experiment ends, it ships or reverts the release on the same flag.
 
 ## One command for your app
-- **`turnout compare <live> <new>`**: two URLs, two Docker images, or two git branches (each built from its Dockerfile, the port from `EXPOSE`, your `.env` passed). No questions: a bundled Flagsmith, the flag, the experiment, the proxy and a check, then one page with **Open your site**.
+- **`turnout compare <live> <new> [<new2> …]`**: two versions make an A/B test, three an A/B/C test, and so on (an even split, each new version compared with the first). URLs, Docker images, or git branches (each built from its Dockerfile, the port from `EXPOSE`, your `.env` passed). No questions: a bundled Flagsmith, the flag, the experiment, the proxy and a check, then one page with **Open your site**.
 - **No goal needed**: a version is judged on page speed with server errors as the guardrail; `--goal "POST /signup"` adds a conversion, and the page suggests goals from the requests it sees (with the right status, e.g. a form post's 303).
-- **`--split 10`**: the share of visitors who get the new version (up to 50). Changed versions or settings start a new experiment.
+- **`--split 10`**: the share of visitors who get each new version (default: everyone, split evenly). Changed versions or settings start a new experiment.
 - **Fixes itself**: busy ports are skipped; a private image is built from the checkout; a crashing version stops the run in seconds with its log lines.
 - **`turnout deploy <domain>`**: the Caddy or Nginx lines to put your own web server in front. `down`, `reset`, `open`, `status`.
 - **Installers**: `install.sh` (macOS, Linux) and `install.ps1` (Windows) put `turnout` on your PATH.
@@ -74,8 +74,10 @@ Turnout is a reverse proxy in front of your web app. It turns every release into
   - Shows live traffic, results, the Ship and Revert buttons, the release history, and a Flagsmith feature map (what's used and why).
   - The `/setup` page shows what's missing.
 - **Judge mode** (`/judge`).
-  - A three-column dashboard: the seven demo steps, the flow line, live numbers and track map, and what Flagsmith holds right now.
-  - A guided tour (quick version, about 2.6 minutes) with two modes: **Guide me** or **Play it for me**.
+  - One desktop screen, no scrolling: four steps with one green button on the left; the versions (live previews) and Flagsmith's results on the right, one column per version with Flagsmith's call against A, and the verdict in one sentence.
+  - **Pick the kind of test**: A/A (the same version twice: a fairness check), A/B, A/B/C (one experiment, every new version against A). Switching mid-test asks first.
+  - A/B/C decisions: the best new version that is safe and clearly better ships; one that fails a safety check (C, slower pages) is named and left out.
+  - **Tour**: ten highlighted stops with a Next button, under two minutes, on the first visit and from the Tour button. **Play it for me** runs one whole test.
 - **Demo shop.** Three releases, each with its own look:
   - 1.4 Classic (blue)
   - 1.5 Express (green, one-page checkout)

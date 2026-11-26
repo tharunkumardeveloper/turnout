@@ -1,10 +1,13 @@
 // The simple judge page's wording and rules: what the page says and which one button it offers, read off the judge
 // state (/api/judge/state). Pure functions, no DOM, so the tests can check every sentence. demo.js draws them.
 //
-// The page runs an A/B/C test: A is what everyone gets now, B and C are new versions, each shown to a third of the
-// shoppers. Four fixed steps per test (Start the test, Send shoppers, Ask Flagsmith, Decide), one button at a time.
+// The page runs one test at a time, of the kind the judge picks: A/A (the same version on both sides, a fairness
+// check), A/B, A/B/C… A is what everyone gets now; B, C… are new versions, each shown to an even share of shoppers.
+// Four fixed steps per test (Start the test, Send shoppers, Ask Flagsmith, Decide), one button at a time.
 
-export const SHOPPERS = 2100; // per "Send shoppers": 700 per version, enough for Flagsmith to call the demo on its first look
+export const SHOPPERS_PER_VERSION = 700; // enough for Flagsmith to call the demo's versions on its first look
+/** Shoppers per "Send shoppers": 700 per version in the test (1,400 for A/B or A/A, 2,100 for A/B/C). */
+export const shoppersFor = (versions) => Math.min(5000, SHOPPERS_PER_VERSION * Math.max(2, versions || 2));
 
 const NAMES = { 'shop:1.4': 'Classic', 'shop:1.5': 'Express', 'shop:1.6': 'Bold' };
 const LETTERS = 'ABCDEFGH';
@@ -39,7 +42,40 @@ export function arms(s) {
   const e = s?.experiment;
   if (!e) return [];
   const list = e.arms?.length ? e.arms : [{ key: 'control', release: e.control }, { key: 'v2', release: e.v2 }];
-  return list.map((a, i) => ({ key: a.key, release: a.release, letter: LETTERS[i] ?? '?', name: `${LETTERS[i] ?? '?'} · ${label(a.release)}` }));
+  // A/A: the same release on both arms. The copy is A′, never B: nothing new is being tested.
+  const aa = list.length === 2 && list[0].release === list[1].release;
+  return list.map((a, i) => {
+    const letter = aa && i === 1 ? 'A′' : (LETTERS[i] ?? '?');
+    return { key: a.key, release: a.release, letter, name: `${letter} · ${label(a.release)}` };
+  });
+}
+
+/** Whether the test is an A/A test: one release on both arms. */
+export const isAA = (s) => {
+  const list = arms(s);
+  return list.length === 2 && list[0].release === list[1].release;
+};
+
+/** "A/B/C" for 3 versions, "A/A" for an A/A test. */
+export const kindLabel = (n) => (n === 1 ? 'A/A' : LETTERS.slice(0, n).split('').join('/'));
+
+/** The kinds of test this setup can run: A/A, then A/B, A/B/C… up to the number of releases. */
+export function kinds(releases) {
+  const n = releases?.length ?? 0;
+  if (n < 2) return [];
+  const blurb = (k) =>
+    k === 1
+      ? 'The same version on both sides. Flagsmith should find no difference: a check that the split and the counting are fair.'
+      : k === 2
+        ? 'One new version against the one everyone gets now.'
+        : `${k - 1} new versions at once, each against the one everyone gets now.`;
+  return [1, ...Array.from({ length: n - 1 }, (_, i) => i + 2)].map((k) => ({ arms: k, label: kindLabel(k), blurb: blurb(k) }));
+}
+
+/** The kind of the test on the page: 1 for A/A, else the number of versions; null without one. */
+export function kindOf(s) {
+  if (!s?.experiment) return null;
+  return isAA(s) ? 1 : arms(s).length;
 }
 
 function valueText(metric, arm) {
@@ -126,6 +162,22 @@ export function verdict(s) {
       if (g?.verdict === 'losing') return `${x.name} got fewer orders.`;
       return `${x.name} wasn't clearly better.`;
     });
+  if (isAA(s)) {
+    const differs = rec?.call === 'ship' || (r.losingByArm?.v2?.length ?? 0) > 0 || goal?.byArm?.v2?.verdict === 'losing';
+    return differs
+      ? {
+          call: 'aa',
+          tone: 'wait',
+          title: 'A difference between identical copies',
+          text: `Flagsmith sees a difference between two copies of ${a.name}. By chance that happens about 1 time in 20; if it keeps happening, something in the setup favours one side.`,
+        }
+      : {
+          call: 'aa',
+          tone: 'good',
+          title: 'No difference, as expected',
+          text: `Both sides got ${a.name} and Flagsmith finds no real difference${orders('v2')}: the split and the counting are fair, so a real test can be trusted.`,
+        };
+  }
   if (!rec || rec.call === 'keep-running') {
     const best = list.find((x) => x.key === rec?.variant);
     const c = rec?.chanceToWin;
@@ -171,15 +223,22 @@ function decisionOf(s) {
 
 const serverStatus = (s, id) => s?.steps?.find((x) => x.id === id)?.status ?? 'todo';
 
-/** The button that starts a test: A/B/C with three or more releases, else A/B. */
-function startAction(s, verb) {
+/** The button that starts a test of the chosen kind (1 = A/A, 2 = A/B, 3 = A/B/C…); the most versions by default. */
+export function startAction(s, verb, kind) {
   const [a, ...rest] = s?.releases ?? [];
-  const abc = rest.length >= 2;
-  const names = rest.map((r, i) => `${LETTERS[i + 1]} · ${label(r)}`);
+  const n = Math.min(Math.max(1, kind ?? (s?.releases?.length ?? 2)), s?.releases?.length ?? 2);
+  const tested = rest.slice(0, n - 1);
+  const names = tested.map((r, i) => `${LETTERS[i + 1]} · ${label(r)}`);
+  const article = /^A/.test(kindLabel(n)) ? 'an' : 'a';
+  const share = n === 2 ? 'half the shoppers' : n === 3 ? 'a third of the shoppers each' : `1/${n} of the shoppers each`;
   return {
-    action: abc ? 'abc' : 'reset',
-    label: `${verb}: ${abc ? 'A/B/C' : 'A/B'} test`,
-    explain: `Everyone goes back to A · ${label(a)}, then Flagsmith shows ${names.join(' and ')} to ${abc ? 'a third' : 'half'} of the shoppers each.`,
+    action: 'start',
+    arms: n,
+    label: `${verb} ${article} ${kindLabel(n)} test`,
+    explain:
+      n === 1
+        ? `Everyone goes back to A · ${label(a)}, then Flagsmith splits shoppers between two identical copies of it. It should find no difference.`
+        : `Everyone goes back to A · ${label(a)}, then Flagsmith shows ${names.join(' and ')} to ${share}.`,
   };
 }
 
@@ -192,37 +251,42 @@ function startAction(s, verb) {
  *   alt       a quieter second choice, when there is a sensible one
  */
 export function model(s, opts = {}) {
-  const shoppers = opts.shoppers ?? SHOPPERS;
   const e = s?.experiment ?? null;
-  const out = { now: '', versions: [], steps: [], action: null, alt: null, verdict: null, findings: [], outcome: null, finished: false, letters: '' };
+  const out = { now: '', versions: [], steps: [], action: null, alt: null, verdict: null, findings: [], outcome: null, finished: false, letters: '', aa: false };
 
   if (!e) {
     out.now = 'No test has run yet.';
     out.steps = STEPS.map((st, i) => ({ ...st, n: i + 1, status: i === 0 ? 'current' : 'todo', result: '' }));
-    out.action = startAction(s, 'Start');
+    out.action = startAction(s, 'Start', opts.kind);
     return out;
   }
 
   const list = arms(s);
-  out.letters = list.map((x) => x.letter).join('/');
+  const aa = isAA(s);
+  out.aa = aa;
+  const shoppers = opts.shoppers ?? shoppersFor(list.length);
+  out.letters = aa ? 'A/A' : list.map((x) => x.letter).join('/');
   const done = e.status === 'completed';
   const decision = done ? decisionOf(s) : null;
-  const shippedArm = done ? list.slice(1).find((x) => x.release === s.live) ?? null : null;
+  const shippedArm = done && !isAA(s) ? list.slice(1).find((x) => x.release === s.live) ?? null : null;
   const armPct = (key) => s.routing?.experiment?.arms?.find((x) => x.key === key)?.pct;
 
   out.now = done
     ? `Everyone gets ${list.find((x) => x.release === s.live)?.name ?? label(s.live)}. No test is running.`
-    : `Flagsmith is testing ${list.slice(1).map((x) => x.name).join(' and ')} against ${list[0].name}. Each new shopper gets one of them.`;
+    : aa
+      ? `An A/A test: both sides get ${list[0].name}. Flagsmith counts each new shopper on one side.`
+      : `Flagsmith is testing ${list.slice(1).map((x) => x.name).join(' and ')} against ${list[0].name}. Each new shopper gets one of them.`;
 
   out.versions = list.map((x) => {
     const isA = x.key === 'control';
     let badge = `${armPct(x.key) ?? Math.round(100 / list.length)}% of shoppers`;
     let state = 'testing';
     if (done) {
-      if (shippedArm) [badge, state] = x === shippedArm ? ['Shipped', 'winner'] : [isA ? 'Replaced' : 'Not shipped', 'out'];
+      if (aa) [badge, state] = isA ? ['Kept', 'winner'] : ['Copy', 'out'];
+      else if (shippedArm) [badge, state] = x === shippedArm ? ['Shipped', 'winner'] : [isA ? 'Replaced' : 'Not shipped', 'out'];
       else [badge, state] = isA ? ['Kept', 'winner'] : ['Rolled back', 'out'];
     }
-    return { ...x, role: isA ? 'Now' : 'New', badge, state };
+    return { ...x, role: isA ? 'Now' : aa ? 'Copy' : 'New', badge, state };
   });
 
   out.findings = findings(s);
@@ -242,7 +306,9 @@ export function model(s, opts = {}) {
     start: `${out.letters} test, experiment #${e.id} in Flagsmith.`,
     visitors: counted ? `Flagsmith counted ${int(counted)} shoppers.` : s.totals?.visitorsSent ? `${int(s.totals.visitorsSent)} shoppers went through Turnout.` : '',
     score: out.verdict ? out.verdict.title : '',
-    decide: decision
+    decide: decision && aa
+      ? 'A/A check finished: everyone stays on A.'
+      : decision
       ? decision.decision === 'shipped'
         ? `Shipped ${shippedArm?.name ?? label(decision.release)} to everyone.`
         : `Rolled back: everyone stays on ${list[0].name}${decision.by === 'guard' ? ' (the guard did it)' : ''}.`
@@ -256,11 +322,11 @@ export function model(s, opts = {}) {
     out.finished = true;
     out.outcome = {
       shipped: Boolean(shippedArm),
-      title: shippedArm ? `${shippedArm.name} shipped to everyone` : `Everyone stays on ${list[0].name}`,
+      title: aa ? 'A/A check finished' : shippedArm ? `${shippedArm.name} shipped to everyone` : `Everyone stays on ${list[0].name}`,
       text: 'One flag change in Flagsmith, no deploy.',
       verified: serverStatus(s, 'verify') === 'done',
     };
-    out.action = startAction(s, 'Run a new');
+    out.action = startAction(s, 'Run', opts.kind);
     return out;
   }
 
@@ -271,6 +337,7 @@ export function model(s, opts = {}) {
       action: 'visitors',
       label: `Send ${int(shoppers)} ${again ? 'more ' : ''}shoppers`,
       explain: `Simulated shoppers browse the shop through Turnout. Flagsmith picks ${list.map((x) => x.letter).join(', ').replace(/, (?=[^,]*$)/, ' or ')} for each one; their page views and orders go to Flagsmith. About ${Math.round(shoppers / 70)} seconds.`,
+      shoppers,
     };
   } else if (current === 'score') {
     const wait = s.results?.refreshAllowedAt ? Date.parse(s.results.refreshAllowedAt) - (opts.now ?? Date.now()) : 0;
@@ -282,7 +349,9 @@ export function model(s, opts = {}) {
     };
   } else {
     const v = out.verdict;
-    if (v?.call === 'ship') {
+    if (aa) {
+      out.action = { action: 'revert', label: 'Finish the A/A check', explain: 'The test ends and everyone stays on A. Nothing changes for shoppers.' };
+    } else if (v?.call === 'ship') {
       const w = list.find((x) => x.key === v.variant) ?? list[1];
       out.action = { action: 'ship', label: `Ship ${w.name} to everyone`, explain: `Flagsmith's flag default becomes ${w.name} and the test ends. Every shopper gets it from the next page.` };
       out.alt = { action: 'revert', label: `Keep ${list[0].name} instead` };
@@ -306,6 +375,7 @@ const JOB_TITLES = {
   release: 'Starting the test',
   reset: 'Starting the test',
   abc: 'Starting the A/B/C test',
+  start: 'Starting the test',
   preview: 'Turning on the preview',
   'swing-back': 'Changing the flag',
   'swing-forward': 'Changing the flag',
@@ -339,7 +409,7 @@ export function routingText(r) {
 
 /** What a decision changed in Flagsmith, before → after, from the job that made it. */
 export function changes(job) {
-  if (!job?.changes?.after || !['ship', 'revert', 'release', 'reset', 'abc'].includes(job.action)) return null;
+  if (!job?.changes?.after || !['ship', 'revert', 'release', 'reset', 'abc', 'start'].includes(job.action)) return null;
   return { before: routingText(job.changes.before), after: routingText(job.changes.after) };
 }
 
@@ -364,6 +434,7 @@ export function history(ledger, limit = 8) {
     .map((x) => {
       const parts = String(x.experiment ?? '').replace(/^[^:]*:\s*/, '').split(/\s+vs\s+/);
       const tested = parts.length >= 2 ? parts.slice(0, -1) : [x.release];
+      if (/: A\/A /.test(x.experiment ?? '')) return { at: x.at, tone: 'neutral', text: `A/A check on ${label(x.release)} finished` };
       return {
         at: x.at,
         tone: x.decision === 'shipped' ? 'good' : 'bad',

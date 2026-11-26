@@ -295,7 +295,7 @@ describe('judge mode API', () => {
   let simulated: SimOptions | undefined;
   let releaseSimulation: (() => void) | undefined;
   const previews: string[] = [];
-  const releases: { release: string; hypothesis: string }[] = [];
+  const releases: { release: string; hypothesis: string; extra?: { also?: string[]; aa?: boolean } }[] = [];
 
   // What the proxy would serve a new visitor, from the fake flag.
   const served = () => {
@@ -358,8 +358,8 @@ describe('judge mode API', () => {
           state.flag.segment_overrides.push({ segment: { id: 50 }, priority: 1, enabled: true, variants: [{ id: 11, weight: 100 }] });
           log(`✓ your team gets ${release}`);
         },
-        release: async (release, hypothesis) => {
-          releases.push({ release, hypothesis });
+        release: async (release, hypothesis, _envKey, _log, extra) => {
+          releases.push({ release, hypothesis, ...(extra ? { extra } : {}) });
           const id = state.experiment.id + 1;
           startExperiment(id, release, served()!);
           return { experimentId: id };
@@ -502,7 +502,7 @@ describe('judge mode API', () => {
   });
 
   test('visitors run in the background, holding the lock the console shares', async () => {
-    const started = await run({ action: 'visitors', visitors: 5000 });
+    const started = await run({ action: 'visitors', visitors: 9000 });
     assert.equal(started.status, 202);
     assert.equal(started.body.job.action, 'visitors');
     assert.equal(started.body.job.status, 'running');
@@ -521,21 +521,21 @@ describe('judge mode API', () => {
     const polled: any = await (await fetch(`${base}/api/judge/job`, { headers: { 'x-turnout-console': token } })).json();
     assert.equal(polled.job.id, started.body.job.id);
     assert.equal(polled.job.status, 'running');
-    assert.match(polled.job.log[0].text, /Sending 3000 simulated visitors/);
+    assert.match(polled.job.log[0].text, /Sending 5000 simulated visitors/);
 
     releaseSimulation!();
     const s = await finished();
     assert.equal(s.job.status, 'done', s.job.error);
-    assert.equal(simulated!.visitors, 3000, 'clamped');
+    assert.equal(simulated!.visitors, 5000, 'clamped');
     assert.equal(simulated!.target, 'http://proxy.invalid:8080');
     assert.equal(simulated!.debugToken, 'preview-token');
     assert.deepEqual(simulated!.rates, { control: 0.1, v2: 0.135 }, 'release rates mapped to variant keys');
     const log = logText(s);
     assert.match(log, /simulated visitors \(labelled simulation\)/);
-    assert.match(log, /300 of 3000 visitors done/);
-    assert.match(log, /3000 of 3000 visitors done/);
-    assert.match(log, /shop:1\.5: 1500 visitors, 0 added to cart, 214 orders/);
-    assert.equal(s.totals.visitorsSent, 3000);
+    assert.match(log, /300 of 5000 visitors done/);
+    assert.match(log, /5000 of 5000 visitors done/);
+    assert.match(log, /shop:1\.5: 2500 visitors, 0 added to cart, 357 orders/);
+    assert.equal(s.totals.visitorsSent, 5000);
     assert.equal(s.current, 'score');
   });
 
@@ -673,6 +673,21 @@ describe('judge mode API', () => {
     assert.equal(s.next, 'shop:1.6');
     assert.equal(s.current, 'visitors');
     assert.deepEqual(s.ledger.map((e: any) => [e.experimentId, e.decision]), [[7, 'kept-running'], [7, 'shipped'], [8, 'reverted']]);
+  });
+
+  test('start: the kind of test the judge picked, from the start (A/A, A/B/C), and no more versions than releases', async () => {
+    let s = await runToEnd({ action: 'start', arms: 1 });
+    assert.equal(s.job.status, 'done', s.job.error);
+    assert.deepEqual(releases.at(-1), { release: 'shop:1.4', hypothesis: releases.at(-1)!.hypothesis, extra: { aa: true } });
+    assert.match(logText(s), /an A\/A test: shop:1\.4 on both arms/);
+    s = await runToEnd({ action: 'start', arms: 3 });
+    assert.equal(s.job.status, 'done', s.job.error);
+    assert.deepEqual(releases.at(-1)!.extra, { also: ['shop:1.6'] });
+    assert.equal(releases.at(-1)!.release, 'shop:1.5');
+    s = await runToEnd({ action: 'start', arms: 4 });
+    assert.equal(s.job.status, 'failed');
+    assert.match(s.job.error, /lists 3 releases, so a test can compare at most 3/);
+    assert.equal((await run({ action: 'start', arms: 0 })).status, 400);
   });
 });
 

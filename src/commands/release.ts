@@ -153,7 +153,12 @@ export async function release(opts: Options): Promise<{ experimentId: number }> 
       enabled: true,
       rollout_percentage: 100,
       feature_state_value: { type: 'string', value: live },
-      multivariate_feature_state_values: [v2.id, ...extra.map((x) => x.id)].map((id) => ({ multivariate_feature_option: id, percentage_allocation: split })),
+      // Flagsmith wants every variation of the flag in the rollout ("Must include all feature's variants."): the ones
+      // this experiment doesn't test (a v3 left from an earlier A/B/C test) are listed at 0%.
+      multivariate_feature_state_values: [...new Set([v2.id, ...extra.map((x) => x.id), ...feature.multivariate_options.map((o) => o.id)])].map((id) => ({
+        multivariate_feature_option: id,
+        percentage_allocation: id === v2.id || extra.some((x) => x.id === id) ? split : 0,
+      })),
     },
   });
   const started = await api.post<Experiment>(`${envPath}/experiments/${created.id}/start/`);

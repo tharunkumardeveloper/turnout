@@ -9,6 +9,7 @@
   <link rel="icon" href="/favicon.svg" type="image/svg+xml">
   <link rel="stylesheet" href="/demo.css">
   <script type="module" src="/demo.js"></script>
+  <link rel="modulepreload" href="/demo-tour.js">
 </head>
 <body>
   <!-- One screen, no scrolling: the bar, then the steps on the left and the versions and Flagsmith's results on the right. -->
@@ -20,7 +21,12 @@
       Turnout
     </a>
     <p class="tagline">Every release becomes a Flagsmith experiment. The shop has no Flagsmith code.</p>
+    <div class="kinds-wrap">
+      <div class="kinds" id="kinds" role="group" aria-label="Kind of test"></div>
+      <div class="kinds-confirm" id="kinds-confirm" role="dialog" aria-live="polite" hidden></div>
+    </div>
     <div class="top-actions">
+      <button class="btn btn-ghost" id="tour-open" type="button">Tour</button>
       <button class="btn btn-ghost" id="autoplay" type="button" aria-pressed="false">▶ Play it for me</button>
       <details class="history" id="history-box">
         <summary>Earlier tests <span id="history-count"></span></summary>
@@ -29,13 +35,13 @@
       <nav class="top-links" aria-label="Other views">
         <a id="link-shop" href="#" target="_blank" rel="noopener">Shop ↗</a>
         <a id="link-flagsmith" href="#" target="_blank" rel="noopener">Flagsmith ↗</a>
-        <a href="/">Full console</a>
+        <a id="link-console" href="/">Full console</a>
       </nav>
     </div>
   </header>
 
   <main class="screen" id="main">
-    <section class="panel steps-panel" aria-labelledby="steps-title">
+    <section class="panel steps-panel" id="steps-panel" aria-labelledby="steps-title">
       <h2 class="eyebrow" id="steps-title">The test, step by step <span class="card-meta" id="exp-id"></span></h2>
       <p class="now" id="now" aria-live="polite">Reading Flagsmith…</p>
       <ol class="steps" id="steps"></ol>
@@ -43,12 +49,12 @@
       <p class="error" id="error" role="alert" hidden></p>
     </section>
 
-    <section class="panel versions-panel" aria-labelledby="versions-title">
+    <section class="panel versions-panel" id="versions-panel" aria-labelledby="versions-title">
       <h2 class="eyebrow" id="versions-title">The versions <span class="card-meta">A is what everyone gets now</span></h2>
       <div class="versions" id="versions"></div>
     </section>
 
-    <section class="panel results-panel" aria-labelledby="results-title">
+    <section class="panel results-panel" id="results-panel" aria-labelledby="results-title">
       <h2 class="eyebrow" id="results-title">What Flagsmith measured <a class="card-meta" id="results-link" href="#" target="_blank" rel="noopener" hidden>open in Flagsmith ↗</a></h2>
       <div class="results" id="results"><p class="placeholder">Flagsmith's results appear here once shoppers have gone through and you ask for them.</p></div>
     </section>

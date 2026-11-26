@@ -78,7 +78,7 @@ test('a fresh instance is bootstrapped end to end and every key lands in .env', 
   assert.deepEqual(feature.tags, [state.tags[0]!.id]);
   assert.deepEqual(
     feature.multivariate_options.map((o) => [o.key, o.string_value, o.default_percentage_allocation]),
-    [['v2', 'shop:1.5', 0]],
+    [['v2', 'shop:1.5', 0], ['v3', 'shop:1.6', 0]],
   );
 
   // Goal metric (occurrence, up) and guardrails (mean, down).
@@ -91,11 +91,11 @@ test('a fresh instance is bootstrapped end to end and every key lands in .env', 
     ],
   );
 
-  // The experiment, started: control is the first release, v2 gets half.
+  // The experiment, started: control is the first release; three releases make an A/B/C test, a third each.
   assert.equal(state.experiments.length, 1);
   const experiment = state.experiments[0]!;
   assert.equal(experiment.status, 'running');
-  assert.equal(experiment.name, 'shop_release: shop:1.5 vs shop:1.4');
+  assert.equal(experiment.name, 'shop_release: shop:1.5 vs shop:1.6 vs shop:1.4');
   assert.deepEqual(
     experiment.metrics.map((m) => [m.metric_name, m.expected_direction]),
     [
@@ -106,7 +106,8 @@ test('a fresh instance is bootstrapped end to end and every key lands in .env', 
   );
   assert.equal(experiment.experiment_rollout!.feature_state_value.value, 'shop:1.4');
   assert.deepEqual(experiment.experiment_rollout!.multivariate_feature_state_values, [
-    { multivariate_feature_option: feature.multivariate_options[0]!.id, percentage_allocation: 50 },
+    { multivariate_feature_option: feature.multivariate_options[0]!.id, percentage_allocation: 33 },
+    { multivariate_feature_option: feature.multivariate_options[1]!.id, percentage_allocation: 33 },
   ]);
 
   // After signup, everything is authenticated with the new admin's token.
@@ -485,7 +486,7 @@ test('a secondary metric added to the config later is created and attached to th
   process.env.TURNOUT_PREVIEW_TOKEN = first.TURNOUT_PREVIEW_TOKEN;
   const withFunnel = parseConfig({
     flag: 'shop_release',
-    releases: { 'shop:1.4': 'http://shop-1-4:8080', 'shop:1.5': 'http://shop-1-5:8080' },
+    releases: { 'shop:1.4': 'http://shop-1-4:8080', 'shop:1.5': 'http://shop-1-5:8080', 'shop:1.6': 'http://shop-1-6:8080' },
     goal: { event: 'order_placed', when: { method: 'POST', path: '/checkout', status: '2xx' } },
     metrics: [{ event: 'add_to_cart', when: { method: 'POST', path: '/cart/add', status: '2xx,303' } }],
     guardrails: ['doc_latency_ms', 'server_error'],

@@ -164,20 +164,63 @@ describe('demo-model.js: what the simple judge page says', () => {
     assert.equal(m.steps[3].result, 'Shipped B · 1.5 Express to everyone.');
     assert.equal(m.outcome.title, 'B · 1.5 Express shipped to everyone');
     assert.deepEqual(m.versions.map((v: any) => [v.badge, v.state]), [['Replaced', 'out'], ['Shipped', 'winner'], ['Not shipped', 'out']]);
-    assert.equal(m.action.action, 'abc');
-    assert.equal(m.action.label, 'Run a new: A/B/C test');
+    assert.deepEqual([m.action.action, m.action.arms, m.action.label], ['start', 3, 'Run an A/B/C test']);
+    assert.equal(M.model(base({ experiment: { ...base().experiment, status: 'completed' }, live: 'shop:1.5', results: abcResults, ledger }), { kind: 1 }).action.label, 'Run an A/A test');
 
     const reverted = M.model(base({ experiment: { ...base().experiment, status: 'completed' }, live: 'shop:1.4', results: abcResults, ledger: [{ ...ledger[0], decision: 'reverted', release: 'shop:1.4' }] }));
     assert.equal(reverted.outcome.title, 'Everyone stays on A · 1.4 Classic');
     assert.deepEqual(reverted.versions.map((v: any) => v.badge), ['Kept', 'Rolled back', 'Rolled back']);
   });
 
-  test('no experiment yet: start an A/B/C test (an A/B test with only two releases)', () => {
+  test('no experiment yet: start the kind picked, an A/B/C test by default (A/B with only two releases)', () => {
     const m = M.model(base({ experiment: null }));
-    assert.equal(m.action.action, 'abc');
-    assert.equal(m.action.label, 'Start: A/B/C test');
+    assert.deepEqual([m.action.action, m.action.arms, m.action.label], ['start', 3, 'Start an A/B/C test']);
     assert.equal(m.steps[0].status, 'current');
-    assert.equal(M.model(base({ experiment: null, releases: ['shop:1.4', 'shop:1.5'] })).action.action, 'reset');
+    assert.deepEqual(M.model(base({ experiment: null, releases: ['shop:1.4', 'shop:1.5'] })).action.label, 'Start an A/B test');
+    const ab = M.model(base({ experiment: null }), { kind: 2 }).action;
+    assert.equal(ab.label, 'Start an A/B test');
+    assert.match(ab.explain, /Flagsmith shows B · 1\.5 Express to half the shoppers\.$/);
+    assert.match(M.model(base({ experiment: null }), { kind: 1 }).action.explain, /two identical copies of it\. It should find no difference\./);
+  });
+
+  test('the kinds of test: A/A, then A/B, A/B/C… up to the number of releases', () => {
+    assert.deepEqual(M.kinds(['a', 'b', 'c']).map((k: any) => [k.arms, k.label]), [[1, 'A/A'], [2, 'A/B'], [3, 'A/B/C']]);
+    assert.deepEqual(M.kinds(['a', 'b', 'c', 'd', 'e']).map((k: any) => k.label).at(-1), 'A/B/C/D/E');
+    assert.deepEqual(M.kinds(['a']), []);
+    assert.equal(M.kindOf(base()), 3);
+    assert.equal(M.kindOf(base({ experiment: null })), null);
+    assert.equal(M.shoppersFor(2), 1400);
+    assert.equal(M.shoppersFor(3), 2100);
+    assert.equal(M.shoppersFor(9), 5000);
+  });
+
+  test('an A/A test: the copy is A′, no difference is the expected answer, and finishing changes nothing', () => {
+    const aaArms = [{ key: 'control', release: 'shop:1.4' }, { key: 'v2', release: 'shop:1.4' }];
+    const aa = (over: any = {}) => base({ experiment: { id: 9, status: 'running', control: 'shop:1.4', v2: 'shop:1.4', arms: aaArms }, routing: null, ...over });
+    assert.equal(M.kindOf(aa()), 1);
+    assert.deepEqual(M.arms(aa()).map((a: any) => a.name), ['A · 1.4 Classic', 'A′ · 1.4 Classic']);
+    let m = M.model(aa());
+    assert.equal(m.now, 'An A/A test: both sides get A · 1.4 Classic. Flagsmith counts each new shopper on one side.');
+    assert.equal(m.steps[0].result, 'A/A test, experiment #9 in Flagsmith.');
+    assert.equal(m.action.label, 'Send 1,400 shoppers');
+    const same = {
+      ...abcResults,
+      metrics: [metric('order_placed', 'goal', 'occurrence', 'up', { control: 0.098, v2: 0.097 }, { v2: ['inconclusive', 0.47] })],
+      losingByArm: { v2: [] },
+      recommendation: { call: 'keep-running', variant: 'v2', chanceToWin: 0.47, reason: 'crosses zero', interval: { low: -0.2, high: 0.2 } },
+    };
+    m = M.model(aa({ steps: steps('done', 'done', 'current'), results: same }));
+    assert.equal(m.verdict.title, 'No difference, as expected');
+    assert.match(m.verdict.text, /the split and the counting are fair/);
+    assert.deepEqual([m.action.action, m.action.label, m.alt], ['revert', 'Finish the A/A check', null]);
+    const differs = { ...same, recommendation: { ...same.recommendation, call: 'ship', chanceToWin: 0.99 } };
+    assert.equal(M.model(aa({ steps: steps('done', 'done', 'current'), results: differs })).verdict.title, 'A difference between identical copies');
+    const ledger = [{ experimentId: 9, decision: 'reverted', release: 'shop:1.4', replaced: 'shop:1.4', experiment: 'shop_release: A/A shop:1.4', at: 'x' }];
+    m = M.model(aa({ experiment: { id: 9, status: 'completed', control: 'shop:1.4', v2: 'shop:1.4', arms: aaArms }, results: same, ledger }));
+    assert.equal(m.outcome.title, 'A/A check finished');
+    assert.equal(m.steps[3].result, 'A/A check finished: everyone stays on A.');
+    assert.deepEqual(m.versions.map((v: any) => v.badge), ['Kept', 'Copy']);
+    assert.equal(M.history(ledger)[0].text, 'A/A check on 1.4 Classic finished');
   });
 
   test('jobs, before → after, the check and the history in one line each', () => {
@@ -206,11 +249,41 @@ describe('demo-model.js: what the simple judge page says', () => {
   });
 });
 
+const TOUR: any = await import(pathToFileURL(join(UI, 'demo-tour.js')).href);
+
+describe('demo-tour.js: the two-minute tour', () => {
+  test('ten stops, each pointing at something on the page, short enough to read in about ten seconds', () => {
+    assert.equal(TOUR.STOPS.length, 10);
+    const words = TOUR.STOPS.map((s: any) => s.text.split(/\s+/).length);
+    assert.ok(Math.max(...words) <= 50, `longest stop: ${Math.max(...words)} words`);
+    // ~200 words a minute, plus a couple of seconds a stop to look: under two minutes in all.
+    const seconds = words.reduce((a: number, b: number) => a + b, 0) / (200 / 60) + 2 * TOUR.STOPS.length;
+    assert.ok(seconds < 120, `about ${Math.round(seconds)} s`);
+    for (const s of TOUR.STOPS) {
+      for (const sel of [s.target].flat().filter(Boolean)) {
+        assert.ok(sel === '#go' || html.includes(`id="${sel.slice(1)}"`), `the tour points at ${sel}, which demo.html lacks`);
+      }
+    }
+    assert.match(TOUR.STOPS.map((s: any) => s.title).join(' | '), /kind of test.*console, for your own app.*Flagsmith/i);
+  });
+
+  test('opens by itself once, from the Tour button any time; keys: → / Enter next, ← back, Esc closes', () => {
+    const tour = read('demo-tour.js');
+    assert.match(tour, /const SEEN_KEY = 'turnout-demo-tour-seen';/);
+    assert.match(tour, /e\.key === 'ArrowRight' \|\| e\.key === 'Enter'/);
+    assert.match(tour, /e\.key === 'ArrowLeft'/);
+    assert.match(tour, /e\.key === 'Escape'/);
+    assert.match(js, /\$\('tour-open'\)\.addEventListener\('click', \(\) => startTour\(\)\)/);
+    assert.match(js, /loadState\(\)\.then\(\(\) => offerTour\(\)\)/);
+    assert.doesNotMatch(tour, /innerHTML|outerHTML|insertAdjacentHTML/);
+  });
+});
+
 describe('demo.html and demo.js', () => {
   test('one desktop screen with no page scroll: the bar, the steps, the versions and the results', () => {
     assert.match(css, /body \{[^}]*overflow: hidden;/);
     assert.match(css, /grid-template-areas: "steps versions" "steps results";/);
-    for (const id of ['steps', 'versions', 'results', 'autoplay', 'history']) assert.ok(html.includes(`id="${id}"`), id);
+    for (const id of ['steps', 'versions', 'results', 'autoplay', 'history', 'kinds', 'tour-open']) assert.ok(html.includes(`id="${id}"`), id);
   });
 
   test('one stylesheet and one module script; a page in the console look, light and dark', () => {

@@ -1,6 +1,7 @@
 // Turnout's simple judge page: one column, four fixed steps, one green button at a time. Wording and rules live in
 // demo-model.js; this file only draws them and runs the button. Every string goes in through textContent.
 import * as M from './demo-model.js';
+import { startTour, offerTour } from './demo-tour.js';
 
 const STATE_POLL_MS = 4000;
 const JOB_POLL_MS = 800;
@@ -29,7 +30,18 @@ const setText = (el, text) => {
   if (el.textContent !== text) el.textContent = text;
 };
 
+const KIND_KEY = 'turnout-demo-kind';
+const storedKind = (() => {
+  try {
+    const n = Number(localStorage.getItem(KIND_KEY));
+    return Number.isInteger(n) && n >= 1 ? n : null;
+  } catch {
+    return null;
+  }
+})();
+
 const ui = {
+  kind: storedKind, // the kind of test the judge picked: 1 = A/A, 2 = A/B, 3 = A/B/C…; null: the current test's kind
   state: null,
   job: null, // the job this page is following
   jobTimer: 0,
@@ -109,15 +121,20 @@ async function jobFinished(job) {
   }
 }
 
-async function run(action) {
+async function run(action, extra = {}) {
   const s = ui.state;
   if (ui.sending) return;
   ui.sending = true;
   ui.before = signature(s); // the state before this job, to wait for its effect
   ui.error = '';
   render();
-  const body = { action, ...(s?.experiment ? { experimentId: s.experiment.id } : {}), ...(action === 'visitors' ? { visitors: M.SHOPPERS } : {}) };
-  if (action === 'release' || action === 'reset' || action === 'abc') delete body.experimentId;
+  const body = {
+    action,
+    ...(s?.experiment ? { experimentId: s.experiment.id } : {}),
+    ...(action === 'visitors' ? { visitors: extra.visitors ?? M.shoppersFor(M.arms(s).length) } : {}),
+    ...(action === 'start' ? { arms: extra.arms } : {}),
+  };
+  if (action === 'release' || action === 'reset' || action === 'abc' || action === 'start') delete body.experimentId;
   try {
     const res = await api('/api/judge/run', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body) });
     const out = await res.json().catch(() => ({}));
@@ -174,6 +191,52 @@ function paintLive() {
   }
 }
 
+// ---- the kind of test: A/A, A/B, A/B/C… -----------------------------------------------------------------------------
+// Picking a kind sets what the next test is. While a test runs, a different kind asks first: starting it stops the
+// running test (everyone goes back to A).
+function chosenKind(s) {
+  const max = s?.releases?.length ?? 2;
+  const k = ui.kind ?? M.kindOf(s) ?? max;
+  return Math.min(k, max);
+}
+
+function renderKinds(s, kind) {
+  const box = $('kinds');
+  const options = M.kinds(s.releases);
+  const current = s.experiment?.status !== 'completed' ? M.kindOf(s) : null;
+  const key = JSON.stringify([options.map((o) => o.arms), kind, current]);
+  if (box.dataset.key === key) return;
+  box.dataset.key = key;
+  box.replaceChildren(
+    h('span', { class: 'kinds-label' }, 'Test'),
+    ...options.map((o) => h('button', {
+      class: 'kind', type: 'button', title: o.blurb, 'aria-pressed': String(o.arms === kind), 'data-running': o.arms === current ? 'true' : null,
+      on: { click: () => pickKind(o.arms) },
+    }, o.label)));
+}
+
+function pickKind(k) {
+  ui.kind = k;
+  try {
+    localStorage.setItem(KIND_KEY, String(k));
+  } catch {
+    /* remembered for this page only */
+  }
+  const s = ui.state;
+  const confirm = $('kinds-confirm');
+  const running = s?.experiment && s.experiment.status !== 'completed' ? M.kindOf(s) : null;
+  if (running !== null && running !== k) {
+    const a = M.startAction(s, 'Start', k);
+    confirm.replaceChildren(
+      h('p', {}, h('strong', {}, `Start ${/^A/.test(M.kindLabel(k)) ? 'an' : 'a'} ${M.kindLabel(k)} test now?`), ` The running ${M.kindLabel(running)} test stops and everyone goes back to A.`),
+      h('div', { class: 'action-row' },
+        h('button', { class: 'btn btn-go', type: 'button', on: { click: () => { confirm.hidden = true; run('start', { arms: a.arms }); } } }, a.label),
+        h('button', { class: 'btn btn-quiet', type: 'button', on: { click: () => { confirm.hidden = true; ui.kind = running; render(); } } }, 'Keep the running test')));
+    confirm.hidden = false;
+  } else confirm.hidden = true;
+  render();
+}
+
 // ---- drawing ------------------------------------------------------------------------------------------------------
 function render() {
   const s = ui.state;
@@ -191,7 +254,9 @@ function render() {
   rl.hidden = !(links.experiment && s.results);
   rl.setAttribute('href', links.experiment ?? '#');
 
-  const m = M.model(s);
+  const kind = chosenKind(s);
+  const m = M.model(s, { kind });
+  renderKinds(s, kind);
   if (ui.live.exp !== s.experiment?.id) ui.live = { exp: s.experiment?.id ?? null, counts: {} };
 
   setText($('now'), m.now);
@@ -219,7 +284,7 @@ function renderVersions(s, m) {
         h('span', { class: 'version-letter', 'aria-hidden': 'true' }, v.letter),
         h('div', { class: 'version-title' }, h('h3', { class: 'version-name' }, M.label(v.release)), h('span', { class: 'version-role' })),
         h('span', { class: 'version-badge' })),
-      frameFor(s, v.release),
+      frameFor(s, v.key, v.release),
       h('p', { class: 'version-line version-fs' }),
       h('p', { class: 'version-line', 'data-live': v.release }))));
     fitFrames();
@@ -227,7 +292,7 @@ function renderVersions(s, m) {
   m.versions.forEach((v, i) => {
     const tile = /** @type {HTMLElement} */ (box.children[i]);
     tile.dataset.state = v.state;
-    setText(tile.querySelector('.version-role'), v.key === 'control' ? 'current' : 'new');
+    setText(tile.querySelector('.version-role'), v.key === 'control' ? 'current' : m.aa ? 'copy of A' : 'new');
     setText(tile.querySelector('.version-badge'), v.badge);
     const arm = goal?.arms?.[v.key];
     setText(tile.querySelector('.version-fs'), arm ? `${(arm.mean * 100).toFixed(1)}% of ${arm.n.toLocaleString('en-GB')} shoppers ordered` : '');
@@ -236,14 +301,16 @@ function renderVersions(s, m) {
   });
 }
 
-function frameFor(s, release) {
-  if (!ui.frames[release]) {
+// One preview per version in the test (an A/A test shows the same release twice, in two frames).
+function frameFor(s, key, release) {
+  const id = `${key}:${release}`;
+  if (!ui.frames[id]) {
     const src = `${(s.links?.shop ?? '').replace(/\/$/, '')}/?__turnout_view=${encodeURIComponent(release)}`;
     const iframe = h('iframe', { src, title: `Preview of ${M.label(release)}`, tabindex: '-1', 'aria-hidden': 'true' });
     iframe.addEventListener('load', fitFrames);
-    ui.frames[release] = h('div', { class: 'version-frame' }, iframe);
+    ui.frames[id] = h('div', { class: 'version-frame' }, iframe);
   }
-  return ui.frames[release];
+  return ui.frames[id];
 }
 function fitFrames() {
   for (const box of document.querySelectorAll('.version-frame')) {
@@ -253,7 +320,7 @@ function fitFrames() {
 }
 new ResizeObserver(fitFrames).observe(document.documentElement);
 
-const JOB_STEP = { visitors: 'visitors', score: 'score', ship: 'decide', revert: 'decide', 'keep-running': 'decide', release: 'start', reset: 'start', abc: 'start' };
+const JOB_STEP = { visitors: 'visitors', score: 'score', ship: 'decide', revert: 'decide', 'keep-running': 'decide', release: 'start', reset: 'start', abc: 'start', start: 'start' };
 
 function renderSteps(s, m) {
   const job = ui.job?.status === 'running' ? ui.job : null;
@@ -280,7 +347,7 @@ function actionBox(m) {
   const mins = Math.floor(wait / 60000);
   const secs = String(Math.floor((wait % 60000) / 1000)).padStart(2, '0');
   const busy = ui.job?.status === 'running' || ui.state?.job?.status === 'running' || ui.sending || Boolean(ui.settle);
-  const main = h('button', { class: 'btn btn-go', type: 'button', id: 'go', disabled: wait > 0 || busy, on: { click: () => run(a.action) } },
+  const main = h('button', { class: 'btn btn-go', type: 'button', id: 'go', disabled: wait > 0 || busy, on: { click: () => run(a.action, { arms: a.arms, visitors: a.shoppers }) } },
     ui.sending ? 'Starting…' : ui.settle ? 'Reading Flagsmith…' : wait > 0 ? `Flagsmith allows the next look in ${mins}:${secs}` : a.label);
   const alt = m.alt ? h('button', { class: 'btn btn-quiet', type: 'button', disabled: busy, on: { click: () => run(m.alt.action) } }, m.alt.label) : null;
   if (wait > 0 && !ui.tick) ui.tick = setTimeout(() => ((ui.tick = 0), render()), 1000);
@@ -346,7 +413,7 @@ function renderNext(s, m) {
   const job = ui.job?.status === 'running' ? ui.job : null;
   box.hidden = !m.finished;
   if (box.hidden) return box.replaceChildren();
-  if (job) return box.replaceChildren(...(['release', 'reset', 'abc', 'verify'].includes(job.action) ? [jobBox(job)] : []));
+  if (job) return box.replaceChildren(...(['release', 'reset', 'abc', 'start', 'verify'].includes(job.action) ? [jobBox(job)] : []));
   if (!m.action) return box.replaceChildren();
   const a = actionBox({ ...m, alt: null });
   a.querySelector('.action-explain')?.remove();
@@ -398,5 +465,6 @@ function scheduleAutoplay(m) {
   }, AUTOPLAY_PAUSE_MS);
 }
 
+$('tour-open').addEventListener('click', () => startTour());
 connectFeed();
-loadState();
+loadState().then(() => offerTour());

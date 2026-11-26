@@ -1,10 +1,11 @@
 #!/bin/sh
-# turnout: put Turnout in front of two versions of your app and watch Flagsmith compare them.
+# turnout: put Turnout in front of two or more versions of your app and watch Flagsmith compare them.
 #
-#   turnout compare <live> <new> [--goal "POST /signup"] [--split 50] [--port 3000]
-#       --split: % of visitors who get <new>, up to 50 (the rest get <live>); default 50
-#       <live>/<new>: two URLs (localhost:3001, http://localhost:3002), two Docker images (myapp:1.0), or two
-#       branches of the git project you're in (main new-checkout: each built from its Dockerfile; your .env is passed)
+#   turnout compare <live> <new> [<new2> …] [--goal "POST /signup"] [--split 50] [--port 3000]
+#       Two versions make an A/B test, three an A/B/C test, and so on: <live> is A, the others are tested against it.
+#       --split: % of visitors who get each new version (the rest get <live>); default: an even share each
+#       versions: URLs (localhost:3001, http://localhost:3002), Docker images (myapp:1.0), or branches of the git
+#       project you're in (main new-checkout: each built from its Dockerfile; your .env is passed); not a mix
 #       --port: the port your app listens on in its container (default: the Dockerfile's EXPOSE, else 8080)
 #   turnout demo: the demo shop and judge mode (stop: turnout demo stop)    turnout update: get the latest Turnout
 #   turnout simulate [--visitors 500] [--yes]: pretend visitors, in a separate Flagsmith environment, results in minutes
@@ -78,11 +79,13 @@ help_screen() {
   say "  ${C_C}turnout demo${C_0}                          the demo shop and judge mode, with a guided tour"
   say ""
   say "${C_B}YOUR OWN WEBSITE${C_0}   ${C_D}(run these in your project's folder)${C_0}"
-  say "  ${C_C}turnout compare localhost:3001 localhost:3002${C_0}   two versions you have running"
-  say "  ${C_C}turnout compare myapp:1.0 myapp:1.1 --port 3000${C_0}  two Docker images"
-  say "  ${C_C}turnout compare main new-design${C_0}                 two git branches (built from your Dockerfile)"
+  say "  ${C_C}turnout compare localhost:3001 localhost:3002${C_0}   two versions you have running: an A/B test"
+  say "  ${C_C}turnout compare myapp:1.0 myapp:1.1 myapp:1.2${C_0}    three Docker images: an A/B/C test"
+  say "  ${C_C}turnout compare main new-design${C_0}                 git branches (built from your Dockerfile)"
+  say "      ${C_D}the first version is A, what everyone gets now; add as many new ones as you like${C_0}"
   say "      ${C_D}--goal \"POST /signup\"   count a conversion (no goal: judged on page speed)${C_0}"
-  say "      ${C_D}--split 10              10% of visitors get the new version (up to 50)${C_0}"
+  say "      ${C_D}--split 10              10% of visitors get each new version${C_0}"
+  say "      ${C_D}--port 3000             the port your images listen on${C_0}"
   say "  ${C_C}turnout simulate${C_0}                      pretend visitors, so results show in minutes (kept apart)"
   say "  ${C_C}turnout open${C_0}                          reopen the results page: Ship winner or Revert there"
   say "  ${C_C}turnout status${C_0}                        what's running, and a full check"
@@ -94,7 +97,7 @@ help_screen() {
   say "  ${C_C}turnout down${C_0}  stop (data kept)    ${C_C}turnout reset${C_0}  wipe    ${C_C}turnout update${C_0}  get the latest Turnout"
   say ""
   say "${C_D}How it works: visitors reach Turnout, Turnout asks Flagsmith which version each one gets and sends them there,"
-  say "Flagsmith scores both versions, and one click moves everyone to the winner. More: README.md in $HOME_DIR${C_0}"
+  say "Flagsmith scores every version, and one click moves everyone to the winner. More: README.md in $HOME_DIR${C_0}"
 }
 
 step() { say "${C_C}==>${C_0} ${C_B}$*${C_0}"; }
@@ -198,9 +201,16 @@ app_logs() {
 
 cmd_compare() {
   logo
-  [ $# -ge 2 ] || die 'usage: turnout compare <live> <new> [--goal "POST /signup"] [--split 50]'
-  A=$(normalise "$1"); B=$(normalise "$2"); shift 2
-  GOAL=none; SPLIT=50; APP_PORT=
+  # The versions come first: A (live), then every new one. Two make an A/B test, three an A/B/C test, and so on.
+  VERSIONS=; GIVEN=
+  while [ $# -gt 0 ]; do
+    case "$1" in --*) break ;; esac
+    VERSIONS="${VERSIONS:+$VERSIONS }$(normalise "$1")"; GIVEN="${GIVEN:+$GIVEN }$1"; shift
+  done
+  N=$(printf '%s\n' $VERSIONS | grep -c .)
+  [ "$N" -ge 2 ] || die 'usage: turnout compare <live> <new> [<new2> …] [--goal "POST /signup"] [--split 50]'
+  [ "$N" -le 26 ] || die "at most 26 versions (A to Z)"
+  GOAL=none; SPLIT=; APP_PORT=
   while [ $# -gt 0 ]; do
     case "$1" in
       --goal) GOAL="${2:?--goal needs a request, e.g. \"POST /signup\"}"; shift 2 ;;
@@ -209,32 +219,45 @@ cmd_compare() {
       *) die "unknown option $1" ;;
     esac
   done
-  case "$SPLIT" in *[!0-9]*|"") die "--split is a whole percentage from 1 to 50" ;; esac
-  [ "$SPLIT" -ge 1 ] && [ "$SPLIT" -le 50 ] || die "--split is a whole percentage from 1 to 50 (Flagsmith splits the experiment's visitors evenly)"
-  TRAFFIC=$((SPLIT * 2))   # visitors in the experiment, split evenly between <live> and <new>
+  # Visitors in the experiment: everyone by default, split evenly between all the versions (50/50, 34/33/33…).
+  # --split S gives each new version S% of visitors: the experiment then takes S% times the number of versions.
+  MAXSPLIT=$((100 / N))
+  if [ -n "$SPLIT" ]; then
+    case "$SPLIT" in *[!0-9]*) die "--split is a whole percentage from 1 to $MAXSPLIT" ;; esac
+    [ "$SPLIT" -ge 1 ] && [ "$SPLIT" -le "$MAXSPLIT" ] || die "--split is a whole percentage from 1 to $MAXSPLIT with $N versions (Flagsmith splits the experiment's visitors evenly)"
+    TRAFFIC=$((SPLIT * N))
+  else
+    SPLIT=$MAXSPLIT; TRAFFIC=100
+  fi
   need_docker
   # Branches of the git project here: each is built from its own Dockerfile into an image, labelled with the branch.
-  BRANCHES=
-  if is_branch "$A" || is_branch "$B"; then
-    is_branch "$A" && is_branch "$B" || die "give two branches, or two URLs, or two images (not a mix): \"$1\" and \"$2\""
-    [ -n "$APP_PORT" ] || APP_PORT=$(exposed_port "$A")
-    [ -n "$APP_PORT" ] || die "branch $A's Dockerfile has no EXPOSE line, so the port your app listens on isn't known: add --port <port>."
+  BRANCHES=; NB=0
+  for v in $VERSIONS; do if is_branch "$v"; then NB=$((NB + 1)); fi; done
+  if [ "$NB" -gt 0 ]; then
+    [ "$NB" = "$N" ] || die "give all branches, or all URLs, or all images (not a mix): $GIVEN"
+    FIRST=${VERSIONS%% *}
+    [ -n "$APP_PORT" ] || APP_PORT=$(exposed_port "$FIRST")
+    [ -n "$APP_PORT" ] || die "branch $FIRST's Dockerfile has no EXPOSE line, so the port your app listens on isn't known: add --port <port>."
     [ -z "$(git status --porcelain 2>/dev/null)" ] || say "Note: uncommitted changes aren't included; each branch is built from its last commit."
-    BRANCHES="$A $B"
-    IMG_A=$(build_branch "$A") || exit 1   # build_branch's die only leaves the $( ) subshell
-    IMG_B=$(build_branch "$B") || exit 1
-    A="$(label_of "$A")=$IMG_A"; B="$(label_of "$B")=$IMG_B"
+    BRANCHES="$VERSIONS"; BUILT=
+    for v in $VERSIONS; do
+      img=$(build_branch "$v") || exit 1   # build_branch's die only leaves the $( ) subshell
+      BUILT="${BUILT:+$BUILT }$(label_of "$v")=$img"
+    done
+    VERSIONS=$BUILT
   fi
+  TITLE=$(printf '%s' "$VERSIONS" | sed 's/ / vs /g')
+  KIND=$(printf 'ABCDEFGHIJKLMNOPQRSTUVWXYZ' | cut -c1-"$N" | sed 's/./&\//g; s/\/$//')
   need_image
   mkdir -p "$STATE"
 
-  WANT="releases=$A $B
+  WANT="releases=$VERSIONS
 goal=$GOAL
 split=$SPLIT
 app_port=$APP_PORT"
   if [ -f "$STATE/compare.args" ] && [ "$(sed -e '/^proxy_port=/d' -e '/^console_port=/d' "$STATE/compare.args")" = "$WANT" ]; then
     ports_from_state
-    say "Resuming $NAME: $A vs $B."
+    say "Resuming $NAME: $TITLE ($KIND test)."
   else
     if [ -f "$STATE/compare.args" ]; then
       # A running experiment keeps its split and its main metric (Flagsmith fixes it at creation), so different
@@ -249,17 +272,19 @@ app_port=$APP_PORT"
     [ "$PROXY_PORT" = 8080 ] || say "Port 8080 is busy: your app will be on $PROXY_PORT."
     APP_ENV=; [ -n "$BRANCHES" ] && [ -f "$PWD/.env" ] && APP_ENV="$PWD/.env"
     docker run --rm -v "$STATE:/work" "$IMAGE" new --dir /work --yes --force \
-      --release "$A" --release "$B" --success "$GOAL" --traffic "$TRAFFIC" \
+      $(for v in $VERSIONS; do printf -- '--release %s ' "$v"; done) --success "$GOAL" --traffic "$TRAFFIC" \
       --proxy-port "$PROXY_PORT" --console-port "$CONSOLE_PORT" --flagsmith-port "$FLAGSMITH_PORT" \
       ${APP_PORT:+--port "$APP_PORT"} ${APP_ENV:+--app-env-file "$APP_ENV"} --image "$IMAGE" >"$STATE/new.log" 2>&1 \
-      || { cat "$STATE/new.log" >&2; die "couldn't write the setup for $A and $B."; }
+      || { cat "$STATE/new.log" >&2; die "couldn't write the setup for $TITLE."; }
+    say "$KIND test: A is ${VERSIONS%% *}, what everyone gets now; $([ "$TRAFFIC" = 100 ] && echo 'every visitor is split evenly between the versions' || echo "each new version gets $SPLIT% of visitors")."
+
     printf '%s\nproxy_port=%s\nconsole_port=%s\n' "$WANT" "$PROXY_PORT" "$CONSOLE_PORT" > "$STATE/compare.args"
   fi
 
-  NOT_ANSWERING="a version doesn't answer: its last log lines are above. If it needs a database or other services, start both versions yourself and run: turnout compare http://localhost:<port-a> http://localhost:<port-b>"
+  NOT_ANSWERING="a version doesn't answer: its last log lines are above. If it needs a database or other services, start the versions yourself and run: turnout compare http://localhost:<port-a> http://localhost:<port-b> …"
   if [ -n "$BRANCHES" ]; then
     # Start the branch builds first and give them a few seconds: a crash shows now, before Flagsmith's set-up.
-    step "Starting both branches"
+    step "Starting the branches"
     compose up -d $(app_services) >"$STATE/apps.log" 2>&1 || { tail -20 "$STATE/apps.log" >&2; die "couldn't start the branches (full log: $STATE/apps.log)."; }
     sleep 8
     crashed=$(crashed_apps)

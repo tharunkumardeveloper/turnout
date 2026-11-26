@@ -1,9 +1,10 @@
-# turnout (Windows): put Turnout in front of two versions of your app and watch Flagsmith compare them.
+# turnout (Windows): put Turnout in front of two or more versions of your app and watch Flagsmith compare them.
 #
-#   turnout compare <live> <new> [--goal "POST /signup"] [--split 50] [--port 3000]
-#       --split: % of visitors who get <new>, up to 50 (the rest get <live>); default 50
-#       <live>/<new>: two URLs (localhost:3001, http://localhost:3002), two Docker images (myapp:1.0), or two
-#       branches of the git project you're in (main new-checkout: each built from its Dockerfile; your .env is passed)
+#   turnout compare <live> <new> [<new2> …] [--goal "POST /signup"] [--split 50] [--port 3000]
+#       Two versions make an A/B test, three an A/B/C test, and so on: <live> is A, the others are tested against it.
+#       --split: % of visitors who get each new version (the rest get <live>); default: an even share each
+#       versions: URLs (localhost:3001, http://localhost:3002), Docker images (myapp:1.0), or branches of the git
+#       project you're in (main new-checkout: each built from its Dockerfile; your .env is passed); not a mix
 #       --port: the port your app listens on in its container (default: the Dockerfile's EXPOSE, else 8080)
 #   turnout demo: the demo shop and judge mode (stop: turnout demo stop)    turnout update: get the latest Turnout
 #   turnout simulate [--visitors 500] [--yes]: pretend visitors, in a separate Flagsmith environment, results in minutes
@@ -107,9 +108,9 @@ function Show-Help {
   Show-Cmd 'turnout demo' 'the demo shop and judge mode, with a guided tour'
   Write-Host ''
   Show-Head 'YOUR OWN WEBSITE' "(run these in your project's folder)"
-  Show-Cmd 'turnout compare localhost:3001 localhost:3002' 'two versions you have running'
-  Show-Cmd 'turnout compare myapp:1.0 myapp:1.1 --port 3000' 'two Docker images'
-  Show-Cmd 'turnout compare main new-design' 'two git branches (built from your Dockerfile)'
+  Show-Cmd 'turnout compare localhost:3001 localhost:3002' 'two versions you have running: an A/B test'
+  Show-Cmd 'turnout compare myapp:1.0 myapp:1.1 myapp:1.2' 'three Docker images: an A/B/C test'
+  Show-Cmd 'turnout compare main new-design' 'git branches (built from your Dockerfile)'
   Write-Host '      --goal "POST /signup"   count a conversion (no goal: judged on page speed)' -ForegroundColor DarkGray
   Write-Host '      --split 10              10% of visitors get the new version (up to 50)' -ForegroundColor DarkGray
   Show-Cmd 'turnout simulate' 'pretend visitors, so results show in minutes (kept apart)'
@@ -125,7 +126,7 @@ function Show-Help {
   Show-Cmd 'turnout update' 'get the latest Turnout'
   Write-Host ''
   Write-Host "How it works: visitors reach Turnout, Turnout asks Flagsmith which version each one gets and sends them there," -ForegroundColor DarkGray
-  Write-Host "Flagsmith scores both versions, and one click moves everyone to the winner. More: README.md in $HomeDir" -ForegroundColor DarkGray
+  Write-Host "Flagsmith scores every version, and one click moves everyone to the winner. More: README.md in $HomeDir" -ForegroundColor DarkGray
 }
 
 function Show-Result([string]$proxy, [string]$console) {
@@ -197,14 +198,20 @@ function Get-FailingApps {
 function Show-AppLogs([string[]]$svcs) {
   foreach ($svc in $svcs) { Write-Host "--- last log lines of ${svc}:"; Compose logs --no-log-prefix --tail 20 $svc 2>&1 | ForEach-Object { "$_" } }
 }
-$NotAnswering = "a version doesn't answer: its last log lines are above. If it needs a database or other services, start both versions yourself and run: turnout compare http://localhost:<port-a> http://localhost:<port-b>"
+$NotAnswering = "a version doesn't answer: its last log lines are above. If it needs a database or other services, start the versions yourself and run: turnout compare http://localhost:<port-a> http://localhost:<port-b> …"
 
 function Invoke-Compare([string[]]$a) {
   Show-Logo
-  if ($a.Count -lt 2) { Die 'usage: turnout compare <live> <new> [--goal "POST /signup"] [--split 50] [--port 3000]' }
-  $Live = Normalise $a[0]; $New = Normalise $a[1]
-  $Goal = 'none'; $Split = '50'; $AppPort = ''
-  for ($i = 2; $i -lt $a.Count; $i += 2) {
+  # The versions come first: A (live), then every new one. Two make an A/B test, three an A/B/C test, and so on.
+  $first = 0
+  while ($first -lt $a.Count -and -not $a[$first].StartsWith('--')) { $first++ }
+  if ($first -lt 2) { Die 'usage: turnout compare <live> <new> [<new2> …] [--goal "POST /signup"] [--split 50] [--port 3000]' }
+  if ($first -gt 26) { Die 'at most 26 versions (A to Z)' }
+  $Given = @($a[0..($first - 1)])
+  $Versions = @($Given | ForEach-Object { Normalise $_ })
+  $N = $Versions.Count
+  $Goal = 'none'; $Split = ''; $AppPort = ''
+  for ($i = $first; $i -lt $a.Count; $i += 2) {
     switch ($a[$i]) {
       '--goal' { $Goal = $a[$i + 1] }
       '--split' { $Split = $a[$i + 1] }
@@ -212,29 +219,38 @@ function Invoke-Compare([string[]]$a) {
       default { Die "unknown option $($a[$i])" }
     }
   }
-  $n = 0
-  if (-not [int]::TryParse($Split, [ref]$n) -or $n -lt 1 -or $n -gt 50) { Die '--split is a whole percentage from 1 to 50 (Flagsmith splits the experiment''s visitors evenly)' }
-  $Traffic = [string]($n * 2)   # visitors in the experiment, split evenly between <live> and <new>
+  # Visitors in the experiment: everyone by default, split evenly between all the versions (50/50, 34/33/33…).
+  # --split S gives each new version S% of visitors: the experiment then takes S% times the number of versions.
+  $maxSplit = [math]::Floor(100 / $N)
+  if ($Split) {
+    $s = 0
+    if (-not [int]::TryParse($Split, [ref]$s) -or $s -lt 1 -or $s -gt $maxSplit) { Die "--split is a whole percentage from 1 to $maxSplit with $N versions (Flagsmith splits the experiment's visitors evenly)" }
+    $Traffic = [string]($s * $N)
+  } else {
+    $Split = [string]$maxSplit; $Traffic = '100'
+  }
   Need-Docker
   # Branches of the git project here: each is built from its own Dockerfile into an image, labelled with the branch.
   $script:Branches = $false
-  if ((Test-Branch $Live) -or (Test-Branch $New)) {
-    if (-not ((Test-Branch $Live) -and (Test-Branch $New))) { Die "give two branches, or two URLs, or two images (not a mix): `"$($a[0])`" and `"$($a[1])`"" }
-    if (-not $AppPort) { $AppPort = Get-ExposedPort $Live }
-    if (-not $AppPort) { Die "branch $Live's Dockerfile has no EXPOSE line, so the port your app listens on isn't known: add --port <port>." }
+  $branchCount = @($Versions | Where-Object { Test-Branch $_ }).Count
+  if ($branchCount) {
+    if ($branchCount -ne $N) { Die "give all branches, or all URLs, or all images (not a mix): $($Given -join ' ')" }
+    if (-not $AppPort) { $AppPort = Get-ExposedPort $Versions[0] }
+    if (-not $AppPort) { Die "branch $($Versions[0])'s Dockerfile has no EXPOSE line, so the port your app listens on isn't known: add --port <port>." }
     if (git status --porcelain 2>$null) { Say "Note: uncommitted changes aren't included; each branch is built from its last commit." }
     $script:Branches = $true
-    $Live = "$(Get-Label $Live)=$(Build-Branch $Live)"
-    $New = "$(Get-Label $New)=$(Build-Branch $New)"
+    $Versions = @($Versions | ForEach-Object { "$(Get-Label $_)=$(Build-Branch $_)" })
   }
+  $Title = $Versions -join ' vs '
+  $Kind = ([char[]]'ABCDEFGHIJKLMNOPQRSTUVWXYZ')[0..($N - 1)] -join '/'
   Need-Image
   New-Item -ItemType Directory -Force $State | Out-Null
-  $want = @("releases=$Live $New", "goal=$Goal", "split=$Split", "app_port=$AppPort")
+  $want = @("releases=$($Versions -join ' ')", "goal=$Goal", "split=$Split", "app_port=$AppPort")
   $argsFile = Join-Path $State 'compare.args'
   $old = if (Test-Path $argsFile) { @(Get-Content $argsFile | Where-Object { $_ -notlike '*_port=*' -or $_ -like 'app_port=*' }) } else { $null }
   if ($old -and (($old -join "`n") -eq ($want -join "`n"))) {
     Read-Args | Out-Null
-    Say "Resuming ${Name}: $Live vs $New."
+    Say "Resuming ${Name}: $Title ($Kind test)."
   } else {
     if ($old) {
       # A running experiment keeps its split and its main metric (Flagsmith fixes it at creation), so different
@@ -248,18 +264,20 @@ function Invoke-Compare([string[]]$a) {
     $fsPort = Get-FreePort 8000 @($ProxyPort, $ConsolePort)
     if ($ProxyPort -ne 8080) { Say "Port 8080 is busy: your app will be on $ProxyPort." }
     $newArgs = @('run', '--rm', '-v', "${State}:/work", $Image, 'new', '--dir', '/work', '--yes', '--force',
-      '--release', $Live, '--release', $New, '--success', $Goal, '--traffic', $Traffic,
+      '--success', $Goal, '--traffic', $Traffic,
       '--proxy-port', $ProxyPort, '--console-port', $ConsolePort, '--flagsmith-port', $fsPort, '--image', $Image)
+    foreach ($v in $Versions) { $newArgs += @('--release', $v) }
     if ($AppPort) { $newArgs += @('--port', $AppPort) }
     $appEnv = Join-Path (Get-Location) '.env'
     if ($script:Branches -and (Test-Path $appEnv)) { $newArgs += @('--app-env-file', $appEnv) }
     docker @newArgs *> (Join-Path $State 'new.log')
-    if ($LASTEXITCODE -ne 0) { Get-Content (Join-Path $State 'new.log'); Die "couldn't write the setup for $Live and $New." }
+    if ($LASTEXITCODE -ne 0) { Get-Content (Join-Path $State 'new.log'); Die "couldn't write the setup for $Title." }
+    Say "$Kind test: A is $($Versions[0]), what everyone gets now; $(if ($Traffic -eq '100') { 'every visitor is split evenly between the versions' } else { "each new version gets $Split% of visitors" })."
     Set-Content -Encoding ascii $argsFile ($want + @("proxy_port=$ProxyPort", "console_port=$ConsolePort"))
   }
   if ($script:Branches) {
     # Start the branch builds first and give them a few seconds: a crash shows now, before Flagsmith's set-up.
-    Step 'Starting both branches'
+    Step 'Starting the branches'
     $apps = Get-AppServices
     Compose up -d @apps *> (Join-Path $State 'apps.log')
     if ($LASTEXITCODE -ne 0) { Get-Content (Join-Path $State 'apps.log') -Tail 20; Die "couldn't start the branches." }

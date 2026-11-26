@@ -27,7 +27,7 @@ import {
 } from '../flagsmith/experiments.ts';
 import { readLedger, type LedgerEntry } from '../ledger.ts';
 
-export const JUDGE_ACTIONS = ['visitors', 'score', 'ship', 'revert', 'keep-running', 'verify', 'swing-back', 'swing-forward', 'preview', 'release', 'reset', 'abc'] as const;
+export const JUDGE_ACTIONS = ['visitors', 'score', 'ship', 'revert', 'keep-running', 'verify', 'swing-back', 'swing-forward', 'preview', 'release', 'reset', 'abc', 'start'] as const;
 export type JudgeAction = (typeof JUDGE_ACTIONS)[number];
 export type StepId = 'visitors' | 'score' | 'decide' | 'verify' | 'swing' | 'preview' | 'release';
 export type StepStatus = 'done' | 'current' | 'todo' | 'optional';
@@ -76,6 +76,7 @@ export const JOB_STAGES: Record<JudgeAction, string[]> = {
   release: ['Point v2 at the next release', 'Start the experiment in Flagsmith'],
   reset: ['Revert the running experiment', "Set the flag's default back to the first release", 'Start a fresh experiment'],
   abc: ['Revert the running experiment', "Set the flag's default back to the first release", 'Start the A/B/C experiment'],
+  start: ['Revert the running experiment', "Set the flag's default back to the first release", 'Start the new experiment'],
 };
 
 /** The routing the page draws, from the experiment, the release everyone else gets and the preview override. */
@@ -208,7 +209,7 @@ export async function readLiveVisitors(exps: Experiments, now: () => number = Da
 export type JudgeDeps = {
   simulate: (opts: SimOptions) => Promise<SimReport>;
   preview: (release: string, envKey: string, log: (line: string) => void) => Promise<void>;
-  release: (release: string, hypothesis: string, envKey: string, log: (line: string) => void, also?: string[]) => Promise<{ experimentId: number }>;
+  release: (release: string, hypothesis: string, envKey: string, log: (line: string) => void, extra?: { also?: string[]; aa?: boolean }) => Promise<{ experimentId: number }>;
   check: ((log: (line: string) => void) => Promise<number>) | null; // leftover splits; null without a server key
   visit: () => Promise<string | null>; // one fresh visitor loads / twice; the release the second load got
   probe: () => Promise<boolean>; // one cookie-less request (never counted): is the proxy enrolling visitors yet?
@@ -488,7 +489,8 @@ class JobFailure extends Error {
   }
 }
 
-type RunBody = { action: JudgeAction; experimentId?: number; visitors?: number; acceptLosingGuardrails?: boolean };
+// arms (action "start"): how many versions the new test compares, 1 for an A/A test (the live release on both arms).
+type RunBody = { action: JudgeAction; experimentId?: number; visitors?: number; acceptLosingGuardrails?: boolean; arms?: number };
 export type RunResponse = { status: number; body: unknown };
 
 // What a running job may report besides log lines: which stage it is at, and how many visitors it has sent.
@@ -501,8 +503,12 @@ export function createJudge(opts: JudgeOptions, ctx: JudgeContext) {
     simulate: runSimulation,
     preview: (label, envKey, log) =>
       runPreview({ apiUrl: opts.apiUrl, adminKey: opts.adminKey, envKey, flag: opts.flag, releases: new Set(opts.releases), newRelease: label, log }),
-    release: (label, hypothesis, envKey, log, also) =>
-      runRelease({ apiUrl: opts.apiUrl, adminKey: opts.adminKey, envKey, flag: opts.flag, releases: new Set(opts.releases), newRelease: label, hypothesis, log, ...(also?.length ? { also } : {}) }),
+    release: (label, hypothesis, envKey, log, extra) =>
+      runRelease({
+        apiUrl: opts.apiUrl, adminKey: opts.adminKey, envKey, flag: opts.flag, releases: new Set(opts.releases), newRelease: label, hypothesis, log,
+        ...(extra?.also?.length ? { also: extra.also } : {}),
+        ...(extra?.aa ? { aa: true } : {}),
+      }),
     check: opts.serverKey ? (log) => runCheck({ apiUrl: opts.apiUrl, serverKey: opts.serverKey!, log }) : null,
     visit: () => freshVisitor(opts.proxyUrl, opts.previewToken),
     // Tests that fake visits are taken as already enrolled unless they fake the probe too.
@@ -792,6 +798,7 @@ export function createJudge(opts: JudgeOptions, ctx: JudgeContext) {
         return s.next ? null : `${s.tested.v2 ?? 'This release'} is the last release in turnout.config.yml. Reset to start the story again.`;
       case 'reset':
       case 'abc':
+      case 'start':
         return null;
     }
   }
@@ -891,7 +898,7 @@ export function createJudge(opts: JudgeOptions, ctx: JudgeContext) {
     if (!opts.previewToken) {
       throw new Error("TURNOUT_PREVIEW_TOKEN isn't set, so the simulator can't see which release each visitor got. Run init, then restart the console.");
     }
-    const n = Math.min(3000, Math.max(50, Math.round(body.visitors ?? DEFAULT_VISITORS)));
+    const n = Math.min(5000, Math.max(50, Math.round(body.visitors ?? DEFAULT_VISITORS))); // 700 per version for A/B/C…
     const { control, v2 } = s.tested;
     const rateOf = (release: string | null) => (release ? (opts.rates[release] ?? 0.1) : 0.1);
     const truth = opts.blind?.enabled && control && v2 ? opts.blind.store.truthFor(s.experiment.id, control, v2) : null;
@@ -1155,14 +1162,19 @@ export function createJudge(opts: JudgeOptions, ctx: JudgeContext) {
     return { experimentId, release: next };
   };
 
-  // Reset: everyone back on the first release, then a fresh second-vs-first experiment. A/B/C: the same, testing
-  // every other release at once against the first, split evenly.
-  const startOver = (abc: boolean): Action => async (s, _body, { log, stage }) => {
-    const [first, second, ...rest] = opts.releases;
-    if (!first || !second) throw new Error('turnout.config.yml must list at least two releases.');
-    if (abc && !rest.length) throw new Error('An A/B/C test needs at least three releases in turnout.config.yml.');
-    const also = abc ? rest : [];
-    log(`Starting over: everyone back on ${first}, then a fresh ${[second, ...also].join(' vs ')} vs ${first} experiment.`);
+  // Start a new test, from the start: everyone back on the first release (A), then a fresh experiment.
+  //   arms 1: A/A, the first release on both arms (a check that the split and the counting are fair)
+  //   arms 2: A/B, the second release against the first ("reset")
+  //   arms 3+: A/B/C…, the next releases at once against the first, split evenly ("abc": all of them)
+  const startOver = (fixed: number | 'all' | null): Action => async (s, body, { log, stage }) => {
+    const [first, ...others] = opts.releases;
+    if (!first || !others.length) throw new Error('turnout.config.yml must list at least two releases.');
+    const arms = fixed === 'all' ? opts.releases.length : (fixed ?? body.arms ?? opts.releases.length);
+    if (arms > opts.releases.length) throw new Error(`turnout.config.yml lists ${opts.releases.length} releases, so a test can compare at most ${opts.releases.length}.`);
+    if (fixed === 'all' && arms < 3) throw new Error('An A/B/C test needs at least three releases in turnout.config.yml.');
+    const aa = arms === 1;
+    const [second, ...also] = aa ? [first] : others.slice(0, arms - 1);
+    log(aa ? `Starting over: everyone back on ${first}, then an A/A test: ${first} on both arms.` : `Starting over: everyone back on ${first}, then a fresh ${[second, ...also].join(' vs ')} vs ${first} experiment.`);
     if (s.experiment.status !== 'completed') {
       log(`Experiment ${s.experiment.id} is ${s.experiment.status}; reverting it first.`);
       await decide({
@@ -1185,15 +1197,17 @@ export function createJudge(opts: JudgeOptions, ctx: JudgeContext) {
     });
     log(`✓ The flag's environment default serves ${first} to everyone.`);
     stage(2);
-    const hypothesis = defaultHypothesis(also.length ? [second, ...also].join(' or ') : second, opts.goal);
-    const { experimentId } = also.length
-      ? await deps.release(second, hypothesis, s.exps.ref.envKey, log, also)
-      : await deps.release(second, hypothesis, s.exps.ref.envKey, log);
+    const hypothesis = defaultHypothesis([second!, ...also].join(' or '), opts.goal);
+    const { experimentId } = aa
+      ? await deps.release(first, hypothesis, s.exps.ref.envKey, log, { aa: true })
+      : also.length
+        ? await deps.release(second!, hypothesis, s.exps.ref.envKey, log, { also })
+        : await deps.release(second!, hypothesis, s.exps.ref.envKey, log);
     visitorsSent.clear();
     lastVisitorsAt.clear();
     verified.clear();
     swung.clear();
-    log(`✓ Back at the start: experiment ${experimentId} (${[second, ...also].join(' vs ')} vs ${first}) is running.`);
+    log(`✓ Back at the start: experiment ${experimentId} (${aa ? `A/A, ${first} on both arms` : `${[second, ...also].join(' vs ')} vs ${first}`}) is running.`);
     return { experimentId };
   };
 
@@ -1208,8 +1222,9 @@ export function createJudge(opts: JudgeOptions, ctx: JudgeContext) {
     'swing-forward': swing('forward'),
     preview: previewAction,
     release: releaseAction,
-    reset: startOver(false),
-    abc: startOver(true),
+    reset: startOver(2),
+    abc: startOver('all'),
+    start: startOver(null),
   };
 
   return {
@@ -1236,10 +1251,12 @@ function parseRunBody(raw: unknown): RunBody | { error: string } {
   }
   if (b.visitors !== undefined && (typeof b.visitors !== 'number' || !Number.isFinite(b.visitors))) return { error: 'visitors must be a number' };
   if (b.acceptLosingGuardrails !== undefined && typeof b.acceptLosingGuardrails !== 'boolean') return { error: 'acceptLosingGuardrails must be true or false' };
+  if (b.arms !== undefined && !(typeof b.arms === 'number' && Number.isInteger(b.arms) && b.arms >= 1 && b.arms <= 26)) return { error: 'arms must be a whole number from 1 (A/A) to 26' };
   return {
     action: b.action as JudgeAction,
     ...(typeof b.experimentId === 'number' ? { experimentId: b.experimentId } : {}),
     ...(typeof b.visitors === 'number' ? { visitors: b.visitors } : {}),
     acceptLosingGuardrails: b.acceptLosingGuardrails === true,
+    ...(typeof b.arms === 'number' ? { arms: b.arms } : {}),
   };
 }

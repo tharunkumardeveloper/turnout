@@ -610,6 +610,7 @@ export const STAGES = {
   release: ['Point v2 at the next release', 'Start the experiment in Flagsmith'],
   reset: ['Revert the running experiment', "Set the flag's default back to the first release", 'Start a fresh experiment'],
   abc: ['Revert the running experiment', "Set the flag's default back to the first release", 'Start the A/B/C experiment'],
+  start: ['Revert the running experiment', "Set the flag's default back to the first release", 'Start the new experiment'],
 };
 
 /**

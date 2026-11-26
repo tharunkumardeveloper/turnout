@@ -236,3 +236,11 @@ test('release with also refuses a split, and a release that repeats', async () =
   await assert.rejects(release({ ...base, also: ['shop:1.5'], log: () => {} }), /must be different/);
   assert.deepEqual(writes(state), []);
 });
+
+test('an A/B test after an A/B/C test lists the unused v3 at 0%: Flagsmith wants every variation in the rollout', async () => {
+  const state = seededState();
+  state.features[0]!.multivariate_options.push({ id: 991, key: 'v3', string_value: 'shop:1.6', default_percentage_allocation: 0 });
+  await run(state, 'shop:1.5');
+  const values = newest(state).experiment_rollout!.multivariate_feature_state_values;
+  assert.deepEqual(values.map((v) => [v.multivariate_feature_option, v.percentage_allocation]), [[SEED.v2Id, 50], [991, 0]]);
+});

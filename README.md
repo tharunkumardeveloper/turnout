@@ -38,22 +38,23 @@ sh turnout/install.sh                                                  # macOS, 
 powershell -ExecutionPolicy Bypass -File turnout\install.ps1           # Windows (PowerShell or CMD)
 ```
 
-Then run the version you have and the version you want to test, and give Turnout both, from your project's folder:
+Then run the version you have and the version (or versions) you want to test, and give Turnout all of them, from your project's folder:
 
 ```sh
 turnout compare localhost:3001 localhost:3002
 ```
 
-That's it: no questions, no app code. Turnout starts its own Flagsmith, creates the flag and the experiment, starts the proxy, checks everything and opens one page with an **Open your site** button. Each new browser is a new visitor: half get the second version and keep it; Flagsmith compares the two, and **Ship winner** or **Revert** moves everyone to one.
+That's it: no questions, no app code. Turnout starts its own Flagsmith, creates the flag and the experiment, starts the proxy, checks everything and opens one page with an **Open your site** button. Each new browser is a new visitor: half get the second version and keep it; Flagsmith compares the two, and **Ship winner** or **Revert** moves everyone to one. Two versions make an A/B test; three make an A/B/C test (a third of visitors each, every new version compared with the first), and so on.
 
 | You have | Run |
 |---|---|
 | Two versions running (any language, any server) | `turnout compare localhost:3001 localhost:3002` |
 | Two Docker images | `turnout compare myapp:1.0 myapp:1.1 --port 3000` |
+| Three or more versions: an A/B/C test | `turnout compare myapp:1.0 myapp:1.1 myapp:1.2` (URLs, images or branches; not a mix) |
 | A git project with a Dockerfile, two branches | `turnout compare main new-checkout` (each built from its last commit; your `.env` is passed; the port comes from `EXPOSE`) |
 
 - **No goal needed to start:** a version is judged on page speed, with server errors as the guardrail. To measure a conversion, add `--goal "POST /signup"`; the page lists the requests it sees, with the exact `--goal` for each.
-- `--split 10` sends 10% of visitors to the new version (up to 50). Different versions or settings start a new experiment.
+- `--split 10` sends 10% of visitors to each new version (the rest get the first). By default every visitor is split evenly. Different versions or settings start a new experiment.
 - Ports already taken (8080, 8090, 8000) are skipped, and the next free ones are used. A version that crashes stops the run within seconds, with its last log lines.
 - **No visitors yet? `turnout simulate`** sends pretend visitors (500 by default) so results appear in minutes. They go to a separate Flagsmith environment, "Demo (simulated)", with its own console, so they can never touch your real experiment; their hidden rates are revealed at the end. They are real requests to your app, so with a goal it asks before sending them.
 - `turnout down` stops (the same `compare` resumes, data kept), `turnout reset` wipes, `turnout open` reopens the page, `turnout demo` starts the demo shop, `turnout update` gets the latest Turnout.
@@ -126,7 +127,7 @@ A shop with three releases, simulated visitors and a guided tour. Get the code a
 | macOS, Linux | `sh turnout.sh` (first time: `sh setup.sh`) |
 | In the browser | [![Open in GitHub Codespaces](https://github.com/codespaces/badge.svg)](https://codespaces.new/tharunkumardeveloper/turnout-practice) (needs access to the repo; open the judge link the terminal prints at the end) |
 
-**When it works,** your browser opens judge mode at <http://127.0.0.1:8090/judge> showing **Step 1 of 7**. Follow the steps, or choose **Play it for me**. If anything is missing, <http://127.0.0.1:8090/setup> (or `docker compose run --rm cli doctor`) says what.
+**When it works,** your browser opens judge mode at <http://127.0.0.1:8090/judge>: one screen with a two-minute tour. Pick the kind of test (A/A, A/B or A/B/C), then follow the green button, or choose **Play it for me**. If anything is missing, <http://127.0.0.1:8090/setup> (or `docker compose run --rm cli doctor`) says what.
 
 ## Development
 

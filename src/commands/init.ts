@@ -200,9 +200,11 @@ export async function init(opts: Options): Promise<void> {
     log(`✓ event store already connected (${warehouses[0]!.status})`);
   }
 
-  // 5. The release flag: control serves the first upstream's release, v2 the new one.
-  // The first release in the config is live (control); the second is the first one to test.
-  const [controlRelease, v2Release] = [...opts.config.releases.keys()];
+  // 5. The release flag: control serves the first upstream's release; v2, v3… serve the others.
+  // The first release in the config is live (control, "A"); every other one is tested against it in the first
+  // experiment: two releases make an A/B test, three an A/B/C test, and so on.
+  const [controlRelease, ...newReleases] = [...opts.config.releases.keys()];
+  const v2Release = newReleases[0];
   if (!controlRelease || !v2Release) throw new Error('turnout.config.yml must list at least two releases to start an experiment.');
   const features = await api.list<Feature>(`/api/v1/projects/${project.id}/features/?search=${opts.config.flag}`);
   let feature = features.find((f) => f.name === opts.config.flag);
@@ -256,16 +258,21 @@ export async function init(opts: Options): Promise<void> {
     log('✓ Feature Health provider (Webhook): Turnout reports guardrail health on the flag');
   }
 
-  let v2 = feature.multivariate_options.find((o) => o.key === 'v2');
-  if (!v2) {
-    v2 = await api.post<MvOption>(`/api/v1/projects/${project.id}/features/${feature.id}/mv-options/`, {
-      feature: feature.id,
-      type: 'unicode',
-      string_value: v2Release,
-      default_percentage_allocation: 0,
-      key: 'v2',
-    });
-    log(`✓ variant v2 → ${v2Release}`);
+  const variants: MvOption[] = [];
+  for (const [i, release] of newReleases.entries()) {
+    const key = `v${i + 2}`;
+    let option = feature.multivariate_options.find((o) => o.key === key);
+    if (!option) {
+      option = await api.post<MvOption>(`/api/v1/projects/${project.id}/features/${feature.id}/mv-options/`, {
+        feature: feature.id,
+        type: 'unicode',
+        string_value: release,
+        default_percentage_allocation: 0,
+        key,
+      });
+      log(`✓ variant ${key} → ${release}`);
+    }
+    variants.push(option);
   }
 
   // 6. Metrics: the goal (first: Flagsmith's primary), secondary metrics such as add_to_cart, and the guardrails.
@@ -304,14 +311,15 @@ export async function init(opts: Options): Promise<void> {
   } else if (!experiment) {
     experiment = await api.post<Experiment>(`${envPath}/experiments/`, {
       feature: feature.id,
-      name: `${opts.config.flag}: ${v2Release} vs ${controlRelease}`,
-      hypothesis: defaultHypothesis(v2Release, opts.config.goal.event),
+      name: `${opts.config.flag}: ${newReleases.join(' vs ')} vs ${controlRelease}`,
+      hypothesis: defaultHypothesis(newReleases.join(' or '), opts.config.goal.event),
       metrics,
       experiment_rollout: {
         enabled: true,
         rollout_percentage: opts.config.traffic,
         feature_state_value: { type: 'string', value: controlRelease },
-        multivariate_feature_state_values: [{ multivariate_feature_option: v2.id, percentage_allocation: 50 }],
+        // An even share each: 50/50 for A/B, 34/33/33 for A/B/C (control keeps the remainder).
+        multivariate_feature_state_values: variants.map((v) => ({ multivariate_feature_option: v.id, percentage_allocation: Math.floor(100 / (variants.length + 1)) })),
       },
     });
   }
