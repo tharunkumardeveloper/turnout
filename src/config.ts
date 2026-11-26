@@ -179,10 +179,12 @@ export function matchesRule(rule: HttpRule, method: string, path: string, status
   return matchesStatus(rule.status, status);
 }
 
-// "/checkout" matches exactly; "/fix/*" matches anything under /fix/.
+// "/checkout" matches exactly; "/fix/*" matches anything under /fix/; "/pricing*" matches /pricing and anything
+// starting with it (/pricing/, /pricing.html): the form Try it suggests for a link.
 function matchesPath(pattern: string, path: string): boolean {
   const clean = path.split('?')[0] ?? path;
   if (pattern.endsWith('/*')) return clean.startsWith(pattern.slice(0, -1));
+  if (pattern.endsWith('*')) return clean.startsWith(pattern.slice(0, -1));
   return clean === pattern;
 }
 

@@ -1,0 +1,1 @@
+<!doctype html><title>Sample</title><h1>Sample app</h1><p><a href="/about.php">About</a></p><form method="post" action="/signup.php"><input name="email" type="email" value="a@b.c"><button>Sign up</button></form>

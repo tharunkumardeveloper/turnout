@@ -140,6 +140,11 @@ export function createDocker(o: DockerOptions = {}) {
       });
       await request('POST', `/containers/${encodeURIComponent(o.name)}/start`);
     },
+    /** How many times a container has restarted (it crashes on start), or null when it's gone. */
+    async restarts(name: string): Promise<number | null> {
+      const r = await request('GET', `/containers/${encodeURIComponent(name)}/json`).catch(() => null);
+      return r ? ((r.body as { RestartCount?: number }).RestartCount ?? 0) : null;
+    },
     async logs(name: string, tail = 20): Promise<string> {
       const r = await request('GET', `/containers/${encodeURIComponent(name)}/logs?${q({ stdout: '1', stderr: '1', tail: String(tail) })}`).catch(() => ({ body: '' }));
       // The log stream is multiplexed: an 8-byte header per frame. Keep the printable text.

@@ -143,3 +143,12 @@ test('a GET goal (GET /product/*): browsing never opens a goal page, only conver
     app.close();
   }
 });
+
+test('a link goal ("GET /pricing*") is the page itself, and the proxy counts it', async () => {
+  const { matchesRule } = await import('../src/config.ts');
+  assert.deepEqual(goalRequest({ method: 'GET', path: '/pricing*', status: '2xx' }), { method: 'GET', path: '/pricing' });
+  const rule = { method: 'GET', path: '/pricing*', status: '2xx' };
+  assert.equal(matchesRule(rule, 'GET', '/pricing', 200), true);
+  assert.equal(matchesRule(rule, 'GET', '/pricing?plan=pro', 200), true);
+  assert.equal(matchesRule(rule, 'GET', '/about', 200), false);
+});

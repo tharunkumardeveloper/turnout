@@ -33,6 +33,12 @@ import { modeOf, serverSecretProblems } from './server-mode.ts';
 const USAGE = `Usage: turnout <command> [options]
 
 Commands:
+  try        Try your versions on a local Turnout: try <folder|repo|image> … [--goal "POST /signup"] [--env KEY=value …]
+  goals      What a visitor can do on every version you're trying, the goal first, and the visitors needed
+  goal       Change the goal mid-test: goal "POST /signup" (a new experiment, counted from now; "" for page speed)
+  steady     Simulated visitors at a low, steady rate: steady <per minute> (default 20; 0 stops)
+  history    Every decided test, with its decision and Flagsmith's numbers
+  results    Flagsmith's verdict in one sentence and the split check [--full: every metric] [--report: Markdown]
   proxy      Route visitors by the Flagsmith flag and send events (port 8080)
   console    Traffic map, results, Ship winner and Revert (127.0.0.1:8090); judge mode on /judge
   new        Set Turnout up for your app: four questions → turnout.config.yml and turnout.compose.yml
@@ -123,6 +129,10 @@ const parseCommandLine = () =>
       flow: { type: 'string' },
       'after-init': { type: 'boolean' },
       help: { type: 'boolean', short: 'h' },
+      full: { type: 'boolean' },
+      report: { type: 'boolean' },
+      goal: { type: 'string' },
+      env: { type: 'string', multiple: true },
     },
   });
 let parsed: ReturnType<typeof parseCommandLine>;
@@ -371,6 +381,31 @@ const decision = () => ({
 
 const commands: Record<string, () => Promise<void>> = {
   proxy,
+  // Try it from the terminal (local Turnout): src/commands/try-cli.ts
+  try: async () => {
+    const t = await import('./commands/try-cli.ts');
+    await t.tryCommand(await t.connect(), positionals, { goal: cliFlags.goal, env: (cliFlags.env ?? []).join('\n') });
+  },
+  goal: async () => {
+    const t = await import('./commands/try-cli.ts');
+    await t.goalCommand(await t.connect(), positionals.join(' '));
+  },
+  steady: async () => {
+    const t = await import('./commands/try-cli.ts');
+    await t.steadyCommand(await t.connect(), Number(positionals[0] ?? 20));
+  },
+  history: async () => {
+    const t = await import('./commands/try-cli.ts');
+    await t.historyCommand(await t.connect());
+  },
+  goals: async () => {
+    const t = await import('./commands/try-cli.ts');
+    await t.goalsCommand(await t.connect());
+  },
+  results: async () => {
+    const t = await import('./commands/try-cli.ts');
+    await t.resultsCommand(await t.connect(), cliFlags.full ?? false, console.log, cliFlags.report ?? false);
+  },
   demo,
   check: async () => {
     // The admin key is optional here and never asked for: check runs in CI with only a server key.

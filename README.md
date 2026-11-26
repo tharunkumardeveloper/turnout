@@ -266,6 +266,7 @@ Everything, one line each: [FEATURES.md](FEATURES.md). How each part works: [doc
 | Shipping under live traffic | 263 of 263 later visitors on the winner; 0 left behind |
 | Flagsmith down | 100 of 100 pages still served, 86 ms average |
 | Under load | 0 of 121,678 events lost at up to 200 visitors at once |
+| Any app, automatically | 12 sample apps (HTML, Vite, Next.js ×2, Express, Flask, Django, Go, PHP, no Dockerfile, needs a database, needs a setting): builds 12/12, goals 11/12, counts match Flagsmith 12/12, ships 12/12 (`npm run scoreboard`, [scoreboard/](scoreboard/README.md)) |
 | A server, rebooted | back by itself in 50 s, every check passing |
 
 Raw logs and numbers: [spikes/RESULTS.md](spikes/RESULTS.md). Not claimed: production users, or any simulated number as evidence about real people.

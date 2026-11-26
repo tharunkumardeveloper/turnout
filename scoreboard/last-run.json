@@ -1,0 +1,413 @@
+{
+  "at": "2026-11-25T15:58:47.763Z",
+  "rows": [
+    {
+      "app": "django",
+      "stages": {
+        "build": {
+          "pass": true,
+          "note": ""
+        },
+        "start": {
+          "pass": true,
+          "note": "port 8000"
+        },
+        "goals": {
+          "pass": true,
+          "note": "POST /signup (of POST /signup, GET /about*)"
+        },
+        "visitors": {
+          "pass": true,
+          "note": "try:a 149 (17 goals), try:b 151 (33 goals)"
+        },
+        "results": {
+          "pass": true,
+          "note": "v2 96%"
+        },
+        "counts": {
+          "pass": true,
+          "note": "try:a 149 vs 149, try:b 151 vs 151"
+        },
+        "ship": {
+          "pass": true,
+          "note": ""
+        }
+      },
+      "seconds": 50
+    },
+    {
+      "app": "express",
+      "stages": {
+        "build": {
+          "pass": true,
+          "note": ""
+        },
+        "start": {
+          "pass": true,
+          "note": "port 3000"
+        },
+        "goals": {
+          "pass": true,
+          "note": "POST /signup (of POST /signup, GET /about*)"
+        },
+        "visitors": {
+          "pass": true,
+          "note": "try:b 156 (20 goals), try:a 144 (12 goals)"
+        },
+        "results": {
+          "pass": true,
+          "note": "v2 84%"
+        },
+        "counts": {
+          "pass": true,
+          "note": "try:a 144 vs 144, try:b 156 vs 156"
+        },
+        "ship": {
+          "pass": true,
+          "note": ""
+        }
+      },
+      "seconds": 48
+    },
+    {
+      "app": "flask",
+      "stages": {
+        "build": {
+          "pass": true,
+          "note": ""
+        },
+        "start": {
+          "pass": true,
+          "note": "port 5000"
+        },
+        "goals": {
+          "pass": true,
+          "note": "POST /signup (of POST /signup, GET /about*)"
+        },
+        "visitors": {
+          "pass": true,
+          "note": "try:b 151 (30 goals), try:a 149 (20 goals)"
+        },
+        "results": {
+          "pass": true,
+          "note": "v2 89%"
+        },
+        "counts": {
+          "pass": true,
+          "note": "try:a 149 vs 149, try:b 151 vs 151"
+        },
+        "ship": {
+          "pass": true,
+          "note": ""
+        }
+      },
+      "seconds": 47
+    },
+    {
+      "app": "go",
+      "stages": {
+        "build": {
+          "pass": true,
+          "note": ""
+        },
+        "start": {
+          "pass": true,
+          "note": "port 8080"
+        },
+        "goals": {
+          "pass": true,
+          "note": "POST /signup (of POST /signup, GET /about*)"
+        },
+        "visitors": {
+          "pass": true,
+          "note": "try:a 139 (11 goals), try:b 161 (32 goals)"
+        },
+        "results": {
+          "pass": true,
+          "note": "v2 97%"
+        },
+        "counts": {
+          "pass": true,
+          "note": "try:a 139 vs 139, try:b 161 vs 161"
+        },
+        "ship": {
+          "pass": true,
+          "note": ""
+        }
+      },
+      "seconds": 43
+    },
+    {
+      "app": "needs-database",
+      "stages": {
+        "build": {
+          "pass": true,
+          "note": ""
+        },
+        "start": {
+          "pass": true,
+          "note": "port 3000, after one click: a throwaway postgres"
+        },
+        "goals": {
+          "pass": true,
+          "note": "POST /signup (of POST /signup, GET /about*)"
+        },
+        "visitors": {
+          "pass": true,
+          "note": "try:b 128 (29 goals), try:a 172 (10 goals)"
+        },
+        "results": {
+          "pass": true,
+          "note": "v2 98%"
+        },
+        "counts": {
+          "pass": true,
+          "note": "try:a 172 vs 172, try:b 128 vs 128"
+        },
+        "ship": {
+          "pass": true,
+          "note": ""
+        }
+      },
+      "seconds": 66
+    },
+    {
+      "app": "needs-settings",
+      "stages": {
+        "build": {
+          "pass": true,
+          "note": ""
+        },
+        "start": {
+          "pass": true,
+          "note": "port 3000, after one click: settings SECRET_KEY"
+        },
+        "goals": {
+          "pass": true,
+          "note": "POST /signup (of POST /signup, GET /about*)"
+        },
+        "visitors": {
+          "pass": true,
+          "note": "try:a 155 (23 goals), try:b 145 (25 goals)"
+        },
+        "results": {
+          "pass": true,
+          "note": "v2 70%"
+        },
+        "counts": {
+          "pass": true,
+          "note": "try:a 155 vs 155, try:b 145 vs 145"
+        },
+        "ship": {
+          "pass": true,
+          "note": ""
+        }
+      },
+      "seconds": 56
+    },
+    {
+      "app": "next-server",
+      "stages": {
+        "build": {
+          "pass": true,
+          "note": ""
+        },
+        "start": {
+          "pass": true,
+          "note": "port 3000"
+        },
+        "goals": {
+          "pass": true,
+          "note": "GET /pricing* (of GET /pricing*)"
+        },
+        "visitors": {
+          "pass": true,
+          "note": "try:a 141 (18 goals), try:b 159 (41 goals)"
+        },
+        "results": {
+          "pass": true,
+          "note": "v2 52%"
+        },
+        "counts": {
+          "pass": true,
+          "note": "try:a 141 vs 141, try:b 159 vs 159"
+        },
+        "ship": {
+          "pass": true,
+          "note": ""
+        }
+      },
+      "seconds": 49
+    },
+    {
+      "app": "next-static",
+      "stages": {
+        "build": {
+          "pass": true,
+          "note": ""
+        },
+        "start": {
+          "pass": true,
+          "note": "port 80"
+        },
+        "goals": {
+          "pass": false,
+          "note": "none found on the running app"
+        },
+        "visitors": {
+          "pass": true,
+          "note": "try:a 156 (0 goals), try:b 144 (0 goals)"
+        },
+        "results": {
+          "pass": true,
+          "note": "v2 82%"
+        },
+        "counts": {
+          "pass": true,
+          "note": "try:a 156 vs 156, try:b 144 vs 144"
+        },
+        "ship": {
+          "pass": true,
+          "note": ""
+        }
+      },
+      "seconds": 48
+    },
+    {
+      "app": "no-dockerfile",
+      "stages": {
+        "build": {
+          "pass": true,
+          "note": ""
+        },
+        "start": {
+          "pass": true,
+          "note": "port 3000"
+        },
+        "goals": {
+          "pass": true,
+          "note": "POST /signup (of POST /signup, GET /about*)"
+        },
+        "visitors": {
+          "pass": true,
+          "note": "try:a 152 (17 goals), try:b 148 (31 goals)"
+        },
+        "results": {
+          "pass": true,
+          "note": "v2 95%"
+        },
+        "counts": {
+          "pass": true,
+          "note": "try:a 152 vs 152, try:b 148 vs 148"
+        },
+        "ship": {
+          "pass": true,
+          "note": ""
+        }
+      },
+      "seconds": 47
+    },
+    {
+      "app": "php",
+      "stages": {
+        "build": {
+          "pass": true,
+          "note": ""
+        },
+        "start": {
+          "pass": true,
+          "note": "port 80"
+        },
+        "goals": {
+          "pass": true,
+          "note": "POST /signup.php (of POST /signup.php, GET /about.php*)"
+        },
+        "visitors": {
+          "pass": true,
+          "note": "try:a 158 (10 goals), try:b 142 (23 goals)"
+        },
+        "results": {
+          "pass": true,
+          "note": "v2 95%"
+        },
+        "counts": {
+          "pass": true,
+          "note": "try:a 158 vs 158, try:b 142 vs 142"
+        },
+        "ship": {
+          "pass": true,
+          "note": ""
+        }
+      },
+      "seconds": 48
+    },
+    {
+      "app": "plain-html",
+      "stages": {
+        "build": {
+          "pass": true,
+          "note": ""
+        },
+        "start": {
+          "pass": true,
+          "note": "port 80"
+        },
+        "goals": {
+          "pass": true,
+          "note": "GET /pricing.html (of GET /pricing.html)"
+        },
+        "visitors": {
+          "pass": true,
+          "note": "try:b 145 (26 goals), try:a 155 (20 goals)"
+        },
+        "results": {
+          "pass": true,
+          "note": "v2 85%"
+        },
+        "counts": {
+          "pass": true,
+          "note": "try:a 155 vs 155, try:b 145 vs 145"
+        },
+        "ship": {
+          "pass": true,
+          "note": ""
+        }
+      },
+      "seconds": 44
+    },
+    {
+      "app": "vite-spa",
+      "stages": {
+        "build": {
+          "pass": true,
+          "note": ""
+        },
+        "start": {
+          "pass": true,
+          "note": "port 80"
+        },
+        "goals": {
+          "pass": true,
+          "note": "GET /pricing.html (of GET /pricing.html)"
+        },
+        "visitors": {
+          "pass": true,
+          "note": "try:a 165 (18 goals), try:b 135 (32 goals)"
+        },
+        "results": {
+          "pass": true,
+          "note": "v2 98%"
+        },
+        "counts": {
+          "pass": true,
+          "note": "try:a 165 vs 165, try:b 135 vs 135"
+        },
+        "ship": {
+          "pass": true,
+          "note": ""
+        }
+      },
+      "seconds": 44
+    }
+  ]
+}

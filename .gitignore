@@ -19,3 +19,6 @@ Thumbs.db
 
 # Local notes
 New Text Document*.txt
+
+# Scoreboard run logs (scoreboard/last-run.json is kept: the latest result)
+scoreboard/*.log

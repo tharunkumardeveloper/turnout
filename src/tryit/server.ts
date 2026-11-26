@@ -29,6 +29,10 @@ import { pinnable, readPin, setPin } from '../flagsmith/pins.ts';
 import { createProxy, readCookie } from '../proxy/server.ts';
 import { TrafficFeed } from '../proxy/feed.ts';
 import type { Docker } from './docker.ts';
+import { common, describeAction, walk } from './discover.ts';
+import { ActionLog, createTrickle, visitorsNeeded } from './watch.ts';
+import { databaseFor, generatedDockerfile, missingSettings, tarAppend, tarIndex, wantsDatabase } from './autobuild.ts';
+import { readFileSync } from 'node:fs';
 
 export const TRY_FLAG = 'tryit_release';
 export const SLOTS = ['a', 'b', 'c'] as const;
@@ -40,7 +44,7 @@ const LABELS = SLOTS.map((s) => `try:${s}`);
 export type VersionSource = { kind: 'dockerfile' | 'git' | 'image' | 'folder' | 'imagefile'; value: string; port?: number; name?: string; dockerfile?: string };
 export const UPLOAD_ID = /^[a-f0-9]{24}$/;
 export const MAX_UPLOAD = 2 * 1024 ** 3;
-export type BuildRequest = { versions: VersionSource[]; goal?: string; rates?: number[]; env?: string };
+export type BuildRequest = { versions: VersionSource[]; goal?: string; rates?: number[]; env?: string; database?: 'postgres' | 'mysql' };
 type Stage = { title: string; status: 'todo' | 'running' | 'done' | 'failed'; detail?: string };
 /** One line of the build log: when, from whom (a version's letter, or Turnout / Flagsmith), how it reads. */
 export type LogLine = { at: string; from: string; level: 'info' | 'step' | 'ok' | 'error'; text: string };
@@ -65,6 +69,11 @@ export type BuildState = {
   // version per page; an app that builds its pages in the browser fetched its files from either version.
   previews: Record<string, string>;
   goal: string | null;
+  // What a version that didn't start asked for: the settings its error names, and a database (one click: database).
+  // What a visitor can do on every version, read off the running versions (never counted), best goal first.
+  actions?: { goal: string; label: string }[];
+  goalSince?: string | null; // the goal changed mid-test: counted from then (a new experiment)
+  needs?: { settings: string[]; database: 'postgres' | 'mysql' | null } | null;
 };
 
 /** Checks one version's source; the error says what to change. */
@@ -296,7 +305,7 @@ export function startTryit(o: TryitOptions) {
       old.closeAllConnections?.();
       await new Promise<void>((r) => old.close(() => r()));
     }
-    const server = createProxy({ config, flags, receipts: flags.receipts, onTraffic: (e) => feed.publish(e), viewSwitch: true, previewToken: debugToken, debugToken, log: () => {} } as Parameters<typeof createProxy>[0]);
+    const server = createProxy({ config, flags, receipts: flags.receipts, onTraffic: (e) => (feed.publish(e), seen.record(e)), viewSwitch: true, previewToken: debugToken, debugToken, log: () => {} } as Parameters<typeof createProxy>[0]);
     await new Promise<void>((r) => server.listen(o.proxyPort, '0.0.0.0', () => r()));
     proxyServer = server;
   }
@@ -336,11 +345,98 @@ export function startTryit(o: TryitOptions) {
       if (!fixed && i % 3 === 0) logged = portsInLog(await o.docker.logs(name, 40));
       const candidates = fixed ? [first] : [...new Set([first, ...logged, ...COMMON_PORTS])];
       for (const port of candidates) if (await answers(port)) return port;
+      // It crashes on start (restarted 3 times): no point waiting the full 90 s, its log says why.
+      if (i % 3 === 2 && ((await o.docker.restarts?.(name)) ?? 0) >= 3) {
+        throw new Error(`${name} keeps stopping right after it starts (restarted ${await o.docker.restarts(name)} times). Its last log lines: ${(await o.docker.logs(name)).slice(-600) || '(none)'}`);
+      }
       stage.detail = `waiting for it to answer (${i + 1} s)`;
       await new Promise((r) => setTimeout(r, 1000));
     }
     const tried = fixed ? `port ${first}` : `ports ${[...new Set([first, ...logged, ...COMMON_PORTS])].join(', ')}`;
     throw new Error(`${name} didn't answer on ${tried} within 90 s. Set its port under Advanced if it uses another. Its last log lines: ${(await o.docker.logs(name)).slice(-600) || '(none)'}`);
+  }
+
+  // The test on what's running: the flag and its metrics in Flagsmith, the proxy, the judge, the A/B test and your
+  // app's console. Run after a build, and again when the goal changes mid-test (a new experiment, counting from then).
+  let current: { versions: VersionSource[]; releases: string[]; upstream: Record<string, string> } | null = null;
+  let sendSteady: ((visitors: number) => Promise<void>) | null = null;
+  const steady = createTrickle((n) => (sendSteady ? sendSteady(n) : Promise.resolve()));
+  const seen = new ActionLog();
+  async function setUp({ versions, releases, upstream }: { versions: VersionSource[]; releases: string[]; upstream: Record<string, string> }): Promise<void> {
+    // The flag and its metrics in Flagsmith (idempotent): every slot label is a variant value, so a later build
+    // with a different number of versions reuses the same flag.
+    const goal = state.goal ? parseSuccess(state.goal) : null;
+    const raw = {
+      flag: TRY_FLAG,
+      releases: Object.fromEntries(LABELS.map((l) => [l, upstream[l] ?? `http://try-${l.slice(4)}:80`])),
+      ...(goal ? { goal: { event: goal.path.replace(/[^a-z0-9]+/gi, '_').replace(/^_|_$/g, '').toLowerCase() || 'goal', when: goal } } : {}),
+      guardrails: ['doc_latency_ms', 'server_error'],
+      traffic: 100,
+    };
+    const initConfig = parseConfig(raw);
+    note('Setting up the flag tryit_release and its metrics', 'Flagsmith', 'step');
+    const env = await api.get<{ project: number }>(`/api/v1/environments/${o.envKey}/`);
+    await runInit({
+      apiUrl: o.apiUrl, dashboardUrl: o.dashboardUrl, config: initConfig, adminKey: o.adminKey, serverKey: o.serverKey,
+      envFile: join(o.stateDir, 'init.env'), project: String(env.project), environment: o.envKey, log: (l) => note(l, 'Flagsmith'),
+    });
+    // The proxy routes only the versions built now.
+    const config = parseConfig({ ...raw, releases: Object.fromEntries(releases.map((l) => [l, upstream[l]!])) });
+    await serveProxy(config);
+    // Steady simulated visitors (step 5), straight through the proxy, then Flagsmith's results when its 5-minute limit
+    // allows (step 6): the judge's lock keeps them out of a running step.
+    sendSteady = async (visitors: number) => {
+      if (lock.busy || !judge) return;
+      await simulateAny({ target: `http://127.0.0.1:${o.proxyPort}`, visitors, concurrency: 5, releases, goal: config.goal.when, debugToken, rates });
+      const s = await judge.state();
+      const allowed = s.results?.refreshAllowedAt;
+      if (s.experiment && (!allowed || Date.parse(allowed) <= Date.now()) && !lock.busy) await judge.run({ action: 'score', experimentId: s.experiment.id });
+    };
+    const judgeOptions: JudgeOptions = {
+        flag: TRY_FLAG, releases, goal: config.goal.event, apiUrl: o.apiUrl, adminKey: o.adminKey,
+        proxyUrl: `http://127.0.0.1:${o.proxyPort}`, shopUrl: o.publicShop, dashboardUrl: o.dashboardUrl,
+        previewToken: debugToken, serverKey: o.serverKey, rates, concurrency: 20,
+        // This build's goal first, then the safety checks: a new build can bring a new goal, and a test takes the
+        // metrics it is started with.
+        metrics: [
+          { name: config.goal.event, expected_direction: config.goal.speedOnly ? 'decrease' : 'increase' },
+          ...config.guardrails.filter((g) => g !== config.goal.event).map((g) => ({ name: g, expected_direction: 'not_increase' })),
+        ],
+        deps: {
+          // Your app isn't the demo shop: the explorer walks its own links and fills its forms (simulate-any.ts).
+          simulate: async (opts) => {
+            const report = await simulateAny({ target: opts.target, visitors: opts.visitors, concurrency: 20, releases, goal: config.goal.when, debugToken, rates, log: opts.log });
+            const byRelease = Object.fromEntries(Object.entries(report.byRelease).map(([r, t]) => [r, { visitors: t.visitors, carts: 0, orders: t.goals, pageErrors: t.errors }]));
+            return { byVariant: {}, byRelease, failedOrders: 0, durationMs: 0 };
+          },
+        },
+      };
+    judge = createJudge(
+      judgeOptions,
+      {
+        experiments: () => latestExperiment(api, o.envKey, TRY_FLAG),
+        // The proxy's own count of events sent to Flagsmith: the judge waits until it stops moving before asking
+        // for results, so every visitor is counted (with null it waited a fixed 6 s and missed late ones).
+        readEvents: async () => ({ accepted: flags.receipts.batches.events, rejected: 0 }),
+        snapshotDir: join(o.stateDir, 'snapshots'),
+        ledgerDir: o.stateDir,
+        lock,
+      },
+    );
+    // init leaves an experiment over every slot; start the one that matches what was built: 1 version → A/A,
+    // 2 → A/B, 3 → A/B/C, so no visitor is ever routed to a slot with nothing behind it.
+    note(`Starting the ${state.kind} test`, 'Flagsmith', 'step');
+    const ran = await judge.run({ action: 'start', arms: versions.length === 1 ? 1 : versions.length });
+    if (ran.status !== 202) throw new Error(`Couldn't start the ${state.kind} test: ${(ran.body as { error?: string })?.error ?? ran.status}`);
+    for (let i = 0; i < 120 && judge.job()?.status === 'running'; i++) await new Promise((r) => setTimeout(r, 500));
+    if (judge.job()?.status === 'failed') throw new Error(`Couldn't start the ${state.kind} test: ${judge.job()?.error}`);
+    // Your app's console: the console for tryit_release, with this build's goal, traffic and one-button runs.
+    if (o.consolePort && o.uiDir) {
+      await serveConsole(judgeOptions, describeGoal(config.goal));
+      note("Your app's console is ready: the console shows it at /app", 'Turnout', 'ok');
+    }
+    state.status = 'ready';
+    note(`Ready: the ${state.kind} test is running on ${Object.values(names).join(', ')}`, 'Turnout', 'ok');
   }
 
   async function build(req: BuildRequest): Promise<void> {
@@ -349,6 +445,8 @@ export function startTryit(o: TryitOptions) {
     const releases = versions.length === 1 ? LABELS.slice(0, 2) : LABELS.slice(0, versions.length);
     rates = Object.fromEntries(releases.map((r, i) => [r, Math.min(1, Math.max(0, req.rates?.[versions.length === 1 ? 0 : i] ?? 0.1))]));
     Object.assign(state, {
+      needs: null,
+      actions: [],
       status: 'building', kind: kindFor(versions.length), error: null, log: [], goal: req.goal?.trim() || null,
       versions: versions.map((v, i) => ({
         slot: SLOTS[i]!, label: LABELS[i]!, name: names[LABELS[i]!]!, source: v.kind, port: null,
@@ -356,15 +454,49 @@ export function startTryit(o: TryitOptions) {
       })),
     } satisfies Partial<BuildState>);
     judge = null;
+    steady.stop();
+    sendSteady = null;
+    seen.clear();
+    state.goalSince = null;
     try {
       await o.docker.ensureNetwork(NETWORK);
       await o.docker.connect(NETWORK, hostname());
       const upstream: Record<string, string> = {};
       // Your settings go to the build too (a Dockerfile's ARG lines), not only to the running app.
       const buildArgs = Object.fromEntries(parseEnv(req.env).map((l) => [l.slice(0, l.indexOf('=')), l.slice(l.indexOf('=') + 1)]));
-      for (const [i, v] of versions.entries()) {
+      const dbEnv: string[] = [];
+      await o.docker.remove('turnout-try-db');
+      if (req.database) {
+        const db = databaseFor(req.database);
+        note(`Starting a throwaway ${req.database} for the test (its address is in DATABASE_URL)`, 'Turnout', 'step');
+        await o.docker.pull(db.image).catch(() => {});
+        await o.docker.run({ name: 'turnout-try-db', image: db.image, network: NETWORK, aliases: ['try-db'], env: db.env });
+        await new Promise((r) => setTimeout(r, req.database === 'mysql' ? 15_000 : 5_000));
+        dbEnv.push(...db.appEnv);
+      }
+      // Every version's image at once (A and B build side by side); the same source twice is built once.
+      const builds = new Map<string, Promise<string>>();
+      const getImage = async (i: number): Promise<string> => {
+        const v = versions[i]!;
         const slot = state.versions[i]!;
-        const [get, run] = slot.stages;
+        const [get] = slot.stages;
+        const key = JSON.stringify([v.kind, v.value, v.dockerfile ?? '']);
+        const twin = builds.get(key);
+        if (twin) {
+          get!.status = 'running';
+          get!.detail = `the same as version ${'ABC'[[...builds.keys()].indexOf(key)]}: built once`;
+          const image = await twin;
+          get!.status = 'done';
+          return image;
+        }
+        const job = buildImage(i);
+        builds.set(key, job);
+        return job;
+      };
+      const buildImage = async (i: number): Promise<string> => {
+        const v = versions[i]!;
+        const slot = state.versions[i]!;
+        const [get] = slot.stages;
         let image = v.kind === 'image' ? v.value.trim() : `turnout-try-${slot.slot}:latest`;
         get!.status = 'running';
         note(`${get!.title} (${slot.name})`, slot.slot.toUpperCase(), 'step');
@@ -376,7 +508,21 @@ export function startTryit(o: TryitOptions) {
         if (v.kind === 'image') await o.docker.pull(image, onLog).catch(async (error) => {
           if (!(await o.docker.imageExists(image))) throw error; // a local-only image is fine
         });
-        else if (v.kind === 'folder') await o.docker.buildFolder(image, uploadPath(v.value), v.dockerfile || 'Dockerfile', onLog, buildArgs).catch((error: Error) => {
+        else if (v.kind === 'folder') await (async () => {
+          // No Dockerfile: Turnout writes one from what the project is (the repo's own always wins).
+          const tar = uploadPath(v.value);
+          let dockerfile = v.dockerfile || 'Dockerfile';
+          const { files, read } = tarIndex(readFileSync(tar));
+          if (!files.includes(dockerfile) && !v.dockerfile) {
+            const made = files.includes('Dockerfile.turnout') ? read('Dockerfile.turnout') : generatedDockerfile(files, read);
+            if (made) {
+              if (!files.includes('Dockerfile.turnout')) tarAppend(tar, 'Dockerfile.turnout', made);
+              dockerfile = 'Dockerfile.turnout';
+              note(`${slot.name} has no Dockerfile: Turnout wrote one (${made.split('\n')[0]})`, slot.slot.toUpperCase());
+            }
+          }
+          return o.docker.buildFolder(image, tar, dockerfile, onLog, buildArgs);
+        })().catch((error: Error) => {
           throw new Error(`${slot.name} (version ${slot.slot.toUpperCase()}): ${/locate specified Dockerfile|no such file/i.test(error.message) ? `your folder has no ${v.dockerfile || 'Dockerfile'} at its top level` : gitBuildError(error.message)}`);
         });
         else if (v.kind === 'imagefile') image = await o.docker.load(uploadPath(v.value), onLog);
@@ -386,14 +532,31 @@ export function startTryit(o: TryitOptions) {
         else await o.docker.build(image, { dockerfile: v.value }, onLog, buildArgs);
         get!.status = 'done';
         get!.detail = undefined;
+        return image;
+      };
+      const started = Date.now();
+      const images = await Promise.all(versions.map((_, i) => getImage(i)));
+      note(`Built in ${Math.round((Date.now() - started) / 1000)} s`, 'Turnout', 'ok');
+      for (const [i, v] of versions.entries()) {
+        const slot = state.versions[i]!;
+        const run = slot.stages[1];
+        const image = images[i]!;
         run!.status = 'running';
         const guess = v.port || (await o.docker.exposedPort(image)) || 80;
         const name = `turnout-try-${slot.slot}`;
         await o.docker.remove(name);
         // One version (A/A): the same container answers as try-a and try-b.
         const aliases = versions.length === 1 ? ['try-a', 'try-b'] : [`try-${slot.slot}`];
-        await o.docker.run({ name, image, network: NETWORK, aliases, env: [`PORT=${guess}`, ...parseEnv(req.env)] });
-        const port = await waitUp(name, `try-${slot.slot}`, guess, Boolean(v.port), run!);
+        await o.docker.run({ name, image, network: NETWORK, aliases, env: [`PORT=${guess}`, ...dbEnv, ...parseEnv(req.env)] });
+        const port = await waitUp(name, `try-${slot.slot}`, guess, Boolean(v.port), run!).catch(async (error: Error) => {
+          // What it asked for: the settings its error names, and a database when those point at one.
+          const tail = await o.docker.logs(name, 80).catch(() => '');
+          const given = new Set([...dbEnv, ...parseEnv(req.env)].map((l) => l.slice(0, l.indexOf('='))));
+          const settings = missingSettings(tail).filter((n) => !given.has(n));
+          const database = req.database ? null : wantsDatabase(settings, tail);
+          if (settings.length || database) state.needs = { settings, database };
+          throw error;
+        });
         slot.port = port;
         run!.status = 'done';
         run!.detail = `answering on port ${port}`;
@@ -408,71 +571,16 @@ export function startTryit(o: TryitOptions) {
       state.previews = Object.fromEntries((o.previewPorts ?? []).map((p, i) => [LABELS[i]!, `${host}:${p}`]).filter(([l]) => previewUpstream[l as string]));
       if (versions.length === 1) upstream[LABELS[1]!] = upstream[LABELS[0]!]!.replace('try-a', 'try-b');
 
-      // The flag and its metrics in Flagsmith (idempotent): every slot label is a variant value, so a later build
-      // with a different number of versions reuses the same flag.
-      const goal = state.goal ? parseSuccess(state.goal) : null;
-      const raw = {
-        flag: TRY_FLAG,
-        releases: Object.fromEntries(LABELS.map((l) => [l, upstream[l] ?? `http://try-${l.slice(4)}:80`])),
-        ...(goal ? { goal: { event: goal.path.replace(/[^a-z0-9]+/gi, '_').replace(/^_|_$/g, '').toLowerCase() || 'goal', when: goal } } : {}),
-        guardrails: ['doc_latency_ms', 'server_error'],
-        traffic: 100,
-      };
-      const initConfig = parseConfig(raw);
-      note('Setting up the flag tryit_release and its metrics', 'Flagsmith', 'step');
-      const env = await api.get<{ project: number }>(`/api/v1/environments/${o.envKey}/`);
-      await runInit({
-        apiUrl: o.apiUrl, dashboardUrl: o.dashboardUrl, config: initConfig, adminKey: o.adminKey, serverKey: o.serverKey,
-        envFile: join(o.stateDir, 'init.env'), project: String(env.project), environment: o.envKey, log: (l) => note(l, 'Flagsmith'),
-      });
-      // The proxy routes only the versions built now.
-      const config = parseConfig({ ...raw, releases: Object.fromEntries(releases.map((l) => [l, upstream[l]!])) });
-      await serveProxy(config);
-      const judgeOptions: JudgeOptions = {
-          flag: TRY_FLAG, releases, goal: config.goal.event, apiUrl: o.apiUrl, adminKey: o.adminKey,
-          proxyUrl: `http://127.0.0.1:${o.proxyPort}`, shopUrl: o.publicShop, dashboardUrl: o.dashboardUrl,
-          previewToken: debugToken, serverKey: o.serverKey, rates, concurrency: 20,
-          // This build's goal first, then the safety checks: a new build can bring a new goal, and a test takes the
-          // metrics it is started with.
-          metrics: [
-            { name: config.goal.event, expected_direction: config.goal.speedOnly ? 'decrease' : 'increase' },
-            ...config.guardrails.filter((g) => g !== config.goal.event).map((g) => ({ name: g, expected_direction: 'not_increase' })),
-          ],
-          deps: {
-            // Your app isn't the demo shop: the explorer walks its own links and fills its forms (simulate-any.ts).
-            simulate: async (opts) => {
-              const report = await simulateAny({ target: opts.target, visitors: opts.visitors, concurrency: 20, releases, goal: config.goal.when, debugToken, rates, log: opts.log });
-              const byRelease = Object.fromEntries(Object.entries(report.byRelease).map(([r, t]) => [r, { visitors: t.visitors, carts: 0, orders: t.goals, pageErrors: t.errors }]));
-              return { byVariant: {}, byRelease, failedOrders: 0, durationMs: 0 };
-            },
-          },
-        };
-      judge = createJudge(
-        judgeOptions,
-        {
-          experiments: () => latestExperiment(api, o.envKey, TRY_FLAG),
-          // The proxy's own count of events sent to Flagsmith: the judge waits until it stops moving before asking
-          // for results, so every visitor is counted (with null it waited a fixed 6 s and missed late ones).
-          readEvents: async () => ({ accepted: flags.receipts.batches.events, rejected: 0 }),
-          snapshotDir: join(o.stateDir, 'snapshots'),
-          ledgerDir: o.stateDir,
-          lock,
-        },
-      );
-      // init leaves an experiment over every slot; start the one that matches what was built: 1 version → A/A,
-      // 2 → A/B, 3 → A/B/C, so no visitor is ever routed to a slot with nothing behind it.
-      note(`Starting the ${state.kind} test`, 'Flagsmith', 'step');
-      const ran = await judge.run({ action: 'start', arms: versions.length === 1 ? 1 : versions.length });
-      if (ran.status !== 202) throw new Error(`Couldn't start the ${state.kind} test: ${(ran.body as { error?: string })?.error ?? ran.status}`);
-      for (let i = 0; i < 120 && judge.job()?.status === 'running'; i++) await new Promise((r) => setTimeout(r, 500));
-      if (judge.job()?.status === 'failed') throw new Error(`Couldn't start the ${state.kind} test: ${judge.job()?.error}`);
-      // Your app's console: the console for tryit_release, with this build's goal, traffic and one-button runs.
-      if (o.consolePort && o.uiDir) {
-        await serveConsole(judgeOptions, describeGoal(config.goal));
-        note("Your app's console is ready: the console shows it at /app", 'Turnout', 'ok');
-      }
-      state.status = 'ready';
-      note(`Ready: the ${state.kind} test is running on ${Object.values(names).join(', ')}`, 'Turnout', 'ok');
+      // Before any visitor: each version walked once, uncounted. No goal given → the best action every version has.
+      note('Reading what a visitor can do on each version (not counted)', 'Turnout', 'step');
+      const found = common(await Promise.all(versions.map((_, i) => walk(upstream[LABELS[i]!]!).catch(() => []))));
+      state.actions = found.slice(0, 12).map((g) => ({ goal: g, label: describeAction(g) }));
+      if (!state.goal && found[0]) {
+        state.goal = found[0];
+        note(`Goal: a visitor who ${describeAction(found[0])} (${found[0]}), the best of ${found.length} actions found`, 'Turnout', 'ok');
+      } else if (!state.goal) note('No action a visitor takes reaches the server on every version: comparing page speed and errors', 'Turnout');
+      current = { versions, releases, upstream };
+      await setUp(current);
     } catch (error) {
       state.status = 'failed';
       state.error = (error as Error).message;
@@ -533,8 +641,53 @@ export function startTryit(o: TryitOptions) {
             return send(res, 400, { error: (error as Error).message });
           }
         }
-        void build({ versions, goal: body.goal, rates: body.rates, env: typeof body.env === 'string' ? body.env.slice(0, 20_000) : undefined });
+        void build({ versions, goal: body.goal, rates: body.rates, env: typeof body.env === 'string' ? body.env.slice(0, 20_000) : undefined, database: body.database === 'postgres' || body.database === 'mysql' ? body.database : undefined });
         return send(res, 202, { ok: true });
+      }
+      // What Turnout has seen visitors do (through the proxy), the actions offered as goals, and the visitors needed.
+      if (p === '/api/try/actions') {
+        const s = judge ? await judge.state().catch(() => null) : null;
+        const goalMetric = s?.results?.metrics.find((m) => m.role === 'goal');
+        const base = goalMetric?.arms.control?.mean || (Object.values(rates).reduce((a, b) => a + b, 0) / Math.max(1, Object.keys(rates).length)) || 0.1;
+        return send(res, 200, {
+          seen: seen.list().slice(0, 50), offered: state.actions ?? [], goal: state.goal, goalSince: state.goalSince ?? null,
+          needed: { perVersion: visitorsNeeded(base), base, lift: 0.2, minimum: { visitors: 50, conversions: 5 } },
+          counted: goalMetric ? Object.fromEntries(Object.entries(goalMetric.arms).map(([k, a]) => [k, a.n])) : {},
+          steady: steady.status(),
+        });
+      }
+      // The goal changes mid-test: a new experiment on the same versions, counting from now.
+      if (p === '/api/try/goal' && req.method === 'POST') {
+        if (state.status !== 'ready' || !current) return send(res, 409, { error: 'Build your versions first; the goal can change once the test is running.' });
+        if (lock.busy) return send(res, 409, { error: 'A test step is running. Wait for it to finish.' });
+        const body = (await readBody(req)) as { goal?: string };
+        const goal = String(body.goal ?? '').trim();
+        if (goal) {
+          try {
+            parseSuccess(goal);
+          } catch (error) {
+            return send(res, 400, { error: (error as Error).message });
+          }
+        }
+        state.goal = goal || null;
+        state.goalSince = new Date().toISOString();
+        state.status = 'building';
+        note(`New goal: ${goal || 'page speed'}, counting from ${state.goalSince.slice(11, 16)} UTC (a new experiment)`, 'Turnout', 'step');
+        void setUp(current).catch((error: Error) => {
+          state.status = 'failed';
+          state.error = error.message;
+          note(error.message, 'Turnout', 'error');
+        });
+        return send(res, 202, { ok: true, goalSince: state.goalSince });
+      }
+      // Simulated visitors that keep running at a low rate (0: stop).
+      if (p === '/api/try/steady' && req.method === 'POST') {
+        const body = (await readBody(req)) as { perMinute?: number };
+        const rate = Number(body.perMinute ?? 0);
+        if (!(rate > 0)) steady.stop();
+        else if (!judge) return send(res, 409, { error: 'Build your versions first.' });
+        else steady.start(rate);
+        return send(res, 200, steady.status());
       }
       if (p === '/api/traffic' || p === '/feed/traffic') return feed.subscribe(res);
       // Your app's console reads the feed as the main console reads the proxy's: the stream and its summary.

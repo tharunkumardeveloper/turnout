@@ -16,7 +16,8 @@
     "console": "node src/cli.ts console",
     "shop": "node demo/shop/server.ts",
     "typecheck": "tsc --noEmit",
-    "test": "node --test \"test/**/*.test.ts\""
+    "test": "node --test \"test/**/*.test.ts\"",
+    "scoreboard": "node scoreboard/run.ts"
   },
   "dependencies": {
     "@flagsmith/nodejs": "^9.4.0",

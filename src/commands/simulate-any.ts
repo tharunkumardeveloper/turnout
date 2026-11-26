@@ -16,7 +16,7 @@
 // visitor is labelled simulated (user agent TurnoutSimulatedVisitor). They are real requests to your app: a goal
 // like POST /signup may create real records. A single-page app with no links in its HTML gets the goal request only.
 import { pickTruth, type Truth } from '../console/blind.ts';
-import type { HttpRule } from '../config.ts';
+import { matchesStatus, type HttpRule } from '../config.ts';
 
 export const SIM_USER_AGENT = 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 Chrome/131.0 Safari/537.36 TurnoutSimulatedVisitor/1.0';
 const ASSET = /\.(css|js|mjs|map|png|jpe?g|gif|svg|webp|avif|ico|woff2?|ttf|otf|pdf|zip|json|xml|txt|mp4|webm|mp3)$/i;
@@ -37,7 +37,8 @@ export function pageLinks(html: string): string[] {
 
 /** The request a goal rule describes, with any * in its path filled in. */
 export function goalRequest(rule: HttpRule): { method: string; path: string } {
-  return { method: rule.method, path: rule.path.replace(/\*/g, '1') };
+  // "/pricing*" is the page itself; "/orders/*" needs something under it.
+  return { method: rule.method, path: rule.path.replace(/([^/])\*$/, '$1').replace(/\*/g, '1') };
 }
 
 export type FormField = { name: string; type: string; value: string; options?: string[] };
@@ -222,7 +223,8 @@ export async function simulateAny(o: AnySimOptions): Promise<AnySimReport> {
       const res = form ? await request(form.method, form.action, fillForm(form, n)) : await request(g.method, g.path);
       await res.arrayBuffer();
       if (form) t.forms++;
-      t.goals++;
+      // Counted only as Flagsmith counts it: an answer the goal's status matches (a 404 page is no conversion).
+      if (matchesStatus(o.goal.status, res.status)) t.goals++;
     }
   };
 

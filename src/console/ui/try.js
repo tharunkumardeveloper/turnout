@@ -386,13 +386,38 @@ function renderError(st) {
   const err = $('try-error');
   err.hidden = st.status !== 'failed';
   if (err.hidden) return void (errorView.key = '');
-  if (errorView.key === String(st.error)) return; // the same error: no redraw (its shake played every poll)
-  errorView.key = String(st.error);
+  if (errorView.key === String(st.error) + JSON.stringify(st.needs ?? null)) return; // the same error: no redraw (its shake played every poll)
+  errorView.key = String(st.error) + JSON.stringify(st.needs ?? null);
   const m = String(st.error ?? '').match(/^(.+?) \(version ([ABC])\): ([\s\S]*)$/);
   err.replaceChildren(
     h('strong', { class: 'try-error-title' }, m ? `Version ${m[2]} (${m[1]}) couldn't be built` : 'The build stopped'),
     h('p', { class: 'try-error-text' }, m ? m[3] : st.error),
+    ...needsCard(st.needs),
     h('p', { class: 'try-error-hint' }, 'The full output is in the build log below. Fix the version and press Build and try again.'));
+}
+
+// What a version that didn't start asked for: its settings (added to Settings, empty, for you to fill in) and a
+// throwaway database for the test, one click.
+let useDatabase = null;
+function needsCard(needs) {
+  if (!needs) return [];
+  const out = [];
+  const env = /** @type {HTMLTextAreaElement} */ ($('try-env'));
+  const fillable = (needs.settings ?? []).filter((n) => !(needs.database && /^(DATABASE_URL|DB_|POSTGRES|MYSQL)/.test(n)));
+  if (fillable.length) {
+    out.push(h('p', { class: 'try-error-text' }, `It needs settings: ${fillable.join(', ')}.`),
+      h('button', { class: 'btn', type: 'button', onclick: () => {
+        const have = new Set(env.value.split(/\r?\n/).map((l) => l.split('=')[0].trim()));
+        env.value = [env.value.trim(), ...fillable.filter((n) => !have.has(n)).map((n) => `${n}=`)].filter(Boolean).join('\n');
+        go(2);
+        env.focus();
+      } }, 'Add them to Settings'));
+  }
+  if (needs.database) {
+    out.push(h('p', { class: 'try-error-text' }, `It needs a database (${needs.database}).`),
+      h('button', { class: 'btn primary', type: 'button', onclick: () => ((useDatabase = needs.database), void build()) }, `Give it a throwaway ${needs.database} and build again`));
+  }
+  return out;
 }
 
 const RUN_WORD = { building: ['Building…', 'busy'], ready: ['Ready', 'good'], failed: ['Stopped', 'bad'] };
@@ -479,7 +504,7 @@ async function build() {
   go(3);
   $('try-previews').replaceChildren();
   $('try-open-page').hidden = true;
-  const res = await api('/api/try/build', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ versions, goal: /** @type {HTMLInputElement} */ ($('try-goal')).value, rates, env: /** @type {HTMLTextAreaElement} */ ($('try-env')).value }) });
+  const res = await api('/api/try/build', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ versions, goal: /** @type {HTMLInputElement} */ ($('try-goal')).value, rates, env: /** @type {HTMLTextAreaElement} */ ($('try-env')).value, ...(useDatabase ? { database: useDatabase } : {}) }) });
   const body = await res.json().catch(() => ({}));
   if (!res.ok) {
     renderError({ status: 'failed', error: body.error ?? `HTTP ${res.status}` });

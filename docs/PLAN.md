@@ -13,6 +13,19 @@ only counts if it works on all of them.
   `ssh -i ~/Downloads/switchyard-key.pem azureuser@172.198.62.67 'cd ~/turnout-practice && git pull -q && docker compose -f compose.yaml -f compose.server.yml up -d --build --wait turnout turnout-live console'`
 - Tests: `npm test` (634, 1 skipped on purpose), `npm run typecheck`. CI runs both on every push.
 - The repo and the image are private. Try it never runs on the VM (it builds and runs code over the Docker socket).
+- Scoreboard (`npm run scoreboard`, one clean run of all 12, 25 Nov): builds 12/12, starts 12/12, goals 11/12,
+  visitors 12/12, results 12/12, counts match 12/12, ships 12/12. Next.js static has no goal on purpose: its only link
+  answers 404 on nginx, so none is offered and it's compared on page speed.
+- Done: a Dockerfile written for a project without one (instead of Buildpacks); A and B built side by side, the same
+  source once; crash-on-start found in seconds; the "needs settings / database" card with a throwaway Postgres or
+  MySQL; goals read off the running versions (only actions every version has, only links that answer); link goals
+  (`GET /pricing*`) counted; every request through the proxy kept as a pattern; the goal changed mid-test (a new
+  experiment, "counting from"); steady simulated visitors with Flagsmith's results fetched every 5 minutes; visitors
+  needed; the split check; the one-sentence verdict, the Markdown report, history and the step after Ship.
+  Terminal: `turnout try | goals | goal | steady | results [--full] [--report] | history`.
+- Still to do: the optional click script (browser actions), the settings check against Flagsmith, pretend rates per
+  action, a separate Flagsmith environment for simulated visitors, the console's results card and full panel
+  (the terminal has both), and the console's buttons for goal change and steady visitors (the API has them).
 - Not yet checked on screen: the console layout after the latest changes, the Try it wizard, and the tour inside Flagsmith.
 
 ## 1. A test set and a scoreboard (first)
