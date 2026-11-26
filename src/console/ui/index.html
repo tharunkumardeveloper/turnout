@@ -231,79 +231,97 @@
   </main>
 
   <!-- Try it with your app: one, two or three versions (Dockerfile, git repo or image), built and run here (try.js). -->
-  <dialog id="try-dialog" class="dialog try-dialog" aria-labelledby="try-title">
+  <dialog id="try-dialog" class="dialog try-dialog" aria-labelledby="try-title" data-step="1">
     <form method="dialog" class="try-inner">
       <header class="try-head">
-        <div>
-          <h2 id="try-title">Try Turnout with your app</h2>
-          <p class="try-sub">Build up to three versions of your app on this machine, split visitors between them, and let Flagsmith pick the winner.</p>
+        <div class="try-brand">
+          <svg class="try-logo" viewBox="0 0 48 48" aria-hidden="true">
+            <path id="try-route-a" d="M4 24 H18 C26 24 28 10 44 10" />
+            <path id="try-route-b" d="M4 24 H44" />
+            <path id="try-route-c" d="M4 24 H18 C26 24 28 38 44 38" />
+            <circle r="3" class="try-logo-dot a"><animateMotion dur="2.4s" repeatCount="indefinite"><mpath href="#try-route-a" /></animateMotion></circle>
+            <circle r="3" class="try-logo-dot b"><animateMotion dur="2.4s" begin="0.8s" repeatCount="indefinite"><mpath href="#try-route-b" /></animateMotion></circle>
+            <circle r="3" class="try-logo-dot c"><animateMotion dur="2.4s" begin="1.6s" repeatCount="indefinite"><mpath href="#try-route-c" /></animateMotion></circle>
+          </svg>
+          <div>
+            <h2 id="try-title">Try Turnout with your app</h2>
+            <p class="try-sub">Up to three versions, built on this machine, real visitors split between them, Flagsmith picks the winner.</p>
+          </div>
         </div>
+        <ol class="try-stepper" aria-label="Steps">
+          <li data-n="1"><button type="button" data-go="1"><span class="try-dot">1</span><span class="try-step-name">Versions</span></button></li>
+          <li data-n="2"><button type="button" data-go="2"><span class="try-dot">2</span><span class="try-step-name">Options</span></button></li>
+          <li data-n="3"><button type="button" data-go="3"><span class="try-dot">3</span><span class="try-step-name">Build</span></button></li>
+        </ol>
         <button class="try-close" value="cancel" type="submit" aria-label="Close">✕</button>
       </header>
 
       <div class="try-body">
-        <section class="try-sec" aria-labelledby="try-s1">
-          <div class="try-sec-head">
-            <span class="try-step">1</span>
-            <div>
-              <h3 id="try-s1">Your versions</h3>
-              <p class="try-hint">For each version, choose its project folder (with a Dockerfile), or paste a Dockerfile, a GitHub link or an image name. Turnout works out which. One version is a fairness check (A/A), two an A/B test, three an A/B/C.</p>
-            </div>
-          </div>
+        <section class="try-panel" data-panel="1" aria-label="Your versions">
+          <p class="try-lead"><strong>Give each version of your app.</strong> Choose its project folder (with a Dockerfile), or paste a Dockerfile, a GitHub link or an image name. Turnout works out which.</p>
           <div id="try-versions" class="try-versions"></div>
         </section>
 
-        <section class="try-sec" aria-labelledby="try-s2">
-          <div class="try-sec-head">
-            <span class="try-step">2</span>
-            <div>
-              <h3 id="try-s2">Options <span class="try-opt">optional</span></h3>
-              <p class="try-hint">Without a goal, versions are compared on page speed and errors.</p>
-            </div>
-          </div>
+        <section class="try-panel" data-panel="2" aria-label="Options">
+          <p class="try-lead"><strong>Optional.</strong> Without a goal, versions are compared on page speed and errors. Skip this if you're not sure.</p>
           <div class="try-options">
-            <label class="try-field-label">
-              <span>Goal: what counts as a win</span>
-              <input id="try-goal" class="try-text" spellcheck="false" placeholder="e.g. POST /signup  or  GET /product/*">
-            </label>
-            <label class="try-field-label">
-              <span>Settings for your app <small>KEY=value, one per line</small></span>
-              <textarea id="try-env" class="try-env" rows="3" spellcheck="false" placeholder="DATABASE_URL=postgresql://user:pass@host.docker.internal:5432/app&#10;(host.docker.internal is your machine)"></textarea>
-            </label>
+            <div class="try-opt-card">
+              <label class="try-field-label" for="try-goal">🎯 Goal <small>what counts as a win</small></label>
+              <input id="try-goal" class="try-text" spellcheck="false" placeholder="e.g. POST /signup">
+              <div class="try-chips" id="try-goal-chips"></div>
+              <p class="try-small">A request your visitors make when they convert: a page (<code>GET /pricing</code>) or a form (<code>POST /signup</code>). <code>*</code> matches anything.</p>
+            </div>
+            <div class="try-opt-card">
+              <label class="try-field-label" for="try-env">⚙️ Settings for your app <small>KEY=value, one per line</small></label>
+              <textarea id="try-env" class="try-env" spellcheck="false" placeholder="DATABASE_URL=postgresql://user:pass@host.docker.internal:5432/app&#10;API_KEY=…"></textarea>
+              <p class="try-small">Passed to every version. <code>host.docker.internal</code> is your machine, for a database or service you run there.</p>
+            </div>
+            <div class="try-opt-card try-summary">
+              <span class="try-field-label">📋 What will happen</span>
+              <ol id="try-plan" class="try-plan"></ol>
+            </div>
           </div>
         </section>
 
-        <section id="try-run" class="try-sec" aria-labelledby="try-s3" hidden>
-          <div class="try-sec-head">
-            <span class="try-step">3</span>
-            <div>
-              <h3 id="try-s3">Build <span id="try-run-status" class="try-pill"></span></h3>
-              <p class="try-hint">Each version is built and started with Docker, then put behind Turnout's proxy on its own flag, <code>tryit_release</code>.</p>
+        <section id="try-run" class="try-panel" data-panel="3" aria-label="Build">
+          <div class="try-run-grid">
+            <div class="try-run-side">
+              <div class="try-run-head"><strong>Versions</strong><span id="try-run-status" class="try-pill"></span></div>
+              <ul id="try-progress" class="try-progress"></ul>
+              <div id="try-error" class="try-error" role="alert" hidden></div>
+              <div id="try-done" class="try-done" hidden>
+                <svg viewBox="0 0 52 52" class="try-done-check" aria-hidden="true"><circle cx="26" cy="26" r="23" /><path d="M15 27 l7 7 l15 -16" /></svg>
+                <div>
+                  <strong id="try-done-title">Ready</strong>
+                  <p id="try-done-text"></p>
+                  <span class="try-done-bar"><span></span></span>
+                </div>
+              </div>
+              <div id="try-previews" class="try-previews"></div>
+            </div>
+            <div class="try-log-box">
+              <div class="try-log-bar">
+                <span class="try-log-title"><span class="try-log-lights" aria-hidden="true"><i></i><i></i><i></i></span>Build log</span>
+                <span class="try-log-tools">
+                  <label><input id="try-log-follow" type="checkbox" checked> Follow</label>
+                  <button id="try-log-copy" class="try-log-btn" type="button">Copy</button>
+                </span>
+              </div>
+              <div id="try-log" class="try-log" role="log" aria-live="off" tabindex="0"></div>
             </div>
           </div>
-          <ul id="try-progress" class="try-progress"></ul>
-          <div id="try-error" class="try-error" role="alert" hidden></div>
-          <div class="try-log-box">
-            <div class="try-log-bar">
-              <span>Build log</span>
-              <span class="try-log-tools">
-                <label><input id="try-log-follow" type="checkbox" checked> Follow</label>
-                <button id="try-log-copy" class="try-log-btn" type="button">Copy</button>
-              </span>
-            </div>
-            <div id="try-log" class="try-log" role="log" aria-live="off" tabindex="0"></div>
-          </div>
-          <div id="try-previews" class="try-previews"></div>
         </section>
       </div>
 
       <footer class="try-foot">
         <p id="try-off" class="try-off" hidden></p>
-        <p id="try-kind" class="try-kindline"></p>
+        <p id="try-kind" class="try-kindline" aria-live="polite"></p>
         <div class="try-actions">
-          <button id="try-example" class="btn btn-ghost" type="button" title="Two small self-contained Dockerfiles (nginx pages), so you can see it work without an app of your own">Use an example</button>
+          <button id="try-example" class="btn btn-ghost" type="button" title="Two small self-contained Dockerfiles (nginx pages), so you can see it work without an app of your own">✨ Use an example</button>
+          <button id="try-back" class="btn btn-ghost" type="button">← Back</button>
+          <button id="try-next" class="btn" type="button">Next →</button>
           <a id="try-open-page" class="btn" href="/try" hidden>Open the test page →</a>
-          <button id="try-build" class="btn btn-primary" type="button" disabled>Build and try</button>
+          <button id="try-build" class="btn btn-primary try-go" type="button" disabled>🚀 Build and try</button>
         </div>
       </footer>
     </form>

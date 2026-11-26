@@ -126,27 +126,47 @@ function sourceLine(r) {
   return h('p', { class: 'try-detect' }, `✓ Looks like ${d.label}.`);
 }
 
+let showC = false; // the third version's card: shown once asked for (or filled)
+const ROLE = ['what everyone gets today', 'the change you want to test', 'another change'];
 function rowView(r, i) {
+  if (i === 2 && !showC && !(r.text.trim() || r.folder || r.file)) {
+    return h('button', { type: 'button', class: 'try-row try-add', 'data-i': '2', on: { click: () => ((showC = true), render(), document.querySelector('.try-row[data-i="2"] textarea')?.focus()) } },
+      h('span', { class: 'try-add-plus' }, '+'), h('strong', {}, 'Add version C'), h('span', {}, 'for an A/B/C test'));
+  }
   const clear = () => ((r.folder = null), (r.file = null), (r.text = ''), (ready = ''), render());
   const picked = r.folder || r.file;
-  return h('div', { class: 'try-row', 'data-i': String(i) },
-    h('span', { class: 'try-letter' }, LETTERS[i]),
-    h('div', { class: 'try-main' },
-      picked
-        ? h('div', { class: 'try-picked' }, h('strong', {}, r.folder ? `📁 ${r.folder.shared.name}` : `📦 ${r.file.name}`), h('button', { type: 'button', class: 'btn btn-small btn-ghost', on: { click: clear } }, 'Change'))
-        : h('textarea', { rows: 3, spellcheck: 'false', placeholder: i ? 'Optional: another version, the same way.' : 'Paste anything: a Dockerfile, a GitHub link or an image name (myapp:1.2). Or choose your project folder.', value: r.text, on: { input: (e) => ((r.text = e.target.value), (ready = ''), refreshLine(i)) } }),
-      picked ? null : h('div', { class: 'try-pick' },
-        h('label', { class: 'btn btn-small' }, '📁 Choose project folder', h('input', { type: 'file', class: 'try-hidden-input', webkitdirectory: true, on: { change: (e) => pickFolder(r, e.target.files ?? []) } })),
-        h('label', { class: 'btn btn-small btn-ghost', title: 'A Dockerfile, or an image saved with: docker save -o app.tar myapp:1.2' }, 'Choose a file', h('input', { type: 'file', class: 'try-hidden-input', on: { change: (e) => pickFile(r, e.target.files?.[0]) } }))),
-      h('div', { class: 'try-line' }, sourceLine(r))),
+  const state = !(r.text.trim() || picked) ? 'empty' : usable(r) ? 'ok' : 'bad';
+  return h('div', { class: 'try-row', 'data-i': String(i), 'data-state': state },
+    h('div', { class: 'try-row-head' },
+      h('span', { class: 'try-letter' }, LETTERS[i]),
+      h('span', { class: 'try-row-title' }, h('strong', {}, `Version ${LETTERS[i]}`), h('small', {}, ROLE[i])),
+      h('span', { class: 'try-row-state', 'aria-hidden': 'true' }, state === 'ok' ? '✓' : state === 'bad' ? '!' : '')),
+    picked
+      ? h('div', { class: 'try-picked' },
+          h('span', { class: 'try-picked-icon' }, r.folder ? '📁' : '📦'),
+          h('strong', {}, r.folder ? r.folder.shared.name : r.file.name),
+          h('button', { type: 'button', class: 'btn btn-small btn-ghost', on: { click: clear } }, 'Change'))
+      : h('textarea', { spellcheck: 'false', placeholder: i ? 'Paste a Dockerfile, a GitHub link or an image name…' : 'Paste a Dockerfile, a GitHub link or an image name (myapp:1.2)…', value: r.text, on: { input: (e) => ((r.text = e.target.value), (ready = ''), refreshLine(i)) } }),
+    picked ? null : h('div', { class: 'try-pick' },
+      h('label', { class: 'btn btn-small' }, '📁 Project folder', h('input', { type: 'file', class: 'try-hidden-input', webkitdirectory: true, on: { change: (e) => pickFolder(r, e.target.files ?? []) } })),
+      h('label', { class: 'btn btn-small btn-ghost', title: 'A Dockerfile, or an image saved with: docker save -o app.tar myapp:1.2' }, '📄 A file', h('input', { type: 'file', class: 'try-hidden-input', on: { change: (e) => pickFile(r, e.target.files?.[0]) } }))),
+    h('div', { class: 'try-line' }, sourceLine(r)),
     h('details', { class: 'try-side' },
-      h('summary', {}, 'More'),
-      h('label', {}, 'App port', h('input', { class: 'try-num', type: 'number', min: 1, max: 65535, placeholder: 'auto', value: r.port, title: "The port your app listens on inside its container (not on your machine). Auto reads the Dockerfile's EXPOSE line, else 80.", on: { input: (e) => (r.port = e.target.value) } })),
-      h('label', { title: 'Simulated visitors convert at this rate on this version (an input you choose, not evidence). Real page speed and errors are measured as they are.' }, 'Pretend %', h('input', { class: 'try-num', type: 'number', min: 0, max: 100, step: 1, value: r.rate, on: { input: (e) => (r.rate = e.target.value) } }))));
+      h('summary', {}, 'Advanced'),
+      h('div', { class: 'try-side-grid' },
+        h('label', {}, 'App port', h('input', { class: 'try-num', type: 'number', min: 1, max: 65535, placeholder: 'auto', value: r.port, title: "The port your app listens on inside its container (not on your machine). Auto reads the Dockerfile's EXPOSE line, else 80.", on: { input: (e) => (r.port = e.target.value) } })),
+        h('label', { title: 'Simulated visitors convert at this rate on this version (an input you choose, not evidence). Real page speed and errors are measured as they are.' }, 'Pretend %', h('input', { class: 'try-num', type: 'number', min: 0, max: 100, step: 1, value: r.rate, on: { input: (e) => (r.rate = e.target.value) } })))));
 }
 function refreshLine(i) {
-  const line = document.querySelector(`.try-row[data-i="${i}"] .try-line`);
-  line?.replaceChildren(...[sourceLine(rows[i])].filter(Boolean));
+  const row = document.querySelector(`.try-row[data-i="${i}"]`);
+  const r = rows[i];
+  if (row) {
+    row.querySelector('.try-line')?.replaceChildren(...[sourceLine(r)].filter(Boolean));
+    const state = !(r.text.trim() || r.folder || r.file) ? 'empty' : usable(r) ? 'ok' : 'bad';
+    row.dataset.state = state;
+    const mark = row.querySelector('.try-row-state');
+    if (mark) mark.textContent = state === 'ok' ? '✓' : state === 'bad' ? '!' : '';
+  }
   kindLine();
 }
 
@@ -163,8 +183,44 @@ function filled() {
 function kindLine() {
   const n = filled().length;
   const bad = filled().some((r) => !usable(r));
-  $('try-kind').textContent = ready || (bad ? 'Fix the version marked in red first.' : n ? `${n} version${n > 1 ? 's' : ''}: ${KIND[n]}.` : 'Step 1: give version A.');
+  $('try-kind').textContent = ready || (bad ? 'Fix the version marked in red first.' : n ? `${n} version${n > 1 ? 's' : ''}: ${KIND[n]}.` : 'Give version A to start.');
   /** @type {HTMLButtonElement} */ ($('try-build')).disabled = !n || bad || Boolean(polling) || offline;
+  /** @type {HTMLButtonElement} */ ($('try-next')).disabled = !n || bad;
+  renderPlan();
+}
+
+// Three steps, one on screen at a time: Versions, Options, Build. The box never scrolls; the log scrolls inside.
+let step = 1;
+let built = false; // a build exists (running, ready or failed): step 3 can be opened
+function go(n) {
+  step = n;
+  const d = $('try-dialog');
+  d.dataset.step = String(n);
+  for (const li of d.querySelectorAll('.try-stepper li')) {
+    const k = Number(li.dataset.n);
+    li.dataset.state = k < n ? 'done' : k === n ? 'active' : 'todo';
+    /** @type {HTMLButtonElement} */ (li.querySelector('button')).disabled = k === 3 && !built && n !== 3;
+  }
+  $('try-back').hidden = n === 1;
+  $('try-next').hidden = n !== 1;
+  $('try-example').hidden = n !== 1;
+  $('try-build').hidden = n === 3 && $('try-error').hidden; // step 3: only to try again after a failure
+  $('try-build').textContent = n === 3 ? '↻ Build again' : '🚀 Build and try';
+}
+
+function renderPlan() {
+  const list = document.getElementById('try-plan');
+  if (!list) return;
+  const n = filled().length;
+  const goal = /** @type {HTMLInputElement} */ ($('try-goal')).value.trim();
+  const what = (r) => (r.folder ? `your folder ${r.folder.shared.name}` : r.file ? r.file.name : detect(r.text)?.label ?? '');
+  list.replaceChildren(...(n
+    ? [
+        ...filled().map((r, i) => h('li', {}, h('span', { class: 'try-letter', 'data-i': String(i) }, LETTERS[i]), `Build ${what(r)}`)),
+        h('li', {}, h('span', { class: 'try-plan-icon' }, '⇄'), n === 1 ? 'Run it twice and split visitors 50/50 (A/A)' : `Split visitors ${n === 2 ? '50/50' : 'three ways'} on the flag tryit_release`),
+        h('li', {}, h('span', { class: 'try-plan-icon' }, '🏁'), goal ? `Count ${goal} as a win; Flagsmith picks the winner` : 'Compare page speed and errors; Flagsmith picks the winner'),
+      ]
+    : [h('li', { class: 'try-plan-empty' }, 'Give a version in step 1 first.')]));
 }
 function render() {
   $('try-versions').replaceChildren(...rows.map(rowView));
@@ -280,32 +336,42 @@ async function poll() {
       return kindLine();
     }
     if (!res.ok) throw new Error(st.error ?? `HTTP ${res.status}`);
-    $('try-run').hidden = !(st.versions ?? []).length;
+    built = (st.versions ?? []).length > 0;
+    if (st.status === 'building' && step !== 3) go(3);
     const [word, tone] = RUN_WORD[st.status] ?? ['', 'idle'];
     $('try-run-status').textContent = word;
     $('try-run-status').dataset.tone = tone;
     $('try-progress').replaceChildren(...(st.versions ?? []).map(versionCard));
     renderLog(Array.isArray(st.log) ? st.log.filter((l) => l && typeof l === 'object') : []);
     renderError(st);
+    const done = $('try-done');
+    done.hidden = st.status !== 'ready';
     if (st.status === 'ready') {
-      const fresh = !$('try-previews').childElementCount;
-      $('try-previews').replaceChildren(...previews(st));
+      if (!$('try-previews').childElementCount) $('try-previews').replaceChildren(...previews(st));
       $('try-open-page').hidden = false;
-      ready = `Ready: the ${st.kind} test is running in Flagsmith. Open the test page: Play it for me runs it (simulated visitors, then Flagsmith's results), as in judge mode.`;
-      if (fresh) $('try-previews').scrollIntoView({ block: 'nearest', behavior: 'smooth' });
-      // A build you just started: once it is ready, go straight to its test page.
+      $('try-done-title').textContent = `Your ${st.kind} test is live`;
+      ready = `Ready: the ${st.kind} test is running in Flagsmith.`;
+      // A build you just started: once it is ready, go straight to its test page (the bar counts down).
       if (justBuilt) {
         justBuilt = false;
-        ready = 'Ready. Opening the test page…';
-        setTimeout(() => location.assign('/try'), 1200);
+        done.dataset.leaving = 'true';
+        $('try-done-text').textContent = 'Opening the test page, where one button sends visitors…';
+        setTimeout(() => location.assign('/try'), 2600);
+      } else if (done.dataset.leaving !== 'true') {
+        $('try-done-text').textContent = 'Open the test page: one button sends visitors and Flagsmith picks the winner.';
       }
-    } else ready = '';
+    } else {
+      ready = '';
+      $('try-previews').replaceChildren();
+      $('try-open-page').hidden = true;
+    }
+    go(step);
     if (st.status === 'building') polling = setTimeout(poll, 1500);
     else polling = 0;
   } catch (error) {
     polling = 0;
     renderError({ status: 'failed', error: error.message });
-    $('try-run').hidden = false;
+    go(3);
   }
   kindLine();
 }
@@ -317,25 +383,31 @@ async function build() {
     for (const [i, r] of filled().entries()) versions.push(await versionFor(r, i));
   } catch (error) {
     renderError({ status: 'failed', error: error.message });
-    $('try-run').hidden = false;
+    built = true;
+    go(3);
     return kindLine();
   }
   const rates = filled().map((r) => Math.min(100, Math.max(0, Number(r.rate) || 0)) / 100);
   $('try-error').hidden = true;
+  $('try-done').hidden = true;
+  delete $('try-done').dataset.leaving;
+  built = true;
+  go(3);
   $('try-previews').replaceChildren();
   $('try-open-page').hidden = true;
   const res = await api('/api/try/build', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ versions, goal: /** @type {HTMLInputElement} */ ($('try-goal')).value, rates, env: /** @type {HTMLTextAreaElement} */ ($('try-env')).value }) });
   const body = await res.json().catch(() => ({}));
   if (!res.ok) {
     renderError({ status: 'failed', error: body.error ?? `HTTP ${res.status}` });
-    $('try-run').hidden = false;
+    built = true;
+    go(3);
     return;
   }
   polling = 1;
   justBuilt = true;
   logView.first = '';
-  $('try-run').hidden = false;
-  $('try-run').scrollIntoView({ block: 'start', behavior: 'smooth' });
+  built = true;
+  go(3);
   kindLine();
   void poll();
 }
@@ -376,6 +448,7 @@ export async function setupTry() {
   open.addEventListener('click', () => {
     /** @type {HTMLDialogElement} */ ($('try-dialog')).showModal();
     render();
+    go(built ? 3 : 1);
     void poll();
   });
   $('try-build').addEventListener('click', async () => {
@@ -394,6 +467,12 @@ export async function setupTry() {
     }
     setTimeout(() => (btn.textContent = 'Copy'), 1500);
   });
+  for (const b of document.querySelectorAll('.try-stepper [data-go]')) b.addEventListener('click', () => go(Number(/** @type {HTMLElement} */ (b).dataset.go)));
+  $('try-next').addEventListener('click', () => go(2));
+  $('try-back').addEventListener('click', () => go(Math.max(1, step - 1)));
+  $('try-goal').addEventListener('input', renderPlan);
+  $('try-goal-chips').replaceChildren(...['GET /pricing*', 'POST /signup', 'POST /checkout', 'GET /product/*'].map((g) =>
+    h('button', { type: 'button', class: 'try-chip', on: { click: () => ((/** @type {HTMLInputElement} */ ($('try-goal')).value = g), renderPlan()) } }, g)));
   $('try-example').addEventListener('click', () => {
     for (const r of rows) Object.assign(r, { folder: null, file: null, text: '' });
     rows[0].text = EXAMPLE[0];
@@ -401,6 +480,7 @@ export async function setupTry() {
     rows[0].rate = '10';
     rows[1].rate = '18';
     /** @type {HTMLInputElement} */ ($('try-goal')).value = 'GET /pricing.html';
+    showC = false;
     render();
   });
 }
