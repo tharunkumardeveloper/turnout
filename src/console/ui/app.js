@@ -207,10 +207,10 @@ function renderSite(s) {
   }
   card.hidden = false;
   if (s.site.simulated) {
-    $('site-title').textContent = 'Simulated visitors only: the Demo environment';
+    $('site-title').textContent = 'Simulated visitors';
     $('site-open').hidden = true;
     const goalLine = $('site-goal');
-    goalLine.textContent = 'Every visitor in this console is a pretend visitor sent by turnout simulate, counted in a separate Flagsmith environment ("Demo (simulated)"). Nothing here is evidence about real people, and nothing here can change your real experiment.';
+    goalLine.textContent = 'Pretend visitors, counted in a separate Flagsmith environment: never mixed with real ones.';
     $('site-flagsmith').href = s.site.dashboardUrl;
     return;
   }

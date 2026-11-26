@@ -134,7 +134,6 @@
         <h2 id="run-title">Run a test</h2>
         <div class="kinds" id="kinds" role="group" aria-label="Kind of test"></div>
       </div>
-      <div class="run-try" id="run-try" hidden></div>
       <p class="run-plan" id="run-plan"></p>
       <div class="run-row">
         <button id="run-go" class="btn btn-primary" type="button" disabled>Run</button>
@@ -224,7 +223,7 @@
         <h2 id="results-title" class="fs-mark">Flagsmith's results</h2>
         <button id="refresh-btn" class="btn btn-small" type="button">Refresh</button>
       </div>
-      <p class="provenance">As Flagsmith's results API returns them; Turnout never computes its own statistics. <span id="results-asof"></span></p>
+      <p class="provenance" title="As Flagsmith's results API returns them; Turnout never computes its own statistics.">Flagsmith's own numbers. <span id="results-asof"></span></p>
       <div id="winner" class="winner" data-tone="neutral">
         <p class="winner-headline" id="winner-headline">Loading…</p>
         <p class="winner-detail" id="winner-detail"></p>

@@ -483,7 +483,6 @@ export async function setupTry() {
   const probe = await api('/api/try/status', { cache: 'no-store' }).catch(() => null);
   if (!probe || probe.status === 404 || probe.status === 403) return open.remove();
   open.hidden = false;
-  void watchTry();
   open.addEventListener('click', () => {
     /** @type {HTMLDialogElement} */ ($('try-dialog')).showModal();
     render();

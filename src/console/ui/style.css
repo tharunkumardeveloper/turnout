@@ -1283,3 +1283,16 @@ body.console-screen.judge-on { grid-template-rows: auto minmax(0, 1fr); }
 
 /* Try it, while building: the cards only enter once; later redraws (a step done) don't replay it. */
 .try-progress.steady .try-vcard { animation: none; }
+
+/* Decide and Flagsmith's results share the right column without scrolling: Decide keeps the choice, the buttons and
+   Turnout's recommendation; Flagsmith's pre-selection note is said by the "Flagsmith's pick" tag already. */
+.cgrid .actions-card { max-height: none; overflow: visible; }
+.cgrid .actions-card .card-head { display: none; }
+.cgrid .actions-card legend { font-size: 12px; margin-bottom: 2px; }
+.cgrid .actions-card #ship-note { display: none; }
+.cgrid .actions-card .action-notes { font-size: 12.5px; }
+.cgrid .actions-card .guard-card { padding: 6px 0 0; margin: 0; }
+.cgrid .actions-card .guard-line:empty { display: none; }
+.cgrid .results-card { overflow: hidden; }
+.cgrid .results-card .provenance { font-size: 12px; margin: 0; }
+.cgrid .site-card #site-goal { font-size: 12.5px; }

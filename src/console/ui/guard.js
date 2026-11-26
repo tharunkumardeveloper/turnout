@@ -21,7 +21,7 @@ async function api(method, body) {
 export function healthText(state) {
   if (!state.health.enabled) return 'Feature Health reporting is off (run init to create the provider).';
   const last = state.health.last;
-  if (!last) return 'No report yet; the first check runs within 20 seconds.';
+  if (!last) return '';
   const word = last.status === 'unhealthy' ? 'Unhealthy' : 'Healthy';
   const what = last.delivered ? `Flagsmith shows the flag as ${word}` : `Couldn't tell Flagsmith (${last.error ?? 'no answer'})`;
   return `${what}: ${last.summary} (experiment ${last.experimentId}, ${time(last.at)}).`;
