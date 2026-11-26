@@ -554,3 +554,11 @@ describe('mode.js: Judge mode, a switch on the one console page', () => {
     assert.equal(M.initialMode(p(''), null, true), true);
   });
 });
+
+test('the traffic card: Previews shows only the websites, Traffic only the flow chart (hidden always wins)', () => {
+  const css = readFileSync(join(UI, 'style.css'), 'utf8');
+  assert.match(css, /\.map-card \[hidden\] \{ display: none !important; \}/);
+  const app = readFileSync(join(UI, 'app.js'), 'utf8');
+  assert.match(app, /\$\('map'\)\.hidden = mode !== 'traffic';/);
+  assert.match(app, /box\.hidden = mode !== 'previews';/);
+});

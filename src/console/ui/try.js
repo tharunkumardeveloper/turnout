@@ -355,10 +355,10 @@ async function poll() {
       if (justBuilt) {
         justBuilt = false;
         done.dataset.leaving = 'true';
-        $('try-done-text').textContent = 'Opening the test page, where one button sends visitors…';
-        setTimeout(() => location.assign('/?mode=judge&app=try'), 2600);
+        $('try-done-text').textContent = 'Back to the console: your app is ready to run in Run a test…';
+        setTimeout(() => location.assign('/?mode=console#your-app'), 2600);
       } else if (done.dataset.leaving !== 'true') {
-        $('try-done-text').textContent = 'Open the test page: one button sends visitors and Flagsmith picks the winner.';
+        $('try-done-text').textContent = 'Close this box: your app is ready in Run a test on the console.';
       }
     } else {
       ready = '';
@@ -419,6 +419,12 @@ function renderRunTry(st) {
   if (!box) return;
   box.hidden = st?.status !== 'ready';
   if (box.hidden) return;
+  if (location.hash === '#your-app' && !box.dataset.flashed) {
+    box.dataset.flashed = '1';
+    box.classList.add('run-try-flash');
+    box.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+    history.replaceState(null, '', location.pathname + location.search);
+  }
   const names = (st.versions ?? []).map((v, i) => `${LETTERS[i]} · ${v.name}`);
   const key = JSON.stringify([st.kind, names]);
   if (box.dataset.key === key) return;
