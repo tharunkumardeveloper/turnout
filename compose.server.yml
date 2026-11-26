@@ -133,15 +133,17 @@ services:
 
   # Housekeeping for the always-on autopilot demo only (deploy/prune-events.sh has the rules): Flagsmith never deletes
   # SDK events, and the autopilot sends visitors forever (530,572 events, 228 MB after 10 h made results queries take
-  # 37 s). Hourly, and only while TURNOUT_AUTOPILOT=on, it deletes events older than TURNOUT_EVENT_RETENTION_HOURS
-  # (default 6) that are also older than every running, paused or unsnapshotted experiment. Never in normal use.
+  # 37 s). Every 10 minutes, and only while TURNOUT_AUTOPILOT=on, it deletes events older than TURNOUT_EVENT_RETENTION_HOURS
+  # (default 1) that are also older than every running, paused or unsnapshotted experiment. Never in normal use.
   event-pruner:
     image: postgres:15.5-alpine
     <<: *restart
     environment:
       PGPASSWORD: ${POSTGRES_PASSWORD:?run sh turnout.sh server <hostname> (it writes random secrets)}
       AUTOPILOT: ${TURNOUT_AUTOPILOT:-on}
-      RETENTION_HOURS: ${TURNOUT_EVENT_RETENTION_HOURS:-6}
+      # The autopilot makes ~24,000 events every 3 minutes; an hour of them keeps Flagsmith's results queries quick.
+      RETENTION_HOURS: ${TURNOUT_EVENT_RETENTION_HOURS:-1}
+      PRUNE_EVERY_SECONDS: 600
     entrypoint: ['/bin/sh', '/prune-events.sh']
     volumes:
       - ./deploy/prune-events.sh:/prune-events.sh:ro

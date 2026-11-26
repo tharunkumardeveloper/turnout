@@ -12,7 +12,8 @@
 #     experiment's events from its start, so events before that floor can't change any protected experiment's results.
 #   - DRY_RUN=1 counts instead of deleting.
 set -eu
-HOURS="${RETENTION_HOURS:-6}"
+HOURS="${RETENTION_HOURS:-1}"
+EVERY="${PRUNE_EVERY_SECONDS:-600}"
 SNAPSHOTS="${SNAPSHOT_DIR:-/snapshots}"
 PSQL="psql -h ${PGHOST:-postgres} -U postgres -d flagsmith -v ON_ERROR_STOP=1 -At"
 log() { echo "$(date -u +%FT%TZ) $*"; }
@@ -45,7 +46,7 @@ prune_once() {
 }
 
 while :; do
-  prune_once || log "prune failed; trying again next hour"
+  prune_once || log "prune failed; trying again at the next run"
   [ "${ONCE:-}" = 1 ] && exit 0
-  sleep 3600
+  sleep "$EVERY"
 done
