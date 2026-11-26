@@ -397,7 +397,7 @@ export function createConsole(opts: ConsoleOptions): http.Server {
           return json(res, 403, { error: 'Open the console page to use its API.' });
         }
       }
-      if (req.method === 'POST' && !isSameOriginJson(req)) {
+      if (req.method === 'POST' && !isSameOriginJson(req, url.pathname === '/api/try/upload')) {
         return json(res, 403, { error: 'Console actions must come from the console page.' });
       }
 
@@ -412,7 +412,7 @@ export function createConsole(opts: ConsoleOptions): http.Server {
           return json(res, 200, { dashboardUrl: opts.judge?.dashboardUrl ?? null, email: login?.email ?? null, password: login?.password ?? null });
         }
         const rest = url.pathname.startsWith('/try/api/') ? url.pathname.slice(4) : url.pathname;
-        const allowed = ['/api/try/status', '/api/try/build', '/api/judge/state', '/api/judge/job', '/api/judge/run', '/api/traffic', '/api/you', '/api/pin'];
+        const allowed = ['/api/try/status', '/api/try/build', '/api/try/upload', '/api/judge/state', '/api/judge/job', '/api/judge/run', '/api/traffic', '/api/you', '/api/pin'];
         if (!allowed.includes(rest)) return json(res, 404, { error: 'not found' });
         return relayTry(`${opts.tryitUrl.replace(/\/$/, '')}${rest}`, req, res);
       }
@@ -617,8 +617,11 @@ function sameSecret(given: string, expected: string): boolean {
 
 // A cross-site form can't send application/json without a preflight we never answer, and a browser always sends
 // Origin on a cross-origin POST. Origin "null" (sandboxed frames, file://) or anything unparseable is refused.
-function isSameOriginJson(req: http.IncomingMessage): boolean {
-  if (!/^application\/json\s*(;\s*charset=utf-8\s*)?$/i.test(req.headers['content-type'] ?? '')) return false;
+// An upload (Try it: a project folder or an image file) is a tar instead: also a type another origin can't send
+// without a preflight, and it carries the console token too.
+function isSameOriginJson(req: http.IncomingMessage, tar = false): boolean {
+  const type = req.headers['content-type'] ?? '';
+  if (!(tar && /^application\/x-tar$/i.test(type)) && !/^application\/json\s*(;\s*charset=utf-8\s*)?$/i.test(type)) return false;
   const origin = req.headers.origin;
   if (origin === undefined) return true;
   try {
@@ -677,6 +680,12 @@ async function relayTry(url: string, req: http.IncomingMessage, res: http.Server
   const abort = new AbortController();
   res.on('close', () => abort.abort());
   try {
+    // An upload (a project folder or an image file, up to 2 GB) is streamed through untouched.
+    if (req.method === 'POST' && url.endsWith('/api/try/upload')) {
+      const upstream = await fetch(url, { method: 'POST', headers: { 'content-type': 'application/x-tar' }, body: req as unknown as ReadableStream, duplex: 'half', signal: abort.signal } as RequestInit);
+      res.writeHead(upstream.status, { 'content-type': 'application/json', 'cache-control': 'no-store' });
+      return void res.end(await upstream.text());
+    }
     let body: string | undefined;
     if (req.method === 'POST') {
       body = '';

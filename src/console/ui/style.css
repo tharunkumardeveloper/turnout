@@ -1049,3 +1049,16 @@ p.try-kindline { margin: 0; font-size: 13px; font-weight: 650; }
 .run-try[hidden] { display: none; }
 .run-try-line { margin: 0; font-size: 13px; }
 .run-try-go { --c: var(--good); justify-self: start; text-decoration: none; padding: 6px 14px; font-size: 13.5px; }
+
+/* Try it: one box per version; what Turnout detected, and the folder or file you chose */
+.try-pick { display: flex; flex-wrap: wrap; gap: 6px; }
+.try-pick .btn { position: relative; cursor: pointer; }
+.try-hidden-input { position: absolute; inset: 0; opacity: 0; width: 100%; cursor: pointer; }
+.try-picked { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 8px 10px; border: 1px solid var(--border); border-radius: 8px; background: var(--surface); }
+.try-detect { margin: 0; font-size: 12.5px; color: var(--good); line-height: 1.45; }
+.try-detect.bad { color: var(--bad); }
+.try-detect code { font: 12px var(--mono); }
+.try-select { font: 12px var(--mono); padding: 1px 4px; border: 1px solid var(--border); border-radius: 6px; background: var(--surface); color: var(--text); }
+.try-side summary { cursor: pointer; font-size: 12px; color: var(--muted); }
+.try-side[open] { display: grid; gap: 6px; }
+.try-steps { margin: 0 0 4px; padding-left: 20px; font-size: 13.5px; line-height: 1.55; }

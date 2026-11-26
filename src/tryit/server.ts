@@ -12,7 +12,8 @@
 // console exposes its API only to this machine.
 import http from 'node:http';
 import { hostname } from 'node:os';
-import { mkdirSync } from 'node:fs';
+import { createWriteStream, existsSync, mkdirSync, readdirSync, rmSync, statSync } from 'node:fs';
+import { randomBytes } from 'node:crypto';
 import { join } from 'node:path';
 import { parseConfig, type Config } from '../config.ts';
 import { init as runInit } from '../commands/init.ts';
@@ -32,7 +33,11 @@ export const SLOTS = ['a', 'b', 'c'] as const;
 export const NETWORK = 'turnout-try';
 const LABELS = SLOTS.map((s) => `try:${s}`);
 
-export type VersionSource = { kind: 'dockerfile' | 'git' | 'image'; value: string; port?: number; name?: string };
+// folder: an uploaded project folder (value: its upload id; dockerfile: which Dockerfile in it, default "Dockerfile").
+// imagefile: an uploaded image file, as docker save writes it (value: its upload id).
+export type VersionSource = { kind: 'dockerfile' | 'git' | 'image' | 'folder' | 'imagefile'; value: string; port?: number; name?: string; dockerfile?: string };
+export const UPLOAD_ID = /^[a-f0-9]{24}$/;
+export const MAX_UPLOAD = 2 * 1024 ** 3;
 export type BuildRequest = { versions: VersionSource[]; goal?: string; rates?: number[]; env?: string };
 type Stage = { title: string; status: 'todo' | 'running' | 'done' | 'failed'; detail?: string };
 export type BuildState = {
@@ -49,10 +54,30 @@ export type BuildState = {
 export function checkSource(v: VersionSource): string | null {
   const value = String(v.value ?? '').trim();
   if (!value) return 'is empty';
-  if (v.kind === 'dockerfile') return /^\s*FROM\s+\S+/im.test(value) ? null : 'has no FROM line: a Dockerfile starts from an image';
+  if (v.kind === 'dockerfile') {
+    if (!/^\s*FROM\s+\S+/im.test(value)) return 'has no FROM line: a Dockerfile starts from an image';
+    return needsFolder(value) ? 'is a Dockerfile that copies files from your project (COPY or ADD), but a pasted Dockerfile arrives alone. Press "Choose project folder" and pick the folder it lives in instead: Turnout sends the folder with it' : null;
+  }
+  if (v.kind === 'folder') {
+    if (!UPLOAD_ID.test(value)) return 'has an unknown upload';
+    return /^[\w./ -]{1,200}$/.test(v.dockerfile ?? 'Dockerfile') && !(v.dockerfile ?? '').includes('..') ? null : 'names a Dockerfile Turnout cannot use';
+  }
+  if (v.kind === 'imagefile') return UPLOAD_ID.test(value) ? null : 'has an unknown upload';
   if (v.kind === 'git') return /^(https:\/\/|git@)[\w.@:/~-]+?(\.git)?(#[\w./:-]*)?$/.test(value) ? null : 'should be a public git URL, such as https://github.com/you/app.git (optionally #branch:folder)';
   if (v.kind === 'image') return /^[\w.\-/:@]+$/.test(value) ? null : 'should be an image name, such as nginx:alpine';
   return 'has an unknown kind';
+}
+
+/** True when a Dockerfile copies files from its build context (COPY/ADD of local paths, not --from another stage or a URL). */
+export function needsFolder(dockerfile: string): boolean {
+  return dockerfile.split(/\r?\n/).some((line) => {
+    const m = line.match(/^\s*(COPY|ADD)\s+(.*)$/i);
+    if (!m) return false;
+    const args = m[2]!.trim();
+    if (/--from=/i.test(args)) return false;
+    const src = args.replace(/--\S+\s*/g, '').trim().replace(/^\[\s*"?/, '').split(/[\s",]+/)[0] ?? '';
+    return !/^https?:\/\//i.test(src);
+  });
 }
 
 /** "KEY=value" lines (your app's settings) → Docker's Env list; blank lines and # comments skipped. */
@@ -81,7 +106,7 @@ export const kindFor = (n: number) => (n <= 1 ? 'A/A' : 'ABC'.slice(0, n).split(
 /** Display names: the image, the repository or "Dockerfile 2"; an A/A test's copy is "(copy)". */
 export function namesFor(versions: VersionSource[]): Record<string, string> {
   const name = (v: VersionSource, i: number) =>
-    v.name?.trim() || (v.kind === 'image' ? v.value.trim() : v.kind === 'git' ? v.value.trim().replace(/^.*\/([^/#]+?)(\.git)?(#.*)?$/, '$1') : `Dockerfile ${i + 1}`);
+    v.name?.trim() || (v.kind === 'image' ? v.value.trim() : v.kind === 'git' ? v.value.trim().replace(/^.*\/([^/#]+?)(\.git)?(#.*)?$/, '$1') : v.kind === 'folder' ? `Folder ${i + 1}` : v.kind === 'imagefile' ? `Image file ${i + 1}` : `Dockerfile ${i + 1}`);
   const out: Record<string, string> = {};
   versions.forEach((v, i) => (out[LABELS[i]!] = name(v, i)));
   if (versions.length === 1) out[LABELS[1]!] = `${out[LABELS[0]!]} (copy)`;
@@ -115,6 +140,40 @@ export function startTryit(o: TryitOptions) {
   let rates: Record<string, number> = {};
   let names: Record<string, string> = {};
   const state: BuildState = { status: 'idle', kind: null, versions: [], log: [], error: null, shop: o.publicShop, goal: null };
+  // Uploads (a project folder as a tar, or an image file): kept in the state folder, the newest 6, so a few builds
+  // can reuse them; the rest are removed.
+  const uploads = join(o.stateDir, 'uploads');
+  mkdirSync(uploads, { recursive: true });
+  const uploadPath = (id: string) => {
+    const file = join(uploads, `${id}.tar`);
+    if (!UPLOAD_ID.test(id) || !existsSync(file)) throw new Error('an upload is gone (Try it restarted?): choose the folder or file again');
+    return file;
+  };
+  function pruneUploads() {
+    const files = readdirSync(uploads).map((f) => ({ f, t: statSync(join(uploads, f)).mtimeMs })).sort((a, b) => b.t - a.t);
+    for (const { f } of files.slice(6)) rmSync(join(uploads, f), { force: true });
+  }
+  async function receiveUpload(req: http.IncomingMessage): Promise<{ id: string; size: number }> {
+    const id = randomBytes(12).toString('hex');
+    const file = join(uploads, `${id}.tar`);
+    let size = 0;
+    await new Promise<void>((resolve, reject) => {
+      const out = createWriteStream(file);
+      req.on('data', (c: Buffer) => {
+        size += c.length;
+        if (size > MAX_UPLOAD) req.destroy(new Error('too large: up to 2 GB'));
+      });
+      req.on('error', (e) => (out.destroy(), reject(e)));
+      out.on('error', reject);
+      out.on('finish', () => resolve());
+      req.pipe(out);
+    }).catch((error) => {
+      rmSync(file, { force: true });
+      throw error;
+    });
+    pruneUploads();
+    return { id, size };
+  }
   const note = (line: string) => {
     state.log.push(line);
     if (state.log.length > 200) state.log.splice(0, state.log.length - 200);
@@ -153,7 +212,7 @@ export function startTryit(o: TryitOptions) {
       status: 'building', kind: kindFor(versions.length), error: null, log: [], goal: req.goal?.trim() || null,
       versions: versions.map((v, i) => ({
         slot: SLOTS[i]!, label: LABELS[i]!, name: names[LABELS[i]!]!, source: v.kind, port: null,
-        stages: [{ title: v.kind === 'image' ? 'Pull the image' : v.kind === 'git' ? 'Build it from the repository' : 'Build the Dockerfile', status: 'todo' }, { title: 'Start it', status: 'todo' }],
+        stages: [{ title: { image: 'Pull the image', git: 'Build it from the repository', folder: `Build your folder with ${v.dockerfile || 'Dockerfile'}`, imagefile: 'Load your image file', dockerfile: 'Build the Dockerfile' }[v.kind], status: 'todo' }, { title: 'Start it', status: 'todo' }],
       })),
     } satisfies Partial<BuildState>);
     judge = null;
@@ -164,7 +223,7 @@ export function startTryit(o: TryitOptions) {
       for (const [i, v] of versions.entries()) {
         const slot = state.versions[i]!;
         const [get, run] = slot.stages;
-        const image = v.kind === 'image' ? v.value.trim() : `turnout-try-${slot.slot}:latest`;
+        let image = v.kind === 'image' ? v.value.trim() : `turnout-try-${slot.slot}:latest`;
         get!.status = 'running';
         note(`${slot.name}: ${get!.title.toLowerCase()}…`);
         const onLog = (l: string) => {
@@ -174,6 +233,10 @@ export function startTryit(o: TryitOptions) {
         if (v.kind === 'image') await o.docker.pull(image, onLog).catch(async (error) => {
           if (!(await o.docker.imageExists(image))) throw error; // a local-only image is fine
         });
+        else if (v.kind === 'folder') await o.docker.buildFolder(image, uploadPath(v.value), v.dockerfile || 'Dockerfile', onLog).catch((error: Error) => {
+          throw new Error(/locate specified Dockerfile|no such file/i.test(error.message) ? `your folder has no ${v.dockerfile || 'Dockerfile'} at its top level` : error.message);
+        });
+        else if (v.kind === 'imagefile') image = await o.docker.load(uploadPath(v.value), onLog);
         else if (v.kind === 'git') await o.docker.build(image, { remote: v.value.trim() }, onLog).catch((error: Error) => {
           throw new Error(gitBuildError(error.message));
         });
@@ -291,6 +354,10 @@ export function startTryit(o: TryitOptions) {
       const url = new URL(req.url ?? '/', 'http://tryit');
       const p = url.pathname;
       if (p === '/api/try/status') return send(res, 200, { ...state, names, docker: await o.docker.ping() });
+      if (p === '/api/try/upload' && req.method === 'POST') {
+        if (state.status === 'building') return send(res, 409, { error: 'A build is running. Wait for it to finish.' });
+        return send(res, 200, await receiveUpload(req));
+      }
       if (p === '/api/try/build' && req.method === 'POST') {
         if (state.status === 'building') return send(res, 409, { error: 'A build is already running.' });
         if (lock.busy) return send(res, 409, { error: 'A test step is running. Wait for it to finish.' });

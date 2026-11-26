@@ -2,6 +2,7 @@
 // one from a pasted Dockerfile or straight from a public git URL, and run containers on a private network. No Docker
 // CLI needed in the image. Engine API reference: https://docs.docker.com/reference/api/engine/
 import http from 'node:http';
+import { createReadStream, statSync } from 'node:fs';
 
 export type DockerOptions = { socketPath?: string; timeoutMs?: number };
 type Line = { stream?: string; status?: string; error?: string; errorDetail?: { message?: string } };
@@ -12,11 +13,14 @@ export function createDocker(o: DockerOptions = {}) {
   const socketPath = o.socketPath ?? '/var/run/docker.sock';
 
   // One request; a streamed answer (pull, build) is read line by line, each line a JSON object.
-  function request(method: string, path: string, body?: Buffer | object, opts: { headers?: Record<string, string>; onLine?: (line: Line) => void; timeoutMs?: number } = {}): Promise<{ status: number; body: unknown }> {
+  function request(method: string, path: string, body?: Buffer | object | { file: string }, opts: { headers?: Record<string, string>; onLine?: (line: Line) => void; timeoutMs?: number } = {}): Promise<{ status: number; body: unknown }> {
     return new Promise((resolve, reject) => {
-      const payload = body === undefined ? undefined : Buffer.isBuffer(body) ? body : Buffer.from(JSON.stringify(body));
+      // A file on disk (an uploaded project folder or image, possibly large) is streamed, never held in memory.
+      const file = body && typeof body === 'object' && 'file' in body && !Buffer.isBuffer(body) ? (body as { file: string }).file : null;
+      const payload = body === undefined || file ? undefined : Buffer.isBuffer(body) ? body : Buffer.from(JSON.stringify(body));
       const headers: Record<string, string> = { ...(payload && !Buffer.isBuffer(body) ? { 'content-type': 'application/json' } : {}), ...(opts.headers ?? {}) };
       if (payload) headers['content-length'] = String(payload.length);
+      if (file) headers['content-length'] = String(statSync(file).size);
       const req = http.request({ socketPath, method, path, headers, timeout: opts.timeoutMs ?? o.timeoutMs ?? 30_000 }, (res) => {
         let text = '';
         let pending = '';
@@ -56,6 +60,7 @@ export function createDocker(o: DockerOptions = {}) {
       });
       req.on('timeout', () => req.destroy(new DockerError(`Docker didn't answer ${method} ${path} in time`)));
       req.on('error', reject);
+      if (file) return void createReadStream(file).on('error', (e) => req.destroy(e)).pipe(req);
       if (payload) req.write(payload);
       req.end();
     });
@@ -82,6 +87,21 @@ export function createDocker(o: DockerOptions = {}) {
         const tar = tarOne('Dockerfile', from.dockerfile);
         await request('POST', `/build?${q(common)}`, tar, { headers: { 'content-type': 'application/x-tar' }, onLine: say(onLog), timeoutMs: 30 * 60_000 });
       }
+    },
+    /** Builds `tag` from an uploaded project folder (a tar file), with the Dockerfile named inside it. */
+    async buildFolder(tag: string, tarFile: string, dockerfile: string, onLog?: (l: string) => void): Promise<void> {
+      await request('POST', `/build?${q({ t: tag, rm: '1', forcerm: '1', memory: String(2 * 1024 ** 3), dockerfile })}`, { file: tarFile }, { headers: { 'content-type': 'application/x-tar' }, onLine: say(onLog), timeoutMs: 30 * 60_000 });
+    },
+    /** Loads an uploaded image file (docker save output); answers the image's name (or its ID if it has none). */
+    async load(tarFile: string, onLog?: (l: string) => void): Promise<string> {
+      let loaded = '';
+      await request('POST', '/images/load', { file: tarFile }, { headers: { 'content-type': 'application/x-tar' }, timeoutMs: 30 * 60_000, onLine: (line) => {
+        const m = (line.stream ?? '').match(/Loaded image(?: ID)?: (\S+)/);
+        if (m) loaded = m[1]!;
+        say(onLog)(line);
+      } });
+      if (!loaded) throw new DockerError('Docker loaded the file but named no image in it. Make it with: docker save -o app.tar yourimage:tag');
+      return loaded;
     },
     async imageExists(image: string): Promise<boolean> {
       return request('GET', `/images/${encodeURIComponent(image)}/json`).then(() => true).catch(() => false);

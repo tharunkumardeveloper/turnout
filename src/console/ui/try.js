@@ -2,6 +2,8 @@
 // or an image), built and run on this machine by the tryit service, then the same test page as judge mode at /try.
 // One version makes an A/A test, two an A/B test, three an A/B/C test. Every string goes in through textContent.
 
+import { SKIP, detect, dockerfilesIn, tarParts } from './try-model.js';
+
 const TOKEN = document.querySelector('meta[name="turnout-console"]')?.getAttribute('content') ?? '';
 const api = (path, init = {}) => fetch(path, { ...init, headers: { ...(init.headers ?? {}), 'x-turnout-console': TOKEN } });
 const $ = (id) => /** @type {HTMLElement} */ (document.getElementById(id));
@@ -63,46 +65,140 @@ const EXAMPLE = [
   }),
 ];
 
-const rows = LETTERS.map((letter, i) => ({ letter, kind: 'dockerfile', value: '', port: '', rate: i === 0 ? '10' : '10' }));
+// Each version is one box: paste anything (a Dockerfile, a git URL, an image name) and Turnout works out which, or
+// choose your project folder (it is sent with its Dockerfile, so COPY works) or a file (a Dockerfile, or an image
+// saved with docker save). Nobody has to know which kind they have.
+const rows = LETTERS.map(() => ({ text: '', folder: null, file: null, port: '', rate: '10' }));
 let polling = 0;
 let offline = false; // the tryit service isn't running (or this is the public server)
 let ready = ''; // the line once a build is ready (kept until the versions change)
+const mb = (n) => (n >= 1024 ** 2 ? `${(n / 1024 ** 2).toFixed(1)} MB` : `${Math.max(1, Math.round(n / 1024))} KB`);
 
-function rowView(r, i) {
-  const field =
-    r.kind === 'dockerfile'
-      ? h('div', { class: 'try-field' },
-          h('textarea', { rows: 4, spellcheck: 'false', placeholder: i ? 'Optional. Paste a Dockerfile, or upload one.' : 'Paste a Dockerfile, or upload one. It must be self-contained (for COPY of your files, use a git repo).', value: r.value, on: { input: (e) => ((r.value = e.target.value), (ready = ''), kindLine()) } }),
-          h('label', { class: 'try-upload' }, 'Upload…', h('input', { type: 'file', accept: '.dockerfile,text/plain,*', on: { change: async (e) => {
-            const file = e.target.files?.[0];
-            if (!file) return;
-            r.value = await file.text();
-            render();
-          } } })))
-      : h('input', { class: 'try-text', spellcheck: 'false', value: r.value, placeholder: r.kind === 'git' ? 'a public git URL: github.com/you/app.git, with https:// (optionally #branch:folder)' : 'an image, such as nginx:alpine or myapp:1.1', on: { input: (e) => ((r.value = e.target.value), kindLine()) } });
-  return h('div', { class: 'try-row', 'data-i': String(i) },
-    h('span', { class: 'try-letter' }, r.letter),
-    h('div', { class: 'try-main' },
-      h('div', { class: 'try-kinds', role: 'group', 'aria-label': `Version ${r.letter}: what you give` },
-        ...[['dockerfile', 'Dockerfile'], ['git', 'Git repo'], ['image', 'Image']].map(([k, label]) =>
-          h('button', { type: 'button', class: 'try-kind', 'aria-pressed': String(r.kind === k), on: { click: () => ((r.kind = k), render()) } }, label))),
-      field),
-    h('div', { class: 'try-side' },
-      h('label', {}, 'App port', h('input', { class: 'try-num', type: 'number', min: 1, max: 65535, placeholder: 'auto', value: r.port, title: "The port your app listens on inside its container, not a port on your machine. Leave it on auto: Turnout reads the Dockerfile's EXPOSE line (else 80) and also passes it as PORT.", on: { input: (e) => (r.port = e.target.value) } })),
-      h('label', { title: 'Simulated visitors convert at this rate on this version (an input you choose, not evidence). Real differences in page speed and errors are measured as they are.' }, 'Pretend %', h('input', { class: 'try-num', type: 'number', min: 0, max: 100, step: 1, value: r.rate, on: { input: (e) => (r.rate = e.target.value) } }))));
+function pickFolder(r, files) {
+  const list = [...files];
+  if (!list.length) return;
+  const root = list[0].webkitRelativePath.split('/')[0];
+  const kept = list.map((f) => ({ f, path: f.webkitRelativePath.slice(root.length + 1) })).filter((x) => x.path && !SKIP.test(x.path));
+  const dockerfiles = dockerfilesIn(kept.map((x) => x.path));
+  const size = kept.reduce((a, x) => a + x.f.size, 0);
+  const shared = { name: root, files: kept, dockerfiles, size, skipped: list.length - kept.length, upload: null };
+  r.folder = { shared, dockerfile: dockerfiles[0] ?? null };
+  r.file = null;
+  r.text = '';
+  ready = '';
+  // A folder with several Dockerfiles (indicraft: Dockerfile and Dockerfile.teal) fills the next empty versions too.
+  for (const extra of dockerfiles.slice(1)) {
+    const next = rows.find((x) => x !== r && !x.text.trim() && !x.folder && !x.file);
+    if (!next) break;
+    next.folder = { shared, dockerfile: extra };
+  }
+  render();
+}
+async function pickFile(r, file) {
+  if (!file) return;
+  ready = '';
+  if (/\.(tar|tar\.gz|tgz)$/i.test(file.name) || file.size > 1024 ** 2) {
+    r.file = { name: file.name, blob: file, upload: null };
+    r.folder = null;
+    r.text = '';
+  } else {
+    r.text = await file.text();
+    r.file = null;
+  }
+  render();
 }
 
+function sourceLine(r) {
+  if (r.folder) {
+    const f = r.folder.shared;
+    if (!r.folder.dockerfile) return h('p', { class: 'try-detect bad' }, `Your folder ${f.name} has no Dockerfile at its top level. Turnout runs any app that has one: add a Dockerfile to the folder and choose it again.`);
+    return h('p', { class: 'try-detect' }, `✓ Your folder ${f.name} (${f.files.length} files, ${mb(f.size)}${f.skipped ? `; ${f.skipped} files in node_modules, .git and the like are left out, the build makes them` : ''}), built with `,
+      f.dockerfiles.length > 1
+        ? h('select', { class: 'try-select', 'aria-label': 'Which Dockerfile', on: { change: (e) => ((r.folder.dockerfile = e.target.value), (ready = '')) } }, ...f.dockerfiles.map((d) => h('option', { value: d, selected: d === r.folder.dockerfile }, d)))
+        : h('code', {}, r.folder.dockerfile), '.');
+  }
+  if (r.file) return h('p', { class: 'try-detect' }, `✓ An image file: ${r.file.name} (${mb(r.file.blob.size)}). Turnout loads it into Docker and runs it.`);
+  const d = detect(r.text);
+  if (!d) return null;
+  if (!d.kind) return h('p', { class: 'try-detect bad' }, `This is ${d.label}.`);
+  if (d.copies) return h('p', { class: 'try-detect bad' }, 'This Dockerfile copies files from your project (COPY), so it needs its folder. Press Choose project folder and pick the folder it is in: Turnout sends the folder and its Dockerfile together.');
+  return h('p', { class: 'try-detect' }, `✓ Looks like ${d.label}.`);
+}
+
+function rowView(r, i) {
+  const clear = () => ((r.folder = null), (r.file = null), (r.text = ''), (ready = ''), render());
+  const picked = r.folder || r.file;
+  return h('div', { class: 'try-row', 'data-i': String(i) },
+    h('span', { class: 'try-letter' }, LETTERS[i]),
+    h('div', { class: 'try-main' },
+      picked
+        ? h('div', { class: 'try-picked' }, h('strong', {}, r.folder ? `📁 ${r.folder.shared.name}` : `📦 ${r.file.name}`), h('button', { type: 'button', class: 'btn btn-small btn-ghost', on: { click: clear } }, 'Change'))
+        : h('textarea', { rows: 3, spellcheck: 'false', placeholder: i ? 'Optional: another version, the same way.' : 'Paste anything: a Dockerfile, a GitHub link or an image name (myapp:1.2). Or choose your project folder.', value: r.text, on: { input: (e) => ((r.text = e.target.value), (ready = ''), refreshLine(i)) } }),
+      picked ? null : h('div', { class: 'try-pick' },
+        h('label', { class: 'btn btn-small' }, '📁 Choose project folder', h('input', { type: 'file', class: 'try-hidden-input', webkitdirectory: true, on: { change: (e) => pickFolder(r, e.target.files ?? []) } })),
+        h('label', { class: 'btn btn-small btn-ghost', title: 'A Dockerfile, or an image saved with: docker save -o app.tar myapp:1.2' }, 'Choose a file', h('input', { type: 'file', class: 'try-hidden-input', on: { change: (e) => pickFile(r, e.target.files?.[0]) } }))),
+      h('div', { class: 'try-line' }, sourceLine(r))),
+    h('details', { class: 'try-side' },
+      h('summary', {}, 'More'),
+      h('label', {}, 'App port', h('input', { class: 'try-num', type: 'number', min: 1, max: 65535, placeholder: 'auto', value: r.port, title: "The port your app listens on inside its container (not on your machine). Auto reads the Dockerfile's EXPOSE line, else 80.", on: { input: (e) => (r.port = e.target.value) } })),
+      h('label', { title: 'Simulated visitors convert at this rate on this version (an input you choose, not evidence). Real page speed and errors are measured as they are.' }, 'Pretend %', h('input', { class: 'try-num', type: 'number', min: 0, max: 100, step: 1, value: r.rate, on: { input: (e) => (r.rate = e.target.value) } }))));
+}
+function refreshLine(i) {
+  const line = document.querySelector(`.try-row[data-i="${i}"] .try-line`);
+  line?.replaceChildren(...[sourceLine(rows[i])].filter(Boolean));
+  kindLine();
+}
+
+/** A version that can be built: a folder with a Dockerfile, an image file, or text Turnout recognises (not a COPY Dockerfile). */
+function usable(r) {
+  if (r.folder) return Boolean(r.folder.dockerfile);
+  if (r.file) return true;
+  const d = detect(r.text);
+  return Boolean(d?.kind) && !d.copies;
+}
 function filled() {
-  return rows.filter((r) => r.value.trim());
+  return rows.filter((r) => r.folder || r.file || r.text.trim());
 }
 function kindLine() {
   const n = filled().length;
-  $('try-kind').textContent = ready || (n ? `${n} version${n > 1 ? 's' : ''}: ${KIND[n]}.` : 'Give at least version A.');
-  /** @type {HTMLButtonElement} */ ($('try-build')).disabled = !n || Boolean(polling) || offline;
+  const bad = filled().some((r) => !usable(r));
+  $('try-kind').textContent = ready || (bad ? 'Fix the version marked in red first.' : n ? `${n} version${n > 1 ? 's' : ''}: ${KIND[n]}.` : 'Step 1: give version A.');
+  /** @type {HTMLButtonElement} */ ($('try-build')).disabled = !n || bad || Boolean(polling) || offline;
 }
 function render() {
   $('try-versions').replaceChildren(...rows.map(rowView));
   kindLine();
+}
+
+// Uploads a chosen folder (as a tar, built here in the browser) or image file once; versions sharing a folder share it.
+async function upload(target, makeBlob, say) {
+  if (target.upload) return target.upload;
+  say();
+  const res = await api('/api/try/upload', { method: 'POST', headers: { 'content-type': 'application/x-tar' }, body: await makeBlob() });
+  const body = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(body.error ?? `upload failed (HTTP ${res.status})`);
+  target.upload = body.id;
+  return body.id;
+}
+async function folderBlob(f) {
+  const entries = [];
+  for (const { f: file, path } of f.files) entries.push({ path, size: file.size, data: new Uint8Array(await file.arrayBuffer()) });
+  return new Blob(tarParts(entries), { type: 'application/x-tar' });
+}
+async function versionFor(r, i) {
+  const extra = Number(r.port) > 0 ? { port: Number(r.port) } : {};
+  const say = (what) => () => ($('try-kind').textContent = `Sending ${what} to Turnout on this machine…`);
+  if (r.folder) {
+    const id = await upload(r.folder.shared, () => folderBlob(r.folder.shared), say(`your folder ${r.folder.shared.name} (${mb(r.folder.shared.size)})`));
+    const name = r.folder.dockerfile === 'Dockerfile' ? r.folder.shared.name : `${r.folder.shared.name} (${r.folder.dockerfile})`;
+    return { kind: 'folder', value: id, dockerfile: r.folder.dockerfile, name, ...extra };
+  }
+  if (r.file) {
+    const id = await upload(r.file, async () => r.file.blob, say(`${r.file.name} (${mb(r.file.blob.size)})`));
+    return { kind: 'imagefile', value: id, name: r.file.name.replace(/\.(tar|tar\.gz|tgz)$/i, ''), ...extra };
+  }
+  const d = detect(r.text);
+  return { kind: d.kind, value: d.value, ...extra };
 }
 
 function stageList(v) {
@@ -156,7 +252,15 @@ async function poll() {
 }
 
 async function build() {
-  const versions = filled().map((r) => ({ kind: r.kind, value: r.value, ...(Number(r.port) > 0 ? { port: Number(r.port) } : {}) }));
+  let versions;
+  try {
+    versions = [];
+    for (const [i, r] of filled().entries()) versions.push(await versionFor(r, i));
+  } catch (error) {
+    $('try-error').hidden = false;
+    $('try-error').textContent = error.message;
+    return kindLine();
+  }
   const rates = filled().map((r) => Math.min(100, Math.max(0, Number(r.rate) || 0)) / 100);
   $('try-error').hidden = true;
   $('try-previews').replaceChildren();
@@ -218,10 +322,9 @@ export async function setupTry() {
     void build();
   });
   $('try-example').addEventListener('click', () => {
-    rows[0].kind = rows[1].kind = 'dockerfile';
-    rows[0].value = EXAMPLE[0];
-    rows[1].value = EXAMPLE[1];
-    rows[2].value = '';
+    for (const r of rows) Object.assign(r, { folder: null, file: null, text: '' });
+    rows[0].text = EXAMPLE[0];
+    rows[1].text = EXAMPLE[1];
     rows[0].rate = '10';
     rows[1].rate = '18';
     /** @type {HTMLInputElement} */ ($('try-goal')).value = 'GET /pricing.html';

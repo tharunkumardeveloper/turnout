@@ -153,9 +153,11 @@ The full console is at <http://127.0.0.1:8090>: pick A/A, A/B or A/B/C in **Run 
 
 Try it starts with everything else (`turnout.bat` / `sh turnout.sh`), **on your machine only**: it builds and runs code over the Docker socket, so a public server never runs it. Then, on the console, press **Try it with your app** and give one, two or three versions, each as:
 
-- a **Dockerfile** (paste or upload it; it must be self-contained, since `COPY` needs your files),
-- a **public git repository** URL (Docker builds it straight from the URL, Dockerfile included), or
-- an **image** name (`nginx:alpine`, `myapp:1.1`).
+- **your project folder** (press **Choose project folder**; it needs a Dockerfile at its top. Turnout sends the folder with it, leaving out `node_modules` and `.git`. A folder with several Dockerfiles, such as `Dockerfile` and `Dockerfile.teal`, fills A and B by itself),
+- or paste **anything** and Turnout works out what it is: a Dockerfile that copies no files, a **GitHub link**, or an **image** name (`nginx:alpine`, `myapp:1.1`),
+- or **choose a file**: a Dockerfile, or an image saved with `docker save -o app.tar myapp:1.1`.
+
+The only thing your app needs is a working Dockerfile. Turnout never asks you to change your app or convert it to a format of its own.
 
 One version makes an A/A test (the same app twice, a fairness check), two an A/B test, three an A/B/C test. Turnout builds them on your machine, runs them behind a proxy of its own on a flag of its own (`tryit_release`), shows a live preview of each, and opens judge mode for them at <http://127.0.0.1:8090/try>, where **Play it for me** runs the whole test. Optional: a goal (`POST /signup`, `GET /pricing.html`), the conversion rate simulated visitors use per version, and **settings for your app** (`KEY=value` lines, such as a database URL; your machine is `host.docker.internal`). **Use an example** fills in two small pages, so you can watch it work without an app of your own. Local only: it builds and runs code, so it never exists on a public server.
 </details>

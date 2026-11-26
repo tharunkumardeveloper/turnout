@@ -234,7 +234,12 @@
   <dialog id="try-dialog" class="dialog try-dialog" aria-labelledby="try-title">
     <form method="dialog" class="dialog-inner try-inner">
       <h2 id="try-title">Try Turnout with your app</h2>
-      <p class="dialog-intro">Give one, two or three versions. One makes an A/A test (the same app twice: a fairness check), two an A/B test, three an A/B/C test. Turnout builds them on this machine with Docker, runs them behind a proxy of its own on a flag of its own (<code>tryit_release</code>), and opens the same test page as judge mode, with previews and one-button runs.</p>
+      <p class="dialog-intro">See Turnout split real visitors between versions of <strong>your</strong> app, on this machine.</p>
+      <ol class="try-steps">
+        <li><strong>Give each version.</strong> Choose its project folder (it needs a Dockerfile), or paste a Dockerfile, a GitHub link or an image name: Turnout works out which. One version is a fairness check (A/A), two an A/B test, three an A/B/C.</li>
+        <li><strong>Optional:</strong> a goal (what counts as a win) and settings your app needs, such as a database URL.</li>
+        <li><strong>Build and try.</strong> Turnout builds and starts each version, puts them behind its proxy, and opens a test page where one button sends visitors and Flagsmith picks the winner.</li>
+      </ol>
       <div id="try-versions" class="try-versions"></div>
       <label class="try-goal-label"><span>Goal <span class="card-sub">(optional)</span></span>
         <input id="try-goal" class="try-text" spellcheck="false" placeholder="none: versions are compared on page speed · or e.g. POST /signup, GET /product/*">
