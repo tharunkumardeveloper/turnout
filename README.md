@@ -21,7 +21,7 @@ You need Docker with Compose 2.20+ and about 8 GB of RAM for Docker. Get the cod
 The shop is one example. Any web app with two or more releases you can reach over HTTP works: containers, or apps on your machine (`http://host.docker.internal:3000`, on Linux too). In your project's folder:
 
 ```sh
-# 1. Four questions (Flagsmith: bundled or yours; the releases; success, e.g. "POST /signup 2xx"; % of traffic)
+# 1. Four questions (Flagsmith: bundled or yours; the releases; success, e.g. "POST /signup 2xx" or "header signup"; % of traffic)
 docker run --rm -it -v "$PWD:/work" -w /work ghcr.io/tharunkumardeveloper/switchyard new
 # 2. Set up Flagsmith: the release flag, metrics, the experiment (yours: add --project <name|id> --environment <name|key>)
 docker compose -f switchyard.compose.yml run --rm cli init
@@ -34,6 +34,26 @@ docker compose -f switchyard.compose.yml up -d
 > **The image isn't published yet.** `.github/workflows/publish.yml` pushes `ghcr.io/<owner>/switchyard` on a version tag, and hasn't run. Until then, build it from this checkout (`docker build -t ghcr.io/tharunkumardeveloper/switchyard .`) or run `node src/cli.ts new` here and pass `--image switchyard:local`.
 
 A second, different example lives in [`examples/landing/`](examples/landing/README.md): a static landing page with a Sign up button, two releases as two containers, success = `POST /signup` 2xx.
+
+### Will it work with my app?
+
+- **Success is a web request.** For example "`POST /checkout` returned 2xx" or "`GET /thank-you` loaded". A click that only changes the page in the browser can't be measured, unless the app names the event in a response header (below).
+- **Both versions work with the same data.** They share the database, so schema changes must stay backward compatible.
+- **No hard-coded hostnames.** Use relative links (`/cart`, not `http://app-v2:3000/cart`) so visitors stay behind Switchyard. Switchyard already rewrites a redirect's `Location` header that points at the release's own address to a relative path; links inside pages, scripts and API responses are not rewritten.
+- **No cookies named `sy_id` or `sy_preview`.** Those are Switchyard's: `sy_id` keeps each visitor on the same version. The proxy removes those two from the request before it reaches your app; your app's own cookies pass through both ways untouched.
+- **A visitor counts from their second request.** The first response sets `sy_id`; exposures and events are recorded only once the browser sends it back, so a conversion on the very first request isn't counted.
+
+#### Optional: name the event in a response header (still no SDK)
+
+When success isn't a fixed request, the app can say so itself. Set `header: true` on the goal:
+
+```yaml
+goal:
+  event: signup
+  header: true          # with or instead of `when:`
+```
+
+and answer the converting request with `X-Switchyard-Event: signup`. Several events are comma-separated, and each may carry a number for sum or mean metrics: `X-Switchyard-Event: signup, plan_chosen;value=49`. Switchyard sends each as a Flagsmith event for that visitor on the same terms as the `when:` goal (only once the visitor's cookie came back, never for bots or when Flagsmith couldn't answer), ignores invalid names and guardrail names, takes at most 5 per response, and removes the header from every response, with or without `header: true`, so visitors never see it. `init` creates the metric for `goal.event`; other event names reach Flagsmith but need a metric there to be measured. If a request both matches `when:` and names `goal.event`, it counts once. `switchyard new --success "header signup"` writes this goal.
 
 ## Why it can't make the four wiring mistakes
 
@@ -222,7 +242,7 @@ Switchyard never redirects: Flagsmith's docs list "redirects that bypass bucketi
 ## Limitations
 
 - **Both versions share state**, as in blue/green: schemas must stay backward compatible.
-- **Page-level only.** SPA navigations aren't new exposures; conversions must be visible in HTTP. A visitor counts from their second request (the first one sets the cookie).
+- **Page-level only.** SPA navigations aren't new exposures; conversions must be visible in HTTP (a request, or an `X-Switchyard-Event` response header). A visitor counts from their second request (the first one sets the cookie).
 - **One experiment per flag per environment** (Flagsmith's rule): releases run one at a time.
 - **A new hop in the traffic path.** Teams will want to put the proxy through their own security review.
 - **The ID cookie** is an online identifier; in the EU a cookie notice or consent may apply.

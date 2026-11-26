@@ -11,6 +11,9 @@ releases:
 goal:
   event: signup
   when: { method: POST, path: "/signup", status: 2xx }
+  # Alternative: the page also answers a signup with "X-Switchyard-Event: signup". Replace the line above with
+  #   header: true
+  # to count that instead. With both, a request that matches the rule and names the event still counts once.
 
 guardrails: [doc_latency_ms, server_error]   # sent on every page load
 

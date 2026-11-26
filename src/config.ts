@@ -15,14 +15,16 @@ export type Config = {
   // Allowlist: release label → container. The flag's value (e.g. "shop:1.5") picks one; it never carries a URL.
   releases: Map<string, URL>;
   fallback: string; // the first release: served when Flagsmith can't answer or the flag is off
-  goal: { event: string; when: HttpRule };
+  // when: the request that counts as a conversion. header: the app may also name events itself in an
+  // X-Switchyard-Event response header. At least one of the two.
+  goal: { event: string; when?: HttpRule; header: boolean };
   guardrails: Guardrail[];
   traffic: number; // % of visitors in the experiment (its rollout); the rest stay on the live release. Default 100.
 };
 
 export class ConfigError extends Error {}
 
-const EVENT_NAME = /^[A-Za-z][A-Za-z0-9_.-]{0,99}$/;
+export const EVENT_NAME = /^[A-Za-z][A-Za-z0-9_.-]{0,99}$/;
 
 export function loadConfig(path: string): Config {
   let text: string;
@@ -55,14 +57,19 @@ export function parseConfig(raw: unknown): Config {
   if (!fallback) throw new ConfigError("releases must list at least one release; the first is served when Flagsmith can't answer");
 
   const goal = asRecord(doc.goal, 'goal');
-  const when = asRecord(goal.when, 'goal.when');
-  const rule: HttpRule = {
-    method: asString(when.method, 'goal.when.method').toUpperCase(),
-    path: asString(when.path, 'goal.when.path'),
-    status: String(when.status ?? '2xx'),
-  };
-  if (!/^[1-5](xx|\d\d)$/.test(rule.status)) {
-    throw new ConfigError(`goal.when.status must look like 2xx or 201, got "${rule.status}"`);
+  if (goal.header !== undefined && typeof goal.header !== 'boolean') throw new ConfigError('goal.header must be true or false');
+  const header = goal.header === true;
+  let rule: HttpRule | undefined;
+  if (goal.when !== undefined || !header) {
+    const when = asRecord(goal.when, 'goal.when');
+    rule = {
+      method: asString(when.method, 'goal.when.method').toUpperCase(),
+      path: asString(when.path, 'goal.when.path'),
+      status: String(when.status ?? '2xx'),
+    };
+    if (!/^[1-5](xx|\d\d)$/.test(rule.status)) {
+      throw new ConfigError(`goal.when.status must look like 2xx or 201, got "${rule.status}"`);
+    }
   }
 
   const guardrails = (doc.guardrails ?? []) as unknown[];
@@ -89,7 +96,7 @@ export function parseConfig(raw: unknown): Config {
     flag,
     releases,
     fallback,
-    goal: { event, when: rule },
+    goal: { event, ...(rule ? { when: rule } : {}), header },
     guardrails: guardrails as Guardrail[],
     traffic,
   };

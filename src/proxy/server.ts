@@ -1,13 +1,17 @@
 import { createHmac, randomUUID, timingSafeEqual } from 'node:crypto';
 import http from 'node:http';
 import https from 'node:https';
-import { matchesRule, type Config } from '../config.ts';
+import { EVENT_NAME, GUARDRAILS, matchesRule, type Config } from '../config.ts';
 import type { Receipt } from '../flagsmith/receipts.ts';
 
 export const ID_COOKIE = 'sy_id';
 export const PREVIEW_COOKIE = 'sy_preview';
 // Paths under this prefix are answered by Switchyard itself and never reach the app.
 export const OWN_PREFIX = '/__switchyard/';
+// The app may name conversion events itself: "X-Switchyard-Event: signup, plan_chosen;value=49". Switchyard always
+// removes the header; with goal.header: true it turns each entry into a Flagsmith event for that visitor.
+export const EVENT_HEADER = 'x-switchyard-event';
+export const MAX_HEADER_EVENTS = 5;
 
 const CONTROL = 'control';
 const ONE_YEAR_S = 365 * 24 * 60 * 60;
@@ -160,15 +164,22 @@ export function createProxy(opts: Options): http.Server {
     const tracked = counted && !fallback;
     const upstream = config.releases.get(release)!;
 
+    let appEvents: AppEvent[] = [];
     let done = false;
     const finish = (status: number, latencyMs: number) => {
       if (done) return;
       done = true;
       let converted = false;
       if (tracked) {
-        if (matchesRule(config.goal.when, method, target.pathname, status)) {
+        if (config.goal.when && matchesRule(config.goal.when, method, target.pathname, status)) {
           flags.track(config.goal.event, id);
           converted = true;
+        }
+        for (const e of appEvents) {
+          if (e.event === config.goal.event && converted) continue; // the rule already counted this request
+          if (e.value === undefined) flags.track(e.event, id);
+          else flags.track(e.event, id, e.value);
+          if (e.event === config.goal.event) converted = true;
         }
         if (document && method === 'GET' && config.guardrails.includes('doc_latency_ms')) flags.track('doc_latency_ms', id, latencyMs);
         if (config.guardrails.includes('server_error') && (document || status >= 500)) {
@@ -193,6 +204,7 @@ export function createProxy(opts: Options): http.Server {
       const status = upstreamRes.statusCode ?? 502;
       const latencyMs = elapsed(); // time to the app's response headers
       const headers = responseHeaders(upstreamRes.headers, upstream);
+      if (config.goal.header) appEvents = parseEventHeader(upstreamRes.headers[EVENT_HEADER]);
       if (debugToken && safeEqual(header(req, 'x-switchyard-debug'), debugToken)) {
         headers['x-switchyard-variant'] = variant;
         headers['x-switchyard-release'] = release;
@@ -409,6 +421,7 @@ function forwardHeaders(req: http.IncomingMessage, upstream: URL, secure: boolea
 
 function responseHeaders(incoming: http.IncomingHttpHeaders, upstream: URL): http.OutgoingHttpHeaders {
   const headers: http.OutgoingHttpHeaders = stripHopByHop(incoming);
+  delete headers[EVENT_HEADER]; // meant for Switchyard only, on every path
   // Responses differ per visitor, so shared caches must never store them.
   headers['cache-control'] = privateCacheControl(incoming['cache-control']);
   headers.vary = appendVary(incoming.vary);
@@ -423,6 +436,29 @@ function responseHeaders(incoming: http.IncomingHttpHeaders, upstream: URL): htt
     }
   }
   return headers;
+}
+
+export type AppEvent = { event: string; value?: number };
+
+// "signup, plan_chosen;value=49" → valid entries only, at most MAX_HEADER_EVENTS. Guardrail names are refused: those
+// are Switchyard's own measurements.
+export function parseEventHeader(raw: string | string[] | undefined): AppEvent[] {
+  if (raw === undefined) return [];
+  const out: AppEvent[] = [];
+  for (const entry of (Array.isArray(raw) ? raw.join(',') : raw).split(',')) {
+    if (out.length >= MAX_HEADER_EVENTS) break;
+    const [name = '', ...params] = entry.split(';').map((p) => p.trim());
+    if (!EVENT_NAME.test(name) || (GUARDRAILS as readonly string[]).includes(name)) continue;
+    let value: number | undefined;
+    let ok = true;
+    for (const p of params) {
+      const m = p.match(/^value=(-?\d+(?:\.\d+)?)$/i);
+      if (m) value = Number(m[1]);
+      else ok = false;
+    }
+    if (ok) out.push(value === undefined ? { event: name } : { event: name, value });
+  }
+  return out;
 }
 
 function privateCacheControl(value: string | undefined): string {

@@ -14,7 +14,7 @@ export const DEFAULT_SUCCESS = 'POST /signup 2xx';
 export type NewAnswers = {
   flagsmith: 'bundled' | string; // "bundled", or your Flagsmith's API URL (…/api/v1/)
   releases: string[]; // each: "label=http://host:port", "http://host:port", or an image ("myapp:2")
-  success: string; // "POST /signup 2xx"
+  success: string; // "POST /signup 2xx", or "header signup": the app sends X-Switchyard-Event: signup
   traffic: number; // % of visitors in the experiment
   flag?: string | undefined;
   event?: string | undefined;
@@ -68,6 +68,12 @@ export function parseSuccess(text: string): { method: string; path: string; stat
   return { method: m[1]!.toUpperCase(), path: m[2]!, status: m[3] ?? '2xx' };
 }
 
+// "header" or "header <event>": success comes from the app's X-Switchyard-Event response header.
+export function parseHeaderSuccess(text: string): { event: string | undefined } | undefined {
+  const m = text.trim().match(/^header(?:\s+(\S+))?$/i);
+  return m ? { event: m[1] } : undefined;
+}
+
 // "/signup" → signup; "/api/orders/*" → orders.
 export function eventFromPath(path: string): string {
   const seg = path.split(/[/?]/).filter((s) => s && s !== '*').pop() ?? '';
@@ -79,10 +85,21 @@ export function eventFromPath(path: string): string {
 const yamlString = (s: string) => JSON.stringify(s); // JSON strings are valid YAML
 
 export function renderConfig(a: NewAnswers, releases: Release[]): string {
-  const rule = parseSuccess(a.success);
+  const byHeader = parseHeaderSuccess(a.success);
+  const rule = byHeader ? undefined : parseSuccess(a.success);
   const first = releases[0]!.label;
   const flag = a.flag ?? `${(first.split(':')[0] || 'app').replace(/[^A-Za-z0-9_]/g, '_').replace(/^v\d+$/, 'app')}_release`;
-  const event = a.event ?? eventFromPath(rule.path);
+  const event = a.event ?? byHeader?.event ?? (rule ? eventFromPath(rule.path) : 'goal');
+  const goal = rule
+    ? `# Success: the request that counts as a conversion, sent to Flagsmith as an event.
+goal:
+  event: ${event}
+  when: { method: ${rule.method}, path: ${yamlString(rule.path)}, status: ${rule.status} }`
+    : `# Success: your app answers the converting request with the response header "X-Switchyard-Event: ${event}".
+# Switchyard sends it to Flagsmith as an event and removes the header before the visitor sees it.
+goal:
+  event: ${event}
+  header: true`;
   const text = `# Written by "switchyard new". Switchyard routes each visitor to one of these releases by the Flagsmith flag below.
 flag: ${flag}
 
@@ -91,10 +108,7 @@ flag: ${flag}
 releases:
 ${releases.map((r) => `  ${yamlString(r.label)}: ${r.url}`).join('\n')}
 
-# Success: the request that counts as a conversion, sent to Flagsmith as an event.
-goal:
-  event: ${event}
-  when: { method: ${rule.method}, path: ${yamlString(rule.path)}, status: ${rule.status} }
+${goal}
 
 guardrails: [doc_latency_ms, server_error]   # sent on every page load
 

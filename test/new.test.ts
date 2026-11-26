@@ -45,7 +45,7 @@ test('bundled Flagsmith: a loadable config, a compose file with the proxy, conso
   const config = loadConfig(join(dir, 'switchyard.config.yml'));
   assert.equal(config.flag, 'landing_release');
   assert.deepEqual([...config.releases].map(([l, u]) => [l, u.href]), [['landing:1', 'http://landing-1:8080/'], ['landing:2', 'http://landing-2:8080/']]);
-  assert.deepEqual(config.goal, { event: 'signup', when: { method: 'POST', path: '/signup', status: '2xx' } });
+  assert.deepEqual(config.goal, { event: 'signup', when: { method: 'POST', path: '/signup', status: '2xx' }, header: false });
   assert.equal(config.traffic, 50);
 
   const compose = YAML.parse(readFileSync(join(dir, 'switchyard.compose.yml'), 'utf8'), { merge: true });
@@ -108,6 +108,18 @@ test('the CLI runs new without questions from flags', () => {
   );
   assert.match(out, /wrote switchyard\.config\.yml/);
   const config = loadConfig(join(dir, 'switchyard.config.yml'));
-  assert.deepEqual([config.flag, config.goal.event, config.goal.when.status, config.traffic], ['site_release', 'join', '201', 25]);
+  assert.deepEqual([config.flag, config.goal.event, config.goal.when!.status, config.traffic], ['site_release', 'join', '201', 25]);
   assert.equal(config.releases.get('a')!.hostname, 'host.docker.internal');
+});
+
+test('success can come from a response header: "header <event>"', () => {
+  const dir = tmp();
+  execFileSync(
+    process.execPath,
+    ['src/cli.ts', 'new', '--yes', '--dir', dir, '--release', 'a=http://localhost:3000', '--release', 'b=http://localhost:3001', '--success', 'header signed_up'],
+    { encoding: 'utf8', env: { ...process.env, SWITCHYARD_ENV_FILE: join(dir, 'none.env') } },
+  );
+  const config = loadConfig(join(dir, 'switchyard.config.yml'));
+  assert.deepEqual([config.goal.event, config.goal.header, config.goal.when], ['signed_up', true, undefined]);
+  assert.match(readFileSync(join(dir, 'switchyard.config.yml'), 'utf8'), /X-Switchyard-Event: signed_up/);
 });

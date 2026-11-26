@@ -30,7 +30,7 @@ Commands:
   proxy      Route visitors by the Flagsmith flag and send events (port 8080)
   console    Traffic map, results, Ship winner and Revert (127.0.0.1:8090); judge mode on /judge
   new        Set Switchyard up for your app: four questions → switchyard.config.yml and switchyard.compose.yml
-             [--flagsmith bundled|<api url>] [--release <label=url | url | image> …] [--success "POST /signup 2xx"]
+             [--flagsmith bundled|<api url>] [--release <label=url | url | image> …] [--success "POST /signup 2xx" | "header signup"]
              [--traffic <1-100>] [--flag <name>] [--event <name>] [--port <app port>] [--image <switchyard image>]
              [--project <name|id>] [--environment <name|key>] [--admin-key <key>] [--dir <path>] [--force] [--yes]
   init       Bootstrap Flagsmith: event store, tagged flag, metrics, experiment
@@ -286,14 +286,16 @@ async function demo(): Promise<void> {
   const config = loadConfig(configPath());
   const flow = cliFlags.flow ?? ([...config.releases.keys()].every((l) => l.startsWith('shop:')) ? 'shop' : 'goal');
   if (flow !== 'shop' && flow !== 'goal') throw new Error(`--flow expects shop or goal, got "${flow}"`);
-  console.log(`Flow: ${flow === 'shop' ? 'the demo shop (browse, cart, checkout)' : `land on /, then ${config.goal.when.method} ${config.goal.when.path}`}`);
+  const goalRule = config.goal.when;
+  if (flow === 'goal' && !goalRule) throw new Error('--flow goal needs goal.when in the config: the success request to send (a header-only goal has none)');
+  console.log(`Flow: ${flow === 'shop' ? 'the demo shop (browse, cart, checkout)' : `land on /, then ${goalRule!.method} ${goalRule!.path}`}`);
   const report = await simulate({
     target,
     visitors,
     rates,
     concurrency,
     seed,
-    ...(flow === 'goal' ? { goal: config.goal.when } : {}),
+    ...(flow === 'goal' && goalRule ? { goal: goalRule } : {}),
     ...(debugToken ? { debugToken } : {}),
   });
   console.log(`\nDone in ${(report.durationMs / 1000).toFixed(1)} s`);
@@ -532,7 +534,7 @@ async function newCommand(): Promise<void> {
       if (!project) throw new Error('an existing Flagsmith needs --project: the project Switchyard may add its flag to');
     }
     const releases = cliFlags.release ?? (await q('2/4 Releases, live first (label=url, url or image; space-separated)?', DEFAULT_RELEASES.join(' '))).split(/\s+/).filter(Boolean);
-    const success = await q('3/4 Success: which request counts as a conversion?', DEFAULT_SUCCESS, cliFlags.success);
+    const success = await q('3/4 Success: which request counts as a conversion? (or "header <event>": your app sends X-Switchyard-Event: <event>)', DEFAULT_SUCCESS, cliFlags.success);
     const traffic = Number(await q('4/4 Traffic: % of visitors in the experiment?', '100', cliFlags.traffic));
     const num = (raw: string | undefined, what: string) => {
       if (raw === undefined) return undefined;

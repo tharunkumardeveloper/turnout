@@ -42,10 +42,14 @@ Asks four questions in a terminal; each has a default and a flag, and with `--ye
 | 1. Flagsmith | `--flagsmith bundled\|<api url>` | `bundled`: a fresh Flagsmith next to your app (`flagsmith.compose.yml`) |
 | | `--project <name\|id>`, `--environment <name\|key>`, `--admin-key <key>` | with your own Flagsmith: saved to `.env` as `SWITCHYARD_PROJECT`, `SWITCHYARD_ENVIRONMENT`, `SWITCHYARD_ADMIN_KEY` (never in the compose file) |
 | 2. The releases, live first | `--release <entry>`, repeated | `v1=http://host.docker.internal:3000`, `v2=http://host.docker.internal:3001` |
-| 3. Success | `--success "<METHOD> <path> [status]"` | `POST /signup 2xx`; the event is named after the path (`signup`), or `--event <name>` |
+| 3. Success | `--success "<METHOD> <path> [status]"` or `--success "header <event>"` | `POST /signup 2xx`; the event is named after the path (`signup`), or `--event <name>`. `header signup` writes `goal: { event: signup, header: true }`: your app answers the converting request with `X-Switchyard-Event: signup` (see below) |
 | 4. Traffic | `--traffic <1-100>` | 100: the % of visitors in the experiment; the rest stay on the first release |
 
 A release entry is `label=url`, a bare `http(s)` URL (labelled `v1`, `v2`…), or a Docker image (`acme/web:2`, labelled `web:2`, served as a `web-2` service on `--port`, default 8080). `localhost` becomes `host.docker.internal`, since inside the proxy's container localhost is the proxy. Other flags: `--flag <name>` (default `<first label's name>_release`), `--image` (the Switchyard image, default `ghcr.io/tharunkumardeveloper/switchyard:latest`, not published yet), `--proxy-port` (8080), `--dir` (the current folder), `--force` (overwrite).
+
+#### Success from a response header
+
+With `goal.header: true`, the app names events itself: `X-Switchyard-Event: signup, plan_chosen;value=49` (comma-separated, optional `;value=<number>` for sum or mean metrics). Each valid name (letters, digits, `_ . -`, starting with a letter; not a guardrail name) becomes a Flagsmith event for that visitor, at most 5 per response, only once the visitor's `sy_id` cookie came back and never for bots. The header is always removed before the response reaches the visitor. `goal.when` becomes optional; with both, a request counted by `when` isn't counted again by the header. `demo --flow goal` needs `goal.when`.
 
 ### `init --project`: bring your own Flagsmith
 

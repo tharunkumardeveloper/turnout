@@ -45,7 +45,9 @@ export function createLanding(): http.Server {
         res.writeHead(400, { 'content-type': 'text/plain' });
         return res.end('an email address, please');
       }
-      res.writeHead(201, { 'content-type': 'text/html; charset=utf-8' });
+      // Optional, no SDK: names the conversion for Switchyard, which removes this header before the visitor sees it.
+      // Used only with goal.header: true in the config; the example's default goal is the POST /signup rule.
+      res.writeHead(201, { 'content-type': 'text/html; charset=utf-8', 'x-switchyard-event': 'signup' });
       return res.end(thanks);
     }
     res.writeHead(404, { 'content-type': 'text/plain' });

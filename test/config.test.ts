@@ -14,7 +14,7 @@ test('parses the demo config', () => {
   assert.equal(config.flag, 'shop_release');
   assert.equal(config.releases.get('shop:1.5')?.host, 'shop-1-5:8080');
   assert.equal(config.fallback, 'shop:1.4');
-  assert.equal(config.goal.when.method, 'POST');
+  assert.equal(config.goal.when!.method, 'POST');
 });
 
 test('requires at least one release', () => {
@@ -27,7 +27,7 @@ test('rejects non-http upstreams and unknown guardrails', () => {
 });
 
 test('matches goal rules by method, path and status class', () => {
-  const rule = parseConfig(valid).goal.when;
+  const rule = parseConfig(valid).goal.when!;
   assert.equal(matchesRule(rule, 'POST', '/checkout', 201), true);
   assert.equal(matchesRule(rule, 'POST', '/checkout?x=1', 200), true);
   assert.equal(matchesRule(rule, 'GET', '/checkout', 200), false);
