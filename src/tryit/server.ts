@@ -607,7 +607,7 @@ export function startTryit(o: TryitOptions) {
         // Each version answers as try-x.localhost as well: Django's and Rails' development defaults accept any *.localhost
         // host, and refuse a bare try-x (Django's DisallowedHost, Rails' Blocked hosts), so the app runs unchanged.
         const aliases = (versions.length === 1 ? ['try-a', 'try-b'] : [`try-${slot.slot}`]).flatMap((a) => [a, `${a}.localhost`]);
-        await o.docker.run({ name, image, network: NETWORK, aliases, env: [`PORT=${guess}`, ...dbEnv, ...parseEnv(req.env)] });
+        await o.docker.run({ name, image, network: NETWORK, aliases, env: [`PORT=${guess}`, "DJANGO_ALLOWED_HOSTS=*", ...dbEnv, ...parseEnv(req.env)] /* Django templates read DJANGO_ALLOWED_HOSTS; your settings still win */ });
         const port = await waitUp(name, `try-${slot.slot}.localhost`, guess, Boolean(v.port), run!).catch(async (error: Error) => {
           // What it asked for: the settings its error names, and a database when those point at one.
           const tail = await o.docker.logs(name, 80).catch(() => '');

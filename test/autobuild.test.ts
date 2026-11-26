@@ -16,7 +16,7 @@ test('a Node app with a start script runs npm start', () => {
 test('a Node project with only a build script is served as a static site', () => {
   const d = generatedDockerfile(['package.json'], () => '{"scripts":{"build":"vite build"}}')!;
   assert.match(d, /nginx/);
-  assert.match(d, /\/app\/dist/);
+  assert.match(d, /for d in dist build out public/);
 });
 
 test('Python, Go, PHP and plain HTML each get their own', () => {
@@ -113,4 +113,20 @@ test('PHP serves the folder its front controller is in, with Composer packages; 
   assert.doesNotMatch(generatedDockerfile(['index.php'], none)!, /APACHE_DOCUMENT_ROOT|composer/);
   // heroku/python-getting-started: WhiteNoise's manifest storage answers 500 until collectstatic has run.
   assert.match(generatedDockerfile(['requirements.txt', 'manage.py'], () => 'django\nwhitenoise')!, /collectstatic --noinput/);
+});
+
+test('SvelteKit on Node, a static build in any folder, Java with Maven, and the Python a project pins', () => {
+  // render-examples/sveltekit: adapter-node, "build": "vite build", no start script.
+  const svelte = generatedDockerfile(['package.json', 'svelte.config.js'], () => JSON.stringify({ scripts: { build: 'vite build' }, devDependencies: { '@sveltejs/adapter-node': '^5' } }))!;
+  assert.match(svelte, /CMD \["node", "build"\]/);
+  // heroku/java-getting-started: Maven wrapper, Java 17 in system.properties.
+  const java = generatedDockerfile(['pom.xml', 'mvnw', 'system.properties'], (p) => (p === 'system.properties' ? 'java.runtime.version=17\n' : '<java.version>17</java.version>'))!;
+  assert.match(java, /FROM maven:3-eclipse-temurin-17 AS build/);
+  assert.match(java, /mvn -q -B -DskipTests package/);
+  assert.match(java, /FROM eclipse-temurin:17-jre/);
+  // digitalocean/sample-django: psycopg2 from source; runtime.txt asks for 3.10.
+  const py = generatedDockerfile(['requirements.txt', 'manage.py', 'runtime.txt'], (p) => (p === 'runtime.txt' ? 'python-3.10.4\n' : 'Django==4.0.3\npsycopg2-binary==2.9.3\n'))!;
+  assert.match(py, /FROM python:3\.10-slim/);
+  assert.match(py, /libpq-dev/);
+  assert.match(generatedDockerfile(['requirements.txt', 'app.py'], () => 'flask')!, /FROM python:3\.12-slim/);
 });

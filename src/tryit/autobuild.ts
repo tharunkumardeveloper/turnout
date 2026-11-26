@@ -8,7 +8,7 @@ type Read = (path: string) => string | null;
 export function generatedDockerfile(files: string[], read: Read): string | null {
   const has = (p: string) => files.includes(p);
   if (has('package.json')) {
-    let pkg: { scripts?: Record<string, string>; main?: string } = {};
+    let pkg: { scripts?: Record<string, string>; main?: string; dependencies?: Record<string, string>; devDependencies?: Record<string, string> } = {};
     try {
       pkg = JSON.parse(read('package.json') ?? '{}');
     } catch {}
@@ -20,9 +20,15 @@ export function generatedDockerfile(files: string[], read: Read): string | null 
     const fromDev = Object.values(s).map((c) => c.match(/\b(?:node|nodemon)\b(?:\s+-\S+)*\s+([\w./-]+\.[cm]?js)\b/)?.[1]).find((f) => f && has(bare(f)!));
     const entry = [pkg.main, 'server.js', 'index.js', 'app.js', fromDev, 'src/index.js', 'src/server.js', 'src/app.js'].map(bare).find((f) => f && has(f)) ?? pkg.main ?? 'index.js';
     const start = s.start ? '["npm", "start"]' : `["node", "${entry}"]`;
-    // A build with no start script is a static site: serve what it built.
+    const deps = { ...pkg.dependencies, ...pkg.devDependencies };
+    // SvelteKit with its Node adapter builds a server into build/: run it.
+    if (!s.start && s.build && deps['@sveltejs/adapter-node']) {
+      return `FROM node:22-alpine\nWORKDIR /app\nCOPY . .\nRUN npm install --no-audit --no-fund\n${build}ENV PORT=3000 HOST=0.0.0.0\nEXPOSE 3000\nCMD ["node", "build"]\n`;
+    }
+    // A build with no start script is a static site: serve what it built, from whichever folder it built into
+    // (Vite dist/, Create React App and SvelteKit's static adapter build/, Next's export out/).
     if (!s.start && s.build && !pkg.main) {
-      return `FROM node:22-alpine AS build\nWORKDIR /app\nCOPY . .\nRUN npm install --no-audit --no-fund\n${build}FROM nginx:1.27-alpine\nCOPY --from=build /app/dist /usr/share/nginx/html\n`;
+      return `FROM node:22-alpine AS build\nWORKDIR /app\nCOPY . .\nRUN npm install --no-audit --no-fund\n${build}RUN for d in dist build out public; do if [ -f "$d/index.html" ]; then cp -r "$d" /site; break; fi; done; test -d /site\nFROM nginx:1.27-alpine\nCOPY --from=build /site /usr/share/nginx/html\n`;
     }
     return `FROM node:22-alpine\nWORKDIR /app\nCOPY . .\nRUN npm install --no-audit --no-fund\n${build}ENV PORT=3000\nEXPOSE 3000\nCMD ${start}\n`;
   }
@@ -37,12 +43,28 @@ export function generatedDockerfile(files: string[], read: Read): string | null 
     else if (/\b(fastapi|uvicorn)\b/.test(reqs)) cmd = `["python", "-m", "uvicorn", "${has('main.py') ? 'main' : 'app'}:app", "--host", "0.0.0.0", "--port", "8000"]`;
     // Django's static files collected at build: with WhiteNoise's manifest storage every page is a 500 without them.
     const statics = has('manage.py') ? 'RUN python manage.py collectstatic --noinput >/dev/null 2>&1 || true\n' : '';
-    return `FROM python:3.12-slim\nWORKDIR /app\nCOPY . .\n${install}\n${statics}EXPOSE 8000\nCMD ${cmd}\n`;
+    // The Python the project asks for (runtime.txt python-3.10.4, .python-version 3.10), else 3.12: old pins often have
+    // no package for a newer Python. A database driver built from source gets its compiler and client library.
+    const wanted = ((read('runtime.txt') ?? '').match(/python-(\d+\.\d+)/)?.[1] ?? (read('.python-version') ?? '').match(/^(\d+\.\d+)/m)?.[1]) || '3.12';
+    const native = /\b(psycopg2|mysqlclient)\b/.test(reqs)
+      ? 'RUN apt-get update -qq && apt-get install -y -qq --no-install-recommends gcc libpq-dev default-libmysqlclient-dev pkg-config >/dev/null && rm -rf /var/lib/apt/lists/*\n'
+      : '';
+    return `FROM python:${wanted}-slim\nWORKDIR /app\n${native}COPY . .\n${install}\n${statics}EXPOSE 8000\nCMD ${cmd}\n`;
   }
   if (has('go.mod')) {
     // The newest Go builds any go.mod (GOTOOLCHAIN=auto fetches a newer one if it asks). The project's files go into the
     // final image with the binary: templates/ and static/ are read at run time.
     return 'FROM golang:alpine AS build\nENV GOTOOLCHAIN=auto CGO_ENABLED=0\nWORKDIR /src\nCOPY . .\nRUN go build -o /app .\nFROM alpine:3.20\nWORKDIR /srv\nCOPY --from=build /src /srv\nCOPY --from=build /app /app\nENV PORT=8080\nEXPOSE 8080\nCMD ["/app"]\n';
+  }
+  if (has('pom.xml') || has('build.gradle') || has('build.gradle.kts')) {
+    // Java: Maven or Gradle builds the jar (tests skipped: Turnout compares the app, not its test suite), then it runs.
+    // Spring Boot reads PORT when its properties say server.port=${PORT:…}; 8080 is its default otherwise.
+    const maven = has('pom.xml');
+    const jdk = (read('system.properties') ?? '').match(/java\.runtime\.version\s*=\s*(\d+)/)?.[1] ?? (read('pom.xml') ?? '').match(/<java\.version>(\d+)/)?.[1] ?? '21';
+    const buildCmd = maven ? 'mvn -q -B -DskipTests package' : 'gradle -q build -x test'; // the image's own tool: a wrapper script may need bash or CRLF-free files
+    const out = maven ? 'target' : 'build/libs';
+    const image = maven ? `maven:3-eclipse-temurin-${jdk}` : `gradle:jdk${jdk}`;
+    return `FROM ${image} AS build\nWORKDIR /src\nCOPY . .\nRUN ${buildCmd}\nRUN cp "$(ls ${out}/*.jar | grep -v -e plain -e sources -e javadoc | head -1)" /app.jar\nFROM eclipse-temurin:${jdk}-jre\nCOPY --from=build /app.jar /app.jar\nENV PORT=8080\nEXPOSE 8080\nCMD ["java", "-jar", "/app.jar"]\n`;
   }
   if (has('Gemfile')) {
     // The full image: gems with native parts (pg, mysql2, nokogiri) need its compiler and client libraries.

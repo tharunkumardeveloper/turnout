@@ -1,5 +1,5 @@
 {
-  "at": "2026-11-26T09:31:42.799Z",
+  "at": "2026-11-26T10:59:57.750Z",
   "rows": [
     {
       "app": "bradtraversy/nodekb",
@@ -36,6 +36,150 @@
       "seconds": 97,
       "url": "https://github.com/bradtraversy/nodekb",
       "at": "2026-11-26T09:23:10.486Z"
+    },
+    {
+      "app": "digitalocean/sample-django",
+      "stages": {
+        "build": {
+          "pass": true,
+          "note": ""
+        },
+        "start": {
+          "pass": true,
+          "note": "port 8000, after one click: a throwaway postgres"
+        },
+        "goals": {
+          "pass": false,
+          "note": "none found on the running app"
+        },
+        "visitors": {
+          "pass": true,
+          "note": "try:a 156 (0 goals), try:b 144 (0 goals)"
+        },
+        "results": {
+          "pass": true,
+          "note": "v2 95%"
+        },
+        "counts": {
+          "pass": true,
+          "note": "try:a 156 vs 156, try:b 144 vs 144"
+        },
+        "ship": {
+          "pass": true,
+          "note": ""
+        }
+      },
+      "seconds": 62,
+      "url": "https://github.com/digitalocean/sample-django",
+      "at": "2026-11-26T10:59:57.750Z"
+    },
+    {
+      "app": "digitalocean/sample-flask",
+      "stages": {
+        "build": {
+          "pass": true,
+          "note": ""
+        },
+        "start": {
+          "pass": true,
+          "note": "port 8000"
+        },
+        "goals": {
+          "pass": false,
+          "note": "none found on the running app"
+        },
+        "visitors": {
+          "pass": true,
+          "note": "try:a 140 (0 goals), try:b 160 (0 goals)"
+        },
+        "results": {
+          "pass": true,
+          "note": "v2 23%"
+        },
+        "counts": {
+          "pass": true,
+          "note": "try:a 140 vs 140, try:b 160 vs 160"
+        },
+        "ship": {
+          "pass": true,
+          "note": ""
+        }
+      },
+      "seconds": 55,
+      "url": "https://github.com/digitalocean/sample-flask",
+      "at": "2026-11-26T10:49:19.367Z"
+    },
+    {
+      "app": "digitalocean/sample-nodejs",
+      "stages": {
+        "build": {
+          "pass": true,
+          "note": ""
+        },
+        "start": {
+          "pass": true,
+          "note": "port 3000"
+        },
+        "goals": {
+          "pass": false,
+          "note": "none found on the running app"
+        },
+        "visitors": {
+          "pass": true,
+          "note": "try:a 183 (0 goals), try:b 117 (0 goals)"
+        },
+        "results": {
+          "pass": true,
+          "note": "v2 100%"
+        },
+        "counts": {
+          "pass": true,
+          "note": "try:a 183 vs 183, try:b 117 vs 117"
+        },
+        "ship": {
+          "pass": true,
+          "note": ""
+        }
+      },
+      "seconds": 74,
+      "url": "https://github.com/digitalocean/sample-nodejs",
+      "at": "2026-11-26T10:49:19.367Z"
+    },
+    {
+      "app": "digitalocean/sample-php",
+      "stages": {
+        "build": {
+          "pass": true,
+          "note": ""
+        },
+        "start": {
+          "pass": true,
+          "note": "port 80"
+        },
+        "goals": {
+          "pass": false,
+          "note": "none found on the running app"
+        },
+        "visitors": {
+          "pass": true,
+          "note": "try:b 154 (0 goals), try:a 146 (0 goals)"
+        },
+        "results": {
+          "pass": true,
+          "note": "v2 41%"
+        },
+        "counts": {
+          "pass": true,
+          "note": "try:a 146 vs 146, try:b 154 vs 154"
+        },
+        "ship": {
+          "pass": true,
+          "note": ""
+        }
+      },
+      "seconds": 77,
+      "url": "https://github.com/digitalocean/sample-php",
+      "at": "2026-11-26T10:49:19.367Z"
     },
     {
       "app": "docker/getting-started-app",
@@ -144,6 +288,42 @@
       "seconds": 52,
       "url": "https://github.com/heroku/go-getting-started",
       "at": "2026-11-26T09:23:10.486Z"
+    },
+    {
+      "app": "heroku/java-getting-started",
+      "stages": {
+        "build": {
+          "pass": true,
+          "note": ""
+        },
+        "start": {
+          "pass": true,
+          "note": "port 8080"
+        },
+        "goals": {
+          "pass": false,
+          "note": "none found on the running app"
+        },
+        "visitors": {
+          "pass": true,
+          "note": "try:b 144 (0 goals), try:a 156 (0 goals)"
+        },
+        "results": {
+          "pass": true,
+          "note": "v2 29%"
+        },
+        "counts": {
+          "pass": true,
+          "note": "try:a 156 vs 156, try:b 144 vs 144"
+        },
+        "ship": {
+          "pass": true,
+          "note": ""
+        }
+      },
+      "seconds": 129,
+      "url": "https://github.com/heroku/java-getting-started",
+      "at": "2026-11-26T10:59:57.750Z"
     },
     {
       "app": "heroku/node-js-getting-started",
@@ -302,6 +482,42 @@
       "at": "2026-11-26T09:23:10.486Z"
     },
     {
+      "app": "render-examples/create-react-app",
+      "stages": {
+        "build": {
+          "pass": true,
+          "note": ""
+        },
+        "start": {
+          "pass": true,
+          "note": "port 3000"
+        },
+        "goals": {
+          "pass": false,
+          "note": "none found on the running app"
+        },
+        "visitors": {
+          "pass": true,
+          "note": "try:b 149 (0 goals), try:a 151 (0 goals)"
+        },
+        "results": {
+          "pass": true,
+          "note": "v2 89%"
+        },
+        "counts": {
+          "pass": true,
+          "note": "try:a 151 vs 151, try:b 149 vs 149"
+        },
+        "ship": {
+          "pass": true,
+          "note": ""
+        }
+      },
+      "seconds": 239,
+      "url": "https://github.com/render-examples/create-react-app",
+      "at": "2026-11-26T10:49:19.367Z"
+    },
+    {
       "app": "render-examples/django",
       "stages": {
         "build": {
@@ -338,6 +554,78 @@
       "at": "2026-11-26T09:23:10.486Z"
     },
     {
+      "app": "render-examples/express-hello-world",
+      "stages": {
+        "build": {
+          "pass": true,
+          "note": ""
+        },
+        "start": {
+          "pass": true,
+          "note": "port 3000"
+        },
+        "goals": {
+          "pass": false,
+          "note": "none found on the running app"
+        },
+        "visitors": {
+          "pass": true,
+          "note": "try:a 136 (0 goals), try:b 164 (0 goals)"
+        },
+        "results": {
+          "pass": true,
+          "note": "v2 16%"
+        },
+        "counts": {
+          "pass": true,
+          "note": "try:a 136 vs 136, try:b 164 vs 164"
+        },
+        "ship": {
+          "pass": true,
+          "note": ""
+        }
+      },
+      "seconds": 58,
+      "url": "https://github.com/render-examples/express-hello-world",
+      "at": "2026-11-26T10:49:19.367Z"
+    },
+    {
+      "app": "render-examples/fastapi",
+      "stages": {
+        "build": {
+          "pass": true,
+          "note": ""
+        },
+        "start": {
+          "pass": true,
+          "note": "port 8000"
+        },
+        "goals": {
+          "pass": false,
+          "note": "none found on the running app"
+        },
+        "visitors": {
+          "pass": true,
+          "note": "try:b 149 (0 goals), try:a 151 (0 goals)"
+        },
+        "results": {
+          "pass": true,
+          "note": "v2 67%"
+        },
+        "counts": {
+          "pass": true,
+          "note": "try:a 151 vs 151, try:b 149 vs 149"
+        },
+        "ship": {
+          "pass": true,
+          "note": ""
+        }
+      },
+      "seconds": 198,
+      "url": "https://github.com/render-examples/fastapi",
+      "at": "2026-11-26T10:49:19.367Z"
+    },
+    {
       "app": "render-examples/flask-hello-world",
       "stages": {
         "build": {
@@ -372,6 +660,78 @@
       "seconds": 41,
       "url": "https://github.com/render-examples/flask-hello-world",
       "at": "2026-11-26T09:23:10.486Z"
+    },
+    {
+      "app": "render-examples/go-gin-web-server",
+      "stages": {
+        "build": {
+          "pass": true,
+          "note": ""
+        },
+        "start": {
+          "pass": true,
+          "note": "port 8080"
+        },
+        "goals": {
+          "pass": false,
+          "note": "none found on the running app"
+        },
+        "visitors": {
+          "pass": true,
+          "note": "try:b 143 (0 goals), try:a 157 (0 goals)"
+        },
+        "results": {
+          "pass": true,
+          "note": "v2 47%"
+        },
+        "counts": {
+          "pass": true,
+          "note": "try:a 157 vs 157, try:b 143 vs 143"
+        },
+        "ship": {
+          "pass": true,
+          "note": ""
+        }
+      },
+      "seconds": 97,
+      "url": "https://github.com/render-examples/go-gin-web-server",
+      "at": "2026-11-26T10:49:19.367Z"
+    },
+    {
+      "app": "render-examples/sveltekit",
+      "stages": {
+        "build": {
+          "pass": true,
+          "note": ""
+        },
+        "start": {
+          "pass": true,
+          "note": "port 3000"
+        },
+        "goals": {
+          "pass": true,
+          "note": "GET /about* (of GET /about*, GET /sverdle*, POST /, GET /sverdle/how-to-play*)"
+        },
+        "visitors": {
+          "pass": true,
+          "note": "try:a 153 (17 goals), try:b 147 (29 goals)"
+        },
+        "results": {
+          "pass": true,
+          "note": "v2 89%"
+        },
+        "counts": {
+          "pass": true,
+          "note": "try:a 153 vs 153, try:b 147 vs 147"
+        },
+        "ship": {
+          "pass": true,
+          "note": ""
+        }
+      },
+      "seconds": 83,
+      "url": "https://github.com/render-examples/sveltekit",
+      "at": "2026-11-26T10:55:39.333Z"
     }
   ]
 }
