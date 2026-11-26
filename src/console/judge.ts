@@ -266,6 +266,22 @@ export function shared<T>(load: () => Promise<T>, ttlMs: number, now: () => numb
   return {
     get(fresh = false): Promise<T> {
       if (entry && (entry.at === null || (!fresh && now() - entry.at < ttlMs))) return entry.value;
+      // Expired but not cleared (nothing was written since): answer with it now and read again behind it, so a page
+      // opening after a quiet spell doesn't wait a full Flagsmith read. A write clears it, and then everyone waits.
+      if (entry && !fresh && entry.at !== null) {
+        const stale = entry.value;
+        const next: { at: number | null; value: Promise<T> } = { at: null, value: load() };
+        entry = next;
+        next.value.then(
+          () => {
+            if (entry === next) next.at = now();
+          },
+          () => {
+            if (entry === next) entry = null;
+          },
+        );
+        return stale;
+      }
       const mine: { at: number | null; value: Promise<T> } = { at: null, value: load() };
       entry = mine;
       mine.value.then(

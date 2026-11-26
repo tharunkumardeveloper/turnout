@@ -717,8 +717,10 @@ describe('shared reads', () => {
     assert.equal(await read.get(), 1, 'kept');
     t += 1;
     const second = read.get();
+    assert.equal(await second, 1, 'expired: the last answer at once, a new read behind it');
     release();
-    assert.equal(await second, 2, 'expired');
+    await new Promise((r) => setTimeout(r, 0));
+    assert.equal(await read.get(), 2, 'the next caller gets the new read');
 
     const before = read.get(true); // fresh: skips the kept value
     release();

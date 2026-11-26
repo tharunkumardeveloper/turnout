@@ -29,7 +29,8 @@ export const ROUNDS = [
   { n: '03', title: 'Split the traffic', what: 'Each test is a Flagsmith experiment: its split, its audience and Bayesian results. Segments and identity overrides keep your team and pinned browsers out of it.', ids: ['feature.experiments', 'menu.segments', 'menu.identities'] },
   { n: '04', title: 'Ship the winner', what: 'Ship sets the flag’s environment default and drains the split: everyone moves with one flag change. Feature Health flags a losing safety check.', ids: ['menu.environments', 'feature.feature-health', 'integration.code-references'] },
 ];
-const view = { status: 'all', q: '', map: null };
+// Opens on what Turnout uses (live or read-only); All shows the integrations that need an outside account too.
+const view = { status: 'used-any', q: '', map: null };
 
 /** Small element builder; strings become text nodes, never HTML. */
 function h(tag, props = {}, ...children) {
@@ -96,7 +97,8 @@ export function roundsFrom(items) {
 /** Items matching a status filter ('all' or a status) and a search over name, what and live value. */
 export function filterItems(items, status, q) {
   const needle = String(q ?? '').trim().toLowerCase();
-  return (items ?? []).filter((i) => (status === 'all' || i.status === status) && (!needle || [i.name, i.what, i.live].some((x) => String(x ?? '').toLowerCase().includes(needle))));
+  const matches = (i) => status === 'all' || i.status === status || (status === 'used-any' && String(i.status).startsWith('used'));
+  return (items ?? []).filter((i) => matches(i) && (!needle || [i.name, i.what, i.live].some((x) => String(x ?? '').toLowerCase().includes(needle))));
 }
 
 function renderRounds(items) {
@@ -139,6 +141,7 @@ export function render(map) {
   const chip = (status, label, n) => h('li', { class: 'fcount', 'data-status': status },
     h('button', { type: 'button', 'aria-pressed': String(view.status === status), onclick: () => { view.status = status; render(view.map); } }, h('strong', {}, String(n)), ' ', label));
   counts.replaceChildren(
+    chip('used-any', 'Used by Turnout', all.filter((i) => String(i.status).startsWith('used')).length),
     chip('all', 'All', all.length),
     ...GROUPS.map((g) => {
       const n = all.filter((i) => i.status === g.status).length;

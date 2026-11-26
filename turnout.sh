@@ -108,13 +108,14 @@ pick_host() {
 ADMIN_EMAIL=
 links() {
   ADMIN_EMAIL=$(sed -n 's/^FLAGSMITH_ADMIN_EMAIL=//p' .env 2>/dev/null | head -n 1)
+  ADMIN_PASSWORD=$(sed -n 's/^FLAGSMITH_ADMIN_PASSWORD=//p' .env 2>/dev/null | head -n 1)
   if [ "$MODE" = server ]; then
     SH=$(env_get TURNOUT_HOSTNAME)
     echo
     echo " ------------------------------------------------------------"
     echo "  Server mode on $SH"
-    echo "  Shop         https://$SH/          (through Turnout)"
-    echo "  Judge view   https://$SH/judge     (read-only, for anyone)"
+    echo "  Guided demo  https://$SH/          (anyone can run a test: simulated shoppers only)"
+    echo "  Shop         https://shop.$SH/     (through Turnout)"
     echo "  Console, Flagsmith and the full guided demo stay on this server's 127.0.0.1. From your machine:"
     echo "    ssh -L 8090:127.0.0.1:8090 -L 8000:127.0.0.1:8000 <you>@$SH"
     echo "    then http://127.0.0.1:8090/judge and http://127.0.0.1:8000"
@@ -132,7 +133,7 @@ links() {
   echo "  Console      http://$HOST:8090"
   echo "  Shop         http://$HOST:8080          (through Turnout)"
   echo "  Flagsmith    http://$HOST:8000"
-  [ -n "$ADMIN_EMAIL" ] && echo "               login $ADMIN_EMAIL, password in .env (FLAGSMITH_ADMIN_PASSWORD)"
+  [ -n "$ADMIN_EMAIL" ] && echo "               sign in: $ADMIN_EMAIL / ${ADMIN_PASSWORD:-see FLAGSMITH_ADMIN_PASSWORD in .env}"
   echo " ------------------------------------------------------------"
   echo "  Stop:   sh turnout.sh stop        Start over:   sh turnout.sh reset"
   echo " ------------------------------------------------------------"

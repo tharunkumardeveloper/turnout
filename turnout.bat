@@ -282,13 +282,15 @@ exit /b %errorlevel%
 :links
 set "ADMIN_EMAIL="
 for /f "tokens=1,* delims==" %%a in ('findstr /b "FLAGSMITH_ADMIN_EMAIL=" .env 2^>nul') do set "ADMIN_EMAIL=%%b"
+set "ADMIN_PASSWORD=see FLAGSMITH_ADMIN_PASSWORD in .env"
+for /f "tokens=1,* delims==" %%a in ('findstr /b "FLAGSMITH_ADMIN_PASSWORD=" .env 2^>nul') do set "ADMIN_PASSWORD=%%b"
 if defined SY_SERVER (
   call :env_get TURNOUT_HOSTNAME
   echo.
   echo  ------------------------------------------------------------
   echo   Server mode on !SY_VALUE!
-  echo   Shop         https://!SY_VALUE!/          ^(through Turnout^)
-  echo   Judge view   https://!SY_VALUE!/judge     ^(read-only, for anyone^)
+  echo   Guided demo  https://!SY_VALUE!/          ^(anyone can run a test: simulated shoppers only^)
+  echo   Shop         https://shop.!SY_VALUE!/     ^(through Turnout^)
   echo   Console, Flagsmith and the full guided demo stay on the server's 127.0.0.1. From your machine:
   echo     ssh -L 8090:127.0.0.1:8090 -L 8000:127.0.0.1:8000 ^<you^>@!SY_VALUE!
   echo     then http://127.0.0.1:8090/judge and http://127.0.0.1:8000
@@ -306,7 +308,7 @@ echo   Setup check  http://!SY_HOST!:8090/setup   ^(is everything in place?^)
 echo   Console      http://!SY_HOST!:8090
 echo   Shop         http://!SY_HOST!:8080          ^(through Turnout^)
 echo   Flagsmith    http://!SY_HOST!:8000
-if defined ADMIN_EMAIL echo                login !ADMIN_EMAIL!, password in .env ^(FLAGSMITH_ADMIN_PASSWORD^)
+if defined ADMIN_EMAIL echo                sign in: !ADMIN_EMAIL! / !ADMIN_PASSWORD!
 echo  ------------------------------------------------------------
 echo   Stop:   turnout.bat stop        Start over:   turnout.bat reset
 echo  ------------------------------------------------------------
