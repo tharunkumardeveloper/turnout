@@ -1148,7 +1148,8 @@ async function loadYou() {
     try {
       if (READONLY) {
         const res = await fetch('/__turnout/receipt', { cache: 'no-store', credentials: 'same-origin' });
-        app.you = res.ok ? { visited: true, ...(await res.json()) } : res.status === 404 ? { visited: false } : null;
+        const body = res.ok ? await res.json() : null;
+        app.you = body ? { visited: body.visitor !== null, ...body } : res.status === 404 ? { visited: false } : null;
       } else {
         const res = await api('/api/you', { cache: 'no-store' });
         app.you = res.ok ? await res.json() : null;

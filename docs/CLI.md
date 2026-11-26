@@ -45,7 +45,7 @@ Asks four questions in a terminal; each has a default and a flag, and with `--ye
 | 3. Success | `--success "<METHOD> <path> [status]"` or `--success "header <event>"` | `POST /signup 2xx`; the event is named after the path (`signup`), or `--event <name>`. `header signup` writes `goal: { event: signup, header: true }`: your app answers the converting request with `X-Turnout-Event: signup` (see below) |
 | 4. Traffic | `--traffic <1-100>` | 100: the % of visitors in the experiment; the rest stay on the first release |
 
-A release entry is `label=url`, a bare `http(s)` URL (labelled `v1`, `v2`…), or a Docker image (`acme/web:2`, labelled `web:2`, served as a `web-2` service on `--port`, default 8080). `localhost` becomes `host.docker.internal`, since inside the proxy's container localhost is the proxy. Other flags: `--flag <name>` (default `<first label's name>_release`), `--image` (the Turnout image, default `ghcr.io/tharunkumardeveloper/turnout:latest`, not published yet), `--proxy-port` (8080), `--console-port` (8090; change both to run next to another Turnout), `--dir` (the current folder), `--force` (overwrite).
+A release entry is `label=url`, a bare `http(s)` URL (labelled `v1`, `v2`…), or a Docker image (`acme/web:2`, labelled `web:2`, served as a `web-2` service on `--port`, default 8080). `localhost` becomes `host.docker.internal`, since inside the proxy's container localhost is the proxy. Other flags: `--flag <name>` (default `<first label's name>_release`), `--image` (the Turnout image, default `turnout:local`, built from this checkout with `docker build -t turnout:local .`; the `turnout` command builds it for you), `--proxy-port` (8080), `--console-port` (8090; change both to run next to another Turnout), `--dir` (the current folder), `--force` (overwrite).
 
 #### Success from a response header
 
@@ -95,7 +95,7 @@ The Action in `action.yml` runs `check` with the `server-key` input, and with `a
 
 ```yaml
 - uses: actions/checkout@v5
-- uses: <owner>/turnout@v1
+- uses: tharunkumardeveloper/turnout@v1
   with:
     api-url: https://flagsmith.example.com/api/v1/
     server-key: ${{ secrets.FLAGSMITH_SERVER_KEY }}

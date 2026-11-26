@@ -51,7 +51,7 @@ docs/
   SETUP.md                 the scripts, by-hand commands, doctor, other devices, Linux, ports and networks
   JUDGE_MODE.md            judge mode, the tour and the full console
   CLI.md                   every command and option
-  FLAGSMITH.md             every Flagsmith feature used, with file:line, and what we found on the pinned image
+  FLAGSMITH.md             every Flagsmith feature used, with file:line, and what I found on the pinned image
   images/                  README screenshots and the Ship GIF, captured from the live stack
 ```
 

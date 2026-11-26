@@ -16,7 +16,7 @@
 # even when redirected. Every native call's exit code is checked instead.
 $ErrorActionPreference = 'Continue'
 $HomeDir = Split-Path -Parent $PSScriptRoot
-$Image = if ($env:TURNOUT_IMAGE) { $env:TURNOUT_IMAGE } else { 'ghcr.io/tharunkumardeveloper/turnout:latest' }
+$Image = if ($env:TURNOUT_IMAGE) { $env:TURNOUT_IMAGE } else { 'turnout:local' }
 $Name = ((Split-Path -Leaf (Get-Location)).ToLower() -replace '[^a-z0-9]+', '-').Trim('-')
 if (-not $Name) { $Name = 'app' }
 $StateRoot = if ($env:TURNOUT_STATE) { $env:TURNOUT_STATE } else { Join-Path $env:USERPROFILE '.turnout\projects' }
@@ -34,12 +34,15 @@ function Need-Docker {
 }
 
 function Need-Image {
-  docker image inspect $script:Image *> $null; if ($LASTEXITCODE -eq 0) { return }
-  docker pull -q $script:Image *> $null; if ($LASTEXITCODE -eq 0) { return }
-  $script:Image = 'turnout:local'
-  if (-not (Test-Path (Join-Path $HomeDir 'Dockerfile'))) { Die "can't pull the image and there's no Turnout checkout at $HomeDir to build from." }
+  # turnout:local is built from this checkout (no registry, no account); TURNOUT_IMAGE=<image> uses another one.
+  if ($script:Image -ne 'turnout:local') {
+    docker image inspect $script:Image *> $null; if ($LASTEXITCODE -eq 0) { return }
+    docker pull -q $script:Image *> $null; if ($LASTEXITCODE -eq 0) { return }
+    Die "can't pull $script:Image (TURNOUT_IMAGE). Unset it to build turnout:local from this checkout."
+  }
+  if (-not (Test-Path (Join-Path $HomeDir 'Dockerfile'))) { Die "there's no Turnout checkout at $HomeDir to build turnout:local from." }
   # Always rebuilt, so it matches this checkout; Docker's cache makes that seconds when nothing changed.
-  Say "The published image can't be pulled, so using turnout:local, built from $HomeDir (the first build takes about a minute)."
+  docker image inspect turnout:local *> $null; if ($LASTEXITCODE -ne 0) { Say "Building turnout:local from $HomeDir (the first build takes about a minute)." }
   docker build -q -t turnout:local $HomeDir *> $null
   if ($LASTEXITCODE -ne 0) { Die "building turnout:local failed: run docker build -t turnout:local `"$HomeDir`" to see why." }
 }

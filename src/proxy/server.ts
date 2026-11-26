@@ -440,7 +440,8 @@ export function createProxy(opts: Options): http.Server {
     }
     if (pathname !== `${OWN_PREFIX}receipt`) return send(404, { error: 'not found' });
     if (o.viewing) return send(200, { variant: null, release: o.viewing, enrolled: false, viewing: true, receipt: null });
-    if (!identity) return send(404, { error: 'No Turnout visitor cookie yet. Load a page first.' });
+    // No cookie yet (a first load): a normal answer, not an error, so a browser's console stays clean.
+    if (!identity) return send(200, { visitor: null, variant: null, release: null, enrolled: false, receipt: null });
     let assignment: Assignment | undefined;
     if (!flags.ready || flags.ready()) {
       try {

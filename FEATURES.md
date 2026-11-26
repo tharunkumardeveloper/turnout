@@ -125,10 +125,11 @@ Turnout is a reverse proxy in front of your web app. It turns every release into
 - **Caching.** Responses carry `Cache-Control: private` and `Vary: Cookie`. Turnout's cookies are stripped before requests reach the app.
 
 ## Quality
-- **Tests.** 616 tests (615 pass, 1 skipped) on Node's built-in test runner.
+- **Tests.** 660 tests (659 pass, 1 skipped on purpose) on Node's built-in test runner.
 - **Evidence.** Results measured on Flagsmith 2.291.0 are recorded in `spikes/RESULTS.md`.
 
 ## Not built yet
+- MongoDB, Postgres and MySQL are the throwaway databases Try it offers; others (Redis, Elasticsearch) are not
 - Several experiments running at once
 - WebSocket routing
 - A per-visitor opt-out

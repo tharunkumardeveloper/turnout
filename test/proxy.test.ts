@@ -166,7 +166,9 @@ test('/__turnout/receipt answers from the proxy, never the app, and records no e
   assert.equal(res.status, 200);
   assert.deepEqual(await res.json(), { variant: 'v2', release: 'shop:1.5', enrolled: true, receipt: null });
   assert.equal(flags.exposures.length, before);
-  assert.equal((await fetch(`${base}/__turnout/receipt`)).status, 404); // no cookie yet
+  const first = await fetch(`${base}/__turnout/receipt`); // no cookie yet: 200, no visitor (no red error on a first load)
+  assert.equal(first.status, 200);
+  assert.deepEqual(await first.json(), { visitor: null, variant: null, release: null, enrolled: false, receipt: null });
   assert.equal((await fetch(`${base}/__turnout/anything`)).status, 404);
 });
 

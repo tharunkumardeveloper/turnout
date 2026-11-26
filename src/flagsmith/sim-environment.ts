@@ -1,4 +1,4 @@
-// Simulated visitors stay in their own Flagsmith environment (docs/PLAN.md step 5): Try it finds or creates
+// Simulated visitors stay in their own Flagsmith environment: Try it finds or creates
 // "Try it (simulated visitors)" in the same project as the main environment, with its own server-side key, so its
 // identities, events and experiments never mix with the main environment's.
 import { readFileSync, writeFileSync, mkdirSync } from 'node:fs';

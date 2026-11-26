@@ -11,7 +11,7 @@
 # GITHUB_REPOSITORY and GITHUB_SHA name the repository and the commit, so Flagsmith's permalinks point at this run.
 #
 #   - uses: actions/checkout@v5
-#   - uses: <owner>/turnout@v1
+#   - uses: tharunkumardeveloper/turnout@v1
 #     with:
 #       api-url: https://flagsmith.example.com/api/v1/
 #       server-key: ${{ secrets.FLAGSMITH_SERVER_KEY }}

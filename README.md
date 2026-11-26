@@ -6,12 +6,14 @@
 
 **Test a whole new version of your website on real visitors, then move everyone to the winner with one click.<br>No changes to your app's code. Built on self-hosted Flagsmith.**
 
+*Toggle Wars entry, Track 03: self-hosted Flagsmith, integrations and developer tools.*
+
 [![Flagsmith](https://img.shields.io/badge/Flagsmith-self--hosted%20%C2%B7%20Experimentation-6633ff)](https://github.com/Flagsmith/flagsmith)
 [![Node.js 24](https://img.shields.io/badge/Node.js-24-5fa04e?logo=nodedotjs&logoColor=white)](https://nodejs.org)
 [![TypeScript](https://img.shields.io/badge/TypeScript-no%20build%20step-3178c6?logo=typescript&logoColor=white)](https://www.typescriptlang.org)
 [![Docker](https://img.shields.io/badge/Docker-Compose-2496ed?logo=docker&logoColor=white)](https://docs.docker.com/compose/)
 [![PostgreSQL](https://img.shields.io/badge/PostgreSQL-event%20store-4169e1?logo=postgresql&logoColor=white)](https://www.postgresql.org)
-[![Tests](https://img.shields.io/badge/tests-600%2B%20passing-15803d)](#development)
+[![Tests](https://img.shields.io/badge/tests-650%2B%20passing-15803d)](#development)
 [![License: BSD-3-Clause](https://img.shields.io/badge/license-BSD--3--Clause-blue)](LICENSE)
 
 [**Live demo**](https://172-198-62-67.sslip.io/judge) · [Quick start](#quick-start) · [Step-by-step setup](#step-by-step-setup) · [How Flagsmith is used](#how-flagsmith-is-used)
@@ -47,11 +49,11 @@ It works for any website in any language: a shop, a sign-up page, a dashboard. Y
 
 **Why not just Flagsmith?** Flagsmith decides who sees what and does the maths, but normally your app's code has to ask it, which works for one button, not for two whole releases. Turnout is that missing front door. **Why not a canary tool?** Tools like Argo Rollouts or Flagger shift traffic to protect uptime and judge a release on errors. Turnout asks a product question, *does the new release get more sign-ups?*, and keeps errors and speed as safety checks.
 
-## Track 03: why this exists
+## Why this exists (Track 03)
 
-Turnout is what we wished existed while setting up Flagsmith's Experimentation on our own server. Each piece answers a problem we hit:
+Turnout is what I wished existed while setting up Flagsmith's Experimentation on my own server. Each piece answers a problem I hit:
 
-| We hit | So Turnout… |
+| I hit | So Turnout… |
 |---|---|
 | An experiment is app code at each touchpoint (`getExperimentFlag`, `trackEvent`, a visitor id). A whole new release has no single line to wrap. | Routes every request at the door, by one multivariate flag, and turns plain HTTP into Flagsmith events: no app code. |
 | After ending an experiment and setting the flag's default, 144 of 300 visitors were still on the old split until the next experiment started. | **Ship winner** drains the split first: 300 of 300 on the winner ([details](docs/FLAGSMITH.md#ending-an-experiment-what-the-docs-say-and-what-the-pinned-image-does)). |
@@ -60,7 +62,7 @@ Turnout is what we wished existed while setting up Flagsmith's Experimentation o
 | Outgoing webhooks refuse private addresses, so a self-hosted console can't receive them. | Reports health through Flagsmith's Feature Health provider instead. |
 | Getting a test running took a dozen manual steps. | `turnout compare` (one command), a setup check, installers for every OS, and *Try it with your app* from the console. |
 
-## Track 01: the experiment
+## The demo experiment
 
 | | |
 |---|---|
@@ -68,7 +70,7 @@ Turnout is what we wished existed while setting up Flagsmith's Experimentation o
 | **Versions behind a flag** | `shop_release`, multivariate: `control` → 1.4, `v2` → 1.5 (and `v3` → 1.6 in the A/B/C test). |
 | **Metric from real events** | `order_placed`: the proxy's event when `POST /checkout` answers 2xx. Safety checks: page load time and server errors. `add_to_cart` is watched too. |
 | **Result** | Flagsmith: 1.5 at 20.3% against 10.1%, >99.9% chance to win, page speed unchanged; shipped with one flag change, then 50 of 50 new visitors on 1.5. In the A/B/C test, 1.6 sells a little more but its pages are 2.8× slower, so it's out. |
-| **Honest about it** | Those shoppers are simulated (labelled) at rates we set. On the live demo, blind rounds draw the rates at random and hide them; the page reveals them next to Flagsmith's call and keeps a scoreboard. Real visitors who press *Be a visitor* count in a separate experiment, `shop_release_live`, whose goal is `add_to_cart` (it fires early enough for a few days of traffic) with `order_placed` watched. |
+| **Honest about it** | Those shoppers are simulated (labelled) at rates I set. On the live demo, blind rounds draw the rates at random and hide them; the page reveals them next to Flagsmith's call and keeps a scoreboard. Real visitors who press *Be a visitor* count in a separate experiment, `shop_release_live`, whose goal is `add_to_cart` (it fires early enough for a few days of traffic) with `order_placed` watched. |
 
 ## See it in 2 minutes
 
@@ -78,7 +80,7 @@ Open the **[live demo](https://172-198-62-67.sslip.io/judge)**: it runs real Fla
 - **Blind rounds:** each round's true order rates are drawn at random and hidden (better, worse or the same). After the decision the page reveals them next to Flagsmith's call, and a scoreboard counts how often Flagsmith was right. When 1.6 is tested, its slower pages trip the safety check.
 - **Look inside Flagsmith:** the *In Flagsmith* tab shows the flag, its split and the route each shopper takes.
 - **Be a visitor:** press it, and Flagsmith gives you a version like any shopper. The route marks where you landed.
-- **The console, read-only:** [/judge/console](https://172-198-62-67.sslip.io/judge/console) shows the live traffic map, Flagsmith's results and the decisions the autopilot makes.
+- **The console, read-only:** [/judge/console](https://172-198-62-67.sslip.io/judge/console?mode=console) shows the live traffic map, Flagsmith's results and the decisions the autopilot makes.
 
 On your own machine, judge mode is interactive: a guided tour tells you what to click at each step.
 
@@ -267,6 +269,7 @@ Everything, one line each: [FEATURES.md](FEATURES.md). How each part works: [doc
 | Flagsmith down | 100 of 100 pages still served, 86 ms average |
 | Under load | 0 of 121,678 events lost at up to 200 visitors at once |
 | Any app, automatically | 12 sample apps (HTML, Vite, Next.js ×2, Express, Flask, Django, Go, PHP, no Dockerfile, needs a database, needs a setting): builds 12/12, goals 11/12, counts match Flagsmith 12/12, ships 12/12 (`npm run scoreboard`, [scoreboard/](scoreboard/README.md)) |
+| Real GitHub repos, pasted as links | 11 public repos (Heroku's Node, Python, Go, PHP and Ruby on Rails samples, Docker's tutorial apps, Render's Flask and Django, an Express + MongoDB app, Flask Microblog): 10 of 11 build, start, get Flagsmith results with matching counts, and ship. Most have no Dockerfile; three need Postgres or MongoDB, given as a throwaway one. Microblog's own Dockerfile fails to install its pinned packages. Goals found on 1: the rest only link off-site. ([github-run.json](scoreboard/github-run.json)) |
 | A server, rebooted | back by itself in 50 s, every check passing |
 
 Raw logs and numbers: [spikes/RESULTS.md](spikes/RESULTS.md). Not claimed: production users, or any simulated number as evidence about real people.

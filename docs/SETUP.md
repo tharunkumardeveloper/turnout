@@ -124,7 +124,7 @@ macOS and Windows don't need this.
 Turnout works against any self-hosted Flagsmith that has Experimentation on (`EXPERIMENTATION_ENABLED=true` on the API). You need its API URL and an Organisation API key for the organisation that owns your project.
 
 ```sh
-docker run --rm -it -v "$PWD:/work" ghcr.io/tharunkumardeveloper/turnout new --dir /work \
+docker run --rm -it -v "$PWD:/work" turnout:local new --dir /work \
   --flagsmith https://flagsmith.example.com/api/v1/ --project "Web" --environment Production
 # put the Organisation API key in .env as TURNOUT_ADMIN_KEY (or pass --admin-key to new)
 docker compose -f turnout.compose.yml run --rm cli init     # reads TURNOUT_PROJECT / TURNOUT_ENVIRONMENT from .env
@@ -135,7 +135,7 @@ What `init --project` creates and what it leaves alone: [CLI.md](CLI.md#init---p
 
 On this repo's own stack: `init --project` with no flag reuses `.env`'s key, so point `TURNOUT_ADMIN_KEY` at the organisation that owns the project. A free-plan organisation holds one project (`MAX_PROJECTS_IN_FREE_PLAN = 1` in Flagsmith's `app/settings/common.py:69`, checked in `projects/permissions.py:31-38` of the pinned image), and the demo's organisation already has one, so a second app goes in its own organisation. That's how the landing example ran (see [spikes/RESULTS.md](../spikes/RESULTS.md)).
 
-The image isn't published yet: until `.github/workflows/publish.yml` has run on a version tag, build it from this checkout (`docker build -t ghcr.io/tharunkumardeveloper/turnout .`).
+The image is `turnout:local`: build it once from this checkout (`docker build -t turnout:local .`; the `turnout` command does it for you). A registry image works too: `--image <image>`, or `TURNOUT_IMAGE` for the `turnout` command.
 
 ## Another config on this stack
 

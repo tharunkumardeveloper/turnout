@@ -1,6 +1,6 @@
 # Publish the Turnout image (proxy, console and CLI) to GitHub Container Registry on a version tag:
-#   git tag v0.1.0 && git push origin v0.1.0   →   ghcr.io/<owner>/turnout:0.1.0, :0.1 and :latest
-# "turnout new" writes compose files that pull ghcr.io/<owner>/turnout:latest. Nothing has been published yet.
+#   git tag v1.0.0 && git push origin v1.0.0   →   ghcr.io/<owner>/turnout:1.0.0, :1.0 and :latest
+# Optional: Turnout defaults to turnout:local, built from a checkout. Use a published image with --image or TURNOUT_IMAGE.
 name: Publish image
 
 on:

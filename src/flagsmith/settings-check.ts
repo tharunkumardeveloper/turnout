@@ -1,4 +1,4 @@
-// Settings check (docs/PLAN.md step 6): the proxy routes on its own copy of Flagsmith's environment document. This
+// Settings check: the proxy routes on its own copy of Flagsmith's environment document. This
 // compares that copy's flag (on or off, its value, its split) with what Flagsmith serves now, so a stale copy is seen.
 
 export type FlagSnapshot = { enabled: boolean; value: string | null; split: Record<string, number> } | null;

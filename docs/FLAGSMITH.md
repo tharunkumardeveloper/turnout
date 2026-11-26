@@ -32,7 +32,7 @@ Every claim here was checked against Flagsmith's source at the pinned image, `2.
 
 The console's `/flagsmith` page (`GET /api/flagsmith-map`) lists every dashboard menu and integration with what Turnout does with it, a live value from the Admin API and, for anything not available on this laptop demo, the source behind that. In short:
 
-- **Audit Log.** Flagsmith records Turnout's writes (124 rows for the demo project on our instance), but a free organisation's visibility window is 0 days, so the API and the page show none (`organisations/models.py:424-429`, `organisations/subscriptions/metadata.py:15`, `audit/views.py:84-91`). Turnout's ledger is the record here.
+- **Audit Log.** Flagsmith records Turnout's writes (124 rows for the demo project on my instance), but a free organisation's visibility window is 0 days, so the API and the page show none (`organisations/models.py:424-429`, `organisations/subscriptions/metadata.py:15`, `audit/views.py:84-91`). Turnout's ledger is the record here.
 - **Segment Change Requests** come with the Enterprise image's workflows module; this image doesn't register the API (`app/settings/common.py:1116-1119`, `projects/urls.py:105-111`).
 - **Outbound integrations** (Webhook, Grafana, Datadog, New Relic, Dynatrace, Sentry, GitLab and the analytics destinations) refuse URLs that resolve to loopback or private addresses (`core/fields.py:24-28`, `core/validators.py:22-31`, `core/network.py:8-34`), so they need a public endpoint or a vendor account. Slack and GitHub need the operator's own app credentials (`app/settings/common.py:1089-1093`).
 
@@ -61,7 +61,7 @@ Measured on the pinned image with 300 fresh identities through a local-evaluatio
 | B after Ship winner (pause → default = v2 → rollout 0% with v2 weights → complete) | v2 300 |
 | B after one environment-default edit back to control | control 300 |
 
-So until the next experiment starts, the documented edit doesn't reach the identities the rollout covers. Ship winner drains the rollout first. We'd like to offer this upstream as an optional "roll out the winner" on Complete; the repro script is ready.
+So until the next experiment starts, the documented edit doesn't reach the identities the rollout covers. Ship winner drains the rollout first. I'd like to offer this upstream as an optional "roll out the winner" on Complete; the repro script is ready.
 
 ## Things we found on the pinned image
 

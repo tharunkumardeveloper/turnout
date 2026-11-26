@@ -1,4 +1,4 @@
-// Try it from the terminal (docs/PLAN.md step 8): the same calls the console page makes, on a local Turnout.
+// Try it from the terminal: the same calls the console page makes, on a local Turnout.
 //   turnout try <repo|folder|image> …   build them (one: A/A; two or three: A/B, A/B/C) and start the test
 //   turnout goals                       what a visitor can do on every version, the goal first
 //   turnout results [--full]            Flagsmith's verdict in one sentence; --full: every metric

@@ -1,4 +1,4 @@
-// What Turnout learns by watching traffic (docs/PLAN.md steps 3, 5 and 6): every request through the proxy as a
+// What Turnout learns by watching traffic: every request through the proxy as a
 // pattern with its status and the version that served it, the visitors a test needs, and simulated visitors that keep
 // running at a low rate.
 

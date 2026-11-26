@@ -1,4 +1,4 @@
-// Turnout learns the site by watching it (docs/PLAN.md steps 3 and 4): right after the build, each version is walked
+// Turnout learns the site by watching it: right after the build, each version is walked
 // once (never counted), and what a visitor can do there that reaches the server becomes the goals to choose from:
 // form sends first, then downloads, then pages that sound like a conversion. Only actions every version has.
 import { pageLinks } from '../commands/simulate-any.ts';

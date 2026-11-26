@@ -8,14 +8,15 @@ What `turnout compare` does, step by step, for your own Flagsmith or anything `c
 
 ```sh
 # 1. Four questions (Flagsmith: bundled or yours; the releases; success, e.g. "POST /signup 2xx", "header signup" or "none"; % of traffic)
-docker run --rm -it -v "$PWD:/work" ghcr.io/tharunkumardeveloper/turnout new --dir /work
+docker build -t turnout:local path/to/turnout   # once, from a Turnout checkout
+docker run --rm -it -v "$PWD:/work" turnout:local new --dir /work
 # 2. Set up Flagsmith: the release flag, metrics, the experiment (yours: add --project <name|id> --environment <name|key>)
 docker compose -f turnout.compose.yml run --rm cli init
 # 3. Start the proxy (your app on :8080) and the console (:8090)
 docker compose -f turnout.compose.yml up -d
 ```
 
-`new` writes `turnout.config.yml`, `turnout.compose.yml` (the proxy, the console and the CLI, plus your release images if you gave images) and, for a bundled Flagsmith, `flagsmith.compose.yml`. Every answer is also a flag, for scripts: `new --yes --release v1=http://host.docker.internal:3000 --release v2=http://host.docker.internal:3001 --success "POST /signup 2xx" --traffic 50`. With your own Flagsmith, `init --project` reuses your project and environment and creates nothing else; it never touches other flags ([docs/SETUP.md](SETUP.md#bring-your-own-flagsmith)). The image isn't published yet: build it from this checkout first (`docker build -t ghcr.io/tharunkumardeveloper/turnout .`).
+`new` writes `turnout.config.yml`, `turnout.compose.yml` (the proxy, the console and the CLI, plus your release images if you gave images) and, for a bundled Flagsmith, `flagsmith.compose.yml`. Every answer is also a flag, for scripts: `new --yes --release v1=http://host.docker.internal:3000 --release v2=http://host.docker.internal:3001 --success "POST /signup 2xx" --traffic 50`. With your own Flagsmith, `init --project` reuses your project and environment and creates nothing else; it never touches other flags ([docs/SETUP.md](SETUP.md#bring-your-own-flagsmith)). The image is `turnout:local`, built from a Turnout checkout (the `turnout` command builds it for you).
 
 A second, different example lives in [`examples/landing/`](../examples/landing/README.md): a static landing page with a Sign up button, two releases as two containers, success = `POST /signup` 2xx.
 
@@ -63,7 +64,7 @@ Turnout runs as an overlay on Flagsmith's official self-hosted Docker Compose. B
 ## The problem
 
 1. **A release isn't an experiment.** A Flagsmith experiment is app code: Flagsmith's PayPal-button example has three touchpoints in the app (`useExperiment`, `trackEvent` and an anonymous ID; [`example-paypal-button.md:56,61,76`](https://github.com/Flagsmith/flagsmith/blob/main/docs/docs/experimentation/example-paypal-button.md)). When the change is the whole deploy, v1.4 against v1.5, there's no single line to wrap in a flag.
-2. **Ending an experiment has a sharp edge.** The docs say to end the experiment, then update the flag ([`analyse-an-experiment.md:58-61`](https://github.com/Flagsmith/flagsmith/blob/main/docs/docs/experimentation/analyse-an-experiment.md)). On the pinned image, the experiment's split stays in place after it's completed until the flag's next experiment starts, so that edit reaches none of the identities the rollout covered: we measured 144 of 300 still on control. **Ship winner** drains the split first: 300 of 300 on the winner. Details and sources: [docs/FLAGSMITH.md](FLAGSMITH.md#ending-an-experiment-what-the-docs-say-and-what-the-pinned-image-does).
+2. **Ending an experiment has a sharp edge.** The docs say to end the experiment, then update the flag ([`analyse-an-experiment.md:58-61`](https://github.com/Flagsmith/flagsmith/blob/main/docs/docs/experimentation/analyse-an-experiment.md)). On the pinned image, the experiment's split stays in place after it's completed until the flag's next experiment starts, so that edit reaches none of the identities the rollout covered: I measured 144 of 300 still on control. **Ship winner** drains the split first: 300 of 300 on the winner. Details and sources: [docs/FLAGSMITH.md](FLAGSMITH.md#ending-an-experiment-what-the-docs-say-and-what-the-pinned-image-does).
 
 ## What Turnout does
 
@@ -164,7 +165,7 @@ These work without the proxy, on experiments your app runs through the SDK. `che
 
 ```yaml
 - uses: actions/checkout@v5
-- uses: <owner>/<repo>@<ref>   # this repository
+- uses: tharunkumardeveloper/turnout@v1
   with:
     api-url: https://flagsmith.example.com/api/v1/
     server-key: ${{ secrets.FLAGSMITH_SERVER_KEY }}

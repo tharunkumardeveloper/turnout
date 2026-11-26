@@ -1,4 +1,4 @@
-// Results in plain words (docs/PLAN.md steps 6 and 7), shared by the console page and the terminal (try-cli.ts):
+// Results in plain words, shared by the console page and the terminal (try-cli.ts):
 // the one-sentence verdict, "not sure yet" with how far along, the split check and the Markdown report.
 
 const pct = (x) => `${Math.round(x * 100)}%`;

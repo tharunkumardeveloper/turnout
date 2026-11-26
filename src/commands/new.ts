@@ -7,7 +7,9 @@ import { parse } from 'yaml';
 import { writeEnv } from './init.ts';
 
 // Not published yet: build it locally (docker build -t <this> .) until the publish workflow has run on a tag.
-export const DEFAULT_IMAGE = 'ghcr.io/tharunkumardeveloper/turnout:latest';
+// Built from a Turnout checkout (`docker build -t turnout:local .`, which the turnout command does for you): no
+// registry to reach, so it works offline and with no account.
+export const DEFAULT_IMAGE = 'turnout:local';
 export const DEFAULT_RELEASES = ['v1=http://host.docker.internal:3000', 'v2=http://host.docker.internal:3001'];
 export const DEFAULT_SUCCESS = 'POST /signup 2xx';
 
@@ -149,7 +151,7 @@ export function renderCompose(a: NewAnswers, releases: Release[]): string {
 #   docker compose -f turnout.compose.yml run --rm cli init
 #   docker compose -f turnout.compose.yml up -d
 # then open http://127.0.0.1:${port} (your app, through Turnout) and http://127.0.0.1:${consolePort} (the console).
-# ${image} is not published yet: build it from the Turnout repo with "docker build -t ${image} ." first.
+# ${image === DEFAULT_IMAGE ? `${image}: build it from a Turnout checkout with "docker build -t ${image} ." first (the turnout command does this).` : `${image}: the Turnout image you chose.`}
 ${bundled ? 'include:\n  - flagsmith.compose.yml   # Flagsmith, from Turnout\'s compose.flagsmith.yml\n' : ''}
 x-turnout: &turnout
   image: ${image}

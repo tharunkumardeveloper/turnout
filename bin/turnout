@@ -23,7 +23,7 @@ while [ -L "$self" ]; do
   case "$link" in /*) self=$link ;; *) self=$(dirname -- "$self")/$link ;; esac
 done
 HOME_DIR=$(CDPATH= cd -- "$(dirname -- "$self")/.." && pwd)
-IMAGE="${TURNOUT_IMAGE:-ghcr.io/tharunkumardeveloper/turnout:latest}"
+IMAGE="${TURNOUT_IMAGE:-turnout:local}"
 NAME=$(basename "$PWD" | tr 'A-Z' 'a-z' | sed 's/[^a-z0-9]\{1,\}/-/g; s/^-//; s/-$//')
 [ -n "$NAME" ] || NAME=app
 STATE="${TURNOUT_STATE:-$HOME/.turnout/projects}/$NAME"
@@ -124,14 +124,17 @@ need_docker() {
   docker info >/dev/null 2>&1 || die "Docker isn't running. Start Docker Desktop (or: sudo systemctl start docker), wait for it, and run this again."
 }
 
-# The image: pulled if it can be, otherwise built from this checkout (the image is private while Turnout is).
+# The image: turnout:local, built from this checkout (no registry, no account). TURNOUT_IMAGE=<image> uses another one,
+# pulled if it isn't here yet.
 need_image() {
-  docker image inspect "$IMAGE" >/dev/null 2>&1 && return
-  if docker pull -q "$IMAGE" >/dev/null 2>&1; then return; fi
-  IMAGE=turnout:local
-  [ -f "$HOME_DIR/Dockerfile" ] || die "can't pull the image and there's no Turnout checkout at $HOME_DIR to build from."
+  if [ "$IMAGE" != turnout:local ]; then
+    docker image inspect "$IMAGE" >/dev/null 2>&1 && return
+    docker pull -q "$IMAGE" >/dev/null 2>&1 && return
+    die "can't pull $IMAGE (TURNOUT_IMAGE). Unset it to build turnout:local from this checkout."
+  fi
+  [ -f "$HOME_DIR/Dockerfile" ] || die "there's no Turnout checkout at $HOME_DIR to build turnout:local from."
   # Always rebuilt, so it matches this checkout; Docker's cache makes that seconds when nothing changed.
-  say "The published image can't be pulled, so using turnout:local, built from $HOME_DIR (the first build takes about a minute)."
+  docker image inspect turnout:local >/dev/null 2>&1 || say "Building turnout:local from $HOME_DIR (the first build takes about a minute)."
   docker build -q -t turnout:local "$HOME_DIR" >/dev/null || die "building turnout:local failed: run docker build -t turnout:local $HOME_DIR to see why."
 }
 

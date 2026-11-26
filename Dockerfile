@@ -1,6 +1,8 @@
 # Turnout: the proxy, the console and the CLI. The demo shop has its own image (demo/shop/Dockerfile).
 FROM node:24-alpine
 WORKDIR /app
+# git: Try it clones a repository you paste, so one with no Dockerfile gets one written for it.
+RUN apk add --no-cache git
 COPY package.json package-lock.json ./
 RUN npm ci --omit=dev && npm cache clean --force
 COPY src ./src

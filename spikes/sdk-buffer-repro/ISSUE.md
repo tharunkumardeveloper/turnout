@@ -33,7 +33,11 @@ node repro.mjs <eventsPerSecond> <seconds> <endpointDelayMs> [maxBuffer] [flushI
 | `maxBuffer: 7000`, `flushInterval: 1000` | 700 | 20 s | 21,000 | 13,960 | **7,040 (33.5%)** | 7,040 |
 | `maxBuffer: 20000`, `flushInterval: 1000` | 700 | 30 s | 28,000 | 2,091 | **25,909 (92.5%)** | 8,000 + 2 batches refused with 413 |
 
-The delays are deliberately long here, to make the effect easy to see. Against a real self-hosted Flagsmith 2.291.0 on a 2-vCPU VM, we measured batch round-trips of 4 to 10.7 s under load (~700 events/s from one Node process), and lost 2.2% of events in one run with `maxBuffer: 6000` and `flushInterval: 2000`.
+The delays are deliberately long here, to make the effect easy to see. Against a real self-hosted Flagsmith 2.291.0 on a 2-vCPU VM, I measured batch round-trips of 4 to 10.7 s under load (~700 events/s from one Node process), and lost 2.2% of events in one run with `maxBuffer: 6000` and `flushInterval: 2000`.
+
+### Still there in 9.5.0
+
+Re-run on `@flagsmith/nodejs` 9.5.0 (the latest, released 23 Nov), same machine, defaults, 300 events/s for 20 s, endpoint answering after 5 s: 6,000 tracked, 4,476 received, **1,524 lost (25.4%)**, all 1,524 logged as dropped. On 9.4.0 with the same settings: 1,527 lost (25.4%). `repro.mjs` prints the version it actually ran.
 
 ### Where it happens
 

@@ -7,7 +7,24 @@
 //
 // Prints: events tracked, events the endpoint received, events lost, and how many the SDK logged as dropped.
 import http from 'node:http';
+import { existsSync, readFileSync } from 'node:fs';
+import { createRequire } from 'node:module';
+import { dirname, join } from 'node:path';
 import { Flagsmith } from '@flagsmith/nodejs';
+
+// The SDK version actually installed, not the one this file was written against.
+const SDK_VERSION = (() => {
+  // The package's exports map hides package.json, so walk up from its entry file to the folder that has it.
+  try {
+    let dir = dirname(createRequire(import.meta.url).resolve('@flagsmith/nodejs'));
+    for (;;) {
+      const file = join(dir, 'package.json');
+      if (existsSync(file)) { const p = JSON.parse(readFileSync(file, 'utf8')); if (p.name === '@flagsmith/nodejs') return p.version; }
+      if (dirname(dir) === dir) return 'unknown';
+      dir = dirname(dir);
+    }
+  } catch { return 'unknown'; }
+})();
 
 const [rate = 700, seconds = 20, delayMs = 4000, maxBuffer, flushMs] = process.argv.slice(2).map(Number);
 const MAX_BODY = 2_097_152; // Flagsmith 2.291.0: experimentation/constants.py MAX_BODY_BYTES
@@ -67,7 +84,7 @@ server.close();
 
 const lost = tracked - received;
 console.log(JSON.stringify({
-  sdk: '@flagsmith/nodejs 9.4.0', eventsPerSecond: rate, seconds, endpointDelayMs: delayMs,
+  sdk: `@flagsmith/nodejs ${SDK_VERSION}`, eventsPerSecond: rate, seconds, endpointDelayMs: delayMs,
   maxBuffer: maxBuffer ?? 'default (1000)', flushIntervalMs: flushMs ?? 'default (10000)',
   tracked, received, lost, lostPct: +(100 * lost / tracked).toFixed(1), droppedLoggedAsWarning: droppedLogged, batches, rejected413: tooLarge,
 }));
