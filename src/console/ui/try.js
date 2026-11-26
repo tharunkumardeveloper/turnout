@@ -65,7 +65,7 @@ const EXAMPLE = [
 
 const rows = LETTERS.map((letter, i) => ({ letter, kind: 'dockerfile', value: '', port: '', rate: i === 0 ? '10' : '10' }));
 let polling = 0;
-let offline = false; // the tryit service isn't running: it is opt-in
+let offline = false; // the tryit service isn't running (or this is the public server)
 let ready = ''; // the line once a build is ready (kept until the versions change)
 
 function rowView(r, i) {
@@ -127,7 +127,7 @@ async function poll() {
     const off = $('try-off');
     off.hidden = !offline;
     if (offline) {
-      off.textContent = 'Try it is off: it builds and runs code over the Docker socket, so it starts only when you ask. Start it with  turnout.bat tryit  (Windows) or  sh turnout.sh tryit  (macOS, Linux), then press Use an example or Build and try.';
+      off.textContent = 'Try it is not running. On your machine, run  turnout.bat  (Windows) or  sh turnout.sh  (macOS, Linux): it starts Try it with everything else. A public server never runs it: it builds and runs code over the Docker socket.';
       polling = 0;
       return kindLine();
     }

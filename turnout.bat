@@ -382,7 +382,7 @@ echo   status  show what's running, check the setup, and the links
 echo   stop    stop every container; data and keys are kept
 echo   reset   wipe Flagsmith's data, the ledger and the keys, then start fresh (/yes: don't ask)
 echo   server  server mode on ^<hostname^>: HTTPS through Caddy, read-only judge view at https://^<hostname^>/judge
-echo   tryit   start Try it with your app ^(opt-in: it builds and runs your versions over the Docker socket^)
+echo   tryit   restart Try it with your app on its own ^(start already runs it, on this machine only^)
 endlocal & exit /b 0
 
 :usage_error

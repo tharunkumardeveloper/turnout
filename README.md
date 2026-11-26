@@ -151,7 +151,7 @@ The full console is at <http://127.0.0.1:8090>: pick A/A, A/B or A/B/C in **Run 
 <details>
 <summary><b>2½. Try it with your app, from the console (no command line)</b></summary>
 
-Try it is **opt-in**: it builds and runs code over the Docker socket (root on your machine), so it starts only when you ask: `turnout.bat tryit` (Windows) or `sh turnout.sh tryit` (macOS, Linux). Then, on the console, press **Try it with your app** and give one, two or three versions, each as:
+Try it starts with everything else (`turnout.bat` / `sh turnout.sh`), **on your machine only**: it builds and runs code over the Docker socket, so a public server never runs it. Then, on the console, press **Try it with your app** and give one, two or three versions, each as:
 
 - a **Dockerfile** (paste or upload it; it must be self-contained, since `COPY` needs your files),
 - a **public git repository** URL (Docker builds it straight from the URL, Dockerfile included), or

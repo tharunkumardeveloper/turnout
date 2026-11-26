@@ -697,7 +697,7 @@ async function relayTry(url: string, req: http.IncomingMessage, res: http.Server
   } catch (error) {
     if (!res.headersSent) {
       res.writeHead(502, { 'content-type': 'application/json' });
-      res.end(JSON.stringify({ error: `The Try it service didn't answer: ${(error as Error).message}. Try it is opt-in: start it with turnout.bat tryit (Windows) or sh turnout.sh tryit (macOS, Linux).` }));
+      res.end(JSON.stringify({ error: `The Try it service didn't answer: ${(error as Error).message}. On your machine, run turnout.bat (Windows) or sh turnout.sh (macOS, Linux) again to start it. A public server never runs it.` }));
     } else res.end();
   }
 }
