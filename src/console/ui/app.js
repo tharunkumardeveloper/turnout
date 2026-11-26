@@ -474,8 +474,10 @@ function renderResults(s) {
 
   const w = F.winnerText(e, s.winner, { ledger: s.ledger, recommendation: s.recommendation });
   $('winner').dataset.tone = w.tone;
-  const winnerVariant = s.winner ? F.variantList(e).find((v) => v.key === s.winner.key) : null;
-  // Only a winning result takes the release's colour; a lead that is still inconclusive stays neutral.
+  // The headline takes the colour of the version it names (the one shipped, or the one to ship), never simply the
+  // goal leader's: "Shipped: everyone gets shop:1.5" in shop:1.6's orange read as the wrong version.
+  const winnerVariant = F.variantList(e).find((v) => (w.release ? v.label === w.release : v.key === w.variant)) ?? null;
+  // Only a good result takes the release's colour; a lead that is still inconclusive stays neutral.
   if (w.tone === 'good' && winnerVariant) $('winner').style.setProperty('--c', winnerVariant.color);
   else $('winner').style.removeProperty('--c');
   $('winner-headline').textContent = w.headline;

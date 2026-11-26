@@ -34,3 +34,13 @@
 .signin .menu-row { grid-template-columns: 64px minmax(0, 1fr) auto auto; }
 .signin-compact .menu-secret { height: 28px; font-size: 12.5px; }
 .signin-compact .menu-btn { height: 28px; padding: 0 8px; }
+
+/* The bar every page shares (the console's has its own extras: Try it, Judge mode, Tour, connections). */
+.site-bar { display: flex; align-items: center; gap: 18px; padding: 8px 18px; background: var(--surface); border-bottom: 1px solid var(--border); }
+.site-bar .brand { display: inline-flex; align-items: center; gap: 8px; text-decoration: none; color: inherit; font-weight: 750; font-size: 18px; }
+.site-bar .brand-mark { width: 26px; height: 26px; }
+.site-bar .menu { flex: 1; }
+.menu > a[aria-current='page'] { color: var(--text); background: var(--surface-2); font-weight: 650; }
+
+/* Flagsmith's own logo (from its image: frontend nav-logo.png) before anything that is Flagsmith's. */
+.fs-mark::before { content: ''; display: inline-block; flex: none; width: 1.05em; height: 1.05em; margin-right: .42em; vertical-align: -.16em; border-radius: 24%; background: url('flagsmith-logo.png') center / contain no-repeat; }

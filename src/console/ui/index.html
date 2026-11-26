@@ -28,10 +28,11 @@
       <span class="brand-name">Turnout</span>
     </a>
     <nav class="menu" id="menu" aria-label="Turnout">
-      <a href="/setup" data-private>Setup check</a>
-      <a href="/flagsmith" data-private>What we use</a>
+      <a href="/" data-page="console">Console</a>
+      <a href="/setup" data-page="setup" data-private>Setup check</a>
+      <a href="/flagsmith" data-page="flagsmith" data-private>What we use</a>
       <details class="menu-drop" id="menu-versions"><summary>Versions</summary><div class="menu-panel" id="versions-list"><p class="menu-note">Loading…</p></div></details>
-      <a href="#" id="menu-flagsmith" class="menu-ext" target="_blank" rel="noopener" data-private>Flagsmith <span aria-hidden="true">↗</span></a>
+      <a href="#" id="menu-flagsmith" class="menu-ext fs-mark" target="_blank" rel="noopener" data-private>Flagsmith <span aria-hidden="true">↗</span></a>
     </nav>
     <button class="btn btn-small try-btn" id="try-open" type="button" hidden>Try it with your app</button>
     <button class="mode-switch" id="mode-judge" type="button" role="switch" aria-checked="false" title="Judge mode: the test step by step, one button at a time, with Play it for me" hidden>
@@ -78,7 +79,7 @@
     <section class="card site-card" id="site" aria-labelledby="site-title" hidden>
       <div class="card-head">
         <h2 id="site-title">Your site</h2>
-        <a class="site-link" id="site-flagsmith" href="#" target="_blank" rel="noopener">Flagsmith ↗</a>
+        <a class="site-link fs-mark" id="site-flagsmith" href="#" target="_blank" rel="noopener">Flagsmith ↗</a>
       </div>
       <a class="btn btn-primary btn-big" id="site-open" href="#" target="_blank" rel="noopener" title="Be a visitor: each new browser gets one version from Flagsmith and keeps it.">Open your site (be a visitor)</a>
       <div class="you" id="you" aria-live="polite"><p class="you-line">Checking where you land…</p></div>
@@ -119,7 +120,7 @@
             </div>
           </details>
           <details class="site-signin" id="signin-drop">
-            <summary>Sign in to Flagsmith</summary>
+            <summary class="fs-mark">Sign in to Flagsmith</summary>
             <div id="signin-box"><p class="card-sub">Loading…</p></div>
           </details>
         </div>
@@ -220,7 +221,7 @@
 
     <section class="card results-card" id="results" aria-labelledby="results-title">
       <div class="card-head">
-        <h2 id="results-title">Flagsmith's results</h2>
+        <h2 id="results-title" class="fs-mark">Flagsmith's results</h2>
         <button id="refresh-btn" class="btn btn-small" type="button">Refresh</button>
       </div>
       <p class="provenance">As Flagsmith's results API returns them; Turnout never computes its own statistics. <span id="results-asof"></span></p>

@@ -83,6 +83,7 @@ const TYPES: Record<string, string> = {
   '.js': 'text/javascript; charset=utf-8',
   '.css': 'text/css; charset=utf-8',
   '.svg': 'image/svg+xml',
+  '.png': 'image/png', // the Flagsmith logo, from Flagsmith's own image (frontend nav-logo.png)
 };
 
 // Judge mode shows the setup check and the feature map as tabs (same-origin frames) and the shop through
@@ -141,7 +142,7 @@ export const PUBLIC_BASE = '/judge';
 const PUBLIC_READS = new Set(['/api/judge/state', '/api/judge/job', '/api/traffic', '/api/state']);
 // Writes from the private console: the autopilot steps aside for a while after one.
 const HUMAN_WRITES = new Set(['/api/judge/run', '/api/ship', '/api/revert', '/api/keep-running', '/api/refresh', '/api/guard']);
-const PUBLIC_ASSET_TYPES = new Set(['.js', '.css', '.svg']);
+const PUBLIC_ASSET_TYPES = new Set(['.js', '.css', '.svg', '.png']);
 
 class HttpError extends Error {
   readonly status: number;
@@ -850,7 +851,7 @@ function servePublicPage(dir: string, res: http.ServerResponse, token: string, p
       TOKEN_META,
       `<meta name="turnout-console" content="${token}"><meta name="turnout-base" content="${PUBLIC_BASE}"><meta name="turnout-readonly" content="1">`,
     )
-    .replace(/(href|src)="\/([a-z0-9-]+\.(?:css|js|svg))"/g, `$1="${PUBLIC_BASE}/$2"`);
+    .replace(/(href|src)="\/([a-z0-9-]+\.(?:css|js|svg|png))"/g, `$1="${PUBLIC_BASE}/$2"`);
   res.writeHead(200, { 'content-type': TYPES['.html']!, 'cache-control': 'no-store' });
   res.end(html);
 }

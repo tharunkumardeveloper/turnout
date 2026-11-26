@@ -1,5 +1,8 @@
 // Setup check (/setup): turnout doctor's checks from GET /api/doctor, grouped by area, with "Expected → Actual"
 // for anything that differs. Every string from the server goes in through textContent.
+import { setupMenu } from './menu.js';
+
+setupMenu('setup');
 const TOKEN = document.querySelector('meta[name="turnout-console"]')?.getAttribute('content') ?? '';
 const TOKEN_HEADER = 'x-turnout-console';
 const $ = (id) => /** @type {HTMLElement} */ (document.getElementById(id));

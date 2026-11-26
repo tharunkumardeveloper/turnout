@@ -253,7 +253,7 @@ export function winnerText(experiment, winner, context = {}) {
   if (decided && experiment?.status === 'completed') {
     const why = decided.by === 'guard' ? ` The guard rolled it back: ${decided.guardReason ?? 'a guardrail was losing'}.` : '';
     return decided.decision === 'shipped'
-      ? { tone: 'good', headline: `Shipped: everyone gets ${decided.release}`, detail: `Decided ${decided.at.slice(0, 16).replace('T', ' ')} UTC on Flagsmith's results below.` }
+      ? { tone: 'good', release: decided.release, headline: `Shipped: everyone gets ${decided.release}`, detail: `Decided ${decided.at.slice(0, 16).replace('T', ' ')} UTC on Flagsmith's results below.` }
       : { tone: 'bad', headline: `Rolled back: everyone stays on ${decided.release}`, detail: `Decided ${decided.at.slice(0, 16).replace('T', ' ')} UTC on Flagsmith's results below.${why}` };
   }
   const rec = context.recommendation;
@@ -268,6 +268,7 @@ export function winnerText(experiment, winner, context = {}) {
   if (winner && rec?.call === 'ship' && rec.variant && rec.variant !== winner.key) {
     return {
       tone: 'good',
+      variant: rec.variant,
       headline: `Ship ${rec.variant} (${releaseLabel(experiment, rec.variant)}): ${winner.key} leads ${primary} but fails a safety check`,
       detail: `${winner.key} (${releaseLabel(experiment, winner.key)}) scores highest on ${primary} (${formatChance(winner.chanceToWin)} chance to win) but loses a guardrail in Flagsmith's results, so it can't ship. ${rec.variant} also beats control and passes every guardrail.`,
     };
@@ -285,6 +286,7 @@ export function winnerText(experiment, winner, context = {}) {
   if (v.word === 'winning') {
     return {
       tone: 'good',
+      variant: winner.key,
       headline: `${winner.key} (${label}) is winning`,
       detail: `${chance} chance to win on ${primary}, above Flagsmith's 95% bar.`,
     };

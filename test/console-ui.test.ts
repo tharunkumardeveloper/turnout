@@ -21,7 +21,7 @@ const F: any = await import(pathToFileURL(join(UI, 'format.js')).href);
 
 describe('console UI files', () => {
   test('only file types the console serves, in a flat directory', () => {
-    for (const f of files) assert.ok(['.html', '.js', '.css', '.svg'].includes(extname(f)), `${f} would not be served`);
+    for (const f of files) assert.ok(['.html', '.js', '.css', '.svg', '.png'].includes(extname(f)), `${f} would not be served`);
     assert.ok(files.includes('index.html') && files.includes('app.js') && files.includes('style.css'));
   });
 
@@ -113,11 +113,16 @@ describe('console UI files', () => {
 
   test('one page: Judge mode is a switch beside Tour, not a page; the menu has setup, the feature map, every version, Flagsmith', () => {
     assert.match(html, /<link rel="stylesheet" href="\/menu\.css">/);
-    assert.doesNotMatch(html, /data-page="judge"|data-page="console"/);
+    assert.doesNotMatch(html, /data-page="judge"/);
+    // The same menu on every page: Console, Setup check, What we use, Versions, Flagsmith (with its logo).
+    for (const page of ['index.html', 'setup.html', 'flagsmith.html']) {
+      const nav = read(page).match(/<nav class="menu" id="menu"[\s\S]*?<\/nav>/)?.[0] ?? '';
+      for (const link of ['>Console<', '>Setup check<', '>What we use<', 'id="menu-versions"', 'id="menu-flagsmith" class="menu-ext fs-mark"']) assert.ok(nav.includes(link), `${page}: ${link}`);
+    }
     assert.match(html, /id="mode-judge" type="button" role="switch" aria-checked="false"/);
     assert.match(html, /<iframe id="judge-frame"/);
     for (const id of ['menu', 'menu-versions', 'versions-list', 'menu-flagsmith', 'signin-drop', 'signin-box']) assert.ok(html.includes(`id="${id}"`), id);
-    assert.match(html, /<a href="#" id="menu-flagsmith" class="menu-ext" target="_blank"/, 'the menu opens Flagsmith; its login is on the page');
+    assert.match(html, /<a href="#" id="menu-flagsmith" class="menu-ext fs-mark" target="_blank"/, 'the menu opens Flagsmith; its login is on the page');
     assert.match(read('app.js'), /setupMenu\('console'\)/);
   });
 
@@ -562,4 +567,13 @@ test('the traffic card: Previews shows only the websites, Traffic only the flow 
   const app = readFileSync(join(UI, 'app.js'), 'utf8');
   assert.match(app, /\$\('map'\)\.hidden = mode !== 'traffic';/);
   assert.match(app, /box\.hidden = mode !== 'previews';/);
+});
+
+test("the results headline names a version and takes that version's colour: shipped, to ship, or winning", () => {
+  const e = { id: 7, status: 'completed', metrics: [{ metric_name: 'order_placed' }], feature: { multivariate_options: [{ key: 'v2', string_value: 'shop:1.5' }, { key: 'v3', string_value: 'shop:1.6' }] } };
+  const shipped = F.winnerText(e, { key: 'v3', chanceToWin: 0.999 }, { ledger: [{ experimentId: 7, decision: 'shipped', release: 'shop:1.5', at: '2026-11-25T05:53:00Z' }] });
+  assert.equal(shipped.release, 'shop:1.5', 'shipped 1.5: its colour, not the goal leader v3 (1.6)');
+  const running = { ...e, status: 'running' };
+  assert.equal(F.winnerText(running, { key: 'v3', chanceToWin: 0.999 }, { recommendation: { call: 'ship', variant: 'v2' } }).variant, 'v2');
+  assert.equal(F.winnerText(running, { key: 'v2', chanceToWin: 0.99 }).variant, 'v2');
 });

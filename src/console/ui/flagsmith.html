@@ -15,7 +15,7 @@
 <body class="fsmap">
   <a class="skip-link" href="#groups">Skip to the map</a>
 
-  <header class="cbar fbar">
+  <header class="cbar fbar site-bar">
     <a class="brand" href="/" aria-label="Turnout console">
       <svg class="brand-mark" viewBox="0 0 32 32" aria-hidden="true" focusable="false">
         <path d="M3 16h10c5 0 6-8 13-8" />
@@ -25,12 +25,11 @@
       <span class="brand-name">Turnout</span>
     </a>
     <nav class="menu" id="menu" aria-label="Turnout">
-      <a href="/?mode=judge" data-page="judge">Judge mode</a>
-      <a href="/" data-page="console" data-private>Console</a>
-      <a href="/setup" data-private>Setup check</a>
+      <a href="/" data-page="console">Console</a>
+      <a href="/setup" data-page="setup" data-private>Setup check</a>
       <a href="/flagsmith" data-page="flagsmith" data-private>What we use</a>
       <details class="menu-drop" id="menu-versions"><summary>Versions</summary><div class="menu-panel" id="versions-list"><p class="menu-note">Loading…</p></div></details>
-      <a href="#" id="menu-flagsmith" class="menu-ext" target="_blank" rel="noopener" data-private>Flagsmith <span aria-hidden="true">↗</span></a>
+      <a href="#" id="menu-flagsmith" class="menu-ext fs-mark" target="_blank" rel="noopener" data-private>Flagsmith <span aria-hidden="true">↗</span></a>
     </nav>
   </header>
 
@@ -40,12 +39,12 @@
     <section class="fhero" aria-labelledby="hero-title">
       <div class="fhero-head">
         <div>
-          <h1 id="hero-title">What Turnout uses in Flagsmith</h1>
+          <h1 id="hero-title" class="fs-mark">What Turnout uses in Flagsmith</h1>
           <p class="fhero-sub">The Flagsmith experiment loop, end to end, on your own self-hosted Flagsmith. Values marked <span class="flabel flabel-live">Live</span> were just read from its API. <span id="summary-line" aria-live="polite">Reading Flagsmith…</span></p>
         </div>
         <div class="fhero-actions">
           <button id="refresh" class="btn btn-small" type="button">Read again</button>
-          <a id="open-flagsmith" class="btn btn-small" href="/" target="_blank" rel="noopener" hidden>Open Flagsmith ↗</a>
+          <a id="open-flagsmith" class="btn btn-small fs-mark" href="/" target="_blank" rel="noopener" hidden>Open Flagsmith ↗</a>
         </div>
       </div>
       <ol class="rounds" id="rounds" aria-label="The four rounds of a Flagsmith experiment"></ol>
@@ -53,7 +52,7 @@
 
     <section class="fall" aria-labelledby="all-title">
       <div class="fall-head">
-        <h2 id="all-title">Every Flagsmith feature, menu and integration</h2>
+        <h2 id="all-title" class="fs-mark">Every Flagsmith feature, menu and integration</h2>
         <ul id="counts" class="fcounts" role="group" aria-label="Show"></ul>
         <label class="fsearch"><span class="sr-only">Search</span><input id="search" type="search" placeholder="Search, e.g. segments" autocomplete="off"></label>
       </div>
