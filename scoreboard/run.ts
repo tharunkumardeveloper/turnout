@@ -104,7 +104,8 @@ async function runApp(app: string): Promise<Row> {
     let st = await buildOnce({});
     // What the console's "needs" card offers, one click: a throwaway database, and the settings it named (test values).
     let clicked = '';
-    if (st.status === 'failed' && st.needs) {
+    // SCOREBOARD_NO_FIX=1 stops here, leaving the card on screen for a person (or npm run ui-check) to look at.
+    if (st.status === 'failed' && st.needs && !process.env.SCOREBOARD_NO_FIX) {
       const env = (st.needs.settings as string[]).filter((n) => !(st.needs.database && /^(DATABASE_URL|DB_|POSTGRES|MYSQL)/.test(n))).map((n) => `${n}=turnout-test`).join('\n');
       clicked = [st.needs.database && `a throwaway ${st.needs.database}`, env && `settings ${env.replace(/=turnout-test/g, '').replace(/\n/g, ', ')}`].filter(Boolean).join(' and ');
       st = await buildOnce({ ...(st.needs.database ? { database: st.needs.database } : {}), env });

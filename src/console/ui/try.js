@@ -391,10 +391,13 @@ function renderError(st) {
   if (errorView.key === String(st.error) + JSON.stringify(st.needs ?? null)) return; // the same error: no redraw (its shake played every poll)
   errorView.key = String(st.error) + JSON.stringify(st.needs ?? null);
   const m = String(st.error ?? '').match(/^(.+?) \(version ([ABC])\): ([\s\S]*)$/);
+  // The same log line eight times (a crash loop) says it once, with the count: the fix below stays in view.
+  const lines = String(m ? m[3] : st.error ?? '').split('\n');
+  const said = lines.filter((l, i) => !l.trim() || lines.indexOf(l) === i).map((l) => { const n = lines.filter((x) => x === l).length; return n > 1 && l.trim() ? `${l} (×${n})` : l; }).join('\n');
   err.replaceChildren(
     h('strong', { class: 'try-error-title' }, m ? `Version ${m[2]} (${m[1]}) couldn't be built` : 'The build stopped'),
-    h('p', { class: 'try-error-text' }, m ? m[3] : st.error),
     ...needsCard(st.needs),
+    h('p', { class: 'try-error-text' }, said),
     h('p', { class: 'try-error-hint' }, 'The full output is in the build log below. Fix the version and press Build and try again.'));
 }
 
@@ -433,6 +436,7 @@ function previews(state) {
     h('span', { class: 'try-frame' }, h('iframe', { src: own(v), title: `Preview of ${v.name}`, tabindex: '-1' }))));
 }
 
+let justOpened = false;
 async function poll() {
   try {
     const res = await api('/api/try/status', { cache: 'no-store' });
@@ -449,6 +453,9 @@ async function poll() {
     if (!res.ok) throw new Error(st.error ?? `HTTP ${res.status}`);
     built = (st.versions ?? []).length > 0;
     if (st.status === 'building' && step !== 3) go(3);
+    // Opened after a build that stopped: show why (and the needs card) once, not the empty first step.
+    if (justOpened && st.status === 'failed' && st.error && step !== 3) go(3);
+    justOpened = false;
     const [word, tone] = RUN_WORD[st.status] ?? ['', 'idle'];
     $('try-run-status').textContent = word;
     $('try-run-status').dataset.tone = tone;
@@ -567,6 +574,7 @@ export async function setupTry() {
     /** @type {HTMLDialogElement} */ ($('try-dialog')).showModal();
     render();
     go(built ? 3 : 1);
+    justOpened = true;
     void poll();
   });
   // A link from another page (the setup check, What we use): /#try opens Try it.

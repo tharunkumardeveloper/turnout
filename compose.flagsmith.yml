@@ -107,6 +107,8 @@ services:
       <<: *flagsmith-env
     # Turnout: the official file publishes 8001:8000 here. Nothing outside the container uses that port: the image's
     # health check, `flagsmith healthcheck tcp`, connects to 127.0.0.1:8000 from inside the container.
+    # Turnout: back after Docker restarts (it exited with Docker Desktop and Flagsmith's results stopped coming).
+    restart: unless-stopped
     depends_on:
       migrate-db:
         condition: service_completed_successfully
