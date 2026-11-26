@@ -1108,7 +1108,7 @@ body.console-screen { height: 100vh; overflow: hidden; display: grid; grid-templ
 
 /* Step 2: options and the plan */
 .try-options { flex: 1; min-height: 0; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 14px; }
-.try-opt-card { display: flex; flex-direction: column; gap: 10px; min-height: 0; padding: 16px; border: 1px solid var(--border); border-radius: 16px; background: var(--surface); animation: try-rise .45s cubic-bezier(.2, .8, .2, 1) backwards; }
+.try-opt-card { display: flex; flex-direction: column; gap: 10px; min-height: 0; overflow: auto; padding: 16px; border: 1px solid var(--border); border-radius: 16px; background: var(--surface); animation: try-rise .45s cubic-bezier(.2, .8, .2, 1) backwards; }
 .try-opt-card:nth-child(2) { animation-delay: .06s; } .try-opt-card:nth-child(3) { animation-delay: .12s; }
 .try-field-label { font-size: 14px; font-weight: 700; }
 .try-field-label small { display: block; margin-top: 2px; font-weight: 500; font-size: 12px; color: var(--muted); }

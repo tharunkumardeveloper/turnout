@@ -94,6 +94,7 @@ export const CONSOLE_STOPS = [
     target: null,
     title: 'The Turnout console',
     text: 'The console is where you run tests on your own app (Try it with your app, or turnout compare, opens it). Everything on it is read from Flagsmith or the proxy, live. A short tour: about a minute.',
+    readonly: { text: "This is the console for the demo shop, live and read-only. On your own machine it runs tests on your app: the Guided demo's \"Use it on your app\" tab has the commands. Everything here is read from Flagsmith or the proxy. A short tour: about a minute." },
   },
   {
     target: '#run',

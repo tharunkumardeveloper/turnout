@@ -130,7 +130,7 @@ describe('console UI files', () => {
     assert.match(html, /<body class="console-screen">/);
     assert.match(read('style.css'), /body\.console-screen \{ height: 100vh; overflow: hidden;/);
     assert.match(read('style.css'), /grid-template-areas: "site map results" "run map decide";/);
-    assert.match(html, /<details class="history-drop detail" id="history-drop">/);
+    assert.match(html, /<details class="history-drop" id="history-drop">/);
   });
 
   test('where you land: /api/you, polled, and each version openable on its own', () => {

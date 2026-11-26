@@ -45,3 +45,7 @@
 /* Flagsmith's own logo (from its image: frontend nav-logo.png) before anything that is Flagsmith's. */
 .fs-mark::before { content: ''; display: inline-block; flex: none; width: 1.05em; height: 1.05em; margin-right: .42em; vertical-align: -.16em; border-radius: 24%; background: url('flagsmith-logo.png') center / contain no-repeat; }
 @media (max-width: 760px) { .menu-panel { position: fixed; left: 12px; right: 12px; top: 96px; width: auto; max-height: 70vh; overflow: auto; } }
+
+/* Try it with your app: the same green, prominent button on every page (the console's style.css has its own copy). */
+.try-btn { min-height: 34px; padding: 6px 16px; font-weight: 700; color: #fff !important; border-color: transparent; background: color-mix(in srgb, #16a34a 85%, black); box-shadow: 0 0 0 3px color-mix(in srgb, #16a34a 30%, transparent); text-decoration: none; }
+.try-btn:hover, .try-btn:focus-visible { background: color-mix(in srgb, #16a34a 70%, black); }

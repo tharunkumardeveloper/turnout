@@ -1228,7 +1228,11 @@ function renderYou() {
   const i = variants.findIndex((v) => v.key === y.variant);
   const letter = i >= 0 ? LETTERS[i] : null;
   // Counted only once this browser has loaded a page (a receipt for its events); a cookie alone isn't a visit.
-  const where = y.enrolled && e?.status === 'running'
+  // The public site: a real visitor counts in the live experiment for real visitors, never in the simulated test on
+  // this page (it said "A in test #204, counted" of a test only simulated shoppers are in).
+  const where = READONLY
+    ? y.enrolled ? ': Flagsmith counts you in the live test for real visitors.' : '.'
+    : y.enrolled && e?.status === 'running'
     ? y.receipt
       ? `: ${letter ?? y.variant} in test #${e.id}, counted.`
       : `: ${letter ?? y.variant} in test #${e.id}, counted from your first page.`
