@@ -1,4 +1,4 @@
-// switchyard check: read-only. Finds experiment splits left behind on flags whose experiment has stopped, using
+// turnover check: read-only. Finds experiment splits left behind on flags whose experiment has stopped, using
 // only the environment document (the server-side key your app already has). With an Organisation API key as well, it
 // reads each stopped experiment's status, so a created or paused experiment is not reported as left behind, and it
 // names the segments an experiment's audience is limited to.
@@ -122,13 +122,13 @@ export function describe(findings: Finding[]): string[] {
       if (f.experimentStatus) {
         lines.push(
           `✗ ${f.flag}: experiment ${f.experimentId} is ${f.experimentStatus}, but its split still covers ${covers}.`,
-          `  Edits to the flag's default don't reach them. Start a new experiment on the flag to clear it; next time, Ship with \`switchyard ship\` (it drains the split) before completing.`,
+          `  Edits to the flag's default don't reach them. Start a new experiment on the flag to clear it; next time, Ship with \`turnover ship\` (it drains the split) before completing.`,
         );
       } else {
         lines.push(
           `✗ ${f.flag}: experiment ${f.experimentId} is not running (created, paused or completed), but its split still covers ${covers}.`,
           `  Edits to the flag's default don't reach them. If it is completed, start a new experiment on the flag to clear it; if it is created or paused, start or finish it.`,
-          `  With an Organisation API key (--admin-key or SWITCHYARD_ADMIN_KEY), check reads which one it is.`,
+          `  With an Organisation API key (--admin-key or TURNOVER_ADMIN_KEY), check reads which one it is.`,
         );
       }
     } else if (f.status === 'created') {
@@ -139,7 +139,7 @@ export function describe(findings: Finding[]): string[] {
     } else if (f.status === 'paused') {
       lines.push(
         `! ${f.flag}: experiment ${f.experimentId} is paused; its split still covers ${covers}.`,
-        `  Resume it, or finish it with \`switchyard ship\` or \`switchyard revert\` (both drain the split).`,
+        `  Resume it, or finish it with \`turnover ship\` or \`turnover revert\` (both drain the split).`,
       );
     } else if (f.status === 'running') {
       lines.push(`· ${f.flag}: experiment ${f.experimentId} is running on ${covers}.`);
@@ -150,7 +150,7 @@ export function describe(findings: Finding[]): string[] {
   return lines;
 }
 
-// The environment document, read with a server-side key (also used by switchyard doctor).
+// The environment document, read with a server-side key (also used by turnover doctor).
 export async function fetchEnvironmentDocument(apiUrl: string, serverKey: string): Promise<EnvironmentDocument> {
   const base = apiUrl.endsWith('/') ? apiUrl : `${apiUrl}/`; // like the SDK, accept …/api/v1 too
   const url = new URL('environment-document/', base);

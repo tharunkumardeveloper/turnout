@@ -27,7 +27,7 @@ const facts = (over: Partial<MapFacts> = {}): MapFacts => ({
   environments: 1,
   feature: { id: 4, initialValue: 'shop:1.4', variants: [{ key: 'v2', value: 'shop:1.5' }], tagIds: [7, 8], lifecycleStage: 'permanent', segmentOverrides: 2 },
   tags: [{ id: 7, label: 'release', isPermanent: true }, { id: 8, label: 'Unhealthy', isPermanent: false }],
-  segments: [{ id: 11, name: 'switchyard-preview' }],
+  segments: [{ id: 11, name: 'turnover-preview' }],
   lifecycleCounts: { new: 0, live: 0, stale: 0, permanent: 1, needs_monitoring: 0, to_remove: 0 },
   codeReferences: [],
   healthProviders: ['Webhook'],
@@ -49,7 +49,7 @@ const byName = (map: FlagsmithMap, name: string) => {
 };
 
 describe('the feature map', () => {
-  test('lists every dashboard menu and every integration, plus the features Switchyard uses without a menu', () => {
+  test('lists every dashboard menu and every integration, plus the features Turnover uses without a menu', () => {
     const map = buildFlagsmithMap(facts(), { dashboardUrl: `${DASH}/`, now: new Date('2026-11-17T12:00:00Z') });
     assert.deepEqual(map.items.filter((i) => i.kind === 'menu').map((i) => i.name), MENUS);
     assert.deepEqual(map.items.filter((i) => i.kind === 'integration').map((i) => i.name).sort(), [...INTEGRATIONS].sort());
@@ -88,9 +88,9 @@ describe('the feature map', () => {
 
   test('live values come from the facts', () => {
     const map = buildFlagsmithMap(facts(), { dashboardUrl: DASH });
-    assert.equal(byName(map, 'Segments').live, '1 segment, including switchyard-preview; 2 segment overrides on shop_release');
+    assert.equal(byName(map, 'Segments').live, '1 segment, including turnover-preview; 2 segment overrides on shop_release');
     assert.equal(byName(map, 'Lifecycle').live, 'shop_release is permanent; project: permanent 1');
-    assert.equal(byName(map, 'Audit Log').live, "0 entries visible through the API; 2 decisions in Switchyard's ledger");
+    assert.equal(byName(map, 'Audit Log').live, "0 entries visible through the API; 2 decisions in Turnover's ledger");
     assert.equal(byName(map, 'Segment Change Requests').live, 'this image: 2.291.0, is_enterprise false');
     assert.equal(byName(map, 'Feature Health').live, 'provider: Webhook; shop_release is tagged Unhealthy');
     assert.equal(byName(map, 'Tags').live, 'release (permanent), Unhealthy');
@@ -126,11 +126,11 @@ describe('the feature map', () => {
       scannedAt: '2026-11-17T00:00:00Z',
       references: [{ file, line: 2, permalink: `https://github.com/acme/app/blob/abc123def4567890/${file}#L2` }],
     });
-    const used = byName(buildFlagsmithMap(facts({ codeReferences: [scan('switchyard.config.yml')] }), { dashboardUrl: DASH }), 'Code References');
+    const used = byName(buildFlagsmithMap(facts({ codeReferences: [scan('turnover.config.yml')] }), { dashboardUrl: DASH }), 'Code References');
     assert.equal(used.status, 'used');
-    assert.equal(used.live, '1 reference: switchyard.config.yml:2');
+    assert.equal(used.live, '1 reference: turnover.config.yml:2');
     assert.match(used.what, /none in demo\//);
-    assert.deepEqual(used.details, [{ text: 'switchyard.config.yml:2 @ abc123def456', href: 'https://github.com/acme/app/blob/abc123def4567890/switchyard.config.yml#L2' }]);
+    assert.deepEqual(used.details, [{ text: 'turnover.config.yml:2 @ abc123def456', href: 'https://github.com/acme/app/blob/abc123def4567890/turnover.config.yml#L2' }]);
     const inApp = byName(buildFlagsmithMap(facts({ codeReferences: [scan('demo/shop/server.ts')] }), { dashboardUrl: DASH }), 'Code References');
     assert.match(inApp.what, /1 reference in app code/);
   });
@@ -158,7 +158,7 @@ describe('reading the facts from Flagsmith', () => {
     state = seededState();
     state.tags.push({ id: 50, label: 'release', color: '#0AADDF', description: '', is_permanent: true, project: SEED.projectId });
     state.features[0]!.tags = [50];
-    state.segments.push({ id: 51, name: 'switchyard-preview', project: SEED.projectId, rules: [] });
+    state.segments.push({ id: 51, name: 'turnover-preview', project: SEED.projectId, rules: [] });
     state.healthProviders.push({ name: 'Webhook', project: SEED.projectId, created_by: null, webhook_url: 'http://localhost:8000/api/v1/feature-health/SECRET' });
     state.evaluations = [{ day: '2026-11-16', count: 100 }, { day: '2026-11-17', count: 23 }];
     state.codeScans.push({
@@ -166,7 +166,7 @@ describe('reading the facts from Flagsmith', () => {
       repositoryUrl: 'https://github.com/acme/app',
       revision: 'abc123',
       at: '2026-11-17T00:00:00Z',
-      references: [{ feature_name: 'shop_release', file_path: 'switchyard.config.yml', line_number: 2 }],
+      references: [{ feature_name: 'shop_release', file_path: 'turnover.config.yml', line_number: 2 }],
     });
     fake = await startFakeAdmin(state);
     api = new AdminClient(fake.apiUrl, { apiKey: SEED.adminKey });
@@ -182,9 +182,9 @@ describe('reading the facts from Flagsmith', () => {
     assert.equal(f.feature?.lifecycleStage, 'permanent', 'the permanent tag wins over code references');
     assert.equal(f.feature?.segmentOverrides, 1);
     assert.deepEqual(f.tags, [{ id: 50, label: 'release', isPermanent: true }]);
-    assert.deepEqual(f.segments?.map((s) => s.name), ['experiment-9-rollout', 'switchyard-preview']);
+    assert.deepEqual(f.segments?.map((s) => s.name), ['experiment-9-rollout', 'turnover-preview']);
     assert.equal(f.lifecycleCounts?.permanent, 1);
-    assert.equal(f.codeReferences?.[0]?.references[0]?.permalink, 'https://github.com/acme/app/blob/abc123/switchyard.config.yml#L2');
+    assert.equal(f.codeReferences?.[0]?.references[0]?.permalink, 'https://github.com/acme/app/blob/abc123/turnover.config.yml#L2');
     assert.deepEqual(f.healthProviders, ['Webhook']);
     assert.equal(f.auditVisible, 0);
     assert.deepEqual(f.evaluations, { days: 7, total: 123 });
@@ -252,7 +252,7 @@ describe('the console serves the map', () => {
 
   test('/flagsmith is a page with the token; /api/flagsmith-map needs it and answers the map', async () => {
     const page = await (await fetch(`${base}/flagsmith`)).text();
-    const token = page.match(/<meta name="switchyard-console" content="([\w-]{32})">/)?.[1];
+    const token = page.match(/<meta name="turnover-console" content="([\w-]{32})">/)?.[1];
     assert.ok(token, 'the page carries the API token');
     assert.equal((await fetch(`${base}/api/flagsmith-map`)).status, 403);
     const res = await fetch(`${base}/api/flagsmith-map`, { headers: { [TOKEN_HEADER]: token } });

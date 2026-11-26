@@ -79,7 +79,7 @@ export function isClosedSocket(error: unknown): boolean {
   return code === 'ECONNRESET' || code === 'UND_ERR_SOCKET' || code === 'EPIPE';
 }
 
-// Shapes of the objects Switchyard reads. Only the fields it uses.
+// Shapes of the objects Turnover reads. Only the fields it uses.
 export type Organisation = { id: number; name: string };
 export type Project = { id: number; name: string; organisation: number };
 export type Environment = { id: number; name: string; api_key: string; project: number };

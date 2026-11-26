@@ -1,4 +1,4 @@
-// In-memory stand-in for the Flagsmith endpoints Switchyard's Ship and Revert use. It enforces the same rules
+// In-memory stand-in for the Flagsmith endpoints Turnover's Ship and Revert use. It enforces the same rules
 // the real API does where they matter (status transitions, no rollout change once completed).
 import http from 'node:http';
 import type { AddressInfo } from 'node:net';

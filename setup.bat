@@ -1,6 +1,6 @@
 @echo off
 rem ===========================================================================================================
-rem  Switchyard setup: checks everything the demo needs and offers to install what's missing.
+rem  Turnover setup: checks everything the demo needs and offers to install what's missing.
 rem
 rem    setup.bat            check, and ask before installing anything
 rem    setup.bat /check     check only: install nothing, change nothing (exit code 1 if something is missing)
@@ -25,7 +25,7 @@ set /a WARNINGS=0
 set "INSTALLED_SOMETHING="
 
 echo.
-echo  Switchyard setup
+echo  Turnover setup
 echo  ================
 echo  Folder: %CD%
 if "%MODE%"=="check" echo  Mode: check only, nothing will be installed or changed
@@ -116,12 +116,12 @@ if exist ".env\" (
 ) else if exist ".env" (
   call :ok ".env exists"
 ) else if "%MODE%"=="check" (
-  call :warn ".env is missing; switchyard.bat creates it from .env.example"
+  call :warn ".env is missing; turnover.bat creates it from .env.example"
 ) else (
   copy /y ".env.example" ".env" >nul && call :ok "created .env from .env.example"
 )
-if not exist "switchyard.config.yml" call :fail "switchyard.config.yml is missing: is this the Switchyard folder?"
-if not exist "compose.yaml" call :fail "compose.yaml is missing: is this the Switchyard folder?"
+if not exist "turnover.config.yml" call :fail "turnover.config.yml is missing: is this the Turnover folder?"
+if not exist "compose.yaml" call :fail "compose.yaml is missing: is this the Turnover folder?"
 
 rem ---- Node.js 24+ and npm (development only) --------------------------------------------------------------
 echo [8/9] Node.js 24+ and npm (only for running tests; the demo runs in Docker)
@@ -168,7 +168,7 @@ if !MISSING! GTR 0 (
 )
 echo  Ready. !WARNINGS! warning^(s^).
 if defined INSTALLED_SOMETHING echo  Something was just installed: if a command isn't found, open a NEW terminal.
-echo  Next: switchyard.bat   ^(starts Flagsmith, sets it up and opens judge mode^)
+echo  Next: turnover.bat   ^(starts Flagsmith, sets it up and opens judge mode^)
 echo  ------------------------------------------------------------
 endlocal & exit /b 0
 
@@ -242,7 +242,7 @@ if not defined PORT_USER (call :ok "port %1 is free" & exit /b 0)
 set "PORT_NAME="
 for /f "tokens=1 delims=," %%n in ('tasklist /fi "PID eq !PORT_USER!" /fo csv /nh 2^>nul') do set "PORT_NAME=%%~n"
 echo !PORT_NAME! | findstr /i "docker wsl vpnkit com.docker" >nul
-if not errorlevel 1 (call :ok "port %1 is used by Docker (Switchyard may already be running)" & exit /b 0)
+if not errorlevel 1 (call :ok "port %1 is used by Docker (Turnover may already be running)" & exit /b 0)
 call :warn "port %1 is used by !PORT_NAME! (PID !PORT_USER!): stop it, or the demo can't start"
 exit /b 0
 

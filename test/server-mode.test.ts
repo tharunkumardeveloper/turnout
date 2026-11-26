@@ -10,21 +10,21 @@ import { evaluateServer, hostnameProblem, modeOf, parseRestartPolicies, secretPr
 const read = (path: string) => readFileSync(new URL(`../${path}`, import.meta.url), 'utf8');
 const SECRET = 'a'.repeat(48);
 const good = {
-  SWITCHYARD_MODE: 'server',
-  SWITCHYARD_HOSTNAME: 'switchyard.example.com',
+  TURNOVER_MODE: 'server',
+  TURNOVER_HOSTNAME: 'turnover.example.com',
   FLAGSMITH_DJANGO_SECRET_KEY: SECRET,
   FLAGSMITH_WAREHOUSE_SECRET: SECRET,
   POSTGRES_PASSWORD: SECRET,
-  SWITCHYARD_JUDGE_TOKEN: SECRET,
-  SWITCHYARD_PREVIEW_TOKEN: SECRET,
-  SWITCHYARD_PUBLISH_HOST: '127.0.0.1',
+  TURNOVER_JUDGE_TOKEN: SECRET,
+  TURNOVER_PREVIEW_TOKEN: SECRET,
+  TURNOVER_PUBLISH_HOST: '127.0.0.1',
 };
 
 describe('server mode: the start-up refusal', () => {
   test('mode is local unless .env says server', () => {
     assert.equal(modeOf({}), 'local');
-    assert.equal(modeOf({ SWITCHYARD_MODE: 'local' }), 'local');
-    assert.equal(modeOf({ SWITCHYARD_MODE: ' Server ' }), 'server');
+    assert.equal(modeOf({ TURNOVER_MODE: 'local' }), 'local');
+    assert.equal(modeOf({ TURNOVER_MODE: ' Server ' }), 'server');
   });
 
   test('placeholders, empty and short secrets are refused', () => {
@@ -33,7 +33,7 @@ describe('server mode: the start-up refusal', () => {
   });
 
   test('hostnames: a DNS name or localhost, never a URL or an IP', () => {
-    assert.equal(hostnameProblem('switchyard.example.com'), null);
+    assert.equal(hostnameProblem('turnover.example.com'), null);
     assert.equal(hostnameProblem('localhost'), null);
     for (const h of ['', 'https://x.example.com', 'x.example.com:443', 'nodot', '203.0.113.9']) assert.ok(hostnameProblem(h), h);
   });
@@ -46,19 +46,19 @@ describe('server mode: the start-up refusal', () => {
   });
 
   test('tokens: empty is fine before init (init writes them), required after; a placeholder never', () => {
-    const before = { ...good, SWITCHYARD_JUDGE_TOKEN: '', SWITCHYARD_PREVIEW_TOKEN: '' };
+    const before = { ...good, TURNOVER_JUDGE_TOKEN: '', TURNOVER_PREVIEW_TOKEN: '' };
     assert.deepEqual(serverSecretProblems(before), []);
-    assert.deepEqual(serverSecretProblems(before, true).map((p) => p.name), ['SWITCHYARD_JUDGE_TOKEN', 'SWITCHYARD_PREVIEW_TOKEN']);
-    assert.deepEqual(serverSecretProblems({ ...good, SWITCHYARD_PREVIEW_TOKEN: 'changeme' }).map((p) => p.name), ['SWITCHYARD_PREVIEW_TOKEN']);
+    assert.deepEqual(serverSecretProblems(before, true).map((p) => p.name), ['TURNOVER_JUDGE_TOKEN', 'TURNOVER_PREVIEW_TOKEN']);
+    assert.deepEqual(serverSecretProblems({ ...good, TURNOVER_PREVIEW_TOKEN: 'changeme' }).map((p) => p.name), ['TURNOVER_PREVIEW_TOKEN']);
   });
 
-  test('nothing else may be published: SWITCHYARD_PUBLISH_HOST stays 127.0.0.1, no other-device console hosts', () => {
-    assert.deepEqual(serverSecretProblems({ ...good, SWITCHYARD_PUBLISH_HOST: '0.0.0.0', SWITCHYARD_CONSOLE_HOSTS: 'x' }).map((p) => p.name), ['SWITCHYARD_PUBLISH_HOST', 'SWITCHYARD_CONSOLE_HOSTS']);
+  test('nothing else may be published: TURNOVER_PUBLISH_HOST stays 127.0.0.1, no other-device console hosts', () => {
+    assert.deepEqual(serverSecretProblems({ ...good, TURNOVER_PUBLISH_HOST: '0.0.0.0', TURNOVER_CONSOLE_HOSTS: 'x' }).map((p) => p.name), ['TURNOVER_PUBLISH_HOST', 'TURNOVER_CONSOLE_HOSTS']);
   });
 });
 
 const facts = (over: Partial<ServerFacts> = {}): ServerFacts => ({
-  hostname: 'switchyard.example.com',
+  hostname: 'turnover.example.com',
   tls: 'public',
   https: { value: { authorized: true, error: null, issuer: "Let's Encrypt", validTo: 'Feb 1 2027', selfSigned: false } },
   cookies: { value: { setCookies: 1, secure: 1, status: 200 } },
@@ -136,24 +136,24 @@ describe('server mode: compose.server.yml and the Caddyfile', () => {
       if (name === 'caddy') continue;
       for (const p of s.ports ?? []) assert.match(String(p), /^127\.0\.0\.1:/, `${name}: ${p}`);
     }
-    assert.deepEqual(services.switchyard!.ports, ['127.0.0.1:8080:8080']);
+    assert.deepEqual(services.turnover!.ports, ['127.0.0.1:8080:8080']);
     assert.deepEqual(services.console!.ports, ['127.0.0.1:8090:8090', '127.0.0.1:8091:8091']);
   });
 
   test('every long-running service restarts; the one-off migration only on failure', () => {
-    for (const name of ['caddy', 'switchyard', 'console', 'traffic', 'postgres', 'flagsmith', 'flagsmith-task-processor', 'shop-1-4', 'shop-1-5', 'shop-1-6']) {
+    for (const name of ['caddy', 'turnover', 'console', 'traffic', 'postgres', 'flagsmith', 'flagsmith-task-processor', 'shop-1-4', 'shop-1-5', 'shop-1-6']) {
       assert.equal(services[name]!.restart, 'unless-stopped', name);
     }
     assert.equal(services['migrate-db']!.restart, 'on-failure');
-    const base = [read('compose.flagsmith.yml'), read('compose.switchyard.yml'), read('compose.demo.yml')]
+    const base = [read('compose.flagsmith.yml'), read('compose.turnover.yml'), read('compose.demo.yml')]
       .flatMap((t) => Object.keys(parse(t, { merge: true }).services ?? {}));
     for (const name of base) if (name !== 'cli' && name !== 'migrate-db') assert.ok(services[name]?.restart, `${name} has no restart policy in server mode`);
   });
 
   test('secure cookies on the proxy; the edge network has only Caddy, the proxy, the console (and doctor)', () => {
-    assert.equal(services.switchyard!.environment.SWITCHYARD_SECURE_COOKIES, '1');
+    assert.equal(services.turnover!.environment.TURNOVER_SECURE_COOKIES, '1');
     const onEdge = Object.entries(services).filter(([, s]) => (s.networks ?? []).includes('edge')).map(([n]) => n).sort();
-    assert.deepEqual(onEdge, ['caddy', 'cli', 'console', 'switchyard']);
+    assert.deepEqual(onEdge, ['caddy', 'cli', 'console', 'turnover']);
     assert.ok(!(services.flagsmith!.networks ?? []).includes('edge'));
   });
 
@@ -169,23 +169,23 @@ describe('server mode: compose.server.yml and the Caddyfile', () => {
 
   test('Caddyfile: the hostname from the environment; only GET/HEAD /judge* to the console; the rest to the proxy', () => {
     const caddy = read('deploy/Caddyfile');
-    assert.match(caddy, /^\{\$SWITCHYARD_HOSTNAME\} \{/m);
+    assert.match(caddy, /^\{\$TURNOVER_HOSTNAME\} \{/m);
     assert.match(caddy, /@judge path \/judge \/judge\/\*/);
     assert.match(caddy, /@read method GET HEAD/);
     const proxied = [...caddy.matchAll(/reverse_proxy (\S+)/g)].map((m) => m[1]);
-    assert.deepEqual(proxied, ['console:8092', 'switchyard:8080'], 'never console:8090, never flagsmith');
+    assert.deepEqual(proxied, ['console:8092', 'turnover:8080'], 'never console:8090, never flagsmith');
     assert.match(caddy, /respond "[^"]+" 405/);
   });
 });
 
 describe('server mode: the scripts', () => {
-  const sh = read('switchyard.sh');
-  const bat = read('switchyard.bat');
+  const sh = read('turnover.sh');
+  const bat = read('turnover.bat');
 
   test('every compose command goes through the mode-aware wrapper', () => {
     assert.deepEqual(sh.split('\n').filter((l) => /^\s*[^#\s]/.test(l) && l.includes('docker compose ') && !/echo/.test(l)), ['  docker compose $COMPOSE_FILES "$@"']);
     assert.match(sh, /COMPOSE_FILES="-f compose.yaml -f compose.server.yml"/);
-    assert.ok(!bat.split(/\r?\n/).some((l) => /^\s*docker compose (up|run|ps|--profile)/.test(l)), 'switchyard.bat uses !DC!');
+    assert.ok(!bat.split(/\r?\n/).some((l) => /^\s*docker compose (up|run|ps|--profile)/.test(l)), 'turnover.bat uses !DC!');
     assert.match(bat, /set "DC=docker compose -f compose.yaml -f compose.server.yml"/);
   });
 

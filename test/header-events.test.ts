@@ -20,7 +20,7 @@ class FakeFlags implements FlagSource {
 // The app names its own events: GET /?e=<header value> answers with it.
 const app = http.createServer((req, res) => {
   const e = new URL(req.url ?? '/', 'http://x').searchParams.get('e');
-  res.writeHead(200, { 'content-type': 'text/plain', ...(e ? { 'x-switchyard-event': e } : {}) });
+  res.writeHead(200, { 'content-type': 'text/plain', ...(e ? { 'x-turnover-event': e } : {}) });
   res.end('ok');
 });
 
@@ -68,7 +68,7 @@ test('a header-only goal loads without goal.when; existing configs stay valid', 
 
 test('the header becomes Flagsmith events for the visitor, with optional values, and is stripped', async () => {
   const res = await get(withHeader, 'signup, plan_chosen;value=49.5');
-  assert.equal(res.headers.get('x-switchyard-event'), null);
+  assert.equal(res.headers.get('x-turnover-event'), null);
   assert.deepEqual(flags.tracked, [
     { event: 'signup', identity: id },
     { event: 'plan_chosen', identity: id, value: 49.5 },
@@ -88,15 +88,15 @@ test(`at most ${MAX_HEADER_EVENTS} events per response`, async () => {
 
 test('no events before the cookie round-trip or for bots, and the header is still stripped', async () => {
   let res = await get(withHeader, 'signup', {});
-  assert.equal(res.headers.get('x-switchyard-event'), null);
+  assert.equal(res.headers.get('x-turnover-event'), null);
   assert.equal(flags.tracked.length, 0);
   res = await get(withHeader, 'signup', { cookie: `${ID_COOKIE}=${id}`, 'user-agent': 'Googlebot/2.1' });
-  assert.equal(res.headers.get('x-switchyard-event'), null);
+  assert.equal(res.headers.get('x-turnover-event'), null);
   assert.equal(flags.tracked.length, 0);
 });
 
 test('without goal.header the header is stripped and ignored', async () => {
   const res = await get(withoutHeader, 'signup');
-  assert.equal(res.headers.get('x-switchyard-event'), null);
+  assert.equal(res.headers.get('x-turnover-event'), null);
   assert.equal(flags.tracked.length, 0);
 });

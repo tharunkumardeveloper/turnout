@@ -1,6 +1,6 @@
 #!/bin/sh
 # ===========================================================================================================
-#  Switchyard setup (macOS and Linux): checks everything the demo needs and offers to install what's missing.
+#  Turnover setup (macOS and Linux): checks everything the demo needs and offers to install what's missing.
 #
 #    sh setup.sh            check, and ask before installing anything
 #    sh setup.sh --check    check only: install nothing, change nothing (exit code 1 if something is missing)
@@ -81,7 +81,7 @@ offer() {
 }
 
 echo
-echo " Switchyard setup"
+echo " Turnover setup"
 echo " ================"
 echo " Folder: $(pwd)"
 [ "$MODE" = check ] && echo " Mode: check only, nothing will be installed or changed"
@@ -183,7 +183,7 @@ DOCKER_PORTS=
 [ -n "$ENGINE_OK" ] && DOCKER_PORTS=$(docker ps --format '{{.Ports}}' 2>/dev/null)
 for p in 8000 8080 8090 8091; do
   if echo "$DOCKER_PORTS" | grep -q ":$p->"; then
-    ok "port $p is used by Docker (Switchyard may already be running)"
+    ok "port $p is used by Docker (Turnover may already be running)"
     continue
   fi
   # Another user's process (root's, say) is invisible to lsof and ss without sudo; a connect test still sees it.
@@ -200,7 +200,7 @@ for p in 8000 8080 8090 8091; do
   if [ -z "$USER_OF" ]; then
     ok "port $p is free"
   elif echo "$USER_OF" | grep -qiE "docker|com\.docke|vpnkit|rootlessk"; then
-    ok "port $p is used by Docker (Switchyard may already be running)"
+    ok "port $p is used by Docker (Turnover may already be running)"
   else
     warn "port $p is used by $USER_OF: stop it, or the demo can't start"
   fi
@@ -213,33 +213,33 @@ if [ -d .env ]; then
 elif [ -f .env ]; then
   ok ".env exists"
 elif [ "$MODE" = check ]; then
-  warn ".env is missing; switchyard.sh creates it from .env.example"
+  warn ".env is missing; turnover.sh creates it from .env.example"
 else
   cp .env.example .env && ok "created .env from .env.example"
 fi
-[ -f switchyard.config.yml ] || miss "switchyard.config.yml is missing: is this the Switchyard folder?"
-[ -f compose.yaml ] || miss "compose.yaml is missing: is this the Switchyard folder?"
-# On Linux the console and the CLI run as SWITCHYARD_UID:SWITCHYARD_GID (default 1000:1000, the image's node user)
-# so they can write .switchyard/ and .env. switchyard.sh sets them to this user; .env covers plain `docker compose`.
+[ -f turnover.config.yml ] || miss "turnover.config.yml is missing: is this the Turnover folder?"
+[ -f compose.yaml ] || miss "compose.yaml is missing: is this the Turnover folder?"
+# On Linux the console and the CLI run as TURNOVER_UID:TURNOVER_GID (default 1000:1000, the image's node user)
+# so they can write .turnover/ and .env. turnover.sh sets them to this user; .env covers plain `docker compose`.
 if [ "$OS" = Linux ]; then
   MY_IDS="$(id -u):$(id -g)"
-  if [ -d .switchyard ] && [ ! -w .switchyard ]; then
-    miss ".switchyard/ isn't writable by this user. Fix: sudo chown -R $MY_IDS .switchyard"
+  if [ -d .turnover ] && [ ! -w .turnover ]; then
+    miss ".turnover/ isn't writable by this user. Fix: sudo chown -R $MY_IDS .turnover"
   fi
   if [ "$MY_IDS" = 1000:1000 ]; then
     ok "containers that write here run as $MY_IDS (this user)"
-  elif [ -f .env ] && grep -q "^SWITCHYARD_UID=$(id -u)\$" .env && grep -q "^SWITCHYARD_GID=$(id -g)\$" .env; then
-    ok "containers that write here run as $MY_IDS (SWITCHYARD_UID/GID in .env)"
+  elif [ -f .env ] && grep -q "^TURNOVER_UID=$(id -u)\$" .env && grep -q "^TURNOVER_GID=$(id -g)\$" .env; then
+    ok "containers that write here run as $MY_IDS (TURNOVER_UID/GID in .env)"
   elif [ "$MODE" = check ] || [ ! -f .env ] || [ ! -w .env ]; then
-    ok "switchyard.sh runs the containers that write here as $MY_IDS"
-    note "For plain docker compose, add SWITCHYARD_UID=$(id -u) and SWITCHYARD_GID=$(id -g) to .env (sh setup.sh does it)."
+    ok "turnover.sh runs the containers that write here as $MY_IDS"
+    note "For plain docker compose, add TURNOVER_UID=$(id -u) and TURNOVER_GID=$(id -g) to .env (sh setup.sh does it)."
   else
     [ -n "$(tail -c 1 .env)" ] && echo >> .env # end the last line before appending
-    for kv in "SWITCHYARD_UID=$(id -u)" "SWITCHYARD_GID=$(id -g)"; do
+    for kv in "TURNOVER_UID=$(id -u)" "TURNOVER_GID=$(id -g)"; do
       k=${kv%%=*}
       if grep -q "^$k=" .env; then sed -i "s/^$k=.*/$kv/" .env; else printf '%s\n' "$kv" >> .env; fi
     done
-    ok "wrote SWITCHYARD_UID=$(id -u) and SWITCHYARD_GID=$(id -g) to .env: containers that write here run as this user"
+    ok "wrote TURNOVER_UID=$(id -u) and TURNOVER_GID=$(id -g) to .env: containers that write here run as this user"
   fi
 fi
 
@@ -300,6 +300,6 @@ if [ "$MISSING" -gt 0 ]; then
 fi
 echo " Ready. $WARNINGS warning(s)."
 [ -n "$INSTALLED_SOMETHING" ] && echo " Something was just installed: if a command isn't found, open a NEW terminal."
-echo " Next: sh switchyard.sh   (starts Flagsmith, sets it up and opens judge mode)"
+echo " Next: sh turnover.sh   (starts Flagsmith, sets it up and opens judge mode)"
 echo " ------------------------------------------------------------"
 exit 0

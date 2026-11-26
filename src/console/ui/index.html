@@ -4,8 +4,8 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="color-scheme" content="light dark">
-  <meta name="switchyard-console" content="">
-  <title>Switchyard console</title>
+  <meta name="turnover-console" content="">
+  <title>Turnover console</title>
   <link rel="icon" href="/favicon.svg" type="image/svg+xml">
   <link rel="stylesheet" href="/style.css">
   <script type="module" src="/app.js"></script>
@@ -21,7 +21,7 @@
         <path d="M13 16c5 0 6 8 13 8" />
         <circle cx="13" cy="16" r="3" />
       </svg>
-      <span class="brand-name">Switchyard</span>
+      <span class="brand-name">Turnover</span>
     </div>
 
     <div class="experiment">
@@ -147,16 +147,16 @@
     </section>
     <section id="guard" class="card guard-card" aria-labelledby="guard-title" hidden>
       <div class="card-head"><h2 id="guard-title">Health and guard</h2></div>
-      <p class="card-sub">Switchyard reports the release flag's health to <strong>Flagsmith's Feature Health</strong>: a losing guardrail tags the flag <em>Unhealthy</em> in Flagsmith's dashboard, with Flagsmith's numbers as the reason.</p>
+      <p class="card-sub">Turnover reports the release flag's health to <strong>Flagsmith's Feature Health</strong>: a losing guardrail tags the flag <em>Unhealthy</em> in Flagsmith's dashboard, with Flagsmith's numbers as the reason.</p>
       <p id="health-line" class="guard-line" aria-live="polite"></p>
       <div class="guard-toggle"><button id="guard-button" class="btn btn-secondary" type="button" aria-pressed="false">Turn the guard on</button></div>
-      <p class="card-sub">With the guard on, Switchyard asks Flagsmith for fresh results every 5 minutes and <strong>reverts on its own</strong> when a guardrail's chance to win drops to 1% or below. It never ships on its own.</p>
+      <p class="card-sub">With the guard on, Turnover asks Flagsmith for fresh results every 5 minutes and <strong>reverts on its own</strong> when a guardrail's chance to win drops to 1% or below. It never ships on its own.</p>
       <p id="guard-line" class="guard-line" aria-live="polite"></p>
     </section>
   </main>
 
   <footer class="footer">
-    <p>Flagsmith decides; Switchyard never computes its own statistics. Every action is visible in Flagsmith's audit log.</p>
+    <p>Flagsmith decides; Turnover never computes its own statistics. Every action is visible in Flagsmith's audit log.</p>
   </footer>
 
   <dialog id="confirm-dialog" class="dialog" aria-labelledby="dialog-title" aria-describedby="dialog-intro">

@@ -1,4 +1,4 @@
-// Switchyard judge mode: a full-width dashboard and a guided tour (tour.js) through the whole story.
+// Turnover judge mode: a full-width dashboard and a guided tour (tour.js) through the whole story.
 //   left    the seven steps as a timeline, and the release history
 //   centre  the flow line, four live numbers, the live track map, and the stage: the single thing to do now
 //   right   "In Flagsmith right now": the experiment, the flag, the results and Feature Health, read from its API
@@ -17,16 +17,16 @@ const JOB_POLL_MS = 1000;
 const HEALTH_POLL_MS = 10000;
 const DEMO_MAX_MS = 2000;
 const SPARK_BARS = 40;
-const WELCOME_KEY = 'switchyard-judge-welcome';
-const FLAGSMITH_TAB = 'switchyard-flagsmith';
+const WELCOME_KEY = 'turnover-judge-welcome';
+const FLAGSMITH_TAB = 'turnover-flagsmith';
 const $ = (id) => /** @type {HTMLElement} */ (document.getElementById(id));
 
 // The per-boot token the server put in the page. Every /api/* call carries it; without it the server refuses.
-const TOKEN = document.querySelector('meta[name="switchyard-console"]')?.getAttribute('content') ?? '';
-const TOKEN_HEADER = 'x-switchyard-console';
+const TOKEN = document.querySelector('meta[name="turnover-console"]')?.getAttribute('content') ?? '';
+const TOKEN_HEADER = 'x-turnover-console';
 // Server mode's public view (/judge on the server's hostname): the API lives under /judge/api/, every action is refused.
-const BASE = document.querySelector('meta[name="switchyard-base"]')?.getAttribute('content') ?? '';
-const READONLY = document.querySelector('meta[name="switchyard-readonly"]') !== null;
+const BASE = document.querySelector('meta[name="turnover-base"]')?.getAttribute('content') ?? '';
+const READONLY = document.querySelector('meta[name="turnover-readonly"]') !== null;
 const READONLY_TEXT = 'This is the public, read-only view. Actions run only from the console on the server.';
 if (READONLY) {
   document.body.classList.add('is-readonly');
@@ -198,7 +198,7 @@ async function loadState() {
     if (body.job?.action === 'verify' && body.job.status === 'done' && body.job.result) ui.verify = body.job.result;
     render();
   } catch {
-    fail('network', "can't reach the Switchyard console server");
+    fail('network', "can't reach the Turnover console server");
   } finally {
     if (J.jobRunning(ui.state)) startJobPoll();
   }
@@ -293,7 +293,7 @@ async function run(action, payload = {}) {
     }
     ui.runError = J.runErrorText(res.status, body);
   } catch {
-    ui.runError = "Couldn't reach the Switchyard console server. Nothing was started.";
+    ui.runError = "Couldn't reach the Turnover console server. Nothing was started.";
   } finally {
     ui.posting = false;
   }
@@ -485,7 +485,7 @@ function renderKpis(s) {
   setCount($('kpi-visitors'), visitors, J.formatInt);
   setText(
     $('kpi-visitors-sub'),
-    ids > sent ? "Flagsmith's identity count" : sent ? `sent through Switchyard${ids ? ` · ${J.formatInt(ids)} counted by Flagsmith` : ''}` : 'none yet: step 1 sends them',
+    ids > sent ? "Flagsmith's identity count" : sent ? `sent through Turnover${ids ? ` · ${J.formatInt(ids)} counted by Flagsmith` : ''}` : 'none yet: step 1 sends them',
   );
 
   const accepted = s.totals?.eventsAccepted;
@@ -540,7 +540,7 @@ function tickRate() {
   const idle = r <= 0;
   /** @type {HTMLElement} */ ($('kpi-rate').closest('.kpi')).dataset.idle = String(idle);
   const fmt = (x) => (x < 10 ? x.toFixed(1) : String(Math.round(x)));
-  setText($('kpi-rate-sub'), idle ? (ui.peak > 0 ? `idle · peak ${fmt(ui.peak)} req/s last run` : 'idle · no traffic yet') : `through Switchyard · peak ${fmt(ui.peak)}`);
+  setText($('kpi-rate-sub'), idle ? (ui.peak > 0 ? `idle · peak ${fmt(ui.peak)} req/s last run` : 'idle · no traffic yet') : `through Turnover · peak ${fmt(ui.peak)}`);
   sparkHist.push(r);
   sparkHist.shift();
   const top = Math.max(1, ...sparkHist);
@@ -1042,7 +1042,7 @@ function renderFlagsmith(s) {
         row(h('span', {}, 'Default value', h('small', {}, 'control, and everyone outside')), releaseChip(releases, r.defaultRelease)),
         v2Now !== undefined ? row(h('span', {}, 'Variant v2', h('small', {}, 'multivariate option')), releaseChip(releases, v2Now)) : null,
         row(
-          h('span', {}, 'Preview override', h('small', {}, 'switchyard-preview segment')),
+          h('span', {}, 'Preview override', h('small', {}, 'turnover-preview segment')),
           r.preview?.active ? releaseChip(releases, r.preview.release) : h('span', { class: 'fs-off' }, 'off'),
         ),
       ),
@@ -1185,7 +1185,7 @@ function loadShop(mode) {
   if (ui.state) renderShopHead(ui.state);
   const frame = /** @type {HTMLIFrameElement} */ ($('shop-frame'));
   let url = mode === 'preview' && ui.state?.links?.preview ? ui.state.links.preview : frameUrl('shop');
-  // A fresh request every time: nothing between this browser and Switchyard can answer from a cache.
+  // A fresh request every time: nothing between this browser and Turnover can answer from a cache.
   if (url && url !== 'about:blank' && mode !== 'preview') url += `${url.includes('?') ? '&' : '?'}_sy=${Date.now().toString(36)}`;
   frame.src = 'about:blank';
   setTimeout(() => (frame.src = url), 30);

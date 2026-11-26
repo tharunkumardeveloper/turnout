@@ -1,4 +1,4 @@
-// The live track diagram on the judge page: visitors enter Switchyard, Switchyard asks the flag, and each request
+// The live track diagram on the judge page: visitors enter Turnover, Turnover asks the flag, and each request
 // rides the track the flag chose (the preview segment, the experiment's split, or the default for everyone else) to
 // the release that served it. Drawn in plain SVG at the container's real pixel size, so text stays readable from a
 // phone to a wide laptop dashboard; switches to a top-to-bottom layout below WIDE (576 px). Boxes keep their identity
@@ -17,7 +17,7 @@ const FADE_MS = 450;
 export const WIDE = 576;
 export const ROOMY = 600; // from this, the desktop sizes: taller rows, wider boxes
 
-// Horizontal columns, left to right: visitors, gap, Switchyard, gap, the flag's rules, gap, releases.
+// Horizontal columns, left to right: visitors, gap, Turnover, gap, the flag's rules, gap, releases.
 // The rules column grows first (its notes are the longest text: "bots, and anyone outside the rollout"), then the
 // others towards their maximum; anything wider goes into the two long gaps.
 const COL_MIN = [76, 16, 92, 20, 192, 56, 100];
@@ -139,7 +139,7 @@ export function layout(width, rules, releases) {
       const [tx, ty] = inn(rb);
       const leg = curve(rx2, ry2, tx, ty, vertical);
       paths.toRelease.push({ rule: r.id, release: t.release, pct: t.pct, many: r.targets.length > 1, d: `${M(rx2, ry2)} ${leg}`, mid: [(rx2 + tx) / 2, (ry2 + ty) / 2] });
-      // One continuous path per rule and release, for the dots: feed, through Switchyard, through the rule, out.
+      // One continuous path per rule and release, for the dots: feed, through Turnover, through the rule, out.
       const end = vertical ? [tx, ty + rb.h / 2] : [tx + rb.w / 2, ty];
       paths.ride[`${r.id}|${t.release}`] =
         `${M(sx, sy)} ${L(jx1, jy1)} ${L(jx2, jy2)} ${curve(jx2, jy2, rx1, ry1, vertical)} ${L(rx2, ry2)} ${leg} ${L(end[0], end[1])}`;
@@ -325,7 +325,7 @@ export function createTrack(root, { colorOf, summary }) {
     };
 
     put('source', geo.box.source, 'tnode-source', 'Visitors', geo.vertical || geo.box.source.w < 104 ? null : 'cookie ID only');
-    put('junction', geo.box.junction, 'tnode-junction', 'Switchyard', 'asks the flag');
+    put('junction', geo.box.junction, 'tnode-junction', 'Turnover', 'asks the flag');
     rules.forEach((r, i) => put(`rule:${r.id}`, geo.box.rules[i], `tnode-rule tnode-rule-${r.id}`, r.title, r.note, { rule: r.id, flagsmith: true }));
     const served = new Set(rules.flatMap((r) => r.targets.filter((t) => t.pct > 0).map((t) => t.release)));
     releases.forEach((rel, i) => {

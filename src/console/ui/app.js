@@ -1,4 +1,4 @@
-// Switchyard console: polls /api/state, streams /api/traffic onto the map, and runs the two human-confirmed
+// Turnover console: polls /api/state, streams /api/traffic onto the map, and runs the two human-confirmed
 // actions, plus the demo controls (simulated visitors, swing back / forward) that judge mode also runs. Every string
 // from the server goes in through textContent.
 import * as F from './format.js';
@@ -8,8 +8,8 @@ const POLL_MS = 5000;
 const $ = (id) => /** @type {HTMLElement} */ (document.getElementById(id));
 
 // The per-boot token the server put in the page. Every /api/* call carries it; without it the server refuses.
-const TOKEN = document.querySelector('meta[name="switchyard-console"]')?.getAttribute('content') ?? '';
-const TOKEN_HEADER = 'x-switchyard-console';
+const TOKEN = document.querySelector('meta[name="turnover-console"]')?.getAttribute('content') ?? '';
+const TOKEN_HEADER = 'x-turnover-console';
 
 /** fetch() for the console API, with the token header added. */
 function api(path, init = {}) {
@@ -208,7 +208,7 @@ function renderBanner() {
   }
   const network = app.error.name === 'TypeError' || app.error.name === 'TimeoutError' || app.error.name === 'AbortError';
   const what = network
-    ? "Can't reach the Switchyard console server."
+    ? "Can't reach the Turnover console server."
     : app.error.kind === 'token'
       ? 'The console server restarted. Reload this page to keep using it.'
       : `Flagsmith didn't answer (${app.error.message}).`;
@@ -251,7 +251,7 @@ function renderHeader(s) {
   $('flag-name').textContent = e.feature?.name ?? '—';
   const r = F.routing(e, s.flag);
   $('flag-routing').textContent = r.summary + (r.flagEnabled === false ? ' (flag off: control)' : '');
-  document.title = `${F.statusLabel(e.status)} · ${e.name} · Switchyard`;
+  document.title = `${F.statusLabel(e.status)} · ${e.name} · Turnover`;
 }
 
 // ---- map -----------------------------------------------------------------------------------------------------
@@ -478,9 +478,9 @@ function renderActions(s) {
   else note = `Pre-selected: Flagsmith's pick, but inconclusive (${F.formatChance(s.winner.chanceToWin)}, below 95%). Shipping now is your call.`;
   $('ship-note').textContent = note;
 
-  // Switchyard's call, read off Flagsmith's interval: an interval crossing zero isn't a win.
+  // Turnover's call, read off Flagsmith's interval: an interval crossing zero isn't a win.
   const rec = s.recommendation;
-  $('recommendation-note').textContent = completed || !rec ? '' : `Switchyard recommends: ${F.recommendationText(rec)}.`;
+  $('recommendation-note').textContent = completed || !rec ? '' : `Turnover recommends: ${F.recommendationText(rec)}.`;
   const keep = /** @type {HTMLButtonElement} */ ($('keep-running-btn'));
   keep.disabled = completed || busy;
   keep.textContent = rec?.call === 'keep-running' ? 'Keep running (interval crosses zero)' : 'Keep running';
@@ -580,8 +580,8 @@ async function openDialog(action, key) {
   $('dialog-title').textContent = action === 'ship' ? `Ship ${label} (${key}) to everyone?` : `Revert to control (${controlLabel})?`;
   $('dialog-intro').textContent =
     action === 'ship'
-      ? 'Switchyard runs these steps against Flagsmith, in order. Each is read back afterwards, and skipped if Flagsmith already shows it done, so it is safe to re-run.'
-      : `Switchyard completes the experiment and drains the split: the flag's environment default becomes control (${controlLabel}) with every variant at 0%, so everyone gets it. A completed experiment can't be resumed; the decision goes in the release ledger.`;
+      ? 'Turnover runs these steps against Flagsmith, in order. Each is read back afterwards, and skipped if Flagsmith already shows it done, so it is safe to re-run.'
+      : `Turnover completes the experiment and drains the split: the flag's environment default becomes control (${controlLabel}) with every variant at 0%, so everyone gets it. A completed experiment can't be resumed; the decision goes in the release ledger.`;
   dialog.dataset.action = action;
   dialog.style.setProperty('--c', action === 'ship' ? (F.variantList(e).find((v) => v.key === key)?.color ?? 'var(--treatment)') : 'var(--control)');
   $('dialog-body').replaceChildren(h('p', { class: 'loading' }, h('span', { class: 'spinner', 'aria-hidden': 'true' }), 'Fetching the plan…'));
@@ -617,7 +617,7 @@ async function openDialog(action, key) {
       const interval = F.recommendationInterval(rec);
       $('dialog-recommendation').textContent =
         `${interval ? `Flagsmith's credible interval for ${rec.variant} on the goal: ${interval}` : 'Flagsmith has no interval on the goal yet'}` +
-        `${rec.chanceToWin != null ? `, ${F.formatChance(rec.chanceToWin)} chance to win` : ''}. Switchyard recommends: ${F.recommendationText(rec)}.` +
+        `${rec.chanceToWin != null ? `, ${F.formatChance(rec.chanceToWin)} chance to win` : ''}. Turnover recommends: ${F.recommendationText(rec)}.` +
         (action === 'ship' && rec.call !== 'ship' ? ' Shipping now is your call, against the recommendation.' : '');
       $('dialog-recommendation').dataset.tone = rec.call === 'ship' ? 'good' : 'bad';
       $('dialog-recommendation').hidden = false;
@@ -759,7 +759,7 @@ function renderSidings(s) {
   }
   const past = F.sidings(s.history, s.experiment.id, s.ledger);
   if (!past.length) {
-    list.replaceChildren(h('li', { class: 'empty' }, 'None yet. Each switchyard release parks the previous experiment here.'));
+    list.replaceChildren(h('li', { class: 'empty' }, 'None yet. Each turnover release parks the previous experiment here.'));
     return;
   }
   const shown = past.slice(0, 6).map((p) => {

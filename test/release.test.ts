@@ -129,10 +129,10 @@ test('release takes metrics from the most recent finished experiment', async () 
 
 test('release refuses labels outside the allowlist, the live release itself, and a flag without history', async () => {
   let state = seededState();
-  await assert.rejects(run(state, 'shop:9.9'), /"shop:9\.9" isn't in switchyard\.config\.yml's releases/);
+  await assert.rejects(run(state, 'shop:9.9'), /"shop:9\.9" isn't in turnover\.config\.yml's releases/);
   await assert.rejects(run(state, 'shop:1.4'), /shop:1\.4 is already what everyone gets/);
   // The live release must be routable too.
-  await assert.rejects(run(state, 'shop:1.6', { releases: new Set(['shop:1.6']) }), /"shop:1\.4" isn't in switchyard\.config\.yml's releases/);
+  await assert.rejects(run(state, 'shop:1.6', { releases: new Set(['shop:1.6']) }), /"shop:1\.4" isn't in turnover\.config\.yml's releases/);
   assert.deepEqual(writes(state), []);
   await fake!.close();
   fake = undefined;

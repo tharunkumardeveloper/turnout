@@ -1,4 +1,4 @@
-// switchyard doctor: is everything there, the way init and switchyard.config.yml expect it? Read-only.
+// turnover doctor: is everything there, the way init and turnover.config.yml expect it? Read-only.
 // gatherFacts() reads Flagsmith, the proxy, the console and Flagsmith's Prometheus counter; evaluate() is a pure
 // function that turns those facts into checks, each with what was expected and what is actually there.
 // Secrets (keys, tokens, the Feature Health webhook path) are compared, never put into a check.
@@ -28,9 +28,9 @@ export type DoctorOptions = {
   config: Config;
   adminKey?: string | undefined;
   serverKey?: string | undefined;
-  experimentRef?: string | undefined; // SWITCHYARD_EXPERIMENT: <environment key>/<id>
+  experimentRef?: string | undefined; // TURNOVER_EXPERIMENT: <environment key>/<id>
   previewToken?: string | undefined; // also the proxy's debug token: it unlocks the release-container probe
-  healthWebhook?: string | undefined; // SWITCHYARD_HEALTH_WEBHOOK
+  healthWebhook?: string | undefined; // TURNOVER_HEALTH_WEBHOOK
   proxyUrl: string;
   consoleUrl?: string | undefined; // unset: the console itself is asking
   metricsUrl?: string | undefined; // Flagsmith's Prometheus endpoint
@@ -40,7 +40,7 @@ export type DoctorOptions = {
   // Where Ship and Revert write snapshots and the ledger, and the .env init and release write. Unset: not checked.
   stateDir?: string | undefined;
   envFile?: string | undefined;
-  // Server mode only (SWITCHYARD_MODE=server): HTTPS, Secure cookies, private ports, secrets, restart policies.
+  // Server mode only (TURNOVER_MODE=server): HTTPS, Secure cookies, private ports, secrets, restart policies.
   server?: ServerModeOptions | undefined;
 };
 
@@ -160,8 +160,8 @@ export async function gatherFacts(o: DoctorOptions): Promise<DoctorFacts> {
   };
 
   const proxy = async () => {
-    const res = await fetch(new URL('/__switchyard/health', o.proxyUrl), {
-      headers: o.previewToken ? { 'x-switchyard-debug': o.previewToken } : {},
+    const res = await fetch(new URL('/__turnover/health', o.proxyUrl), {
+      headers: o.previewToken ? { 'x-turnover-debug': o.previewToken } : {},
       signal: AbortSignal.timeout(6000),
     });
     if (!res.ok) throw Object.assign(new Error(`HTTP ${res.status}`), { status: res.status });
@@ -185,7 +185,7 @@ export async function gatherFacts(o: DoctorOptions): Promise<DoctorFacts> {
 /**
  * Why this process couldn't write `path`, or null. A missing folder or file counts as writable when the nearest
  * folder that exists is (it is created on first use). For a folder, its snapshots/ subfolder is checked too.
- * On Linux, Compose runs the console and cli as SWITCHYARD_UID:SWITCHYARD_GID; a bind-mounted .switchyard/ owned by
+ * On Linux, Compose runs the console and cli as TURNOVER_UID:TURNOVER_GID; a bind-mounted .turnover/ owned by
  * someone else makes Ship and Revert stop after pausing the experiment (EACCES on the snapshot).
  * Only access(2) is used, so doctor stays read-only.
  */
@@ -240,7 +240,7 @@ export function evaluate(f: DoctorFacts): DoctorCheck[] {
     const v = f.version.value;
     add(A, 'API', 'ok', `answers at ${f.apiUrl}`, 'answers');
     add(A, 'Version', v.image_tag === f.expectedVersion ? 'ok' : 'warn', f.expectedVersion, v.image_tag ?? 'not reported',
-      `Switchyard is tested on ${f.expectedVersion}: keep that tag in compose.flagsmith.yml`);
+      `Turnover is tested on ${f.expectedVersion}: keep that tag in compose.flagsmith.yml`);
     if (v.experimentation_enabled !== undefined) {
       add(A, 'Experimentation', v.experimentation_enabled ? 'ok' : 'fail', 'enabled', v.experimentation_enabled ? 'enabled' : 'disabled',
         `Use the image compose.flagsmith.yml pins (${f.expectedVersion})`);
@@ -259,25 +259,25 @@ export function evaluate(f: DoctorFacts): DoctorCheck[] {
 
   // ---- Keys ---------------------------------------------------------------------------------------------------
   A = 'Keys';
-  if (!f.given.adminKey) add(A, 'Admin key', 'fail', 'SWITCHYARD_ADMIN_KEY set', 'not set', `${INIT}, or put an Organisation API key in .env`);
+  if (!f.given.adminKey) add(A, 'Admin key', 'fail', 'TURNOVER_ADMIN_KEY set', 'not set', `${INIT}, or put an Organisation API key in .env`);
   else if (f.organisations) {
     add(A, 'Admin key', isOk(f.organisations) ? 'ok' : 'fail', 'accepted by Flagsmith', isOk(f.organisations) ? 'accepted' : refused(f.organisations),
-      'The key is from another instance (after a reset?) or was revoked: create an Organisation API key in Flagsmith and put it in .env as SWITCHYARD_ADMIN_KEY');
+      'The key is from another instance (after a reset?) or was revoked: create an Organisation API key in Flagsmith and put it in .env as TURNOVER_ADMIN_KEY');
   }
-  if (!f.given.envKey) add(A, 'Environment', 'fail', 'SWITCHYARD_EXPERIMENT set (<environment key>/<id>)', 'not set', INIT);
+  if (!f.given.envKey) add(A, 'Environment', 'fail', 'TURNOVER_EXPERIMENT set (<environment key>/<id>)', 'not set', INIT);
   else if (f.environment) {
     add(A, 'Environment', isOk(f.environment) ? 'ok' : 'fail', 'exists', isOk(f.environment) ? `"${f.environment.value.name}" (project ${f.environment.value.project})` : refused(f.environment),
-      `SWITCHYARD_EXPERIMENT names an environment this Flagsmith doesn't have. ${INIT}`);
+      `TURNOVER_EXPERIMENT names an environment this Flagsmith doesn't have. ${INIT}`);
   }
-  if (!f.given.serverKey) add(A, 'Server key', 'fail', 'SWITCHYARD_SERVER_KEY set', 'not set', INIT);
+  if (!f.given.serverKey) add(A, 'Server key', 'fail', 'TURNOVER_SERVER_KEY set', 'not set', INIT);
   else if (f.document) {
     if (!isOk(f.document)) {
       add(A, 'Server key', 'fail', 'reads the environment document', refused(f.document),
-        'The key is from another instance or was revoked. Clear SWITCHYARD_SERVER_KEY in .env and run init to create one');
+        'The key is from another instance or was revoked. Clear TURNOVER_SERVER_KEY in .env and run init to create one');
     } else {
       const same = !f.given.envKey || f.document.value.api_key === undefined || f.document.value.api_key === f.given.envKey;
-      add(A, 'Server key', same ? 'ok' : 'fail', "valid, for SWITCHYARD_EXPERIMENT's environment", same ? 'valid' : 'valid, but for another environment',
-        'Create a server-side key in the right environment (or clear SWITCHYARD_SERVER_KEY and run init)');
+      add(A, 'Server key', same ? 'ok' : 'fail', "valid, for TURNOVER_EXPERIMENT's environment", same ? 'valid' : 'valid, but for another environment',
+        'Create a server-side key in the right environment (or clear TURNOVER_SERVER_KEY and run init)');
     }
   }
 
@@ -289,7 +289,7 @@ export function evaluate(f: DoctorFacts): DoctorCheck[] {
     if (!isOk(f.feature)) add(A, 'Flag', 'fail', `"${flagName}" exists`, f.feature.error);
     else {
       feature = f.feature.value;
-      add(A, 'Flag', feature ? 'ok' : 'fail', `"${flagName}" exists (switchyard.config.yml)`, feature ? 'exists' : 'missing', INIT);
+      add(A, 'Flag', feature ? 'ok' : 'fail', `"${flagName}" exists (turnover.config.yml)`, feature ? 'exists' : 'missing', INIT);
     }
   }
   if (feature) {
@@ -320,12 +320,12 @@ export function evaluate(f: DoctorFacts): DoctorCheck[] {
       ];
       const bad = values.filter((v) => !allowed(v.value));
       add(A, 'Values name releases', bad.length ? 'fail' : 'ok', `each one of ${releases.join(', ')}`,
-        bad.length ? bad.map((v) => `${v.where} = "${v.value ?? ''}"`).join(', ') + ' not in switchyard.config.yml' : uniq(values.map((v) => `${v.where} ${v.value}`)).join(', '),
-        "Add the release to switchyard.config.yml's releases, or change the value in Flagsmith; the proxy serves the live release instead");
+        bad.length ? bad.map((v) => `${v.where} = "${v.value ?? ''}"`).join(', ') + ' not in turnover.config.yml' : uniq(values.map((v) => `${v.where} ${v.value}`)).join(', '),
+        "Add the release to turnover.config.yml's releases, or change the value in Flagsmith; the proxy serves the live release instead");
       add(A, 'On in this environment', flag.environment_default.enabled ? 'ok' : 'fail', 'on', flag.environment_default.enabled ? 'on' : 'off',
         'Turn the flag on in Flagsmith: while it is off, every visitor gets the live release');
       const serving = currentRelease(flag, options);
-      add(A, 'Serving everyone else', allowed(serving) ? 'ok' : 'fail', 'a release in switchyard.config.yml', serving);
+      add(A, 'Serving everyone else', allowed(serving) ? 'ok' : 'fail', 'a release in turnover.config.yml', serving);
 
       // Preview: optional. If the segment exists, it must match the trait, and its override must outrank a running rollout.
       const segment = isOk(f.segments) ? f.segments.value.find((s) => s.name === PREVIEW_SEGMENT) : undefined;
@@ -342,11 +342,11 @@ export function evaluate(f: DoctorFacts): DoctorCheck[] {
           else if (!override) add(A, 'Preview segment', 'ok', `trait ${PREVIEW_TRAIT} = "true"`, 'exists; no preview on the flag right now');
           else if (rollout && override.priority > rollout.priority) {
             add(A, 'Preview segment', 'warn', "ranks above the experiment's rollout", `ranks below experiment ${running!.id}'s rollout: preview browsers are counted in it`,
-              'Run switchyard preview before switchyard release, so the preview outranks the rollout');
+              'Run turnover preview before turnover release, so the preview outranks the rollout');
           } else if (!f.given.previewToken) {
-            add(A, 'Preview segment', 'warn', 'SWITCHYARD_PREVIEW_TOKEN set', `serves ${served ?? '?'}, but nobody can open the preview link`, INIT);
+            add(A, 'Preview segment', 'warn', 'TURNOVER_PREVIEW_TOKEN set', `serves ${served ?? '?'}, but nobody can open the preview link`, INIT);
           } else {
-            add(A, 'Preview segment', allowed(served) ? 'ok' : 'fail', `trait ${PREVIEW_TRAIT} = "true", a release in switchyard.config.yml`, `serves ${served ?? '?'} to browsers that opened the preview link`);
+            add(A, 'Preview segment', allowed(served) ? 'ok' : 'fail', `trait ${PREVIEW_TRAIT} = "true", a release in turnover.config.yml`, `serves ${served ?? '?'} to browsers that opened the preview link`);
           }
         }
       }
@@ -368,7 +368,7 @@ export function evaluate(f: DoctorFacts): DoctorCheck[] {
       else {
         const same = m.aggregation === w.aggregation && m.direction === w.direction;
         add(A, w.event, same ? 'ok' : 'fail', expected, `${m.aggregation}, ${m.direction} is better`,
-          `Edit the metric in Flagsmith: Switchyard sends ${w.role === 'goal' ? 'one event per order' : 'a value per page load'}, so it needs ${w.aggregation} and direction ${w.direction}`);
+          `Edit the metric in Flagsmith: Turnover sends ${w.role === 'goal' ? 'one event per order' : 'a value per page load'}, so it needs ${w.aggregation} and direction ${w.direction}`);
       }
     }
   }
@@ -389,7 +389,7 @@ export function evaluate(f: DoctorFacts): DoctorCheck[] {
     if (leftovers.length) {
       const l = leftovers[0]!;
       add(A, 'State', 'fail', expected, `experiment ${l.experimentId} isn't running, but its split still covers ${coverage(l, 'visitors')}`,
-        'Edits to the default miss those visitors. Start the next experiment (switchyard release <label>) to clear it; next time end with Ship winner or Revert');
+        'Edits to the default miss those visitors. Start the next experiment (turnover release <label>) to clear it; next time end with Ship winner or Revert');
     } else if (unfinished.length > 1) {
       add(A, 'State', 'fail', expected, `${unfinished.length} unfinished experiments (${unfinished.map((e) => e.id).join(', ')})`, 'Complete all but one in Flagsmith');
     } else if (unfinished.length === 1) {
@@ -399,7 +399,7 @@ export function evaluate(f: DoctorFacts): DoctorCheck[] {
         add(A, 'State', 'ok', expected, `experiment ${e.id} running: ${e.name}${split?.audience ? ` (its split covers ${coverage(split, 'visitors')})` : ''}${docNote}`);
       } else {
         add(A, 'State', 'warn', expected, `experiment ${e.id} is ${e.status}${split ? `; its split covers ${coverage(split, 'visitors')}` : ''}`,
-          e.status === 'paused' ? 'Finish it: Ship winner or Revert in the console (they drain the split)' : 'Start it in Flagsmith, or run switchyard release <label>');
+          e.status === 'paused' ? 'Finish it: Ship winner or Revert in the console (they drain the split)' : 'Start it in Flagsmith, or run turnover release <label>');
       }
     } else {
       add(A, 'State', 'ok', expected, `${onFlag.length ? `no experiment running (${onFlag.length} completed)` : 'no experiment yet'}; no split left behind${docNote}`);
@@ -417,34 +417,34 @@ export function evaluate(f: DoctorFacts): DoctorCheck[] {
         traits.length
           ? `experiment ${current.experimentId}'s audience reads ${plural(traits)}, which the proxy never sends: those conditions match no visitor${unsetNote}`
           : `the split covers ${coverage(current, 'visitors')}${unsetNote}`,
-        'Flagsmith fixes an audience once the experiment serves traffic: start the next experiment without trait conditions in its audience (switchyard release <label> sets none)');
+        'Flagsmith fixes an audience once the experiment serves traffic: start the next experiment without trait conditions in its audience (turnover release <label> sets none)');
     }
   }
 
   // ---- Feature Health -----------------------------------------------------------------------------------------
   A = 'Feature Health';
-  if (!f.given.healthWebhook) add(A, 'Webhook provider', 'ok', 'set up by init (optional)', 'off: SWITCHYARD_HEALTH_WEBHOOK is empty');
+  if (!f.given.healthWebhook) add(A, 'Webhook provider', 'ok', 'set up by init (optional)', 'off: TURNOVER_HEALTH_WEBHOOK is empty');
   else if (f.providers && !isOk(f.providers)) add(A, 'Webhook provider', 'fail', 'readable', f.providers.error);
   else if (isOk(f.providers)) {
     const provider = f.providers.value.find((p) => p.name === 'Webhook');
     const same = !!provider?.webhook_url && pathOf(provider.webhook_url) === pathOf(f.given.healthWebhook);
-    add(A, 'Webhook provider', same ? 'ok' : 'fail', "Flagsmith's Webhook provider, at the URL in SWITCHYARD_HEALTH_WEBHOOK",
+    add(A, 'Webhook provider', same ? 'ok' : 'fail', "Flagsmith's Webhook provider, at the URL in TURNOVER_HEALTH_WEBHOOK",
       !provider ? 'no Webhook provider in the project' : same ? 'exists; the URL matches' : 'exists, at a different URL', `${INIT}: it writes the provider's current URL`);
   }
 
-  // ---- Switchyard ---------------------------------------------------------------------------------------------
-  A = 'Switchyard';
+  // ---- Turnover ---------------------------------------------------------------------------------------------
+  A = 'Turnover';
   if (!isOk(f.proxy)) {
-    add(A, 'Proxy', 'fail', 'answers /__switchyard/health', f.proxy.error, 'Start it: docker compose up -d switchyard (logs: docker compose logs switchyard)');
+    add(A, 'Proxy', 'fail', 'answers /__turnover/health', f.proxy.error, 'Start it: docker compose up -d turnover (logs: docker compose logs turnover)');
   } else {
     const p = f.proxy.value;
     const fs = p.flagsmith;
     const expected = 'answers, with the flag loaded from Flagsmith';
-    if (fs && !fs.ready) add(A, 'Proxy', 'warn', expected, `answers, but hasn't loaded the flag yet${fs.lastError ? ` (${fs.lastError})` : ''}`, 'Check SWITCHYARD_SERVER_KEY, then: docker compose logs switchyard');
-    else if (fs?.lastError) add(A, 'Proxy', 'warn', expected, `answers; last refresh failed: ${fs.lastError}`, 'docker compose logs switchyard');
+    if (fs && !fs.ready) add(A, 'Proxy', 'warn', expected, `answers, but hasn't loaded the flag yet${fs.lastError ? ` (${fs.lastError})` : ''}`, 'Check TURNOVER_SERVER_KEY, then: docker compose logs turnover');
+    else if (fs?.lastError) add(A, 'Proxy', 'warn', expected, `answers; last refresh failed: ${fs.lastError}`, 'docker compose logs turnover');
     else add(A, 'Proxy', 'ok', expected, `answers; flag ${fs?.environmentAgeSeconds != null ? `refreshed ${fs.environmentAgeSeconds} s ago` : 'loaded'}; live release ${p.liveRelease}`);
     if (!p.upstreams) {
-      add(A, 'Release containers', 'warn', 'each release answers', f.given.previewToken ? "not checked: this proxy doesn't report them (rebuild: docker compose up -d --build)" : 'not checked: needs SWITCHYARD_PREVIEW_TOKEN',
+      add(A, 'Release containers', 'warn', 'each release answers', f.given.previewToken ? "not checked: this proxy doesn't report them (rebuild: docker compose up -d --build)" : 'not checked: needs TURNOVER_PREVIEW_TOKEN',
         f.given.previewToken ? 'docker compose up -d --build' : INIT);
     } else {
       for (const r of f.config.releases) {
@@ -457,7 +457,7 @@ export function evaluate(f: DoctorFacts): DoctorCheck[] {
   for (const w of f.writable ?? []) {
     add(A, w.label, w.problem ? 'fail' : 'ok', `${w.path} writable`, w.problem ?? `${w.path} writable`,
       w.label === 'State folder'
-        ? 'Ship and Revert write snapshots and the ledger here and stop after pausing the experiment if they cannot. On Linux: sudo chown -R "$(id -u):$(id -g)" .switchyard, and run through switchyard.sh (or set SWITCHYARD_UID/SWITCHYARD_GID in .env: sh setup.sh does it)'
+        ? 'Ship and Revert write snapshots and the ledger here and stop after pausing the experiment if they cannot. On Linux: sudo chown -R "$(id -u):$(id -g)" .turnover, and run through turnover.sh (or set TURNOVER_UID/TURNOVER_GID in .env: sh setup.sh does it)'
         : 'init and release write keys and the experiment id here. On Linux: sudo chown "$(id -u):$(id -g)" .env');
   }
   if (f.console === 'self') add(A, 'Console', 'ok', 'answers', 'answers (it served this check)');
@@ -476,11 +476,11 @@ export function evaluate(f: DoctorFacts): DoctorCheck[] {
   } else {
     const { accepted, rejected } = f.events;
     add(A, "Flagsmith's counter", rejected > 0 ? 'warn' : 'ok', '0 rejected', `${n(accepted)} accepted, ${n(rejected)} rejected`,
-      'Some events were refused: docker compose logs switchyard shows each refusal');
+      'Some events were refused: docker compose logs turnover shows each refusal');
   }
   if (isOk(f.proxy)) {
     const u = f.proxy.value.undeliveredEvents;
-    add(A, 'Proxy deliveries', u > 0 ? 'warn' : 'ok', '0 undelivered', `${n(u)} undelivered`, 'docker compose logs switchyard shows why');
+    add(A, 'Proxy deliveries', u > 0 ? 'warn' : 'ok', '0 undelivered', `${n(u)} undelivered`, 'docker compose logs turnover shows why');
   }
   // ---- Server mode (local mode has no f.server and skips these) -------------------------------------------------
   if (f.server) checks.push(...evaluateServer(f.server));
@@ -538,6 +538,6 @@ export function formatReport(report: DoctorReport): string[] {
     }
   }
   const { ok, warn, fail } = report.summary;
-  lines.push('', `${ok} ok, ${warn} warning${warn === 1 ? '' : 's'}, ${fail} failing.${fail ? '' : ' Everything Switchyard needs is in place.'}`);
+  lines.push('', `${ok} ok, ${warn} warning${warn === 1 ? '' : 's'}, ${fail} failing.${fail ? '' : ' Everything Turnover needs is in place.'}`);
   return lines;
 }

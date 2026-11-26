@@ -1,6 +1,6 @@
-# Publish the Switchyard image (proxy, console and CLI) to GitHub Container Registry on a version tag:
-#   git tag v0.1.0 && git push origin v0.1.0   →   ghcr.io/<owner>/switchyard:0.1.0, :0.1 and :latest
-# "switchyard new" writes compose files that pull ghcr.io/<owner>/switchyard:latest. Nothing has been published yet.
+# Publish the Turnover image (proxy, console and CLI) to GitHub Container Registry on a version tag:
+#   git tag v0.1.0 && git push origin v0.1.0   →   ghcr.io/<owner>/turnover:0.1.0, :0.1 and :latest
+# "turnover new" writes compose files that pull ghcr.io/<owner>/turnover:latest. Nothing has been published yet.
 name: Publish image
 
 on:
@@ -38,7 +38,7 @@ jobs:
       - id: meta
         uses: docker/metadata-action@v5
         with:
-          images: ghcr.io/${{ github.repository_owner }}/switchyard
+          images: ghcr.io/${{ github.repository_owner }}/turnover
           tags: |
             type=semver,pattern={{version}}
             type=semver,pattern={{major}}.{{minor}}

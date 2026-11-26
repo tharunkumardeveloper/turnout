@@ -204,7 +204,7 @@ export const fixtures = {
   previewActive: () => ({
     ...fixtures.shipped(),
     preview: { active: true, release: 'shop:1.6' },
-    links: links(7, 'http://localhost:8080/__switchyard/preview?token=abc'),
+    links: links(7, 'http://localhost:8080/__turnover/preview?token=abc'),
     steps: steps('release'),
     current: 'release' as const,
   }),

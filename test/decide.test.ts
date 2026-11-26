@@ -94,7 +94,7 @@ describe('decide', () => {
     assert.equal(d.entry.guardReason, 'shop:1.5 losing doc_latency_ms, 0.1% chance to win');
     assert.deepEqual(d.entry.losingGuardrailsAccepted, [], 'control never warns');
     assert.equal(state.experiment.status, 'completed');
-    assert.match(readFileSync(join(ledgerDir, 'RELEASES.md'), 'utf8'), /automatically by Switchyard's guard \(shop:1\.5 losing doc_latency_ms/);
+    assert.match(readFileSync(join(ledgerDir, 'RELEASES.md'), 'utf8'), /automatically by Turnover's guard \(shop:1\.5 losing doc_latency_ms/);
   });
 
   test("revert records control's release even when the default's value was edited mid-experiment", async () => {

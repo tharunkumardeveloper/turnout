@@ -1,9 +1,9 @@
 # Flagsmith's official docker-compose.yml (github.com/Flagsmith/flagsmith/blob/main/docker-compose.yml),
-# copied unchanged except these edits (2 to 5 are marked "Switchyard:" below):
+# copied unchanged except these edits (2 to 5 are marked "Turnover:" below):
 #   1. the image tag is pinned from :latest to :2.291.0 (released 2026-11-13);
 #   2. the API's port is published on 127.0.0.1 (this machine) only, instead of every interface;
 #   3. the task processor's port is not published (its health check runs inside the container);
-#   4. the API also joins the `sdk` network, where the Switchyard proxy reaches it without joining `default`;
+#   4. the API also joins the `sdk` network, where the Turnover proxy reaches it without joining `default`;
 #   5. the API keeps idle connections open for 5 seconds (GUNICORN_KEEP_ALIVE; Flagsmith's default is 2).
 
 # See https://docs.flagsmith.com/deployment/docker for more information on running Flagsmith in Docker
@@ -50,7 +50,7 @@ volumes:
   pgdata:
 
 networks:
-  # Switchyard: the proxy reads flags and sends events here, without sharing `default` with Postgres and the console.
+  # Turnover: the proxy reads flags and sends events here, without sharing `default` with Postgres and the console.
   sdk: {}
 
 services:
@@ -87,14 +87,14 @@ services:
       - serve
     environment:
       <<: *flagsmith-env
-      # Switchyard: longer than Node's 4-second idle socket, so the console never sends a request on a connection
+      # Turnover: longer than Node's 4-second idle socket, so the console never sends a request on a connection
       # gunicorn has just closed (common/gunicorn/utils.py:26 in the image reads it; the default is 2).
       GUNICORN_KEEP_ALIVE: 5
     ports:
-      # Switchyard: this machine only (was 8000:8000 on every interface), whatever SWITCHYARD_PUBLISH_HOST says. The
+      # Turnover: this machine only (was 8000:8000 on every interface), whatever TURNOVER_PUBLISH_HOST says. The
       # settings above keep the official placeholder secrets, so the dashboard and admin API stay off your network.
       - 127.0.0.1:8000:8000
-    networks: [default, sdk] # Switchyard: see networks above
+    networks: [default, sdk] # Turnover: see networks above
     depends_on:
       migrate-db:
         condition: service_completed_successfully
@@ -105,7 +105,7 @@ services:
     image: docker.flagsmith.com/flagsmith/flagsmith:2.291.0
     environment:
       <<: *flagsmith-env
-    # Switchyard: the official file publishes 8001:8000 here. Nothing outside the container uses that port: the image's
+    # Turnover: the official file publishes 8001:8000 here. Nothing outside the container uses that port: the image's
     # health check, `flagsmith healthcheck tcp`, connects to 127.0.0.1:8000 from inside the container.
     depends_on:
       migrate-db:

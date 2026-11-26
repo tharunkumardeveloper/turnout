@@ -31,7 +31,7 @@ test('refuses while the flag has an unfinished experiment, and changes nothing',
 
 test('refuses a label that is not in the config allowlist, and changes nothing', async () => {
   const state = seededState();
-  await assert.rejects(run(state, 'shop:9.9'), /"shop:9\.9" isn't in switchyard\.config\.yml's releases/);
+  await assert.rejects(run(state, 'shop:9.9'), /"shop:9\.9" isn't in turnover\.config\.yml's releases/);
   assert.deepEqual(writes(state), []);
 });
 
@@ -114,6 +114,6 @@ test('a missing flag or missing v2 option is explained', async () => {
   state.features[0]!.multivariate_options[0]!.key = 'other';
   await assert.rejects(run(state, 'shop:1.6'), /has no variant with key v2/);
   state.features[0]!.name = 'renamed';
-  await assert.rejects(run(state, 'shop:1.6'), /Flag "shop_release" not found\. Run switchyard init first\./);
+  await assert.rejects(run(state, 'shop:1.6'), /Flag "shop_release" not found\. Run turnover init first\./);
   assert.deepEqual(writes(state), []);
 });

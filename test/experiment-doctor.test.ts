@@ -1,4 +1,4 @@
-// The Experiment Doctor (switchyard check with an Organisation API key): exposures, tracking, sample ratio.
+// The Experiment Doctor (turnover check with an Organisation API key): exposures, tracking, sample ratio.
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { check } from '../src/commands/check.ts';

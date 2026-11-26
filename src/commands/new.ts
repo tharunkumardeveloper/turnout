@@ -1,4 +1,4 @@
-// `switchyard new`: four questions (Flagsmith, the releases, success, traffic) → switchyard.config.yml and a compose
+// `turnover new`: four questions (Flagsmith, the releases, success, traffic) → turnover.config.yml and a compose
 // file for your own project (the proxy, the console and the one-off CLI), plus Flagsmith's when you want it bundled.
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
@@ -7,19 +7,19 @@ import { parse } from 'yaml';
 import { writeEnv } from './init.ts';
 
 // Not published yet: build it locally (docker build -t <this> .) until the publish workflow has run on a tag.
-export const DEFAULT_IMAGE = 'ghcr.io/tharunkumardeveloper/switchyard:latest';
+export const DEFAULT_IMAGE = 'ghcr.io/tharunkumardeveloper/turnover:latest';
 export const DEFAULT_RELEASES = ['v1=http://host.docker.internal:3000', 'v2=http://host.docker.internal:3001'];
 export const DEFAULT_SUCCESS = 'POST /signup 2xx';
 
 export type NewAnswers = {
   flagsmith: 'bundled' | string; // "bundled", or your Flagsmith's API URL (…/api/v1/)
   releases: string[]; // each: "label=http://host:port", "http://host:port", or an image ("myapp:2")
-  success: string; // "POST /signup 2xx", or "header signup": the app sends X-Switchyard-Event: signup
+  success: string; // "POST /signup 2xx", or "header signup": the app sends X-Turnover-Event: signup
   traffic: number; // % of visitors in the experiment
   flag?: string | undefined;
   event?: string | undefined;
   appPort?: number | undefined; // the port your release images listen on
-  image?: string | undefined; // the Switchyard image
+  image?: string | undefined; // the Turnover image
   proxyPort?: number | undefined;
   project?: string | undefined; // existing Flagsmith: project and environment init reuses
   environment?: string | undefined;
@@ -68,7 +68,7 @@ export function parseSuccess(text: string): { method: string; path: string; stat
   return { method: m[1]!.toUpperCase(), path: m[2]!, status: m[3] ?? '2xx' };
 }
 
-// "header" or "header <event>": success comes from the app's X-Switchyard-Event response header.
+// "header" or "header <event>": success comes from the app's X-Turnover-Event response header.
 export function parseHeaderSuccess(text: string): { event: string | undefined } | undefined {
   const m = text.trim().match(/^header(?:\s+(\S+))?$/i);
   return m ? { event: m[1] } : undefined;
@@ -95,12 +95,12 @@ export function renderConfig(a: NewAnswers, releases: Release[]): string {
 goal:
   event: ${event}
   when: { method: ${rule.method}, path: ${yamlString(rule.path)}, status: ${rule.status} }`
-    : `# Success: your app answers the converting request with the response header "X-Switchyard-Event: ${event}".
-# Switchyard sends it to Flagsmith as an event and removes the header before the visitor sees it.
+    : `# Success: your app answers the converting request with the response header "X-Turnover-Event: ${event}".
+# Turnover sends it to Flagsmith as an event and removes the header before the visitor sees it.
 goal:
   event: ${event}
   header: true`;
-  const text = `# Written by "switchyard new". Switchyard routes each visitor to one of these releases by the Flagsmith flag below.
+  const text = `# Written by "turnover new". Turnover routes each visitor to one of these releases by the Flagsmith flag below.
 flag: ${flag}
 
 # Allowlist: release label (the flag's value in Flagsmith) → where that release answers.
@@ -127,66 +127,66 @@ export function renderCompose(a: NewAnswers, releases: Release[]): string {
   const nets = bundled ? '\n    networks: [default, sdk]' : '';
   const waitFlagsmith = bundled ? '\n    depends_on:\n      flagsmith:\n        condition: service_healthy' : '';
   const apps = releases.filter((r) => r.image);
-  return `# Written by "switchyard new": Switchyard in front of your app. Run it with
-#   docker compose -f switchyard.compose.yml run --rm cli init
-#   docker compose -f switchyard.compose.yml up -d
-# then open http://127.0.0.1:${port} (your app, through Switchyard) and http://127.0.0.1:8090 (the console).
-# ${image} is not published yet: build it from the Switchyard repo with "docker build -t ${image} ." first.
-${bundled ? 'include:\n  - flagsmith.compose.yml   # Flagsmith, from Switchyard\'s compose.flagsmith.yml\n' : ''}
-x-switchyard: &switchyard
+  return `# Written by "turnover new": Turnover in front of your app. Run it with
+#   docker compose -f turnover.compose.yml run --rm cli init
+#   docker compose -f turnover.compose.yml up -d
+# then open http://127.0.0.1:${port} (your app, through Turnover) and http://127.0.0.1:8090 (the console).
+# ${image} is not published yet: build it from the Turnover repo with "docker build -t ${image} ." first.
+${bundled ? 'include:\n  - flagsmith.compose.yml   # Flagsmith, from Turnover\'s compose.flagsmith.yml\n' : ''}
+x-turnover: &turnover
   image: ${image}
-  user: '\${SWITCHYARD_UID:-1000}:\${SWITCHYARD_GID:-1000}'
+  user: '\${TURNOVER_UID:-1000}:\${TURNOVER_GID:-1000}'
   extra_hosts: ['host.docker.internal:host-gateway'] # your machine, on Linux too
 
 services:
-  switchyard:
-    <<: *switchyard
+  turnover:
+    <<: *turnover
     command: proxy
     restart: unless-stopped
     environment:
       FLAGSMITH_API_URL: ${api}
-      SWITCHYARD_SERVER_KEY: \${SWITCHYARD_SERVER_KEY:-} # written by init
-      SWITCHYARD_PREVIEW_TOKEN: \${SWITCHYARD_PREVIEW_TOKEN:-}
+      TURNOVER_SERVER_KEY: \${TURNOVER_SERVER_KEY:-} # written by init
+      TURNOVER_PREVIEW_TOKEN: \${TURNOVER_PREVIEW_TOKEN:-}
     ports:
       - 127.0.0.1:${port}:8080
     volumes:
-      - ./switchyard.config.yml:/app/switchyard.config.yml:ro
-      - switchyard-state:/app/.switchyard${nets}${waitFlagsmith}
+      - ./turnover.config.yml:/app/turnover.config.yml:ro
+      - turnover-state:/app/.turnover${nets}${waitFlagsmith}
 
   console:
-    <<: *switchyard
+    <<: *turnover
     command: console
     restart: unless-stopped
     environment:
       FLAGSMITH_API_URL: ${api}
-      SWITCHYARD_ADMIN_KEY: \${SWITCHYARD_ADMIN_KEY:-}
-      SWITCHYARD_EXPERIMENT: \${SWITCHYARD_EXPERIMENT:-}
-      SWITCHYARD_SERVER_KEY: \${SWITCHYARD_SERVER_KEY:-}
-      SWITCHYARD_PREVIEW_TOKEN: \${SWITCHYARD_PREVIEW_TOKEN:-}
-      SWITCHYARD_FEED_URL: http://switchyard:8081
-      SWITCHYARD_PROXY_URL: http://switchyard:8080
-      SWITCHYARD_PUBLIC_SHOP_URL: http://127.0.0.1:${port}
+      TURNOVER_ADMIN_KEY: \${TURNOVER_ADMIN_KEY:-}
+      TURNOVER_EXPERIMENT: \${TURNOVER_EXPERIMENT:-}
+      TURNOVER_SERVER_KEY: \${TURNOVER_SERVER_KEY:-}
+      TURNOVER_PREVIEW_TOKEN: \${TURNOVER_PREVIEW_TOKEN:-}
+      TURNOVER_FEED_URL: http://turnover:8081
+      TURNOVER_PROXY_URL: http://turnover:8080
+      TURNOVER_PUBLIC_SHOP_URL: http://127.0.0.1:${port}
       CONSOLE_HOST: 0.0.0.0
     ports:
       - 127.0.0.1:8090:8090 # holds the admin key: this machine only
     volumes:
-      - ./switchyard.config.yml:/app/switchyard.config.yml:ro
-      - ./.switchyard:/app/.switchyard${nets}
+      - ./turnover.config.yml:/app/turnover.config.yml:ro
+      - ./.turnover:/app/.turnover${nets}
     depends_on:
-      switchyard:
+      turnover:
         condition: service_started
 
-  # One-off commands: docker compose -f switchyard.compose.yml run --rm cli <init | status | ship | revert | release …>
+  # One-off commands: docker compose -f turnover.compose.yml run --rm cli <init | status | ship | revert | release …>
   cli:
-    <<: *switchyard
+    <<: *turnover
     profiles: [tools]
     environment:
       FLAGSMITH_API_URL: ${api}
-      SWITCHYARD_PROXY_URL: http://switchyard:8080
+      TURNOVER_PROXY_URL: http://turnover:8080
     volumes:
-      - ./switchyard.config.yml:/app/switchyard.config.yml:ro
+      - ./turnover.config.yml:/app/turnover.config.yml:ro
       - ./.env:/app/.env
-      - ./.switchyard:/app/.switchyard${nets}${waitFlagsmith}
+      - ./.turnover:/app/.turnover${nets}${waitFlagsmith}
 ${apps
   .map(
     (r) => `
@@ -197,7 +197,7 @@ ${apps
   )
   .join('')}
 volumes:
-  switchyard-state: {}
+  turnover-state: {}
 `;
 }
 
@@ -212,8 +212,8 @@ export function writeNew(opts: NewOptions): string[] {
   const { releases, notes } = parseReleases(a.releases, a.appPort);
   for (const n of notes) log(`· ${n}`);
   const files: [string, string][] = [
-    ['switchyard.config.yml', renderConfig(a, releases)],
-    ['switchyard.compose.yml', renderCompose(a, releases)],
+    ['turnover.config.yml', renderConfig(a, releases)],
+    ['turnover.compose.yml', renderCompose(a, releases)],
   ];
   if (a.flagsmith === 'bundled') {
     if (!opts.flagsmithCompose) throw new Error('the bundled Flagsmith compose file is missing from this install');
@@ -221,20 +221,20 @@ export function writeNew(opts: NewOptions): string[] {
   }
   const clash = files.filter(([f]) => existsSync(join(opts.dir, f))).map(([f]) => f);
   if (clash.length && !opts.force) throw new Error(`${clash.join(', ')} already exist${clash.length === 1 ? 's' : ''}: pass --force to overwrite`);
-  mkdirSync(join(opts.dir, '.switchyard'), { recursive: true });
+  mkdirSync(join(opts.dir, '.turnover'), { recursive: true });
   for (const [f, text] of files) writeFileSync(join(opts.dir, f), text);
   const env: Record<string, string> = {};
-  if (a.project) env.SWITCHYARD_PROJECT = a.project;
-  if (a.environment) env.SWITCHYARD_ENVIRONMENT = a.environment;
-  if (opts.adminKey) env.SWITCHYARD_ADMIN_KEY = opts.adminKey;
+  if (a.project) env.TURNOVER_PROJECT = a.project;
+  if (a.environment) env.TURNOVER_ENVIRONMENT = a.environment;
+  if (opts.adminKey) env.TURNOVER_ADMIN_KEY = opts.adminKey;
   const envFile = join(opts.dir, '.env');
   if (Object.keys(env).length || !existsSync(envFile)) writeEnv(envFile, env); // the cli mounts it, so it must exist
   const written = [...files.map(([f]) => f), '.env'];
   log(`✓ wrote ${written.join(', ')}`);
   log('Next:');
-  if (a.flagsmith !== 'bundled' && !opts.adminKey) log('  put your Organisation API key in .env as SWITCHYARD_ADMIN_KEY');
-  log('  docker compose -f switchyard.compose.yml run --rm cli init');
-  log('  docker compose -f switchyard.compose.yml up -d');
+  if (a.flagsmith !== 'bundled' && !opts.adminKey) log('  put your Organisation API key in .env as TURNOVER_ADMIN_KEY');
+  log('  docker compose -f turnover.compose.yml run --rm cli init');
+  log('  docker compose -f turnover.compose.yml up -d');
   return written;
 }
 

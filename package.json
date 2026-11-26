@@ -1,5 +1,5 @@
 {
-  "name": "switchyard",
+  "name": "turnover",
   "version": "0.0.0",
   "private": true,
   "description": "Every deploy is a Flagsmith experiment, with zero app code. Ship it or roll it back on the same flag.",
@@ -9,7 +9,7 @@
     "node": ">=24"
   },
   "bin": {
-    "switchyard": "src/cli.ts"
+    "turnover": "src/cli.ts"
   },
   "scripts": {
     "start": "node src/cli.ts proxy",

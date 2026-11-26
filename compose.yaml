@@ -1,8 +1,8 @@
-# Flagsmith's official compose file plus the Switchyard overlay, so plain `docker compose …` works from any shell:
+# Flagsmith's official compose file plus the Turnover overlay, so plain `docker compose …` works from any shell:
 #   docker compose up -d --wait flagsmith   # Flagsmith first
 #   docker compose run --rm cli init    # then bootstrap it
-#   docker compose up -d --build        # then Switchyard, the console and the demo shop
+#   docker compose up -d --build        # then Turnover, the console and the demo shop
 include:
   - compose.flagsmith.yml   # Flagsmith's official docker-compose.yml with five edits, listed in its header
-  - compose.switchyard.yml
-  - compose.demo.yml        # the demo shop's three releases (your own app: see "switchyard new" in the README)
+  - compose.turnover.yml
+  - compose.demo.yml        # the demo shop's three releases (your own app: see "turnover new" in the README)

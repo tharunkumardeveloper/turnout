@@ -1,5 +1,5 @@
 // The release ledger: every Ship winner or Revert writes Flagsmith's result, as returned, next to the decision.
-// Always to .switchyard/ledger.jsonl and RELEASES.md; also to the release's GitHub Release when a token is set.
+// Always to .turnover/ledger.jsonl and RELEASES.md; also to the release's GitHub Release when a token is set.
 import { appendFileSync, existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import type { GuardrailWarning } from './flagsmith/experiments.ts';
@@ -45,7 +45,7 @@ export function recordDecision(dir: string, entry: LedgerEntry): void {
   const entries = readLedger(dir).reverse();
   writeFileSync(
     join(dir, 'RELEASES.md'),
-    `# Releases\n\nWritten by Switchyard on each Ship winner, Revert or Keep running. Results are Flagsmith's, as returned.\n\n${entries.map(renderEntry).join('\n')}`,
+    `# Releases\n\nWritten by Turnover on each Ship winner, Revert or Keep running. Results are Flagsmith's, as returned.\n\n${entries.map(renderEntry).join('\n')}`,
   );
 }
 
@@ -59,7 +59,7 @@ export function renderEntry(e: LedgerEntry): string {
   const lines = [
     `## ${e.release ?? e.variant} · Flagsmith experiment ${e.experimentId}`,
     '',
-    `**${verb}** ${e.by === 'guard' ? `automatically by Switchyard's guard (${e.guardReason ?? 'a guardrail was losing'})` : 'by a person'}, on flag \`${e.flag}\`, at ${e.at}.${e.decision === 'kept-running' ? ' Nothing changed in Flagsmith; the experiment keeps running.' : ''}`,
+    `**${verb}** ${e.by === 'guard' ? `automatically by Turnover's guard (${e.guardReason ?? 'a guardrail was losing'})` : 'by a person'}, on flag \`${e.flag}\`, at ${e.at}.${e.decision === 'kept-running' ? ' Nothing changed in Flagsmith; the experiment keeps running.' : ''}`,
     '',
     `- Experiment: ${e.experiment}`,
     `- Hypothesis: ${e.hypothesis}`,
@@ -97,7 +97,7 @@ export async function publishToGitHub(entry: LedgerEntry, tag: string, opts: Git
     accept: 'application/vnd.github+json',
     'x-github-api-version': '2022-11-28',
     'content-type': 'application/json',
-    'user-agent': 'switchyard',
+    'user-agent': 'turnover',
   };
   const call = async (method: string, path: string, body?: unknown) => {
     const res = await doFetch(`${api}${path}`, { method, headers, ...(body ? { body: JSON.stringify(body) } : {}), signal: AbortSignal.timeout(10_000) });
@@ -105,8 +105,8 @@ export async function publishToGitHub(entry: LedgerEntry, tag: string, opts: Git
     return { status: res.status, json: text ? (JSON.parse(text) as { id?: number; body?: string | null; html_url?: string; message?: string }) : {} };
   };
 
-  const begin = `<!-- switchyard:experiment-${entry.experimentId} -->`;
-  const end = `<!-- /switchyard:experiment-${entry.experimentId} -->`;
+  const begin = `<!-- turnover:experiment-${entry.experimentId} -->`;
+  const end = `<!-- /turnover:experiment-${entry.experimentId} -->`;
   const section = `${begin}\n${renderEntry(entry)}${end}`;
 
   const existing = await call('GET', `/repos/${opts.repository}/releases/tags/${encodeURIComponent(tag)}`);

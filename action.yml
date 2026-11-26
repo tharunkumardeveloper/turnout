@@ -1,4 +1,4 @@
-# A reusable GitHub Action: run `switchyard check` against any self-hosted Flagsmith in CI.
+# A reusable GitHub Action: run `turnover check` against any self-hosted Flagsmith in CI.
 # It fails the job when an experiment's split is still on a flag while the experiment isn't running, so the
 # "end the experiment, then edit the flag" trap is caught before release day. With only the server-side key it
 # can't tell a created or paused experiment from a completed one, so their splits fail the job too. With admin-key,
@@ -11,13 +11,13 @@
 # GITHUB_REPOSITORY and GITHUB_SHA name the repository and the commit, so Flagsmith's permalinks point at this run.
 #
 #   - uses: actions/checkout@v5
-#   - uses: <owner>/switchyard@v1
+#   - uses: <owner>/turnover@v1
 #     with:
 #       api-url: https://flagsmith.example.com/api/v1/
 #       server-key: ${{ secrets.FLAGSMITH_SERVER_KEY }}
 #       admin-key: ${{ secrets.FLAGSMITH_ADMIN_KEY }}   # optional: experiment statuses, Experiment Doctor, Code References
 #       project-id: 1                                     # with admin-key
-name: Switchyard check
+name: Turnover check
 description: Find Flagsmith experiment splits left behind on any flag (read-only, needs only a server-side key); with an admin key, sanity-check running experiments' data and submit Code References.
 branding:
   icon: git-merge
@@ -38,33 +38,33 @@ inputs:
     required: false
     default: ""
   config:
-    description: "Path to switchyard.config.yml in your repository; its flag is the one scanned for."
+    description: "Path to turnover.config.yml in your repository; its flag is the one scanned for."
     required: false
-    default: switchyard.config.yml
+    default: turnover.config.yml
 runs:
   using: composite
   steps:
     - uses: actions/setup-node@v5
       with:
         node-version: 24
-    - name: Install Switchyard
+    - name: Install Turnover
       shell: bash
       run: npm ci --omit=dev --prefix "$GITHUB_ACTION_PATH" --no-audit --no-fund
-    - name: switchyard check
+    - name: turnover check
       shell: bash
       env:
         FLAGSMITH_API_URL: ${{ inputs.api-url }}
-        SWITCHYARD_SERVER_KEY: ${{ inputs.server-key }}
-        SWITCHYARD_ADMIN_KEY: ${{ inputs.admin-key }} # optional; empty means server key only
-        SWITCHYARD_ENV_FILE: /dev/null/none
+        TURNOVER_SERVER_KEY: ${{ inputs.server-key }}
+        TURNOVER_ADMIN_KEY: ${{ inputs.admin-key }} # optional; empty means server key only
+        TURNOVER_ENV_FILE: /dev/null/none
       run: node "$GITHUB_ACTION_PATH/src/cli.ts" check
-    - name: switchyard code-refs
+    - name: turnover code-refs
       if: ${{ !cancelled() && inputs.admin-key != '' }} # also after check finds a leftover split
       shell: bash
       env:
         FLAGSMITH_API_URL: ${{ inputs.api-url }}
-        SWITCHYARD_ADMIN_KEY: ${{ inputs.admin-key }}
-        SWITCHYARD_PROJECT_ID: ${{ inputs.project-id }}
-        SWITCHYARD_CONFIG: ${{ inputs.config }}
-        SWITCHYARD_ENV_FILE: /dev/null/none
+        TURNOVER_ADMIN_KEY: ${{ inputs.admin-key }}
+        TURNOVER_PROJECT_ID: ${{ inputs.project-id }}
+        TURNOVER_CONFIG: ${{ inputs.config }}
+        TURNOVER_ENV_FILE: /dev/null/none
       run: node "$GITHUB_ACTION_PATH/src/cli.ts" code-refs

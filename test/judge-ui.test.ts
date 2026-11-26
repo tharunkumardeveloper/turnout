@@ -28,13 +28,13 @@ describe('judge.html and judge.js', () => {
     assert.match(html, /<html lang="en">/);
     assert.match(html, /name="viewport" content="width=device-width, initial-scale=1/);
     assert.match(html, /name="color-scheme" content="light dark"/);
-    assert.ok(html.includes('<meta name="switchyard-console" content="">'), 'the server injects the API token here');
+    assert.ok(html.includes('<meta name="turnover-console" content="">'), 'the server injects the API token here');
     assert.doesNotMatch(html, /<script(?![^>]*\ssrc=)[^>]*>/, 'no inline scripts: the CSP allows only same-origin ones');
   });
 
   test('app bar: title, Flagsmith context, simulated badge, the tabs, the live feed and the tour control', () => {
     assert.match(html, /<header class="appbar">/);
-    assert.ok(html.includes('Switchyard <span class="jhead-mode">judge mode</span>'));
+    assert.ok(html.includes('Turnover <span class="jhead-mode">judge mode</span>'));
     assert.ok(html.includes('Simulated visitors'));
     for (const id of ['ctx-source', 'ctx-exp', 'ctx-status', 'feed-state', 'tour-open']) assert.match(html, new RegExp(`id="${id}"`), id);
     assert.match(html, /role="tablist"/);
@@ -42,7 +42,7 @@ describe('judge.html and judge.js', () => {
       assert.match(html, new RegExp(`data-tab="${tab}" aria-selected`), tab);
       assert.match(html, new RegExp(`id="tab-${tab}"`), tab);
     }
-    assert.match(html, /target="switchyard-flagsmith">Flagsmith ↗/, 'Flagsmith opens in its own tab: it refuses to be framed');
+    assert.match(html, /target="turnover-flagsmith">Flagsmith ↗/, 'Flagsmith opens in its own tab: it refuses to be framed');
     assert.match(js, /\$\('tour-open'\)\.addEventListener\('click', openWelcome\)/, 'the app-bar control reopens the welcome card');
   });
 
@@ -97,7 +97,7 @@ describe('judge.html and judge.js', () => {
   test('every API call carries the token; POSTs are JSON and name the experiment', () => {
     assert.doesNotMatch(js, /(?<![\w.])fetch\('\/api/, 'use api(), which adds the token header');
     assert.match(js, /\[TOKEN_HEADER\]: TOKEN/);
-    assert.match(js, /meta\[name="switchyard-console"\]/);
+    assert.match(js, /meta\[name="turnover-console"\]/);
     // BASE: '' on the console, '/judge' in server mode's public, read-only view.
     assert.match(js, /new EventSource\(`\$\{BASE\}\/api\/traffic\?token=\$\{encodeURIComponent\(TOKEN\)\}`\)/);
     assert.match(js, /fetch\(BASE \+ path, /);
@@ -144,13 +144,13 @@ describe('judge.html and judge.js', () => {
 });
 
 describe('judge-format: steps', () => {
-  test('each step has Flagsmith and Switchyard copy', () => {
+  test('each step has Flagsmith and Turnover copy', () => {
     for (const id of [...J.STEP_IDS, 'reset']) {
       const c = J.stepCopy(id, fixtures.fresh());
-      assert.ok(c.flagsmith.length > 20 && c.switchyard.length > 20, id);
-      assert.doesNotMatch(c.flagsmith + c.switchyard, /\{\w+\}/, `${id} has an unfilled placeholder`);
+      assert.ok(c.flagsmith.length > 20 && c.turnover.length > 20, id);
+      assert.doesNotMatch(c.flagsmith + c.turnover, /\{\w+\}/, `${id} has an unfilled placeholder`);
     }
-    assert.match(J.stepCopy('preview', fixtures.shipped()).switchyard, /shop:1\.6/);
+    assert.match(J.stepCopy('preview', fixtures.shipped()).turnover, /shop:1\.6/);
     assert.match(J.stepCopy('score', fixtures.fresh()).flagsmith, /one refresh every 5 minutes/);
   });
 

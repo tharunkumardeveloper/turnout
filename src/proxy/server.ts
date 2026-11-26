@@ -4,16 +4,16 @@ import https from 'node:https';
 import { EVENT_NAME, GUARDRAILS, matchesRule, type Config } from '../config.ts';
 import type { Receipt } from '../flagsmith/receipts.ts';
 
-export const ID_COOKIE = 'sy_id';
-export const PREVIEW_COOKIE = 'sy_preview';
-// Paths under this prefix are answered by Switchyard itself and never reach the app.
-export const OWN_PREFIX = '/__switchyard/';
-// The app may name conversion events itself: "X-Switchyard-Event: signup, plan_chosen;value=49". Switchyard always
+export const ID_COOKIE = 'tv_id';
+export const PREVIEW_COOKIE = 'tv_preview';
+// Paths under this prefix are answered by Turnover itself and never reach the app.
+export const OWN_PREFIX = '/__turnover/';
+// The app may name conversion events itself: "X-Turnover-Event: signup, plan_chosen;value=49". Turnover always
 // removes the header; with goal.header: true it turns each entry into a Flagsmith event for that visitor.
-export const EVENT_HEADER = 'x-switchyard-event';
+export const EVENT_HEADER = 'x-turnover-event';
 export const MAX_HEADER_EVENTS = 5;
 // Request header to the app, for previewing browsers and debug-token requests only: the release label it serves.
-export const RELEASE_HEADER = 'x-switchyard-release';
+export const RELEASE_HEADER = 'x-turnover-release';
 
 const CONTROL = 'control';
 const ONE_YEAR_S = 365 * 24 * 60 * 60;
@@ -56,8 +56,8 @@ type Options = {
   flags: FlagSource;
   onTraffic?: (event: TrafficEvent) => void;
   receipts?: { get(identity: string): Receipt | undefined; undelivered?: number };
-  previewToken?: string; // opening /__switchyard/preview?token=<it> puts this browser in the preview segment
-  debugToken?: string; // x-switchyard-debug: <it> adds the variant headers to a response; unset = never
+  previewToken?: string; // opening /__turnover/preview?token=<it> puts this browser in the preview segment
+  debugToken?: string; // x-turnover-debug: <it> adds the variant headers to a response; unset = never
   assignTimeoutMs?: number; // a visitor never waits longer than this for a flag; default 150
   upstreamTimeoutMs?: number; // default 30 s, then 504
   secureCookies?: boolean; // also set automatically for https or X-Forwarded-Proto: https
@@ -75,7 +75,7 @@ export function createProxy(opts: Options): http.Server {
   const log = opts.log ?? ((line) => console.log(JSON.stringify(line)));
   const warn = opts.warn ?? ((message) => console.warn(message));
   // The preview cookie holds a MAC of the token, never the token itself.
-  const previewMark = previewToken ? createHmac('sha256', previewToken).update('switchyard-preview').digest('base64url') : undefined;
+  const previewMark = previewToken ? createHmac('sha256', previewToken).update('turnover-preview').digest('base64url') : undefined;
 
   // The live release: what a visitor outside the experiment, or in its control, is served. Bots, cold starts and
   // Flagsmith outages get it. Starts from memory, else the first release in the config.
@@ -87,7 +87,7 @@ export function createProxy(opts: Options): http.Server {
     try {
       opts.memory?.save(release);
     } catch (error) {
-      warn(`switchyard: couldn't save the live release: ${(error as Error).message}`);
+      warn(`turnover: couldn't save the live release: ${(error as Error).message}`);
     }
   };
 
@@ -98,7 +98,7 @@ export function createProxy(opts: Options): http.Server {
     f.count++;
     fallbacks.set(reason, f);
     if (Date.now() - f.warnedAt > 10_000) {
-      warn(`switchyard: serving the live release (${live ?? config.fallback}) because ${FALLBACK_TEXT[reason] ?? reason} (${f.count} requests so far)`);
+      warn(`turnover: serving the live release (${live ?? config.fallback}) because ${FALLBACK_TEXT[reason] ?? reason} (${f.count} requests so far)`);
       f.warnedAt = Date.now();
     }
   };
@@ -119,7 +119,7 @@ export function createProxy(opts: Options): http.Server {
     const started = performance.now();
     const method = req.method ?? 'GET';
     const target = originForm(req.url ?? '');
-    if (!target) return plain(res, 400, 'Switchyard: only origin-form request targets ("/path") are accepted.\n');
+    if (!target) return plain(res, 400, 'Turnover: only origin-form request targets ("/path") are accepted.\n');
     const path = target.pathname + target.search;
 
     const cookieId = readCookie(req.headers.cookie, ID_COOKIE);
@@ -205,7 +205,7 @@ export function createProxy(opts: Options): http.Server {
     const client = url.protocol === 'https:' ? https : http;
     let timedOut = false;
 
-    const debugging = !!debugToken && safeEqual(header(req, 'x-switchyard-debug'), debugToken);
+    const debugging = !!debugToken && safeEqual(header(req, 'x-turnover-debug'), debugToken);
     const upstreamHeaders = forwardHeaders(req, upstream, secure);
     // Only a previewing browser or a debug-token request tells the app which release it is (the app may show a
     // "Release 1.5" badge); forwardHeaders already dropped any copy a client sent, so nobody else can ask for it.
@@ -216,9 +216,9 @@ export function createProxy(opts: Options): http.Server {
       const headers = responseHeaders(upstreamRes.headers, upstream);
       if (config.goal.header) appEvents = parseEventHeader(upstreamRes.headers[EVENT_HEADER]);
       if (debugging) {
-        headers['x-switchyard-variant'] = variant;
-        headers['x-switchyard-release'] = release;
-        headers['x-switchyard-enrolled'] = String(enrolled);
+        headers['x-turnover-variant'] = variant;
+        headers['x-turnover-release'] = release;
+        headers['x-turnover-enrolled'] = String(enrolled);
       }
       if (!known && !bot) {
         const cookie = `${ID_COOKIE}=${id}; Path=/; Max-Age=${ONE_YEAR_S}; HttpOnly; SameSite=Lax${secure ? '; Secure' : ''}`;
@@ -236,7 +236,7 @@ export function createProxy(opts: Options): http.Server {
     upstreamReq.on('error', () => {
       const status = timedOut ? 504 : 502;
       if (!res.headersSent) {
-        plain(res, status, timedOut ? 'Switchyard: this version of the app took too long to answer.\n' : 'Switchyard: this version of the app is unreachable.\n');
+        plain(res, status, timedOut ? 'Turnover: this version of the app took too long to answer.\n' : 'Turnover: this version of the app is unreachable.\n');
       } else {
         res.destroy();
       }
@@ -250,7 +250,7 @@ export function createProxy(opts: Options): http.Server {
     req.pipe(upstreamReq);
   };
 
-  // GET /__switchyard/receipt, /preview, /preview/off and /health. Never records an exposure.
+  // GET /__turnover/receipt, /preview, /preview/off and /health. Never records an exposure.
   const ownEndpoint = async (o: { req: http.IncomingMessage; res: http.ServerResponse; url: { pathname: string; search: string }; identity: string | undefined; previewing: boolean }) => {
     const { res, identity } = o;
     const send = (status: number, body: unknown) => {
@@ -262,9 +262,9 @@ export function createProxy(opts: Options): http.Server {
 
     if (pathname === `${OWN_PREFIX}health`) {
       const status = flags.status?.() ?? null;
-      // With the debug token, also ask each release's container (`switchyard doctor` uses this: the shops sit on a
+      // With the debug token, also ask each release's container (`turnover doctor` uses this: the shops sit on a
       // network only the proxy can reach). Never without it, so a public request can't fan out to the apps.
-      const upstreams = debugToken && safeEqual(header(o.req, 'x-switchyard-debug'), debugToken) ? await probeUpstreams(config) : undefined;
+      const upstreams = debugToken && safeEqual(header(o.req, 'x-turnover-debug'), debugToken) ? await probeUpstreams(config) : undefined;
       return send(200, {
         ok: true,
         flagsmith: status,
@@ -287,7 +287,7 @@ export function createProxy(opts: Options): http.Server {
       return void res.end();
     }
     if (pathname !== `${OWN_PREFIX}receipt`) return send(404, { error: 'not found' });
-    if (!identity) return send(404, { error: 'No Switchyard visitor cookie yet. Load a page first.' });
+    if (!identity) return send(404, { error: 'No Turnover visitor cookie yet. Load a page first.' });
     let assignment: Assignment | undefined;
     if (!flags.ready || flags.ready()) {
       try {
@@ -306,8 +306,8 @@ export function createProxy(opts: Options): http.Server {
 
   const server = http.createServer((req, res) => {
     handle(req, res).catch((error: Error) => {
-      warn(`switchyard: request failed: ${error.message}`);
-      if (!res.headersSent) plain(res, 502, 'Switchyard: internal error.\n');
+      warn(`turnover: request failed: ${error.message}`);
+      if (!res.headersSent) plain(res, 502, 'Turnover: internal error.\n');
       else res.destroy();
     });
   });
@@ -325,16 +325,16 @@ const FALLBACK_TEXT: Record<string, string> = {
   'not-ready': "Flagsmith's environment document hasn't arrived yet",
   deadline: 'the flag took too long to evaluate',
   error: 'the flag evaluation failed',
-  'unknown-release': "the flag's value isn't a release in switchyard.config.yml",
+  'unknown-release': "the flag's value isn't a release in turnover.config.yml",
   'flag-off': 'the flag is off or missing',
 };
 
 // Accepts only "/path?query" request targets. Absolute-form ("http://x/"), authority-form and scheme-relative
-// paths ("//host/…", "/\host") are refused, so a request can never pick the host Switchyard connects to.
+// paths ("//host/…", "/\host") are refused, so a request can never pick the host Turnover connects to.
 export function originForm(raw: string): { pathname: string; search: string } | null {
   if (!raw.startsWith('/') || raw.startsWith('//') || raw.includes('\\')) return null;
   try {
-    const base = 'http://switchyard.invalid';
+    const base = 'http://turnover.invalid';
     const url = new URL(raw, base);
     if (url.origin !== base) return null;
     return { pathname: url.pathname, search: url.search };
@@ -412,9 +412,9 @@ function stripHopByHop(headers: http.IncomingHttpHeaders): Record<string, string
 function forwardHeaders(req: http.IncomingMessage, upstream: URL, secure: boolean): http.OutgoingHttpHeaders {
   const headers = stripHopByHop(req.headers);
   headers.host = upstream.host;
-  delete headers['x-switchyard-debug'];
-  delete headers[RELEASE_HEADER]; // set by Switchyard only, never by a client
-  // Switchyard's own cookies stay between the visitor and Switchyard.
+  delete headers['x-turnover-debug'];
+  delete headers[RELEASE_HEADER]; // set by Turnover only, never by a client
+  // Turnover's own cookies stay between the visitor and Turnover.
   const cookie = (req.headers.cookie ?? '')
     .split(';')
     .map((c) => c.trim())
@@ -432,7 +432,7 @@ function forwardHeaders(req: http.IncomingMessage, upstream: URL, secure: boolea
 
 function responseHeaders(incoming: http.IncomingHttpHeaders, upstream: URL): http.OutgoingHttpHeaders {
   const headers: http.OutgoingHttpHeaders = stripHopByHop(incoming);
-  delete headers[EVENT_HEADER]; // meant for Switchyard only, on every path
+  delete headers[EVENT_HEADER]; // meant for Turnover only, on every path
   // Responses differ per visitor, so shared caches must never store them.
   headers['cache-control'] = privateCacheControl(incoming['cache-control']);
   headers.vary = appendVary(incoming.vary);
@@ -452,7 +452,7 @@ function responseHeaders(incoming: http.IncomingHttpHeaders, upstream: URL): htt
 export type AppEvent = { event: string; value?: number };
 
 // "signup, plan_chosen;value=49" → valid entries only, at most MAX_HEADER_EVENTS. Guardrail names are refused: those
-// are Switchyard's own measurements.
+// are Turnover's own measurements.
 export function parseEventHeader(raw: string | string[] | undefined): AppEvent[] {
   if (raw === undefined) return [];
   const out: AppEvent[] = [];

@@ -16,7 +16,7 @@ describe('setup page', () => {
     assert.match(html, /<html lang="en">/);
     assert.match(html, /name="color-scheme" content="light dark"/);
     assert.match(html, /<meta name="viewport" content="width=device-width, initial-scale=1/);
-    assert.ok(html.includes('<meta name="switchyard-console" content="">'), 'the server injects the API token here');
+    assert.ok(html.includes('<meta name="turnover-console" content="">'), 'the server injects the API token here');
     assert.match(html, /<link rel="stylesheet" href="\/style\.css">\s*<link rel="stylesheet" href="\/setup\.css">/);
     assert.match(html, /<script type="module" src="\/setup\.js"><\/script>/);
     assert.doesNotMatch(html, /<script(?![^>]*\ssrc=)[^>]*>/);
@@ -31,7 +31,7 @@ describe('setup page', () => {
 
   test('calls /api/doctor with the token header; server strings only as text', () => {
     assert.match(js, /fetch\(fresh \? '\/api\/doctor\?fresh=1' : '\/api\/doctor', \{ headers: \{ \[TOKEN_HEADER\]: TOKEN \}/);
-    assert.match(js, /const TOKEN_HEADER = 'x-switchyard-console'/);
+    assert.match(js, /const TOKEN_HEADER = 'x-turnover-console'/);
     assert.doesNotMatch(js, /innerHTML|outerHTML|insertAdjacentHTML|document\.write/);
     assert.match(js, /document\.createTextNode/);
   });

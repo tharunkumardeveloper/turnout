@@ -47,9 +47,9 @@ export type ShopOptions = {
   frameAncestors?: string; // the CSP frame-ancestors sources; default DEFAULT_FRAME_ANCESTORS
 };
 
-export const RELEASE_HEADER = 'x-switchyard-release';
+export const RELEASE_HEADER = 'x-turnover-release';
 const MAX_BODY_BYTES = 32 * 1024;
-// Who may show the shop in a frame: the Switchyard console's judge tour on this machine (port 8090).
+// Who may show the shop in a frame: the Turnover console's judge tour on this machine (port 8090).
 export const DEFAULT_FRAME_ANCESTORS = "'self' http://localhost:8090 http://127.0.0.1:8090";
 const DEVICE_PORT = 8091; // the console's port for other devices (judge link only)
 // A hostname, an IPv4 address or a bracketed IPv6 address: nothing that could end the CSP source list.
@@ -98,7 +98,7 @@ export function createShop(options: ShopOptions = {}): http.Server {
     const path = url.pathname;
     const method = req.method ?? 'GET';
     const isRead = method === 'GET' || method === 'HEAD';
-    // A release router in front (Switchyard) sets this request header only for preview browsers and debug requests,
+    // A release router in front (Turnover) sets this request header only for preview browsers and debug requests,
     // and drops any copy a visitor sends; then the footer shows "Release 1.5"..
     const release: Release = req.headers[RELEASE_HEADER] ? { ...base, badge: true } : base;
 

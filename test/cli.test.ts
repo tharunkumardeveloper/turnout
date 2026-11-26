@@ -14,10 +14,10 @@ const CLI = join(ROOT, 'src', 'cli.ts');
 function cleanEnv(extra: Record<string, string> = {}): NodeJS.ProcessEnv {
   const env: NodeJS.ProcessEnv = {};
   for (const [k, v] of Object.entries(process.env)) {
-    if (/^(SWITCHYARD_|FLAGSMITH_|GITHUB_)/.test(k) || k === 'NODE_TEST_CONTEXT') continue;
+    if (/^(TURNOVER_|FLAGSMITH_|GITHUB_)/.test(k) || k === 'NODE_TEST_CONTEXT') continue;
     env[k] = v;
   }
-  return { ...env, SWITCHYARD_ENV_FILE: join(tmpdir(), `switchyard-no-such-env-${process.pid}`), ...extra };
+  return { ...env, TURNOVER_ENV_FILE: join(tmpdir(), `turnover-no-such-env-${process.pid}`), ...extra };
 }
 
 // Async, so an in-process fake server can answer the child.
@@ -41,7 +41,7 @@ test('--help and -h print the usage and exit 0', async () => {
   for (const args of [['--help'], ['-h'], ['help'], [], ['check', '--help']]) {
     const r = await cli(args);
     assert.equal(r.code, 0, `${args.join(' ')}: ${r.stderr}`);
-    assert.match(r.stdout, /^Usage: switchyard <command> \[options\]/);
+    assert.match(r.stdout, /^Usage: turnover <command> \[options\]/);
     assert.match(r.stdout, /init\s+Bootstrap Flagsmith/);
   }
 });
@@ -49,7 +49,7 @@ test('--help and -h print the usage and exit 0', async () => {
 test('an unknown command prints the usage and exits 1', async () => {
   const r = await cli(['bogus']);
   assert.equal(r.code, 1);
-  assert.match(r.stdout, /Usage: switchyard/);
+  assert.match(r.stdout, /Usage: turnover/);
 });
 
 test('the usage lists every option the commands take', async () => {
@@ -61,13 +61,13 @@ test('the usage lists every option the commands take', async () => {
 
 test('an unknown option or a missing value exits 1 naming it, without a stack trace', async () => {
   for (const [args, expected] of [
-    [['check', '--no-such-option'], /^switchyard: Unknown option '--no-such-option'/],
-    [['demo', '--visitors'], /^switchyard: Option '--visitors <value>' argument missing/],
+    [['check', '--no-such-option'], /^turnover: Unknown option '--no-such-option'/],
+    [['demo', '--visitors'], /^turnover: Option '--visitors <value>' argument missing/],
   ] as const) {
     const r = await cli([...args]);
     assert.equal(r.code, 1);
     assert.match(r.stderr, expected);
-    assert.match(r.stderr, /Run switchyard --help/);
+    assert.match(r.stderr, /Run turnover --help/);
     assert.doesNotMatch(r.stderr, /\bat .*node:internal|ERR_PARSE_ARGS/);
   }
 });
@@ -117,20 +117,20 @@ test('check against an unreachable Flagsmith names the address and the reason', 
   await new Promise<void>((r) => closed.close(() => r()));
   const r = await cli(['check', '--api-url', `http://127.0.0.1:${port}/api/v1/`, '--server-key', 'ser.x']);
   assert.equal(r.code, 1);
-  assert.match(r.stderr, new RegExp(`^switchyard check: Couldn't reach Flagsmith at http://127\\.0\\.0\\.1:${port}: ECONNREFUSED`));
+  assert.match(r.stderr, new RegExp(`^turnover check: Couldn't reach Flagsmith at http://127\\.0\\.0\\.1:${port}: ECONNREFUSED`));
 });
 
-test('check without a server key exits 1 and names SWITCHYARD_SERVER_KEY', async () => {
+test('check without a server key exits 1 and names TURNOVER_SERVER_KEY', async () => {
   const r = await cli(['check']);
   assert.equal(r.code, 1);
-  assert.match(r.stderr, /switchyard: SWITCHYARD_SERVER_KEY is not set/);
+  assert.match(r.stderr, /turnover: TURNOVER_SERVER_KEY is not set/);
 });
 
 test('release and preview without a label exit 1 with their usage', async () => {
   for (const command of ['release', 'preview']) {
     const r = await cli([command]);
     assert.equal(r.code, 1);
-    assert.match(r.stderr, new RegExp(`switchyard ${command}: Usage: switchyard ${command} <release label>`));
+    assert.match(r.stderr, new RegExp(`turnover ${command}: Usage: turnover ${command} <release label>`));
   }
 });
 
@@ -140,10 +140,10 @@ test('demo rejects a malformed --rate before sending any traffic', async () => {
   assert.match(r.stderr, /--rate expects <variant>=<0\.\.1>, got "v2"/);
 });
 
-test('status without an experiment reference exits 1 naming SWITCHYARD_EXPERIMENT', async () => {
+test('status without an experiment reference exits 1 naming TURNOVER_EXPERIMENT', async () => {
   const r = await cli(['status', '--admin-key', 'org.x']);
   assert.equal(r.code, 1);
-  assert.match(r.stderr, /SWITCHYARD_EXPERIMENT is not set/);
+  assert.match(r.stderr, /TURNOVER_EXPERIMENT is not set/);
 });
 
 // A one-route Flagsmith: the environment document, for `check`.
@@ -186,7 +186,7 @@ test('check exits 0 when nothing is left behind and 1 when a split is', async ()
 
   const leftover = await documentServer({ project: { segments: [rollout(2, '100.0', false)] } });
   try {
-    const r = await cli(['check', '--api-url', leftover.apiUrl], { SWITCHYARD_SERVER_KEY: 'ser.env' });
+    const r = await cli(['check', '--api-url', leftover.apiUrl], { TURNOVER_SERVER_KEY: 'ser.env' });
     assert.equal(r.code, 1);
     assert.match(r.stdout, /✗ shop_release: experiment 2 is not running \(created, paused or completed\)/);
     assert.equal(leftover.seen[0]!.key, 'ser.env');
@@ -207,7 +207,7 @@ test('check with an admin key exits 0 for a paused experiment’s split, and nev
   await new Promise<void>((r) => server.listen(0, '127.0.0.1', r));
   const apiUrl = `http://127.0.0.1:${(server.address() as AddressInfo).port}/api/v1/`;
   try {
-    const paused = await cli(['check', '--api-url', apiUrl, '--server-key', 'ser.cli'], { SWITCHYARD_ADMIN_KEY: 'org.cli' });
+    const paused = await cli(['check', '--api-url', apiUrl, '--server-key', 'ser.cli'], { TURNOVER_ADMIN_KEY: 'org.cli' });
     assert.equal(paused.code, 0, paused.stderr);
     assert.match(paused.stdout, /! shop_release: experiment 4 is paused; its split still covers 100% of identities/);
     assert.ok(seen.includes('/api/v1/environments/envA/experiments/4/ Api-Key org.cli'));
@@ -221,19 +221,19 @@ test('check with a key Flagsmith refuses exits 1 with an explanation', async () 
   try {
     const r = await cli(['check', '--api-url', server.apiUrl, '--server-key', 'env.client-side']);
     assert.equal(r.code, 1);
-    assert.match(r.stderr, /switchyard check: Couldn't read the environment document \(403\)\. check needs a server-side key/);
+    assert.match(r.stderr, /turnover check: Couldn't read the environment document \(403\)\. check needs a server-side key/);
   } finally {
     await server.close();
   }
 });
 
 // The console's startup lines end up in `docker compose logs`: the judge key appears there only once other devices
-// are set up (SWITCHYARD_CONSOLE_HOSTS), as init prints it.
+// are set up (TURNOVER_CONSOLE_HOSTS), as init prints it.
 function consoleBanner(extra: Record<string, string>): Promise<string> {
   return new Promise((resolve, reject) => {
     const child = spawn(process.execPath, [CLI, 'console'], {
       cwd: ROOT,
-      env: cleanEnv({ SWITCHYARD_ADMIN_KEY: 'k', FLAGSMITH_API_URL: 'http://127.0.0.1:9/api/v1/', CONSOLE_PORT: '0', CONSOLE_DEVICE_PORT: '0', ...extra }),
+      env: cleanEnv({ TURNOVER_ADMIN_KEY: 'k', FLAGSMITH_API_URL: 'http://127.0.0.1:9/api/v1/', CONSOLE_PORT: '0', CONSOLE_DEVICE_PORT: '0', ...extra }),
       stdio: ['ignore', 'pipe', 'pipe'],
     });
     let out = '';
@@ -253,12 +253,12 @@ function consoleBanner(extra: Record<string, string>): Promise<string> {
 }
 
 test('the console logs no judge key link while no other device is set up', async () => {
-  const out = await consoleBanner({ SWITCHYARD_JUDGE_TOKEN: 'judge-token-in-logs' });
+  const out = await consoleBanner({ TURNOVER_JUDGE_TOKEN: 'judge-token-in-logs' });
   assert.match(out, /Judge mode: http:\/\/127\.0\.0\.1:8090\/judge/);
   assert.match(out, /other devices \(judge link only\) on/);
   assert.doesNotMatch(out, /key=/);
   assert.doesNotMatch(out, /judge-token-in-logs/);
 
-  const shared = await consoleBanner({ SWITCHYARD_JUDGE_TOKEN: 'judge-token-in-logs', SWITCHYARD_CONSOLE_HOSTS: '192.168.1.20' });
+  const shared = await consoleBanner({ TURNOVER_JUDGE_TOKEN: 'judge-token-in-logs', TURNOVER_CONSOLE_HOSTS: '192.168.1.20' });
   assert.match(shared, /Judge link for other devices: http:\/\/192\.168\.1\.20:8091\/judge\?key=judge-token-in-logs/);
 });

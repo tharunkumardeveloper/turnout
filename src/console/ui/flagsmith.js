@@ -2,12 +2,12 @@
 // goes in through textContent, and only http(s) links become hrefs.
 
 const $ = (id) => /** @type {HTMLElement} */ (document.getElementById(id));
-const TOKEN = globalThis.document?.querySelector('meta[name="switchyard-console"]')?.getAttribute('content') ?? '';
-const TOKEN_HEADER = 'x-switchyard-console';
+const TOKEN = globalThis.document?.querySelector('meta[name="turnover-console"]')?.getAttribute('content') ?? '';
+const TOKEN_HEADER = 'x-turnover-console';
 
 export const GROUPS = [
-  { status: 'used', title: 'Used live', chip: 'Used live', sub: 'Switchyard writes to these, or runs on them, during the demo.' },
-  { status: 'used-read-only', title: 'Read only', chip: 'Read only', sub: 'Switchyard reads these, or they show what Switchyard set somewhere else.' },
+  { status: 'used', title: 'Used live', chip: 'Used live', sub: 'Turnover writes to these, or runs on them, during the demo.' },
+  { status: 'used-read-only', title: 'Read only', chip: 'Read only', sub: 'Turnover reads these, or they show what Turnover set somewhere else.' },
   {
     status: 'not-available-locally',
     title: 'Needs a public endpoint or account',

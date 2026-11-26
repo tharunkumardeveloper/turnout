@@ -206,8 +206,8 @@ describe('results summary', () => {
 
   test('demo rates are keyed by release label', () => {
     assert.deepEqual(parseRates('shop:1.4=0.10, shop:1.5=0.135,shop:1.6=0.14'), { 'shop:1.4': 0.1, 'shop:1.5': 0.135, 'shop:1.6': 0.14 });
-    assert.throws(() => parseRates('shop:1.4=lots'), /SWITCHYARD_DEMO_RATES/);
-    assert.throws(() => parseRates('shop:1.4=2'), /SWITCHYARD_DEMO_RATES/);
+    assert.throws(() => parseRates('shop:1.4=lots'), /TURNOVER_DEMO_RATES/);
+    assert.throws(() => parseRates('shop:1.4=2'), /TURNOVER_DEMO_RATES/);
   });
 });
 
@@ -238,7 +238,7 @@ async function startFlagsmith(state: FakeState) {
       return send(200, { results: [{ id: e.id, name: e.name, status: e.status, feature: { id: e.feature.id, name: e.feature.name } }] });
     }
     if (req.method === 'GET' && path === `/api/v1/environments/${ENV}/`) return send(200, { project: 1, api_key: ENV });
-    if (req.method === 'GET' && path === '/api/v1/projects/1/segments/') return send(200, [{ id: 50, name: 'switchyard-preview' }]);
+    if (req.method === 'GET' && path === '/api/v1/projects/1/segments/') return send(200, [{ id: 50, name: 'turnover-preview' }]);
     if (req.method === 'POST' && path === `${exp}/results/refresh/`) {
       if (++refreshes > 1) return send(429, { detail: 'Request was throttled. Expected available in 120 seconds.' });
       state.results!.as_of = new Date(Date.now() + 3_600_000).toISOString(); // computed "later"
@@ -263,8 +263,8 @@ async function startFlagsmith(state: FakeState) {
 
 const UI = (() => {
   const dir = mkdtempSync(join(tmpdir(), 'sy-judge-ui-'));
-  writeFileSync(join(dir, 'index.html'), '<head><meta name="switchyard-console" content=""></head><h1>console</h1>');
-  writeFileSync(join(dir, 'judge.html'), '<head><meta name="switchyard-console" content=""></head><h1>judge</h1>');
+  writeFileSync(join(dir, 'index.html'), '<head><meta name="turnover-console" content=""></head><h1>console</h1>');
+  writeFileSync(join(dir, 'judge.html'), '<head><meta name="turnover-console" content=""></head><h1>judge</h1>');
   writeFileSync(join(dir, 'judge.js'), 'export {};');
   writeFileSync(join(dir, 'judge.css'), 'body{}');
   return dir;
@@ -385,7 +385,7 @@ describe('judge mode API', () => {
     });
     base = await listen(server);
     const page = await (await fetch(`${base}/judge`)).text();
-    token = page.match(/name="switchyard-console" content="([^"]+)"/)?.[1] ?? '';
+    token = page.match(/name="turnover-console" content="([^"]+)"/)?.[1] ?? '';
   });
 
   after(() => {
@@ -394,14 +394,14 @@ describe('judge mode API', () => {
   });
 
   const getState = async (): Promise<any> => {
-    const res = await fetch(`${base}/api/judge/state`, { headers: { 'x-switchyard-console': token } });
+    const res = await fetch(`${base}/api/judge/state`, { headers: { 'x-turnover-console': token } });
     assert.equal(res.status, 200);
     return res.json();
   };
   const run = async (body: unknown): Promise<{ status: number; body: any }> => {
     const res = await fetch(`${base}/api/judge/run`, {
       method: 'POST',
-      headers: { 'content-type': 'application/json', 'x-switchyard-console': token },
+      headers: { 'content-type': 'application/json', 'x-turnover-console': token },
       body: JSON.stringify(body),
     });
     return { status: res.status, body: await res.json() };
@@ -410,7 +410,7 @@ describe('judge mode API', () => {
   // resolved the old id can 404 (real Flagsmith keeps old experiments), so mid-job reads may fail.
   const finished = async (): Promise<any> => {
     for (let i = 0; i < 500; i++) {
-      const res = await fetch(`${base}/api/judge/state`, { headers: { 'x-switchyard-console': token } });
+      const res = await fetch(`${base}/api/judge/state`, { headers: { 'x-turnover-console': token } });
       const s: any = res.ok ? await res.json() : null;
       if (s?.job && s.job.status !== 'running') return getState();
       await new Promise((r) => setTimeout(r, 10));
@@ -428,7 +428,7 @@ describe('judge mode API', () => {
     assert.match(token, /^[\w-]{32}$/);
     const page = await fetch(`${base}/judge`);
     assert.equal(page.headers.get('content-type'), 'text/html; charset=utf-8');
-    assert.equal(await page.text(), `<head><meta name="switchyard-console" content="${token}"></head><h1>judge</h1>`);
+    assert.equal(await page.text(), `<head><meta name="turnover-console" content="${token}"></head><h1>judge</h1>`);
     assert.equal((await fetch(`${base}/judge.js`)).headers.get('content-type'), 'text/javascript; charset=utf-8');
     assert.equal((await fetch(`${base}/judge.css`)).headers.get('content-type'), 'text/css; charset=utf-8');
     assert.equal((await fetch(`${base}/api/judge/state`)).status, 403, 'the API needs the token');
@@ -454,7 +454,7 @@ describe('judge mode API', () => {
       experiment: `http://localhost:8000/project/1/environment/${ENV}/experiments/7`,
       flag: `http://localhost:8000/project/1/environment/${ENV}/features?feature=3`,
       shop: 'http://localhost:8080',
-      preview: 'http://localhost:8080/__switchyard/preview?token=preview-token',
+      preview: 'http://localhost:8080/__turnover/preview?token=preview-token',
     });
     assert.equal(s.results.winner.key, 'v2');
     assert.equal(s.results.winner.release, 'shop:1.5');
@@ -510,12 +510,12 @@ describe('judge mode API', () => {
     assert.match(busy.body.error, /still running/);
     const revert = await fetch(`${base}/api/revert`, {
       method: 'POST',
-      headers: { 'content-type': 'application/json', 'x-switchyard-console': token },
+      headers: { 'content-type': 'application/json', 'x-turnover-console': token },
       body: '{"experimentId":7}',
     });
     assert.equal(revert.status, 409, 'Ship/Revert share the lock');
     assert.equal((await getState()).job.status, 'running');
-    const polled: any = await (await fetch(`${base}/api/judge/job`, { headers: { 'x-switchyard-console': token } })).json();
+    const polled: any = await (await fetch(`${base}/api/judge/job`, { headers: { 'x-turnover-console': token } })).json();
     assert.equal(polled.job.id, started.body.job.id);
     assert.equal(polled.job.status, 'running');
     assert.match(polled.job.log[0].text, /Sending 3000 simulated visitors/);
@@ -542,7 +542,7 @@ describe('judge mode API', () => {
     const log = logText(s);
     assert.match(log, /Flagsmith has accepted 9,000 events/);
     assert.match(log, /order_placed \(goal\): v2 lift 30\.0% \(interval −2% to \+62%\), 96\.7% chance to win: winning/);
-    assert.match(log, /Switchyard recommends: keep running \(interval −2% to \+62% crosses zero\)/);
+    assert.match(log, /Turnover recommends: keep running \(interval −2% to \+62% crosses zero\)/);
     assert.equal(s.current, 'decide');
     assert.ok(s.results.refreshAllowedAt, 'the next refresh is 5 minutes away');
 
@@ -773,7 +773,7 @@ describe('judge mode shares one read of Flagsmith between viewers', () => {
     });
     base = await listen(server);
     const page = await (await fetch(`${base}/judge`)).text();
-    token = page.match(/name="switchyard-console" content="([^"]+)"/)?.[1] ?? '';
+    token = page.match(/name="turnover-console" content="([^"]+)"/)?.[1] ?? '';
   });
   after(() => {
     server.close();
@@ -781,7 +781,7 @@ describe('judge mode shares one read of Flagsmith between viewers', () => {
   });
 
   const getState = async (): Promise<any> => {
-    const res = await fetch(`${base}/api/judge/state`, { headers: { 'x-switchyard-console': token } });
+    const res = await fetch(`${base}/api/judge/state`, { headers: { 'x-turnover-console': token } });
     assert.equal(res.status, 200);
     return res.json();
   };
@@ -801,7 +801,7 @@ describe('judge mode shares one read of Flagsmith between viewers', () => {
 
     const run = await fetch(`${base}/api/judge/run`, {
       method: 'POST',
-      headers: { 'content-type': 'application/json', 'x-switchyard-console': token },
+      headers: { 'content-type': 'application/json', 'x-turnover-console': token },
       body: JSON.stringify({ action: 'visitors', visitors: 50 }),
     });
     assert.equal(run.status, 202);
@@ -880,7 +880,7 @@ describe('judge mode from another device', () => {
     assert.equal(page.status, 200);
     const token = page.body.match(/content="([^"]+)"/)?.[1] ?? '';
     assert.match(token, /^[\w-]{32}$/);
-    const api = await raw(port, '/api/judge/state', { host: 'judge.example:8090', cookie: pair, 'x-switchyard-console': token });
+    const api = await raw(port, '/api/judge/state', { host: 'judge.example:8090', cookie: pair, 'x-turnover-console': token });
     assert.equal(api.status, 404, 'past the guards: judge jobs are not configured on this console');
     assert.equal((await raw(port, '/api/judge/state', { host: 'judge.example', cookie: pair })).status, 403, 'still needs the page token');
     assert.equal((await raw(port, '/judge', { host: 'judge.example', cookie: `${JUDGE_COOKIE}=forged` })).status, 403);
@@ -901,7 +901,7 @@ describe('judge mode from another device', () => {
       ledgerDir: tmpdir(),
       uiDir: UI,
     };
-    assert.throws(() => createConsole({ ...opts, allowedHosts: ['judge.example'] }), /SWITCHYARD_JUDGE_TOKEN is not set/);
+    assert.throws(() => createConsole({ ...opts, allowedHosts: ['judge.example'] }), /TURNOVER_JUDGE_TOKEN is not set/);
     assert.doesNotThrow(() => createConsole({ ...opts, allowedHosts: ['localhost', '127.0.0.1'] }));
     assert.doesNotThrow(() => createConsole(opts));
   });
@@ -940,15 +940,15 @@ describe('judge mode from another device', () => {
       const page = await raw(local, '/judge', { host: '127.0.0.1:8090' });
       assert.equal(page.status, 200);
       const pageToken = page.body.match(/content="([^"]+)"/)?.[1] ?? '';
-      const signin = await raw(local, '/api/judge/signin', { host: '127.0.0.1:8090', 'x-switchyard-console': pageToken });
+      const signin = await raw(local, '/api/judge/signin', { host: '127.0.0.1:8090', 'x-turnover-console': pageToken });
       assert.equal(JSON.parse(signin.body).password, 'admin-password-123');
 
       // The other-devices port, with a forged loopback Host: refused, no page token, no password.
       for (const host of ['127.0.0.1:8090', 'localhost', '[::1]:8091']) {
         const forged = await raw(remote, '/judge', { host });
         assert.equal(forged.status, 403, host);
-        assert.doesNotMatch(forged.body, /switchyard-console/, host);
-        const api = await raw(remote, '/api/judge/signin', { host, 'x-switchyard-console': pageToken });
+        assert.doesNotMatch(forged.body, /turnover-console/, host);
+        const api = await raw(remote, '/api/judge/signin', { host, 'x-turnover-console': pageToken });
         assert.equal(api.status, 403, host);
         assert.doesNotMatch(api.body, /admin-password-123/, host);
       }
@@ -959,7 +959,7 @@ describe('judge mode from another device', () => {
         const withCookie = await raw(remote, '/judge', { host, cookie: pair });
         assert.equal(withCookie.status, 200, host);
         const remoteToken = withCookie.body.match(/content="([^"]+)"/)?.[1] ?? '';
-        const answer = JSON.parse((await raw(remote, '/api/judge/signin', { host, cookie: pair, 'x-switchyard-console': remoteToken })).body);
+        const answer = JSON.parse((await raw(remote, '/api/judge/signin', { host, cookie: pair, 'x-turnover-console': remoteToken })).body);
         assert.equal(answer.email, 'admin@example.com', host);
         assert.equal(answer.password, null, host);
       }
@@ -1011,7 +1011,7 @@ describe('the public, read-only judge view (server mode)', () => {
         apiUrl: flagsmith.apiUrl,
         adminKey: 'k',
         proxyUrl: 'http://proxy.invalid:8080',
-        shopUrl: 'https://switchyard.example.com',
+        shopUrl: 'https://turnover.example.com',
         dashboardUrl: 'http://127.0.0.1:8000',
         previewToken: 'preview-token-secret',
         rates: parseRates(DEFAULT_RATES),
@@ -1028,13 +1028,13 @@ describe('the public, read-only judge view (server mode)', () => {
   });
 
   test('GET /judge: the judge page, read-only, assets and API under /judge/, its own token', async () => {
-    const res = await fetch(`${pub}/judge`, { headers: { host: 'switchyard.example.com' } });
+    const res = await fetch(`${pub}/judge`, { headers: { host: 'turnover.example.com' } });
     assert.equal(res.status, 200);
     const html = await res.text();
-    token = html.match(/name="switchyard-console" content="([^"]+)"/)?.[1] ?? '';
+    token = html.match(/name="turnover-console" content="([^"]+)"/)?.[1] ?? '';
     assert.ok(token);
-    assert.match(html, /<meta name="switchyard-readonly" content="1">/);
-    assert.match(html, /<meta name="switchyard-base" content="\/judge">/);
+    assert.match(html, /<meta name="turnover-readonly" content="1">/);
+    assert.match(html, /<meta name="turnover-base" content="\/judge">/);
     assert.match(html, /src="\/judge\/judge\.js"/);
     assert.doesNotMatch(html, /(href|src)="\/[a-z-]+\.(css|js|svg)"/, 'no asset left at the root, where the app lives');
     assert.equal((await fetch(`${pub}/judge/judge.js`)).status, 200);
@@ -1042,7 +1042,7 @@ describe('the public, read-only judge view (server mode)', () => {
   });
 
   test('state without the preview link, tokens or the admin password', async () => {
-    const res = await fetch(`${pub}/judge/api/judge/state`, { headers: { 'x-switchyard-console': token } });
+    const res = await fetch(`${pub}/judge/api/judge/state`, { headers: { 'x-turnover-console': token } });
     assert.equal(res.status, 200);
     const text = await res.text();
     const body = JSON.parse(text);
@@ -1055,12 +1055,12 @@ describe('the public, read-only judge view (server mode)', () => {
   test('every write, every other page and every other API answer is refused', async () => {
     const post = await fetch(`${pub}/judge/api/judge/run`, {
       method: 'POST',
-      headers: { 'content-type': 'application/json', 'x-switchyard-console': token },
+      headers: { 'content-type': 'application/json', 'x-turnover-console': token },
       body: JSON.stringify({ action: 'visitors' }),
     });
     assert.equal(post.status, 405);
     for (const method of ['PUT', 'DELETE', 'PATCH']) assert.equal((await fetch(`${pub}/judge`, { method })).status, 405);
-    const h = { 'x-switchyard-console': token, host: 'localhost' };
+    const h = { 'x-turnover-console': token, host: 'localhost' };
     for (const path of ['/', '/setup', '/flagsmith', '/api/state', '/api/doctor', '/api/judge/state', '/judge/api/state', '/judge/api/doctor',
       '/judge/api/guard', '/judge/api/judge/signin', '/judge/api/flagsmith-map', '/judge/judge.html', '/judge/setup.html', '/judge/index.html', '/judge/../index.html']) {
       const res = await fetch(`${pub}${path}`, { headers: h });

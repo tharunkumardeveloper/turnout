@@ -114,7 +114,7 @@ export class TrafficMap {
     if (this.compact) {
       text(labels, { x: ENTRY_X, y: mid + 38, class: 'map-caption' }, flagName ? `flag ${flagName}` : 'flag');
     } else {
-      text(labels, { x: ENTRY_X, y: mid + 34, class: 'map-caption' }, 'through the Switchyard proxy');
+      text(labels, { x: ENTRY_X, y: mid + 34, class: 'map-caption' }, 'through the Turnover proxy');
       text(labels, { x: SWITCH_X - 8, y: mid - 22, class: 'map-label', 'text-anchor': 'end' }, flagName ? `flag ${flagName}` : 'flag');
     }
     // Compact: the counters are HTML under the junction, where phone-sized type stays readable.

@@ -22,47 +22,47 @@ export function roundLabel(round) {
 }
 
 /**
- * What Flagsmith does and what Switchyard does at each step. Copy follows the README; keep the two in step.
+ * What Flagsmith does and what Turnover does at each step. Copy follows the README; keep the two in step.
  * `{live}`, `{v2}`, `{next}` and `{control}` are filled from the state by stepCopy().
  */
 const COPY = {
   visitors: {
     flagsmith: 'Buckets each visitor into control or v2 on the release flag and records an exposure for each one.',
-    switchyard:
+    turnover:
       'Gives each simulated visitor a cookie, routes them to the release the flag names, and turns their HTTP into events: a successful POST /checkout becomes order_placed (the goal), POST /cart/add becomes add_to_cart (a funnel step, not a guardrail); every page load sends doc_latency_ms and server_error.',
   },
   score: {
     flagsmith:
       'Computes the Bayesian result for the goal and each guardrail: lift, credible interval and chance to win. It allows one refresh every 5 minutes per experiment.',
-    switchyard: 'Asks Flagsmith to recompute and shows the numbers as returned. It never computes statistics of its own.',
+    turnover: 'Asks Flagsmith to recompute and shows the numbers as returned. It never computes statistics of its own.',
   },
   decide: {
     flagsmith: 'Serves the decision from the same flag: its environment default becomes the chosen release, and the experiment is completed.',
-    switchyard:
+    turnover:
       'Pauses, snapshots the results, sets the default, drains the split to 0% and completes the experiment, reading each step back. If the winner is losing a guardrail, it says so in red and needs an explicit "ship anyway".',
   },
   verify: {
     flagsmith: 'Serves one release to everyone, from the flag’s environment default.',
-    switchyard:
+    turnover:
       'Sends 50 new simulated visitors through the proxy, counts the release each one got, and checks that no experiment split is left on the flag.',
   },
   swing: {
     flagsmith: 'After a decision the flag is an ordinary flag again: one edit to its default in the flag editor moves everyone.',
-    switchyard: 'Makes that same edit through Flagsmith’s Admin API. The full console notices that the flag changed after the ship.',
+    turnover: 'Makes that same edit through Flagsmith’s Admin API. The full console notices that the flag changed after the ship.',
   },
   preview: {
     flagsmith:
-      'A segment override (switchyard-preview: trait preview = true) serves {next} to browsers that opened the preview link. It ranks above the experiment’s rollout.',
-    switchyard: 'Sets up the override and a preview link. A preview browser sees {next} and stays out of the experiment’s data.',
+      'A segment override (turnover-preview: trait preview = true) serves {next} to browsers that opened the preview link. It ranks above the experiment’s rollout.',
+    turnover: 'Sets up the override and a preview link. A preview browser sees {next} and stays out of the experiment’s data.',
   },
   release: {
     flagsmith:
       'The same multivariate flag gets its next experiment: what it serves today becomes control, {next} becomes v2, and the hypothesis goes in Flagsmith’s required field.',
-    switchyard: 'Adds {next} as the v2 variant’s value and starts the experiment. No app code: the shop never mentions Flagsmith.',
+    turnover: 'Adds {next} as the v2 variant’s value and starts the experiment. No app code: the shop never mentions Flagsmith.',
   },
   reset: {
     flagsmith: 'Keeps every experiment on the flag, with its results.',
-    switchyard: 'Puts the demo back to the start so the next judge can run it again.',
+    turnover: 'Puts the demo back to the start so the next judge can run it again.',
   },
 };
 
@@ -70,7 +70,7 @@ export const STEP_IDS = ['visitors', 'score', 'decide', 'verify', 'swing', 'prev
 
 export function stepCopy(id, state) {
   const c = COPY[id];
-  if (!c) return { flagsmith: '', switchyard: '' };
+  if (!c) return { flagsmith: '', turnover: '' };
   const vars = {
     next: state?.next || 'the next release',
     live: state?.live || 'the live release',
@@ -78,7 +78,7 @@ export function stepCopy(id, state) {
     control: state?.experiment?.control || 'control',
   };
   const fill = (s) => s.replace(/\{(\w+)\}/g, (_, k) => vars[k] ?? k);
-  return { flagsmith: fill(c.flagsmith), switchyard: fill(c.switchyard) };
+  return { flagsmith: fill(c.flagsmith), turnover: fill(c.turnover) };
 }
 
 /** Ship winner and Revert, as the README's table describes them. */
@@ -288,7 +288,7 @@ export function stepControls(state, id, opts = {}) {
       const w = r?.winner;
       const shipsV2 = w && w.key !== 'control';
       const target = shipsV2 ? `${w.key} → ${w.release ?? v2}` : `v2 → ${v2}`;
-      // Switchyard's call from Flagsmith's interval and chance to win: an interval crossing zero isn't a win.
+      // Turnover's call from Flagsmith's interval and chance to win: an interval crossing zero isn't a win.
       const rec = r?.recommendation;
       const interval = F.recommendationInterval(rec);
       const intervalNote = interval ? ` Credible interval ${interval}.` : '';
@@ -598,14 +598,14 @@ export function runErrorText(status, body) {
 
 /** The stages each job goes through, as the server's JOB_STAGES lists them (test/judge-ui.test.ts keeps them equal). */
 export const STAGES = {
-  visitors: ['Wait for the proxy to enrol visitors', 'Send the visitors through Switchyard', 'Hand their events to Flagsmith'],
+  visitors: ['Wait for the proxy to enrol visitors', 'Send the visitors through Turnover', 'Hand their events to Flagsmith'],
   score: ['Wait for the events to reach Flagsmith', 'Ask Flagsmith to compute the results', 'Read the new results'],
   ship: ['Pause the experiment', "Save a snapshot of Flagsmith's results", "Set the flag's default to the winner", 'Drain the rollout to 0%', 'Complete the experiment', 'Write the release ledger'],
   revert: ['Pause the experiment', "Save a snapshot of Flagsmith's results", "Set the flag's default to control", 'Drain the rollout to 0%', 'Complete the experiment', 'Write the release ledger'],
   'keep-running': ["Read Flagsmith's credible interval", 'Write the release ledger (nothing changes in Flagsmith)'],
   verify: ['Send 50 brand-new visitors', 'Count the release each one got', 'Check no experiment split is left'],
-  'swing-back': ["Edit the flag's default in Flagsmith", 'Wait for Switchyard to follow the flag'],
-  'swing-forward': ["Edit the flag's default in Flagsmith", 'Wait for Switchyard to follow the flag'],
+  'swing-back': ["Edit the flag's default in Flagsmith", 'Wait for Turnover to follow the flag'],
+  'swing-forward': ["Edit the flag's default in Flagsmith", 'Wait for Turnover to follow the flag'],
   preview: ['Point v2 at the next release', 'Give it to the preview segment only', 'Make the preview link'],
   release: ['Point v2 at the next release', 'Start the experiment in Flagsmith'],
   reset: ['Revert the running experiment', "Set the flag's default back to the first release", 'Start a fresh experiment'],
@@ -618,14 +618,14 @@ export const STAGES = {
 const GUIDE = {
   visitors: {
     you: 'Send 3,000 simulated shoppers to the shop.',
-    watch: 'The track diagram above: every dot is one page or order. Dots inside the experiment split between {control} and {v2}; Flagsmith decides which, not Switchyard.',
+    watch: 'The track diagram above: every dot is one page or order. Dots inside the experiment split between {control} and {v2}; Flagsmith decides which, not Turnover.',
     proves: "Flagsmith splits real HTTP traffic between two releases, and the shop's code never mentions Flagsmith.",
     where: 'Flagsmith → Experiments → this experiment: its visitor count rises',
   },
   score: {
     you: 'Ask Flagsmith which release did better.',
     watch: "The results panel that appears in this step: one row per metric, with Flagsmith's chance-to-win bar. The two marks on each bar are Flagsmith's 5% and 95% thresholds.",
-    proves: "The verdict is Flagsmith's own Bayesian analysis, shown exactly as returned. Switchyard computes no statistics.",
+    proves: "The verdict is Flagsmith's own Bayesian analysis, shown exactly as returned. Turnover computes no statistics.",
     where: 'Flagsmith → Experiments → this experiment → Results: the same numbers',
   },
   decide: {
@@ -650,7 +650,7 @@ const GUIDE = {
     you: 'Let your team see {next} before anyone else.',
     watch: 'A “your team” track appears in the diagram. Then open the preview link to see {next} in this browser.',
     proves: "Flagsmith's segment override serves your team first and keeps them out of the experiment's data.",
-    where: 'Flagsmith → Segments → switchyard-preview, and its override on the flag',
+    where: 'Flagsmith → Segments → turnover-preview, and its override on the flag',
   },
   release: {
     you: 'Start the next experiment: {next} against what everyone has now.',

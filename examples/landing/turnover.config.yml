@@ -1,4 +1,4 @@
-# The landing example (demo/landing), written by: switchyard new --release landing:1 --release landing:2 --success "POST /signup 2xx"
+# The landing example (demo/landing), written by: turnover new --release landing:1 --release landing:2 --success "POST /signup 2xx"
 flag: landing_release
 
 # Allowlist: release label (the flag's value in Flagsmith) → where that release answers.
@@ -11,7 +11,7 @@ releases:
 goal:
   event: signup
   when: { method: POST, path: "/signup", status: 2xx }
-  # Alternative: the page also answers a signup with "X-Switchyard-Event: signup". Replace the line above with
+  # Alternative: the page also answers a signup with "X-Turnover-Event: signup". Replace the line above with
   #   header: true
   # to count that instead. With both, a request that matches the rule and names the event still counts once.
 

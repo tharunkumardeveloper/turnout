@@ -1,4 +1,4 @@
-// switchyard doctor: gatherFacts() against the admin fake plus stand-ins for the proxy, the console and Flagsmith's
+// turnover doctor: gatherFacts() against the admin fake plus stand-ins for the proxy, the console and Flagsmith's
 // Prometheus endpoint; evaluate() (pure) on those facts and on variations of them; the table; GET /api/doctor and /setup.
 import assert from 'node:assert/strict';
 import { chmodSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
@@ -34,7 +34,7 @@ const config = parseConfig({
 // A project as init leaves it, plus what init also creates: the server key, the event store, the tag, the provider.
 function readyState(): FakeAdminState {
   const state = seededState();
-  state.serverKeys.push({ envKey: SEED.envKey, key: SERVER_KEY, name: 'Switchyard proxy' });
+  state.serverKeys.push({ envKey: SEED.envKey, key: SERVER_KEY, name: 'Turnover proxy' });
   state.warehouses.push({ id: 50, status: 'connected', warehouse_type: 'postgres', config: { source: 'flagsmith_database' }, envKey: SEED.envKey });
   state.tags.push({ id: 51, label: 'release', color: '#0AADDF', description: '', is_permanent: true, project: SEED.projectId });
   state.features[0]!.tags = [51];
@@ -46,10 +46,10 @@ let state: FakeAdminState;
 let admin: { apiUrl: string; close: () => Promise<void> };
 const seenDebug: (string | undefined)[] = [];
 const proxy = http.createServer((req, res) => {
-  const debug = req.headers['x-switchyard-debug'] as string | undefined;
+  const debug = req.headers['x-turnover-debug'] as string | undefined;
   seenDebug.push(debug);
   const upstreams = Object.fromEntries(['shop:1.4', 'shop:1.5', 'shop:1.6'].map((l) => [l, { ok: true, status: 200, ms: 4 }]));
-  res.writeHead(req.url === '/__switchyard/health' ? 200 : 404, { 'content-type': 'application/json' });
+  res.writeHead(req.url === '/__turnover/health' ? 200 : 404, { 'content-type': 'application/json' });
   res.end(JSON.stringify({
     ok: true,
     flagsmith: { ready: true, environmentAgeSeconds: 2, lastError: null },
@@ -115,7 +115,7 @@ describe('doctor on a project set up the way init leaves it', () => {
       'Release flag / On in this environment', 'Release flag / Serving everyone else', 'Release flag / Preview segment',
       'Metrics / order_placed', 'Metrics / doc_latency_ms', 'Metrics / server_error',
       'Experiment / State', 'Feature Health / Webhook provider',
-      'Switchyard / Proxy', 'Switchyard / shop:1.4', 'Switchyard / shop:1.5', 'Switchyard / shop:1.6', 'Switchyard / Console',
+      'Turnover / Proxy', 'Turnover / shop:1.4', 'Turnover / shop:1.5', 'Turnover / shop:1.6', 'Turnover / Console',
       'Events / Flagsmith\'s counter', 'Events / Proxy deliveries',
     ]) assert.ok(names.includes(expected), `missing ${expected}`);
     assert.match(find(checks, 'State').actual, /no experiment running \(1 completed\); no split left behind/);
@@ -139,7 +139,7 @@ describe('doctor on a project set up the way init leaves it', () => {
   test('a running experiment is fine; the preview segment must outrank its rollout', async () => {
     state.experiments[0]!.status = 'running';
     state.experiments[0]!.experiment_rollout!.rollout_percentage = 100;
-    state.segments.push({ id: 60, name: 'switchyard-preview', project: SEED.projectId, rules: [{ type: 'ALL', rules: [{ type: 'ANY', conditions: [{ operator: 'EQUAL', property: 'preview', value: 'true' }] }], conditions: [] }] });
+    state.segments.push({ id: 60, name: 'turnover-preview', project: SEED.projectId, rules: [{ type: 'ALL', rules: [{ type: 'ANY', conditions: [{ operator: 'EQUAL', property: 'preview', value: 'true' }] }], conditions: [] }] });
     const flag = state.flags.get(flagKey(SEED.envKey, SEED.featureId))!;
     flag.segment_overrides.push({ segment: { id: 60 }, priority: 5, enabled: true, value: { type: 'string', value: 'shop:1.4' }, variants: [{ id: SEED.v2Id, weight: 100 }] });
     try {
@@ -149,7 +149,7 @@ describe('doctor on a project set up the way init leaves it', () => {
       const preview = find(checks, 'Preview segment');
       assert.equal(preview.status, 'warn');
       assert.equal(preview.expected, "ranks above the experiment's rollout");
-      assert.match(preview.fix ?? '', /preview before switchyard release/);
+      assert.match(preview.fix ?? '', /preview before turnover release/);
 
       flag.segment_overrides.find((o) => o.segment.id === 60)!.priority = -1; // above the rollout (priority 0)
       checks = evaluate(await gatherFacts(options));
@@ -175,7 +175,7 @@ describe('evaluate: each difference, with expected and actual', () => {
     const c = find(variant((f) => (value<{ multivariate_options: { string_value: string }[] }>(f.feature).multivariate_options[0]!.string_value = 'shop:9.9')), 'Values name releases');
     assert.equal(c.status, 'fail');
     assert.equal(c.expected, 'each one of shop:1.4, shop:1.5, shop:1.6');
-    assert.match(c.actual, /v2 = "shop:9\.9" not in switchyard\.config\.yml/);
+    assert.match(c.actual, /v2 = "shop:9\.9" not in turnover\.config\.yml/);
   });
 
   test('a flag without variants is not multivariate', () => {
@@ -250,7 +250,7 @@ describe('evaluate: each difference, with expected and actual', () => {
     const a = find(checks, 'Audience');
     assert.equal(a.status, 'warn');
     assert.match(a.actual, /audience reads trait plan, which the proxy never sends/);
-    assert.match(a.fix ?? '', /switchyard release/);
+    assert.match(a.fix ?? '', /turnover release/);
 
     checks = running([split50, audience({ property_: 'preview', value: 'true' })]);
     assert.deepEqual([find(checks, 'Audience').status, find(checks, 'Audience').actual], ['ok', 'the split covers 50% of visitors matching its audience segment']);
@@ -283,7 +283,7 @@ describe('evaluate: each difference, with expected and actual', () => {
       delete value<{ upstreams?: unknown }>(f.proxy).upstreams;
       f.given.previewToken = false;
     });
-    assert.deepEqual([find(checks, 'Release containers').status, find(checks, 'Release containers').actual], ['warn', 'not checked: needs SWITCHYARD_PREVIEW_TOKEN']);
+    assert.deepEqual([find(checks, 'Release containers').status, find(checks, 'Release containers').actual], ['warn', 'not checked: needs TURNOVER_PREVIEW_TOKEN']);
   });
 
   test('the Feature Health provider at another URL fails, without showing either URL', () => {
@@ -348,27 +348,27 @@ describe('evaluate: each difference, with expected and actual', () => {
 
   test("the state folder and .env: checked only when given; one Ship or Revert can't write fails, with the chown fix", async () => {
     assert.ok(!evaluate(facts).some((c) => c.name === 'State folder' || c.name === '.env file'));
-    const ok = find(variant((f) => (f.writable = [{ label: 'State folder', path: '.switchyard', problem: null }])), 'State folder');
+    const ok = find(variant((f) => (f.writable = [{ label: 'State folder', path: '.turnover', problem: null }])), 'State folder');
     assert.equal(ok.status, 'ok');
-    assert.equal(ok.area, 'Switchyard');
-    const bad = find(variant((f) => (f.writable = [{ label: 'State folder', path: '.switchyard', problem: 'EACCES: /app/.switchyard is not writable by this process' }])), 'State folder');
+    assert.equal(ok.area, 'Turnover');
+    const bad = find(variant((f) => (f.writable = [{ label: 'State folder', path: '.turnover', problem: 'EACCES: /app/.turnover is not writable by this process' }])), 'State folder');
     assert.equal(bad.status, 'fail');
     assert.match(bad.actual, /^EACCES/);
-    assert.ok((bad.fix ?? '').includes('chown -R "$(id -u):$(id -g)" .switchyard'), bad.fix);
-    assert.match(bad.fix ?? '', /SWITCHYARD_UID/);
+    assert.ok((bad.fix ?? '').includes('chown -R "$(id -u):$(id -g)" .turnover'), bad.fix);
+    assert.match(bad.fix ?? '', /TURNOVER_UID/);
     const env = find(variant((f) => (f.writable = [{ label: '.env file', path: '.env', problem: 'EACCES: x' }])), '.env file');
     assert.equal(env.status, 'fail');
     assert.match(env.fix ?? '', /chown/);
     // gatherFacts checks the paths it is given; a folder that doesn't exist yet counts when its parent is writable.
     const dir = mkdtempSync(join(tmpdir(), 'doctor-state-'));
     writeFileSync(join(dir, '.env'), 'A=1');
-    const gathered = await gatherFacts({ ...options, stateDir: join(dir, 'not-yet', '.switchyard'), envFile: join(dir, '.env') });
+    const gathered = await gatherFacts({ ...options, stateDir: join(dir, 'not-yet', '.turnover'), envFile: join(dir, '.env') });
     assert.deepEqual(gathered.writable?.map((w) => [w.label, w.problem]), [['State folder', null], ['.env file', null]]);
   });
 
   test('writeProblem: a read-only snapshots folder is reported with its code (POSIX permissions)', { skip: process.platform === 'win32' || process.getuid?.() === 0 }, () => {
     const dir = mkdtempSync(join(tmpdir(), 'doctor-ro-'));
-    const state = join(dir, '.switchyard');
+    const state = join(dir, '.turnover');
     mkdirSync(join(state, 'snapshots'), { recursive: true });
     assert.equal(writeProblem(state, 'dir'), null);
     chmodSync(join(state, 'snapshots'), 0o555);
@@ -413,7 +413,7 @@ describe('the terminal table', () => {
     assert.match(lines[i + 1]!, /expected: 2\.291\.0$/);
     assert.match(lines[i + 2]!, /fix: /);
     assert.ok(lines.includes('Flagsmith'), 'grouped under area headings');
-    assert.match(lines.at(-1)!, /^\d+ ok, 1 warning, 0 failing\. Everything Switchyard needs is in place\.$/);
+    assert.match(lines.at(-1)!, /^\d+ ok, 1 warning, 0 failing\. Everything Turnover needs is in place\.$/);
   });
 });
 
@@ -435,8 +435,8 @@ describe('GET /api/doctor and /setup on the console', () => {
   before(async () => {
     fake = await startFakeFlagsmith(initialState());
     const ui = mkdtempSync(join(tmpdir(), 'sy-ui-'));
-    writeFileSync(join(ui, 'index.html'), '<head><meta name="switchyard-console" content=""></head>console');
-    writeFileSync(join(ui, 'setup.html'), '<head><meta name="switchyard-console" content=""></head>setup');
+    writeFileSync(join(ui, 'index.html'), '<head><meta name="turnover-console" content=""></head>console');
+    writeFileSync(join(ui, 'setup.html'), '<head><meta name="turnover-console" content=""></head>setup');
     const common = {
       experiments: new Experiments(new AdminClient(fake.apiUrl, { apiKey: 'k' }), { envKey: ENV, experimentId: 7 }),
       feedUrl: 'http://127.0.0.1:9',
@@ -455,7 +455,7 @@ describe('GET /api/doctor and /setup on the console', () => {
     fake.close();
   });
 
-  const tokenFrom = async (url: string) => (await (await fetch(url)).text()).match(/name="switchyard-console" content="([^"]+)"/)?.[1] ?? '';
+  const tokenFrom = async (url: string) => (await (await fetch(url)).text()).match(/name="turnover-console" content="([^"]+)"/)?.[1] ?? '';
 
   test('/setup serves setup.html with the API token', async () => {
     const res = await fetch(`${base}/setup`);
@@ -466,7 +466,7 @@ describe('GET /api/doctor and /setup on the console', () => {
 
   test('answers the report with the token, and refuses without it', async () => {
     const token = await tokenFrom(`${base}/setup`);
-    const res = await fetch(`${base}/api/doctor`, { headers: { 'x-switchyard-console': token } });
+    const res = await fetch(`${base}/api/doctor`, { headers: { 'x-turnover-console': token } });
     assert.equal(res.status, 200);
     assert.equal(res.headers.get('cache-control'), 'no-store');
     assert.deepEqual(await res.json(), report);
@@ -477,6 +477,6 @@ describe('GET /api/doctor and /setup on the console', () => {
 
   test('404 when the console was started without the doctor', async () => {
     const token = await tokenFrom(`${baseWithout}/`);
-    assert.equal((await fetch(`${baseWithout}/api/doctor`, { headers: { 'x-switchyard-console': token } })).status, 404);
+    assert.equal((await fetch(`${baseWithout}/api/doctor`, { headers: { 'x-turnover-console': token } })).status, 404);
   });
 });

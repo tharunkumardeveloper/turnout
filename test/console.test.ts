@@ -50,7 +50,7 @@ before(async () => {
   state = initialState();
   fake = await startFakeFlagsmith(state);
   const ui = mkdtempSync(join(tmpdir(), 'sy-ui-'));
-  writeFileSync(join(ui, 'index.html'), '<head><meta name="switchyard-console" content=""></head><h1>console</h1>');
+  writeFileSync(join(ui, 'index.html'), '<head><meta name="turnover-console" content=""></head><h1>console</h1>');
   ledgerDir = mkdtempSync(join(tmpdir(), 'sy-ledger-'));
   consoleServer = createConsole({
     experiments: new WithHistory(new AdminClient(fake.apiUrl, { apiKey: 'k' }), { envKey: ENV, experimentId: 7 }),
@@ -63,7 +63,7 @@ before(async () => {
   base = await listen(consoleServer);
   port = (consoleServer.address() as AddressInfo).port;
   const page = await (await fetch(`${base}/`)).text();
-  token = page.match(/name="switchyard-console" content="([^"]+)"/)?.[1] ?? '';
+  token = page.match(/name="turnover-console" content="([^"]+)"/)?.[1] ?? '';
 });
 
 after(() => {
@@ -75,19 +75,19 @@ after(() => {
 const json = (res: Response): Promise<any> => res.json();
 
 const get = (path: string, headers: Record<string, string> = {}) =>
-  fetch(`${base}${path}`, { headers: { 'x-switchyard-console': token, ...headers } });
+  fetch(`${base}${path}`, { headers: { 'x-turnover-console': token, ...headers } });
 
 const post = (path: string, body: unknown, headers: Record<string, string> = {}) =>
   fetch(`${base}${path}`, {
     method: 'POST',
-    headers: { 'content-type': 'application/json', 'x-switchyard-console': token, ...headers },
+    headers: { 'content-type': 'application/json', 'x-turnover-console': token, ...headers },
     body: typeof body === 'string' ? body : JSON.stringify(body),
   });
 
 // fetch() won't send a forged Host header; a raw request will.
 const rawGet = (path: string, host: string) =>
   new Promise<number>((resolve, reject) => {
-    const req = http.request({ host: '127.0.0.1', port, path, headers: { host, 'x-switchyard-console': token } }, (res) => {
+    const req = http.request({ host: '127.0.0.1', port, path, headers: { host, 'x-turnover-console': token } }, (res) => {
       res.resume();
       resolve(res.statusCode ?? 0);
     });
@@ -148,7 +148,7 @@ describe('console API', () => {
 
   test('refuses API calls without the token', async () => {
     assert.equal((await fetch(`${base}/api/state`)).status, 403);
-    assert.equal((await get('/api/state', { 'x-switchyard-console': 'wrong' })).status, 403);
+    assert.equal((await get('/api/state', { 'x-turnover-console': 'wrong' })).status, 403);
     const res = await fetch(`${base}/api/revert`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: '{"experimentId":7}' });
     assert.equal(res.status, 403);
     assert.equal((await fetch(`${base}/api/traffic?token=wrong`)).status, 403);
@@ -241,7 +241,7 @@ describe('console API', () => {
 
   test('serves the UI with the token injected and nothing outside it', async () => {
     const res = await fetch(`${base}/`);
-    assert.equal(await res.text(), `<head><meta name="switchyard-console" content="${token}"></head><h1>console</h1>`);
+    assert.equal(await res.text(), `<head><meta name="turnover-console" content="${token}"></head><h1>console</h1>`);
     assert.equal(res.headers.get('x-frame-options'), 'SAMEORIGIN', 'judge mode shows the setup check and the feature map as tabs');
     assert.match(res.headers.get('content-security-policy') ?? '', /frame-ancestors 'self'/);
     assert.equal(res.headers.get('x-content-type-options'), 'nosniff');
@@ -292,7 +292,7 @@ describe('shared reads: many pages polling make one round of Flagsmith calls', (
     fs = initialState();
     fsServer = await startFakeFlagsmith(fs);
     const ui = mkdtempSync(join(tmpdir(), 'sy-ui-'));
-    writeFileSync(join(ui, 'index.html'), '<head><meta name="switchyard-console" content=""></head>');
+    writeFileSync(join(ui, 'index.html'), '<head><meta name="turnover-console" content=""></head>');
     server = createConsole({
       experiments: async () => {
         resolves++;
@@ -320,7 +320,7 @@ describe('shared reads: many pages polling make one round of Flagsmith calls', (
   });
 
   const call = (path: string, init: RequestInit = {}) =>
-    fetch(`${url}${path}`, { ...init, headers: { 'x-switchyard-console': pageToken, 'content-type': 'application/json', ...(init.headers ?? {}) } });
+    fetch(`${url}${path}`, { ...init, headers: { 'x-turnover-console': pageToken, 'content-type': 'application/json', ...(init.headers ?? {}) } });
   const details = () => fs.requests.filter((r) => r === `GET /api/v1/environments/${ENV}/experiments/7/`).length;
 
   test('five pages at once: one experiment lookup, one detail, one results read, one metrics scrape', async () => {
@@ -390,7 +390,7 @@ describe("the guard's automatic Revert drops the console's kept reads", () => {
     const snapshotDir = mkdtempSync(join(tmpdir(), 'sy-snap-'));
     const ledger = mkdtempSync(join(tmpdir(), 'sy-ledger-'));
     const ui = mkdtempSync(join(tmpdir(), 'sy-ui-'));
-    writeFileSync(join(ui, 'index.html'), '<head><meta name="switchyard-console" content=""></head>');
+    writeFileSync(join(ui, 'index.html'), '<head><meta name="turnover-console" content=""></head>');
     const exps = () => new WithHistory(new AdminClient(fsServer.apiUrl, { apiKey: 'k' }), { envKey: ENV, experimentId: 7 });
     const lock = { busy: false };
     let reverts = 0;
@@ -419,7 +419,7 @@ describe("the guard's automatic Revert drops the console's kept reads", () => {
     try {
       const url = await listen(server);
       const pageToken = (await (await fetch(`${url}/`)).text()).match(/content="([^"]+)"/)?.[1] ?? '';
-      const read = async () => json(await fetch(`${url}/api/state`, { headers: { 'x-switchyard-console': pageToken } }));
+      const read = async () => json(await fetch(`${url}/api/state`, { headers: { 'x-turnover-console': pageToken } }));
       assert.equal((await read()).experiment.status, 'running');
       fs.results!.payload!.metrics.push({
         metric_id: 2,

@@ -18,7 +18,7 @@ describe('the feature map page', () => {
     assert.match(html, /<link rel="stylesheet" href="\/style\.css">\s*<link rel="stylesheet" href="\/flagsmith\.css">/);
     assert.match(html, /name="color-scheme" content="light dark"/);
     assert.match(html, /name="viewport" content="width=device-width/);
-    assert.ok(html.includes('<meta name="switchyard-console" content="">'));
+    assert.ok(html.includes('<meta name="turnover-console" content="">'));
     assert.doesNotMatch(html, /<script(?![^>]*\ssrc=)[^>]*>/);
     for (const tag of ['<header', '<main', '<footer']) assert.ok(html.includes(tag), tag);
   });

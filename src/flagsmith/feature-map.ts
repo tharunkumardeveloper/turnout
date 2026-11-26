@@ -1,5 +1,5 @@
 // The Flagsmith feature map: every menu of Flagsmith's project dashboard and every integration it lists, with what
-// Switchyard does with each (or why not here), a link into the dashboard, and a live value read from the Admin API.
+// Turnover does with each (or why not here), a link into the dashboard, and a live value read from the Admin API.
 //
 // buildFlagsmithMap() is pure: it turns the facts into the map. readMapFacts() gathers the facts; each read is
 // optional, so one refused or missing endpoint blanks one value instead of the page.
@@ -18,7 +18,7 @@ export type MapItem = {
   kind: 'menu' | 'integration' | 'feature';
   name: string;
   status: MapStatus;
-  what: string; // one plain sentence: what Switchyard does with it, or why not here
+  what: string; // one plain sentence: what Turnover does with it, or why not here
   live: string | null; // a value read from Flagsmith just now
   link: string | null; // into Flagsmith's dashboard
   needs?: string; // for not-available-locally: what it would take
@@ -64,7 +64,7 @@ export type MapFacts = {
   integrations: Record<string, number | null> | null; // configurations per integration id, read from its own endpoint
 };
 
-export const PREVIEW_SEGMENT = 'switchyard-preview';
+export const PREVIEW_SEGMENT = 'turnover-preview';
 export const EVALUATION_DAYS = 7;
 const APP_DIRS = ['demo/']; // where this repository keeps the app; the flag's name should never appear there
 
@@ -93,7 +93,7 @@ export function buildFlagsmithMap(f: MapFacts, opts: { dashboardUrl: string; now
     name: 'Environments',
     status: 'used',
     what: `The flag lives in the ${f.environment?.name ?? 'Production'} environment; its environment default is what Ship winner and Revert set, and what everyone outside an experiment is served.`,
-    live: f.environments === null ? null : `${plural(f.environments, 'environment')}${f.environment ? `; Switchyard uses ${f.environment.name}` : ''}`,
+    live: f.environments === null ? null : `${plural(f.environments, 'environment')}${f.environment ? `; Turnover uses ${f.environment.name}` : ''}`,
     link: flagLink(),
   });
 
@@ -103,11 +103,11 @@ export function buildFlagsmithMap(f: MapFacts, opts: { dashboardUrl: string; now
     kind: 'menu',
     name: 'Segments',
     status: 'used',
-    what: `"switchyard preview" adds the ${PREVIEW_SEGMENT} segment (trait preview = true), whose override serves the next release to your team ahead of the experiment; each experiment's split is Flagsmith's own experiment-<id>-rollout segment.`,
+    what: `"turnover preview" adds the ${PREVIEW_SEGMENT} segment (trait preview = true), whose override serves the next release to your team ahead of the experiment; each experiment's split is Flagsmith's own experiment-<id>-rollout segment.`,
     live:
       f.segments === null
         ? null
-        : `${plural(f.segments.length, 'segment')}${preview ? `, including ${PREVIEW_SEGMENT}` : ` (${PREVIEW_SEGMENT} appears after the first "switchyard preview")`}` +
+        : `${plural(f.segments.length, 'segment')}${preview ? `, including ${PREVIEW_SEGMENT}` : ` (${PREVIEW_SEGMENT} appears after the first "turnover preview")`}` +
           (f.feature?.segmentOverrides != null ? `; ${plural(f.feature.segmentOverrides, 'segment override')} on ${f.flag}` : ''),
     link: preview ? proj(`/segments/${preview.id}`) : proj('/segments'),
     source: 'features/feature_segments/services.py:69-75 (override priority)',
@@ -122,7 +122,7 @@ export function buildFlagsmithMap(f: MapFacts, opts: { dashboardUrl: string; now
     kind: 'menu',
     name: 'Lifecycle',
     status: 'used-read-only',
-    what: `Switchyard's init tags the flag "release", a permanent tag, so Lifecycle files it under Permanent and stale-flag detection leaves it alone; the Code References scan feeds the same page.`,
+    what: `Turnover's init tags the flag "release", a permanent tag, so Lifecycle files it under Permanent and stale-flag detection leaves it alone; the Code References scan feeds the same page.`,
     live: stage || counts ? [stage ? `${f.flag} is ${stage.replace('_', ' ')}` : null, counts ? `project: ${counts}` : null].filter(Boolean).join('; ') : null,
     link: proj(`/lifecycle${stage && STAGE_SECTION[stage] ? `/${STAGE_SECTION[stage]}` : ''}`),
     source: 'features/feature_lifecycle/services.py:42-80 (a permanent tag wins over code references)',
@@ -134,11 +134,11 @@ export function buildFlagsmithMap(f: MapFacts, opts: { dashboardUrl: string; now
     name: 'Audit Log',
     status: 'not-available-locally',
     needs: 'a plan with audit history',
-    what: "Flagsmith records every change Switchyard makes, but shows audit history only for plans with a visibility window; a free organisation's window is 0 days, so this page is empty here and Switchyard's release ledger (.switchyard/ledger.jsonl) is the record.",
+    what: "Flagsmith records every change Turnover makes, but shows audit history only for plans with a visibility window; a free organisation's window is 0 days, so this page is empty here and Turnover's release ledger (.turnover/ledger.jsonl) is the record.",
     live:
       f.auditVisible === null && f.ledgerEntries === null
         ? null
-        : [f.auditVisible === null ? null : `${plural(f.auditVisible, 'entry', 'entries')} visible through the API`, f.ledgerEntries === null ? null : `${plural(f.ledgerEntries, 'decision')} in Switchyard's ledger`]
+        : [f.auditVisible === null ? null : `${plural(f.auditVisible, 'entry', 'entries')} visible through the API`, f.ledgerEntries === null ? null : `${plural(f.ledgerEntries, 'decision')} in Turnover's ledger`]
             .filter(Boolean)
             .join('; '),
     link: proj('/audit-log'),
@@ -151,7 +151,7 @@ export function buildFlagsmithMap(f: MapFacts, opts: { dashboardUrl: string; now
     name: 'Segment Change Requests',
     status: 'not-available-locally',
     needs: "Flagsmith's Enterprise image",
-    what: "Four-eyes approval comes from Flagsmith's workflows module, which ships in the Enterprise image, so this open-source image doesn't register the change-requests API; in Switchyard a person confirms every Ship and Revert instead.",
+    what: "Four-eyes approval comes from Flagsmith's workflows module, which ships in the Enterprise image, so this open-source image doesn't register the change-requests API; in Turnover a person confirms every Ship and Revert instead.",
     live: f.version ? `this image: ${f.version.imageTag}, is_enterprise ${String(f.version.isEnterprise)}` : null,
     link: proj('/change-requests'),
     source: 'app/settings/common.py:1116-1119 (workflows_logic only when installed), projects/urls.py:105-111',
@@ -164,7 +164,7 @@ export function buildFlagsmithMap(f: MapFacts, opts: { dashboardUrl: string; now
     kind: 'menu',
     name: 'Integrations',
     status: 'used-read-only',
-    what: 'Switchyard configures nothing on this page; of the 18 integrations it lists, Code References runs live, and the rest send to or install from outside services (each one is below, with what it needs).',
+    what: 'Turnover configures nothing on this page; of the 18 integrations it lists, Code References runs live, and the rest send to or install from outside services (each one is below, with what it needs).',
     live: f.codeReferences === null ? null : `Code References: ${plural(refCount, 'reference')} from ${plural(refRepos.length, 'repository', 'repositories')}`,
     link: integrationsLink,
   });
@@ -184,7 +184,7 @@ export function buildFlagsmithMap(f: MapFacts, opts: { dashboardUrl: string; now
     kind: 'menu',
     name: 'Project Settings',
     status: 'used',
-    what: "Switchyard's init creates the Webhook provider under Project Settings → Feature Health; Switchyard posts the release flag's health to it.",
+    what: "Turnover's init creates the Webhook provider under Project Settings → Feature Health; Turnover posts the release flag's health to it.",
     live: f.healthProviders === null ? null : f.healthProviders.length ? `Feature Health providers: ${f.healthProviders.join(', ')}` : 'no Feature Health provider yet (run init)',
     link: proj('/settings?tab=feature-health'),
   });
@@ -198,8 +198,8 @@ export function buildFlagsmithMap(f: MapFacts, opts: { dashboardUrl: string; now
     name: 'Code References',
     status: refRepos.length ? 'used' : 'not-used',
     what: refRepos.length
-      ? `Switchyard scans the repository for "${f.flag}" and submits what it finds: the name lives in infrastructure config, never in the app (${appRefs.length ? `${plural(appRefs.length, 'reference')} in app code` : 'none in demo/'}).`
-      : 'Run "switchyard code-refs" (or the GitHub Action) with a GitHub repository URL to submit a scan; Flagsmith then shows where the flag appears on its Usage tab.',
+      ? `Turnover scans the repository for "${f.flag}" and submits what it finds: the name lives in infrastructure config, never in the app (${appRefs.length ? `${plural(appRefs.length, 'reference')} in app code` : 'none in demo/'}).`
+      : 'Run "turnover code-refs" (or the GitHub Action) with a GitHub repository URL to submit a scan; Flagsmith then shows where the flag appears on its Usage tab.',
     live: f.codeReferences === null ? null : refRepos.length ? `${plural(refCount, 'reference')}: ${refRepos.flatMap((r) => r.references.map((x) => `${x.file}:${x.line}`)).join(', ') || 'none'}` : `no references to ${f.flag} recorded yet`,
     link: flagLink('usage'),
     source: 'projects/code_references/views.py:32-71, services.py:117-196',
@@ -236,7 +236,7 @@ export function buildFlagsmithMap(f: MapFacts, opts: { dashboardUrl: string; now
       'github',
       'GitHub',
       'a GitHub App',
-      "Links GitHub issues and pull requests to flags through a GitHub App, which a self-hosted Flagsmith must register itself (GITHUB_APP_ID, GITHUB_PEM); Switchyard writes its release notes to GitHub Releases on its own, with GITHUB_TOKEN.",
+      "Links GitHub issues and pull requests to flags through a GitHub App, which a self-hosted Flagsmith must register itself (GITHUB_APP_ID, GITHUB_PEM); Turnover writes its release notes to GitHub Releases on its own, with GITHUB_TOKEN.",
       'app/settings/common.py:1092-1093, integrations/github/client.py:38-68',
     ),
     outbound('gitlab', 'GitLab', 'a GitLab instance on a public address', 'Links GitLab issues and merge requests to flags; Flagsmith calls the GitLab instance URL, which must not resolve to a private address.', `integrations/gitlab/models.py:13; ${SSRF}`),
@@ -265,7 +265,7 @@ export function buildFlagsmithMap(f: MapFacts, opts: { dashboardUrl: string; now
       'webhook',
       'Webhook',
       'a public HTTPS endpoint',
-      "Sends flag evaluations to a URL you provide, which Flagsmith refuses when it resolves to a loopback or private address; Switchyard's Feature Health webhook goes the other way, from Switchyard into Flagsmith.",
+      "Sends flag evaluations to a URL you provide, which Flagsmith refuses when it resolves to a loopback or private address; Turnover's Feature Health webhook goes the other way, from Turnover into Flagsmith.",
       `integrations/webhook/models.py:13-16, webhooks/models.py:7-8, 22-24; ${SSRF}`,
     ),
   );
@@ -286,7 +286,7 @@ export function buildFlagsmithMap(f: MapFacts, opts: { dashboardUrl: string; now
     kind: 'feature',
     name: 'Experiments',
     status: 'used',
-    what: 'Every release is the next experiment on the same flag; Flagsmith splits the traffic and computes the Bayesian result, and Switchyard never computes its own statistics.',
+    what: 'Every release is the next experiment on the same flag; Flagsmith splits the traffic and computes the Bayesian result, and Turnover never computes its own statistics.',
     live: f.experiment ? `experiment ${f.experiment.id} is ${f.experiment.status}${f.experimentsOnFlag ? `; ${plural(f.experimentsOnFlag, 'experiment')} on ${f.flag} so far` : ''}` : null,
     link: f.experiment ? env(`/experiments/${f.experiment.id}`) : env('/experiments'),
     source: 'experimentation/services.py:484-507, 757-775',
@@ -305,7 +305,7 @@ export function buildFlagsmithMap(f: MapFacts, opts: { dashboardUrl: string; now
     kind: 'feature',
     name: 'Event store',
     status: 'used',
-    what: "Switchyard's init connects Flagsmith's own event store (its Postgres database), which experiment events need before Flagsmith accepts them.",
+    what: "Turnover's init connects Flagsmith's own event store (its Postgres database), which experiment events need before Flagsmith accepts them.",
     live: f.eventStore ? `warehouse connection: ${f.eventStore}` : null,
     link: null,
   });
@@ -315,7 +315,7 @@ export function buildFlagsmithMap(f: MapFacts, opts: { dashboardUrl: string; now
     kind: 'feature',
     name: 'Feature Health',
     status: 'used',
-    what: "While an experiment runs, Switchyard reports the release flag's health; a losing guardrail makes Flagsmith tag the flag Unhealthy, with Flagsmith's numbers as the reason.",
+    what: "While an experiment runs, Turnover reports the release flag's health; a losing guardrail makes Flagsmith tag the flag Unhealthy, with Flagsmith's numbers as the reason.",
     live:
       f.healthProviders === null && !flagTags
         ? null
@@ -330,7 +330,7 @@ export function buildFlagsmithMap(f: MapFacts, opts: { dashboardUrl: string; now
     kind: 'feature',
     name: 'Tags',
     status: 'used',
-    what: `Switchyard's init adds the permanent "release" tag; Feature Health adds and removes the Unhealthy system tag.`,
+    what: `Turnover's init adds the permanent "release" tag; Feature Health adds and removes the Unhealthy system tag.`,
     live: flagTags ? (flagTags.length ? flagTags.map((t) => `${t.label}${t.isPermanent ? ' (permanent)' : ''}`).join(', ') : 'no tags') : null,
     link: flagLink('settings'),
     source: 'projects/tags/models.py:27-30',

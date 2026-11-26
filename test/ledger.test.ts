@@ -46,7 +46,7 @@ describe('ledger file', () => {
   });
 
   test('names the decision snapshot when there is one', () => {
-    assert.match(renderEntry(entry({ snapshot: '.switchyard/snapshots/experiment-2-x.json' })), /- Decision snapshot: `\.switchyard\/snapshots\/experiment-2-x\.json`/);
+    assert.match(renderEntry(entry({ snapshot: '.turnover/snapshots/experiment-2-x.json' })), /- Decision snapshot: `\.turnover\/snapshots\/experiment-2-x\.json`/);
     assert.doesNotMatch(renderEntry(entry()), /Decision snapshot/);
   });
 
@@ -100,7 +100,7 @@ describe('GitHub Release', () => {
     const url = await publishToGitHub(entry(), 'v1.6', { token: 't0k', repository: 'o/r', apiUrl: gh.apiUrl });
     gh.close();
     assert.equal(url, 'https://gh/100');
-    assert.match(releases.get('v1.6')!.body, /<!-- switchyard:experiment-2 -->[\s\S]*Reverted to control[\s\S]*<!-- \/switchyard:experiment-2 -->/);
+    assert.match(releases.get('v1.6')!.body, /<!-- turnover:experiment-2 -->[\s\S]*Reverted to control[\s\S]*<!-- \/turnover:experiment-2 -->/);
     assert.ok(gh.calls.every((c) => c.endsWith('Bearer t0k')));
   });
 
@@ -112,7 +112,7 @@ describe('GitHub Release', () => {
     gh.close();
     const body = releases.get('v1.6')!.body;
     assert.ok(body.startsWith('Express checkout.\n\n'));
-    assert.equal(body.split('<!-- switchyard:experiment-2 -->').length, 2, 'one section, not two');
+    assert.equal(body.split('<!-- turnover:experiment-2 -->').length, 2, 'one section, not two');
     assert.match(body, /as of later/);
   });
 
@@ -125,7 +125,7 @@ describe('GitHub Release', () => {
 
 test('RELEASES.md says when the guard reverted, and why', () => {
   const text = renderEntry(entry({ by: 'guard', guardReason: 'shop:1.6 losing doc_latency_ms, 0.0% chance to win' }));
-  assert.match(text, /\*\*Reverted to control \(shop:1\.5\)\*\* automatically by Switchyard's guard \(shop:1\.6 losing doc_latency_ms, 0\.0% chance to win\)/);
+  assert.match(text, /\*\*Reverted to control \(shop:1\.5\)\*\* automatically by Turnover's guard \(shop:1\.6 losing doc_latency_ms, 0\.0% chance to win\)/);
   assert.match(renderEntry(entry()), /\*\* by a person,/);
 });
 

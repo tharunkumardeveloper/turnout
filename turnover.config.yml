@@ -1,4 +1,4 @@
-# Switchyard routing config for the demo shop.
+# Turnover routing config for the demo shop.
 flag: shop_release
 
 # Allowlist: release label (the flag's value in Flagsmith) → container.

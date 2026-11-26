@@ -1,13 +1,13 @@
 // The health bridge and the guard.
 //
-// Health bridge: while an experiment runs, Switchyard reports the release flag's health to Flagsmith's own Feature
+// Health bridge: while an experiment runs, Turnover reports the release flag's health to Flagsmith's own Feature
 // Health (a "Webhook" provider, features/feature_health/providers/webhook). A losing guardrail makes Flagsmith tag
 // the flag "Unhealthy" in its dashboard, with Flagsmith's numbers and links as the reason; the next healthy report
 // removes the tag. Reports go only on a change.
 //
-// Guard (opt-in): Switchyard also asks Flagsmith for fresh results every 5 minutes (Flagsmith's own limit), and when
+// Guard (opt-in): Turnover also asks Flagsmith for fresh results every 5 minutes (Flagsmith's own limit), and when
 // a guardrail is clearly losing (chance to win at or under 1% by default) it reverts the experiment through the same
-// steps as Revert, writing "reverted automatically by Switchyard's guard" to the release ledger. It never ships.
+// steps as Revert, writing "reverted automatically by Turnover's guard" to the release ledger. It never ships.
 import {
   CONTROL,
   losingGuardrails,
@@ -105,9 +105,9 @@ export function healthPayload(o: {
             `Flagsmith's results${asOf} for experiment ${o.experiment.id} (${o.experiment.name}): ` +
             `${l.metric} ${fmt(l.treatment)} on ${l.release ?? l.variant} vs ${fmt(l.control)} on control; ` +
             `chance to win ${pct(l.chanceToWin)}, lift ${pct(l.lift)}. ` +
-            'Means are per exposed identity; one with no event counts as 0. Reported by Switchyard.',
+            'Means are per exposed identity; one with no event counts as 0. Reported by Turnover.',
         }))
-      : [{ title: 'No guardrail is losing', text: o.note ?? `Flagsmith's results${asOf} for experiment ${o.experiment.id} show no losing guardrail. Reported by Switchyard.` }];
+      : [{ title: 'No guardrail is losing', text: o.note ?? `Flagsmith's results${asOf} for experiment ${o.experiment.id} show no losing guardrail. Reported by Turnover.` }];
   if (o.status === 'unhealthy' && o.note) text_blocks.push({ title: 'What happens next', text: o.note });
   return {
     feature: o.flag,
@@ -152,7 +152,7 @@ export class Watcher {
 
   setGuard(enabled: boolean): WatchState {
     this.state.guard.enabled = enabled;
-    this.opts.log?.(`switchyard guard ${enabled ? 'on' : 'off'}`);
+    this.opts.log?.(`turnover guard ${enabled ? 'on' : 'off'}`);
     return this.snapshot();
   }
 
@@ -204,8 +204,8 @@ export class Watcher {
         try {
           await this.opts.revert(exps, reason);
           this.state.guard.lastAction = { at: new Date(this.now()).toISOString(), experimentId: experiment.id, text: `Reverted experiment ${experiment.id}: ${reason}`, ok: true };
-          this.opts.log?.(`switchyard guard: reverted experiment ${experiment.id} (${reason})`);
-          await this.report(experiment, results, 'healthy', [], `Switchyard's guard reverted experiment ${experiment.id} (${reason}). Everyone is back on control.`);
+          this.opts.log?.(`turnover guard: reverted experiment ${experiment.id} (${reason})`);
+          await this.report(experiment, results, 'healthy', [], `Turnover's guard reverted experiment ${experiment.id} (${reason}). Everyone is back on control.`);
         } catch (error) {
           this.state.guard.lastAction = { at: new Date(this.now()).toISOString(), experimentId: experiment.id, text: `Revert failed: ${(error as Error).message}`, ok: false };
         } finally {
@@ -215,8 +215,8 @@ export class Watcher {
       } else if (live || experiment.status === 'paused') {
         const note = losing.length
           ? this.state.guard.enabled
-            ? `Switchyard's guard reverts automatically when a guardrail's chance to win is at or under ${pct(threshold)}.`
-            : 'Revert it from the Switchyard console, or ship anyway after accepting the guardrail.'
+            ? `Turnover's guard reverts automatically when a guardrail's chance to win is at or under ${pct(threshold)}.`
+            : 'Revert it from the Turnover console, or ship anyway after accepting the guardrail.'
           : undefined;
         await this.report(experiment, results, losing.length ? 'unhealthy' : 'healthy', losing, note);
       } else if (this.state.health.last?.status === 'unhealthy') {
@@ -266,6 +266,6 @@ export class Watcher {
       report.error = (error as Error).message;
     }
     this.state.health.last = report;
-    this.opts.log?.(`switchyard health: ${status} for ${this.opts.flag} (experiment ${experiment.id})${report.delivered ? '' : ` not delivered: ${report.error}`}`);
+    this.opts.log?.(`turnover health: ${status} for ${this.opts.flag} (experiment ${experiment.id})${report.delivered ? '' : ` not delivered: ${report.error}`}`);
   }
 }
