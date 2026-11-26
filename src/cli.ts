@@ -409,6 +409,8 @@ const commands: Record<string, () => Promise<void>> = {
       publicShop: process.env.TURNOUT_TRYIT_SHOP_URL || 'http://127.0.0.1:8085',
       proxyPort: Number(env('TRYIT_PROXY_PORT', '8085')),
       apiPort: Number(env('TRYIT_PORT', '8097')),
+      consolePort: Number(env('TRYIT_CONSOLE_PORT', '8099')),
+      uiDir: fileURLToPath(new URL('./console/ui/', import.meta.url)),
       stateDir: join(STATE_DIR, 'tryit'),
     });
     // Stopping Try it (turnout stop) also stops the versions it started: they are its containers, not yours.
@@ -570,6 +572,7 @@ const commands: Record<string, () => Promise<void>> = {
       judge: judgeOn ? judge : { ...judge, simulator: false },
       judgePage: judgeOn,
       ...(process.env.TURNOUT_TRYIT_URL ? { tryitUrl: process.env.TURNOUT_TRYIT_URL } : {}),
+      ...(process.env.TURNOUT_TRYIT_URL && process.env.TURNOUT_TRYIT_CONSOLE_URL !== '' ? { tryitConsoleUrl: process.env.TURNOUT_TRYIT_CONSOLE_URL || process.env.TURNOUT_TRYIT_URL.replace(/:\d+\/?$/, ':8099') } : {}),
       ...(process.env.FLAGSMITH_ADMIN_EMAIL
         ? { flagsmithLogin: { email: process.env.FLAGSMITH_ADMIN_EMAIL, ...(process.env.FLAGSMITH_ADMIN_PASSWORD ? { password: process.env.FLAGSMITH_ADMIN_PASSWORD } : {}) } }
         : {}),

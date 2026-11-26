@@ -39,6 +39,11 @@ export type ConsoleOptions = {
   judgePage?: boolean; // the /judge page (the demo's guided page); default: on whenever judge is given
   tryitUrl?: string; // the tryit service (Try it with your app, local only), e.g. http://tryit:8097; unset: off
   tryitShopUrl?: string; // where a browser reaches its proxy (previews), default http://127.0.0.1:8085
+  // Your app's console (Try it): the same console for the flag tryit_release, run by the tryit service; this console
+  // shows it at /app. Unset: no /app.
+  tryitConsoleUrl?: string;
+  // Where judge jobs read the count of events sent to Flagsmith; default: Flagsmith's Prometheus counter (metricsUrl).
+  readEvents?: () => Promise<{ accepted: number; rejected: number } | null>;
   // Flagsmith's admin login, for the tour's "sign in to Flagsmith" step. The password goes only to loopback pages.
   flagsmithLogin?: { email: string; password?: string };
   watcher?: Watcher; // the Feature Health bridge and the guard: GET/POST /api/guard
@@ -171,7 +176,7 @@ export function createConsole(opts: ConsoleOptions): http.Server {
   const latest = typeof resolve === 'function' ? shared(resolve, ttl.latest) : null;
   const current = async (): Promise<Experiments> => (latest ? latest.get() : (resolve as Experiments));
   const events = shared(() => readEventCounter(opts.metricsUrl), ttl.events);
-  const readEvents = () => events.get();
+  const readEvents = opts.readEvents ?? (() => events.get());
   const apiState = shared(() => readApiState(), ttl.state);
   const doctor = opts.doctor ? shared(opts.doctor, ttl.doctor) : null;
   // After a write: the next read of anything asks Flagsmith again.
@@ -390,9 +395,9 @@ export function createConsole(opts: ConsoleOptions): http.Server {
         if (url.pathname.startsWith('/api/')) return json(res, 403, { error: 'Open the judge link on this device first.' });
         return page(res, 403, 'Open the judge link first', 'This console only answers other devices that opened the judge link (/judge?key=…).');
       }
-      const isApi = url.pathname.startsWith('/api/') || url.pathname.startsWith('/try/api/');
+      const isApi = url.pathname.startsWith('/api/') || url.pathname.startsWith('/try/api/') || url.pathname.startsWith('/app/api/');
       if (isApi) {
-        const given = req.headers[TOKEN_HEADER] ?? (url.pathname === '/api/traffic' || url.pathname === '/try/api/traffic' ? url.searchParams.get('token') : null);
+        const given = req.headers[TOKEN_HEADER] ?? (['/api/traffic', '/try/api/traffic', '/app/api/traffic'].includes(url.pathname) ? url.searchParams.get('token') : null);
         if (!sameSecret(typeof given === 'string' ? given : '', token)) {
           return json(res, 403, { error: 'Open the console page to use its API.' });
         }
@@ -402,6 +407,9 @@ export function createConsole(opts: ConsoleOptions): http.Server {
       }
 
       // Try it with your app: the console relays to the tryit service (it builds and runs code, so this machine only).
+      // Your app's console (Try it, local only): the console page for the flag tryit_release, its API relayed.
+      if (opts.tryitConsoleUrl && (url.pathname === '/app' || url.pathname === '/app/') && req.method === 'GET') return serveAppPage(opts.uiDir, res, token);
+      if (opts.tryitConsoleUrl && url.pathname.startsWith('/app/api/')) return relayApp(opts.tryitConsoleUrl, url.pathname.slice(4) + url.search.replace(/([?&])token=[^&]*&?/, '$1').replace(/[?&]$/, ''), req, res);
       const tryPath = url.pathname === '/try' || url.pathname.startsWith('/try/') || url.pathname.startsWith('/api/try/');
       if (tryPath) {
         if (!opts.tryitUrl) return isApi || url.pathname.startsWith('/api/') ? json(res, 404, { error: 'Try it is off on this console (it needs local mode).' }) : page(res, 404, 'Try it is off here', 'Try it with your app runs only on a local Turnout (it builds and runs code).');
@@ -708,6 +716,82 @@ async function relayTry(url: string, req: http.IncomingMessage, res: http.Server
       res.writeHead(502, { 'content-type': 'application/json' });
       res.end(JSON.stringify({ error: `The Try it service didn't answer: ${(error as Error).message}. On your machine, run turnout.bat (Windows) or sh turnout.sh (macOS, Linux) again to start it. A public server never runs it.` }));
     } else res.end();
+  }
+}
+
+// Your app's console: the same console page, its API under /app/api/ (the tryit service's console for tryit_release).
+// No Judge mode switch (that is the demo shop's guided page) and a chip that says whose app this is.
+function serveAppPage(dir: string, res: http.ServerResponse, token: string): void {
+  const html = readFileSync(join(dir, 'index.html'), 'utf8')
+    .replace(TOKEN_META, `<meta name="turnout-console" content="${token}"><meta name="turnout-base" content="/app"><meta name="turnout-app" content="1"><meta name="turnout-no-judge" content="1">`)
+    .replace('<title>Turnout console</title>', '<title>Turnout console: your app</title>');
+  res.writeHead(200, { 'content-type': TYPES['.html']!, 'cache-control': 'no-store' });
+  res.end(html);
+}
+
+// The relay to your app's console: its own token (read from its page, on loopback), our cookies, the body as it comes,
+// and the answer as it streams (the traffic feed is an event stream). A rebuilt Try it has a new token: read again.
+const fail502 = (res: http.ServerResponse, body: unknown) => {
+  res.writeHead(502, { 'content-type': 'application/json', 'cache-control': 'no-store' });
+  res.end(JSON.stringify(body));
+};
+let appToken: { base: string; token: string } | null = null;
+async function appConsoleToken(base: string, fresh = false): Promise<string> {
+  if (!fresh && appToken?.base === base) return appToken.token;
+  const page = await new Promise<string>((resolve, reject) => {
+    const r = http.get(`${base}/`, { headers: { host: '127.0.0.1' }, timeout: 5000 }, (res) => {
+      let text = '';
+      res.setEncoding('utf8');
+      res.on('data', (c) => (text += c));
+      res.on('end', () => resolve(text));
+    });
+    r.on('timeout', () => r.destroy(new Error('timed out')));
+    r.on('error', reject);
+  });
+  const token = /name="turnout-console" content="([^"]+)"/.exec(page)?.[1];
+  if (!token) throw new Error("your app's console gave no token");
+  appToken = { base, token };
+  return token;
+}
+async function relayApp(base: string, path: string, req: http.IncomingMessage, res: http.ServerResponse, retried = false, body?: Buffer): Promise<void> {
+  try {
+    // An action's body (small JSON) is read first, so it can be sent again with a fresh token.
+    if (req.method === 'POST' && body === undefined) {
+      const chunks: Buffer[] = [];
+      let size = 0;
+      for await (const c of req) {
+        size += (c as Buffer).length;
+        if (size > MAX_BODY) return fail502(res, { error: 'request body too large' });
+        chunks.push(c as Buffer);
+      }
+      body = Buffer.concat(chunks);
+    }
+    const token = await appConsoleToken(base, retried);
+    const target = new URL(path, base);
+    const upstream = http.request(target, {
+      method: req.method,
+      headers: {
+        host: '127.0.0.1',
+        [TOKEN_HEADER]: token,
+        ...(req.headers['content-type'] ? { 'content-type': req.headers['content-type'] } : {}),
+        ...(req.headers.cookie ? { cookie: req.headers.cookie } : {}),
+      },
+    }, (answer) => {
+      if (answer.statusCode === 403 && !retried) {
+        answer.resume();
+        return void relayApp(base, path, req, res, true, body);
+      }
+      res.writeHead(answer.statusCode ?? 502, { 'content-type': answer.headers['content-type'] ?? 'application/json', 'cache-control': 'no-store' });
+      answer.pipe(res);
+    });
+    upstream.on('error', (error) => {
+      if (!res.headersSent) fail502(res, { error: `Your app's console didn't answer: ${error.message}. Build your app in Try it first.` });
+      else res.end();
+    });
+    res.on('close', () => upstream.destroy());
+    upstream.end(body);
+  } catch (error) {
+    fail502(res, { error: `Your app's console isn't running: ${(error as Error).message}. Build your app in Try it first.` });
   }
 }
 

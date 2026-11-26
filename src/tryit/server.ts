@@ -19,7 +19,9 @@ import { parseConfig, type Config } from '../config.ts';
 import { init as runInit } from '../commands/init.ts';
 import { parseSuccess } from '../commands/new.ts';
 import { simulateAny } from '../commands/simulate-any.ts';
-import { createJudge, type Judge } from '../console/judge.ts';
+import { createJudge, type Judge, type JudgeOptions } from '../console/judge.ts';
+import { createConsole } from '../console/server.ts';
+import { describeGoal } from '../config.ts';
 import { AdminClient } from '../flagsmith/admin.ts';
 import { latestExperiment } from '../flagsmith/experiments.ts';
 import { createFlagSource } from '../flagsmith/flag-source.ts';
@@ -144,6 +146,8 @@ export type TryitOptions = {
   publicShop: string; // the proxy as the browser reaches it, e.g. http://127.0.0.1:8085
   proxyPort: number;
   apiPort: number;
+  consolePort?: number; // your app's console (the main console shows it at /app); unset: none
+  uiDir?: string;
   stateDir: string;
   log?: (line: string) => void;
 };
@@ -158,6 +162,7 @@ export function startTryit(o: TryitOptions) {
   const lock = { busy: false };
   let judge: Judge | null = null;
   let proxyServer: http.Server | null = null;
+  let appConsole: http.Server | null = null;
   let rates: Record<string, number> = {};
   let names: Record<string, string> = {};
   const state: BuildState = { status: 'idle', kind: null, versions: [], log: [], error: null, shop: o.publicShop, goal: null };
@@ -211,6 +216,30 @@ export function startTryit(o: TryitOptions) {
     const server = createProxy({ config, flags, receipts: flags.receipts, onTraffic: (e) => feed.publish(e), viewSwitch: true, previewToken: debugToken, debugToken, log: () => {} } as Parameters<typeof createProxy>[0]);
     await new Promise<void>((r) => server.listen(o.proxyPort, '0.0.0.0', () => r()));
     proxyServer = server;
+  }
+
+  // Your app's console: rebuilt after each build (new versions, new goal), on the same port, inside Docker's network.
+  async function serveConsole(judgeOptions: JudgeOptions, goal: string | null): Promise<void> {
+    if (appConsole) {
+      const old = appConsole;
+      appConsole = null;
+      old.closeAllConnections?.();
+      await new Promise<void>((r) => old.close(() => r()));
+    }
+    const server = createConsole({
+      experiments: () => latestExperiment(api, o.envKey, TRY_FLAG),
+      feedUrl: `http://127.0.0.1:${o.apiPort}/feed`,
+      readEvents: async () => ({ accepted: flags.receipts.batches.events, rejected: 0 }),
+      snapshotDir: join(o.stateDir, 'snapshots'),
+      ledgerDir: o.stateDir,
+      uiDir: o.uiDir!,
+      judge: judgeOptions,
+      judgePage: false,
+      lock,
+      site: { url: o.publicShop, dashboardUrl: o.dashboardUrl, goal, simulated: true },
+    });
+    await new Promise<void>((r) => server.listen(o.consolePort, '0.0.0.0', () => r()));
+    appConsole = server;
   }
 
   // Waits until a container answers HTTP (any status), or gives up with its last log lines.
@@ -302,8 +331,7 @@ export function startTryit(o: TryitOptions) {
       // The proxy routes only the versions built now.
       const config = parseConfig({ ...raw, releases: Object.fromEntries(releases.map((l) => [l, upstream[l]!])) });
       await serveProxy(config);
-      judge = createJudge(
-        {
+      const judgeOptions: JudgeOptions = {
           flag: TRY_FLAG, releases, goal: config.goal.event, apiUrl: o.apiUrl, adminKey: o.adminKey,
           proxyUrl: `http://127.0.0.1:${o.proxyPort}`, shopUrl: o.publicShop, dashboardUrl: o.dashboardUrl,
           previewToken: debugToken, serverKey: o.serverKey, rates, concurrency: 20,
@@ -321,7 +349,9 @@ export function startTryit(o: TryitOptions) {
               return { byVariant: {}, byRelease, failedOrders: 0, durationMs: 0 };
             },
           },
-        },
+        };
+      judge = createJudge(
+        judgeOptions,
         {
           experiments: () => latestExperiment(api, o.envKey, TRY_FLAG),
           // The proxy's own count of events sent to Flagsmith: the judge waits until it stops moving before asking
@@ -339,6 +369,11 @@ export function startTryit(o: TryitOptions) {
       if (ran.status !== 202) throw new Error(`Couldn't start the ${state.kind} test: ${(ran.body as { error?: string })?.error ?? ran.status}`);
       for (let i = 0; i < 120 && judge.job()?.status === 'running'; i++) await new Promise((r) => setTimeout(r, 500));
       if (judge.job()?.status === 'failed') throw new Error(`Couldn't start the ${state.kind} test: ${judge.job()?.error}`);
+      // Your app's console: the console for tryit_release, with this build's goal, traffic and one-button runs.
+      if (o.consolePort && o.uiDir) {
+        await serveConsole(judgeOptions, describeGoal(config.goal));
+        note("Your app's console is ready: the console shows it at /app", 'Turnout', 'ok');
+      }
       state.status = 'ready';
       note(`Ready: the ${state.kind} test is running on ${Object.values(names).join(', ')}`, 'Turnout', 'ok');
     } catch (error) {
@@ -400,7 +435,9 @@ export function startTryit(o: TryitOptions) {
         void build({ versions, goal: body.goal, rates: body.rates, env: typeof body.env === 'string' ? body.env.slice(0, 20_000) : undefined });
         return send(res, 202, { ok: true });
       }
-      if (p === '/api/traffic') return feed.subscribe(res);
+      if (p === '/api/traffic' || p === '/feed/traffic') return feed.subscribe(res);
+      // Your app's console reads the feed as the main console reads the proxy's: the stream and its summary.
+      if (p === '/feed/summary') return send(res, 200, feed.summary());
       if (p === '/api/you') {
         const cookie = req.headers.cookie ?? '';
         const id = readCookie(cookie, 'tn_id');
@@ -434,5 +471,5 @@ export function startTryit(o: TryitOptions) {
     }
   });
   apiServer.listen(o.apiPort, '0.0.0.0', () => log(`tryit: API on :${o.apiPort}, your versions through Turnout on :${o.proxyPort}`));
-  return { state, apiServer, close: async () => { apiServer.close(); proxyServer?.close(); await flags.close(); } };
+  return { state, apiServer, close: async () => { apiServer.close(); proxyServer?.close(); appConsole?.close(); await flags.close(); } };
 }

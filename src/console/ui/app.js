@@ -1469,6 +1469,13 @@ if (READONLY) {
   }
 }
 const tour = createTour({ stops: stopsFor(CONSOLE_STOPS, READONLY), seenKey: READONLY ? 'turnout-tour-public-console-seen' : 'turnout-tour-console-seen' });
+// Your app's console (/app, from Try it): the same page for your versions; it says so, and links back to the shop's.
+if (document.querySelector('meta[name="turnout-app"]')) {
+  document.body.classList.add('is-app');
+  document.querySelector('.brand-name')?.append(h('span', { class: 'app-chip' }, 'your app'));
+  document.querySelector('.brand')?.setAttribute('href', '/app');
+  document.getElementById('try-open')?.after(h('a', { class: 'btn btn-ghost btn-small app-back', href: '/' }, '← Demo shop'));
+}
 // One page: Judge mode is the switch beside Tour; while it is on, Tour shows the judge view's tour.
 const mode = setupMode();
 $('tour-open').addEventListener('click', () => mode.tour() || tour.start());

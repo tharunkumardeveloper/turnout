@@ -355,10 +355,10 @@ async function poll() {
       if (justBuilt) {
         justBuilt = false;
         done.dataset.leaving = 'true';
-        $('try-done-text').textContent = 'Back to the console: your app is ready to run in Run a test…';
-        setTimeout(() => location.assign('/?mode=console#your-app'), 2600);
+        $('try-done-text').textContent = "Opening your app's console: traffic, Flagsmith's results and one-button runs…";
+        setTimeout(() => location.assign('/app'), 2600);
       } else if (done.dataset.leaving !== 'true') {
-        $('try-done-text').textContent = 'Close this box: your app is ready in Run a test on the console.';
+        $('try-done-text').textContent = "Open your app's console: one button sends visitors and Flagsmith picks the winner.";
       }
     } else {
       ready = '';
@@ -431,7 +431,7 @@ function renderRunTry(st) {
   box.dataset.key = key;
   box.replaceChildren(
     h('p', { class: 'run-try-line' }, h('strong', {}, 'Your app (Try it): '), `an ${st.kind} test of ${names.length === 1 ? `${names[0]}, twice` : names.join(st.kind === 'A/B' ? ' against ' : ', ')}.`),
-    h('a', { class: 'btn btn-primary run-try-go', href: '/?mode=judge&app=try&play=1', title: 'Opens its test page and plays the whole test: start, simulated visitors, the results from Flagsmith, the decision' }, `▶ Run your app's ${st.kind} test`));
+    h('a', { class: 'btn btn-primary run-try-go', href: '/app', title: "Your app's console: the same console, for your versions (flag tryit_release)" }, `▶ Open your app's console (${st.kind} test)`));
 }
 async function watchTry() {
   try {
