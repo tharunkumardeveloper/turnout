@@ -10,13 +10,13 @@
 import type { Job, JudgeAction, JudgeState, RunResponse } from './judge.ts';
 
 export type AutopilotOptions = {
-  visitors?: number; // per visitors step; default 600
+  visitors?: number; // per visitors step; default 2,000: enough for Flagsmith to decide on its first look, so the story rarely waits out its 5-minute refresh limit
   ambientVisitors?: number; // a small top-up batch while Flagsmith's refresh window is closed; 0: none. Default 150
-  pauseMs?: number; // after each step, before the next; default 25 s
-  endPauseMs?: number; // after the story's last step, before Reset; default 90 s
+  pauseMs?: number; // after each step, before the next; default 8 s
+  endPauseMs?: number; // after the story's last step, before Reset; default 30 s
   humanPauseMs?: number; // after a write from the private console; default 10 min
   errorPauseMs?: number; // after a refused or failed step; default 60 s
-  maxKeepRunning?: number; // "keep running" this many times on one experiment, then follow Flagsmith's pick; default 3
+  maxKeepRunning?: number; // "keep running" this many times on one experiment (each waits out Flagsmith's 5-minute refresh limit), then follow its pick; default 1
   pollMs?: number; // how often it looks again while waiting (local checks only); default 1 s
   recheckMs?: number; // while waiting for a step, how often it re-reads the judge state from Flagsmith; default 30 s
   sleep?: (ms: number) => Promise<void>;
@@ -66,14 +66,14 @@ export function planNext(s: JudgeState, o: { keptRunning?: number; maxKeepRunnin
   const at = (iso: string | null | undefined) => (iso ? Date.parse(iso) : null);
   switch (s.current) {
     case 'visitors':
-      return plan('visitors', { visitors: o.visitors ?? 600 });
+      return plan('visitors', { visitors: o.visitors ?? 2000 });
     case 'score':
       return plan('score', { notBefore: at(s.results?.refreshAllowedAt) });
     case 'decide': {
       const r = s.results;
       if (r?.losingGuardrails.length) return plan('revert', { title: 'Revert (a guardrail is losing)' });
       const call = r?.recommendation.call ?? 'keep-running';
-      if (call === 'keep-running' && (o.keptRunning ?? 0) >= (o.maxKeepRunning ?? 3)) {
+      if (call === 'keep-running' && (o.keptRunning ?? 0) >= (o.maxKeepRunning ?? 1)) {
         // Enough rounds: Flagsmith's pick decides, as a judge pressing the stage's button would.
         return r?.winner && r.winner.key !== 'control' ? plan('ship', { title: `Ship Flagsmith's pick` }) : plan('revert');
       }
@@ -96,8 +96,8 @@ export function createAutopilot(judge: JudgeLike, lock: { busy: boolean }, opts:
   const sleep = opts.sleep ?? ((ms: number) => new Promise<void>((r) => setTimeout(r, ms)));
   const now = opts.now ?? Date.now;
   const log = opts.log ?? (() => {});
-  const pauseMs = opts.pauseMs ?? 25_000;
-  const endPauseMs = opts.endPauseMs ?? 90_000;
+  const pauseMs = opts.pauseMs ?? 8_000;
+  const endPauseMs = opts.endPauseMs ?? 30_000;
   const humanPauseMs = opts.humanPauseMs ?? 10 * 60_000;
   const errorPauseMs = opts.errorPauseMs ?? 60_000;
   const pollMs = opts.pollMs ?? 1000;
