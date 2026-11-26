@@ -1,0 +1,474 @@
+#!/usr/bin/env node
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { join } from 'node:path';
+import { fileURLToPath } from 'node:url';
+import { parseArgs } from 'node:util';
+import { check } from './commands/check.ts';
+import { formatReport, runDoctor, type DoctorOptions } from './commands/doctor.ts';
+import { init, judgeLinks, localHost, writeEnv } from './commands/init.ts';
+import { preview } from './commands/preview.ts';
+import { release } from './commands/release.ts';
+import { revert, ship, status } from './commands/ship.ts';
+import { simulate } from '../demo/simulator/simulate.ts';
+import { loadConfig } from './config.ts';
+import { createFlagSource } from './flagsmith/flag-source.ts';
+import { DEFAULT_RATES, parseRates } from './console/judge.ts';
+import { createConsole, listenForOtherDevices } from './console/server.ts';
+import { AdminClient } from './flagsmith/admin.ts';
+import { scanAndSubmit } from './flagsmith/code-refs.ts';
+import { Experiments, latestExperiment, parseExperimentRef } from './flagsmith/experiments.ts';
+import { createFeedServer, TrafficFeed } from './proxy/feed.ts';
+import { createProxy, type ReleaseMemory } from './proxy/server.ts';
+import { decide } from './decide.ts';
+import { DEFAULT_GUARD_THRESHOLD, Watcher } from './health.ts';
+
+const USAGE = `Usage: switchyard <command> [options]
+
+Commands:
+  proxy      Route visitors by the Flagsmith flag and send events (port 8080)
+  console    Traffic map, results, Ship winner and Revert (127.0.0.1:8090); judge mode on /judge
+  init       Bootstrap Flagsmith: event store, tagged flag, metrics, experiment
+  preview    Serve a new release to your team only: preview <label>
+  release    Start the next experiment on the same flag: release <label> [--hypothesis "…"]
+             [--split <1-99>]  % of visitors in the experiment who get the new release (default 50)
+  status     Flagsmith's results for an experiment [--refresh]
+  ship       Ship the winner on the same flag [--winner <variant>] [--yes] [--accept-losing-guardrails]
+  revert     Send everyone back to control, drain the split and complete [--yes]
+  check      Find experiment splits left behind on any flag (read-only, server key; with an admin key it
+             also reads each experiment's status, so created and paused experiments are not counted)
+  doctor     Check that everything is set up as expected: Flagsmith, keys, flag, metrics, proxy, shops [--json]
+  demo       Drive labelled simulated visitors through the proxy [--visitors 2000] [--rate v2=0.13]
+             [--concurrency 20] [--seed 42] [--target http://switchyard:8080]
+  code-refs  Find the flag's name in this checkout and submit it to Flagsmith's Code References [--project <id>]
+             (repository: GitHub Actions' variables, an https GitHub "origin" remote, or SWITCHYARD_REPOSITORY_URL)
+
+Options for any command:
+  --api-url <url>      Flagsmith's API, e.g. http://127.0.0.1:8000/api/v1/ (env FLAGSMITH_API_URL)
+  --server-key <ser.>  Server-side environment key (env SWITCHYARD_SERVER_KEY)
+  --admin-key <key>    Organisation API key (env SWITCHYARD_ADMIN_KEY; asked for when a command needs it)
+
+status, ship and revert take an experiment link (…/environment/<key>/experiments/<id>)
+or default to the flag's latest experiment in SWITCHYARD_EXPERIMENT's environment.
+`;
+
+const ENV_FILE = process.env.SWITCHYARD_ENV_FILE ?? '.env';
+if (existsSync(ENV_FILE)) {
+  try {
+    process.loadEnvFile(ENV_FILE);
+  } catch {
+    // a directory Docker created in place of a missing file; init explains it
+  }
+}
+
+const parseCommandLine = () =>
+  parseArgs({
+    args: process.argv.slice(2),
+    allowPositionals: true,
+    options: {
+      'api-url': { type: 'string' },
+      'server-key': { type: 'string' },
+      'admin-key': { type: 'string' },
+      'accept-losing-guardrails': { type: 'boolean' },
+      winner: { type: 'string' },
+      yes: { type: 'boolean', short: 'y' },
+      refresh: { type: 'boolean' },
+      json: { type: 'boolean' },
+      visitors: { type: 'string' },
+      rate: { type: 'string', multiple: true },
+      concurrency: { type: 'string' },
+      seed: { type: 'string' },
+      target: { type: 'string' },
+      hypothesis: { type: 'string' },
+      split: { type: 'string' },
+      project: { type: 'string' },
+      help: { type: 'boolean', short: 'h' },
+    },
+  });
+let parsed: ReturnType<typeof parseCommandLine>;
+try {
+  parsed = parseCommandLine();
+} catch (error) {
+  // An unknown option or a missing value: say which, without Node's stack trace.
+  console.error(`switchyard: ${(error as Error).message}`);
+  console.error('Run switchyard --help for the commands and their options.');
+  process.exit(1);
+}
+const { values: cliFlags, positionals: args } = parsed;
+const [name, ...positionals] = args;
+
+// A whole number option within bounds, or the fallback when it isn't given.
+function wholeNumber(option: 'visitors' | 'concurrency' | 'seed', fallback: number, min: number, max: number): number {
+  const raw = cliFlags[option];
+  if (raw === undefined) return fallback;
+  const value = raw.trim() === '' ? Number.NaN : Number(raw);
+  if (!Number.isInteger(value) || value < min || value > max) throw new Error(`--${option} expects a whole number from ${min} to ${max}, got "${raw}"`);
+  return value;
+}
+
+// --split: the share of the experiment's visitors who get the new release. 0 or 100 would leave one side empty.
+function splitOption(): number | undefined {
+  const raw = cliFlags.split;
+  if (raw === undefined) return undefined;
+  const value = raw.trim() === '' ? Number.NaN : Number(raw);
+  if (!Number.isFinite(value) || value <= 0 || value >= 100) throw new Error(`--split expects a percentage above 0 and below 100, got "${raw}"`);
+  return value;
+}
+
+const env = (key: string, fallback?: string): string => {
+  const value = process.env[key] || fallback;
+  if (!value) {
+    console.error(`switchyard: ${key} is not set (see .env.example)`);
+    process.exit(1);
+  }
+  return value;
+};
+
+const STATE_DIR = process.env.SWITCHYARD_STATE_DIR ?? '.switchyard';
+const SNAPSHOTS = join(STATE_DIR, 'snapshots');
+const apiUrl = () => cliFlags['api-url'] ?? env('FLAGSMITH_API_URL', 'http://flagsmith:8000/api/v1/');
+const serverKey = () => cliFlags['server-key'] ?? env('SWITCHYARD_SERVER_KEY');
+const configPath = () => env('SWITCHYARD_CONFIG', 'switchyard.config.yml');
+const github = () =>
+  process.env.GITHUB_TOKEN && process.env.GITHUB_REPOSITORY ? { token: process.env.GITHUB_TOKEN, repository: process.env.GITHUB_REPOSITORY } : undefined;
+
+// The Organisation API key: a flag, the environment, or typed in (not echoed, never stored).
+let adminKeyCache: string | undefined;
+async function adminKey(): Promise<string> {
+  adminKeyCache ??= cliFlags['admin-key'] ?? process.env.SWITCHYARD_ADMIN_KEY ?? (await promptSecret('Flagsmith Organisation API key: '));
+  if (!adminKeyCache) {
+    console.error('switchyard: an Organisation API key is needed: --admin-key, SWITCHYARD_ADMIN_KEY, or run in a terminal to be asked');
+    process.exit(1);
+  }
+  return adminKeyCache;
+}
+
+function promptSecret(question: string): Promise<string | undefined> {
+  const stdin = process.stdin;
+  if (!stdin.isTTY) return Promise.resolve(undefined);
+  process.stdout.write(question);
+  return new Promise((resolve) => {
+    let typed = '';
+    stdin.setRawMode(true);
+    stdin.resume();
+    const onData = (data: Buffer) => {
+      for (const ch of data.toString('utf8')) {
+        if (ch === '\r' || ch === '\n') {
+          stdin.setRawMode(false);
+          stdin.pause();
+          stdin.off('data', onData);
+          process.stdout.write('\n');
+          return resolve(typed.trim() || undefined);
+        }
+        if (ch === '\u0003') process.exit(130);
+        typed = ch === '\u007f' || ch === '\b' ? typed.slice(0, -1) : typed + ch;
+      }
+    };
+    stdin.on('data', onData);
+  });
+}
+
+const adminApi = async () => new AdminClient(apiUrl(), { apiKey: await adminKey() });
+const envKey = () => parseExperimentRef(env('SWITCHYARD_EXPERIMENT')).envKey;
+
+// An explicit experiment link wins; otherwise the flag's latest experiment.
+const experiments = async (): Promise<Experiments> =>
+  positionals[0]
+    ? new Experiments(await adminApi(), parseExperimentRef(positionals[0]))
+    : latestExperiment(await adminApi(), envKey(), loadConfig(configPath()).flag);
+
+// The live release, kept across restarts so a cold start without Flagsmith serves the right one.
+function fileMemory(dir: string): ReleaseMemory {
+  const file = join(dir, 'live-release');
+  return {
+    load: () => (existsSync(file) ? readFileSync(file, 'utf8').trim() || undefined : undefined),
+    save: (release) => {
+      mkdirSync(dir, { recursive: true });
+      writeFileSync(file, `${release}\n`);
+    },
+  };
+}
+
+async function proxy(): Promise<void> {
+  const config = loadConfig(configPath());
+  const flags = createFlagSource({
+    apiUrl: apiUrl(),
+    serverKey: serverKey(),
+    flag: config.flag,
+    onUndelivered: (r) => console.warn(`switchyard: event ${r.event} not accepted by Flagsmith: ${r.status} (HTTP ${r.httpStatus})${r.error ? ` ${r.error}` : ''}`),
+  });
+  const port = Number(env('PORT', '8080'));
+  const feedPort = Number(env('FEED_PORT', '8081'));
+  const feed = new TrafficFeed();
+  const previewToken = process.env.SWITCHYARD_PREVIEW_TOKEN || undefined;
+  const server = createProxy({
+    config,
+    flags,
+    receipts: flags.receipts,
+    onTraffic: (e) => feed.publish(e),
+    memory: fileMemory(STATE_DIR),
+    secureCookies: process.env.SWITCHYARD_SECURE_COOKIES === '1',
+    log: process.env.SWITCHYARD_ACCESS_LOG === '0' ? () => {} : undefined,
+    ...(previewToken ? { previewToken, debugToken: previewToken } : {}),
+  } as Parameters<typeof createProxy>[0]);
+  const feedServer = createFeedServer(feed);
+  server.listen(port, () => console.log(`switchyard proxy on :${port}, routing flag "${config.flag}" across ${[...config.releases.keys()].join(', ')}`));
+  feedServer.listen(feedPort, () => console.log(`traffic feed on :${feedPort} (internal)`));
+
+  let stopping = false;
+  const shutdown = async () => {
+    if (stopping) return;
+    stopping = true;
+    server.close();
+    feedServer.close();
+    // Flush buffered events, but never hang a deploy on an unreachable Flagsmith.
+    await Promise.race([flags.close(), new Promise((r) => setTimeout(r, 5000))]);
+    process.exit(0);
+  };
+  process.on('SIGTERM', shutdown);
+  process.on('SIGINT', shutdown);
+}
+
+async function demo(): Promise<void> {
+  // Every option is checked before any traffic is sent.
+  const rates: Record<string, number> = { control: 0.1, v2: 0.13 };
+  for (const r of cliFlags.rate ?? []) {
+    const [key, value, ...rest] = r.split('=');
+    const rate = value === undefined || value.trim() === '' ? Number.NaN : Number(value);
+    if (!key || rest.length || !(rate >= 0 && rate <= 1)) throw new Error(`--rate expects <variant>=<0..1>, got "${r}"`);
+    rates[key] = rate;
+  }
+  const target = cliFlags.target ?? process.env.SWITCHYARD_PROXY_URL ?? 'http://switchyard:8080';
+  if (!URL.canParse(target) || !['http:', 'https:'].includes(new URL(target).protocol)) throw new Error(`--target expects the proxy's http(s) URL, got "${target}"`);
+  const visitors = wholeNumber('visitors', 2000, 1, 1_000_000);
+  const concurrency = wholeNumber('concurrency', 20, 1, 1000);
+  const seed = wholeNumber('seed', 42, 0, 2 ** 32 - 1);
+  console.log(`Simulating ${visitors} labelled visitors through ${target}`);
+  console.log(`True conversion rates (inputs, not evidence): ${Object.entries(rates).map(([k, v]) => `${k} ${v * 100}%`).join(', ')}`);
+  const debugToken = process.env.SWITCHYARD_PREVIEW_TOKEN;
+  const report = await simulate({
+    target,
+    visitors,
+    rates,
+    concurrency,
+    seed,
+    ...(debugToken ? { debugToken } : {}),
+  });
+  console.log(`\nDone in ${(report.durationMs / 1000).toFixed(1)} s`);
+  for (const [variant, v] of Object.entries(report.byVariant)) {
+    console.log(`  ${variant}: ${v.visitors} visitors, ${v.orders} orders (${((v.orders / v.visitors) * 100).toFixed(1)}%), ${v.pageErrors} page errors`);
+  }
+  console.log(`  by release: ${Object.entries(report.byRelease).map(([r, v]) => `${r} ${v.visitors}`).join(', ')}`);
+  if (report.failedOrders) console.log(`  ${report.failedOrders} orders failed`);
+  console.log('\nThe proxy sends events to Flagsmith every 2 s. Wait a few seconds, then run: switchyard status --refresh');
+}
+
+// What doctor reads. Inside Compose the services have their own names; with --api-url on localhost (outside
+// Docker) the published ports. `self`: the console is asking, so it doesn't check itself over HTTP.
+function doctorOptions(self = false): DoctorOptions {
+  const api = apiUrl();
+  const local = ['localhost', '127.0.0.1', '[::1]'].includes(new URL(api).hostname);
+  // 127.0.0.1, not localhost: Compose publishes on 127.0.0.1 only, and on Windows localhost first waits on ::1.
+  const at = (port: number, service: string) => `http://${local ? '127.0.0.1' : service}:${port}`;
+  return {
+    apiUrl: api,
+    config: loadConfig(configPath()),
+    adminKey: cliFlags['admin-key'] ?? (process.env.SWITCHYARD_ADMIN_KEY || undefined),
+    serverKey: cliFlags['server-key'] ?? (process.env.SWITCHYARD_SERVER_KEY || undefined),
+    experimentRef: process.env.SWITCHYARD_EXPERIMENT || undefined,
+    previewToken: process.env.SWITCHYARD_PREVIEW_TOKEN || undefined,
+    healthWebhook: process.env.SWITCHYARD_HEALTH_WEBHOOK || undefined,
+    proxyUrl: (local ? undefined : process.env.SWITCHYARD_PROXY_URL) || at(8080, 'switchyard'),
+    consoleUrl: self ? undefined : process.env.SWITCHYARD_CONSOLE_URL || at(8090, 'console'),
+    metricsUrl: (local ? undefined : process.env.FLAGSMITH_METRICS_URL) || `${at(9100, 'flagsmith')}/metrics`,
+    fromHost: local, // Compose doesn't publish 9100: an unreadable counter is skipped, not a warning
+    stateDir: STATE_DIR, // Ship and Revert write here (the console's own copy when the console is asking)
+    // init and release write .env; the console doesn't mount it, and a missing one is created by init.
+    envFile: !self && existsSync(ENV_FILE) ? ENV_FILE : undefined,
+  };
+}
+
+const decision = () => ({
+  yes: cliFlags.yes ?? false,
+  acceptLosingGuardrails: cliFlags['accept-losing-guardrails'] ?? false,
+  snapshotDir: SNAPSHOTS,
+  ledgerDir: STATE_DIR,
+  ...(github() ? { github: github()! } : {}),
+});
+
+const commands: Record<string, () => Promise<void>> = {
+  proxy,
+  demo,
+  check: async () => {
+    // The admin key is optional here and never asked for: check runs in CI with only a server key.
+    const adminKeyGiven = cliFlags['admin-key'] ?? (process.env.SWITCHYARD_ADMIN_KEY || undefined);
+    const leftovers = await check({ apiUrl: apiUrl(), serverKey: serverKey(), adminKey: adminKeyGiven });
+    process.exitCode = leftovers > 0 ? 1 : 0;
+  },
+  doctor: async () => {
+    const options = doctorOptions();
+    const report = await runDoctor(options);
+    if (cliFlags.json) console.log(JSON.stringify(report, null, 2));
+    else for (const line of [`Switchyard doctor: Flagsmith at ${options.apiUrl}, proxy at ${options.proxyUrl}`, ...formatReport(report)]) console.log(line);
+    process.exitCode = report.summary.fail > 0 ? 1 : 0;
+  },
+  'code-refs': async () => {
+    // The project: --project, SWITCHYARD_PROJECT_ID, or the environment in SWITCHYARD_EXPERIMENT.
+    const api = await adminApi();
+    const given = cliFlags.project ?? (process.env.SWITCHYARD_PROJECT_ID || undefined);
+    if (!given && !process.env.SWITCHYARD_EXPERIMENT) throw new Error('name the Flagsmith project: --project <id>, SWITCHYARD_PROJECT_ID, or run init first');
+    const projectId = given ? Number(given) : (await api.get<{ project: number }>(`/api/v1/environments/${envKey()}/`)).project;
+    if (!Number.isInteger(projectId) || projectId <= 0) throw new Error(`--project expects a Flagsmith project id, got "${given}"`);
+    await scanAndSubmit({ api, projectId, flags: [loadConfig(configPath()).flag], root: process.cwd() });
+  },
+  status: async () => status({ experiments: await experiments(), refresh: cliFlags.refresh ?? false }),
+  ship: async () => ship({ experiments: await experiments(), ...(cliFlags.winner ? { winner: cliFlags.winner } : {}), ...decision() }),
+  revert: async () => revert({ experiments: await experiments(), ...decision() }),
+  release: async () => {
+    const label = positionals[0];
+    if (!label) throw new Error('Usage: switchyard release <release label> [--hypothesis "…"] [--split <1-99>]');
+    const split = splitOption();
+    const config = loadConfig(configPath());
+    const { experimentId } = await release({
+      ...(split !== undefined ? { split } : {}),
+      apiUrl: apiUrl(),
+      adminKey: await adminKey(),
+      envKey: envKey(),
+      flag: config.flag,
+      releases: new Set(config.releases.keys()),
+      newRelease: label,
+      hypothesis: cliFlags.hypothesis ?? `${label} raises ${config.goal.event} without hurting latency or errors`,
+    });
+    writeEnv(ENV_FILE, { SWITCHYARD_EXPERIMENT: `${envKey()}/${experimentId}` });
+  },
+  preview: async () => {
+    const label = positionals[0];
+    if (!label) throw new Error('Usage: switchyard preview <release label>');
+    const config = loadConfig(configPath());
+    await preview({
+      apiUrl: apiUrl(),
+      adminKey: await adminKey(),
+      envKey: envKey(),
+      flag: config.flag,
+      releases: new Set(config.releases.keys()),
+      newRelease: label,
+    });
+  },
+  console: async () => {
+    const port = Number(env('CONSOLE_PORT', '8090'));
+    const key = await adminKey();
+    const hosts = process.env.SWITCHYARD_CONSOLE_HOSTS?.split(',').map((h) => h.trim()).filter(Boolean);
+    const judgeToken = process.env.SWITCHYARD_JUDGE_TOKEN || undefined;
+    const config = loadConfig(configPath());
+    const previewToken = process.env.SWITCHYARD_PREVIEW_TOKEN || undefined;
+    const consoleServerKey = process.env.SWITCHYARD_SERVER_KEY || undefined;
+    const judge = {
+      flag: config.flag,
+      releases: [...config.releases.keys()],
+      goal: config.goal.event,
+      apiUrl: apiUrl(),
+      adminKey: key,
+      proxyUrl: process.env.SWITCHYARD_PROXY_URL || 'http://switchyard:8080',
+      shopUrl: process.env.SWITCHYARD_PUBLIC_SHOP_URL || 'http://127.0.0.1:8080',
+      dashboardUrl: process.env.FLAGSMITH_DASHBOARD_URL || 'http://127.0.0.1:8000',
+      rates: parseRates(process.env.SWITCHYARD_DEMO_RATES || DEFAULT_RATES),
+      ...(previewToken ? { previewToken } : {}),
+      ...(consoleServerKey ? { serverKey: consoleServerKey } : {}),
+    };
+    const latest = () => latestExperiment(new AdminClient(apiUrl(), { apiKey: key }), envKey(), loadConfig(configPath()).flag);
+    // The Feature Health bridge and the guard share the console's lock, so they never act during a Ship or a job.
+    const lock = { busy: false };
+    const healthWebhookUrl = process.env.SWITCHYARD_HEALTH_WEBHOOK || undefined;
+    const guardOn = process.env.SWITCHYARD_GUARD === 'revert';
+    let watcher: Watcher | undefined;
+    if (healthWebhookUrl || guardOn || process.env.SWITCHYARD_GUARD === 'off') {
+      const environment = await new AdminClient(apiUrl(), { apiKey: key }).get<{ name: string; project: number }>(`/api/v1/environments/${envKey()}/`);
+      const dashboard = judge.dashboardUrl.replace(/\/$/, '');
+      watcher = new Watcher({
+        experiments: latest,
+        flag: config.flag,
+        environmentName: environment.name,
+        ...(healthWebhookUrl ? { healthWebhookUrl } : {}),
+        guard: { enabled: guardOn, threshold: Number(process.env.SWITCHYARD_GUARD_THRESHOLD || DEFAULT_GUARD_THRESHOLD) },
+        lock,
+        revert: async (exps, reason) => {
+          await decide({
+            experiments: exps,
+            action: 'revert',
+            acceptLosingGuardrails: true,
+            snapshotDir: SNAPSHOTS,
+            ledgerDir: STATE_DIR,
+            ...(github() ? { github: github()! } : {}),
+            by: 'guard',
+            guardReason: reason,
+          });
+        },
+        links: (e) => [
+          { title: "Flagsmith's results page", url: `${dashboard}/project/${environment.project}/environment/${envKey()}/experiments/${e.id}` },
+          { title: 'Switchyard judge mode', url: `http://${localHost(process.env)}:${port}/judge` },
+        ],
+        log: (line) => console.log(line),
+      });
+      watcher.start();
+    }
+    const server = createConsole({
+      experiments: latest,
+      lock,
+      ...(watcher ? { watcher } : {}),
+      feedUrl: env('SWITCHYARD_FEED_URL', 'http://switchyard:8081'),
+      ...(process.env.FLAGSMITH_METRICS_URL ? { metricsUrl: process.env.FLAGSMITH_METRICS_URL } : {}),
+      snapshotDir: SNAPSHOTS,
+      ledgerDir: STATE_DIR,
+      ...(github() ? { github: github()! } : {}),
+      ...(hosts?.length ? { allowedHosts: hosts } : {}),
+      ...(judgeToken ? { judgeToken } : {}),
+      judge,
+      ...(process.env.FLAGSMITH_ADMIN_EMAIL
+        ? { flagsmithLogin: { email: process.env.FLAGSMITH_ADMIN_EMAIL, ...(process.env.FLAGSMITH_ADMIN_PASSWORD ? { password: process.env.FLAGSMITH_ADMIN_PASSWORD } : {}) } }
+        : {}),
+      doctor: () => runDoctor({ ...doctorOptions(true), adminKey: key }), // GET /api/doctor and the /setup page
+      uiDir: fileURLToPath(new URL('./console/ui/', import.meta.url)),
+    });
+    // Loopback only, unless Compose publishes it (and binds the published port to 127.0.0.1 itself).
+    const host = process.env.CONSOLE_HOST ?? '127.0.0.1';
+    // Other devices: a second port, where every request needs the judge cookie and never gets the admin password.
+    // Compose publishes it on SWITCHYARD_PUBLISH_HOST and the main port on 127.0.0.1 only. Unset: no second port.
+    const devicePort = process.env.CONSOLE_DEVICE_PORT ? Number(process.env.CONSOLE_DEVICE_PORT) : undefined;
+    server.listen(port, host, () => {
+      const here = localHost(process.env);
+      console.log(`switchyard console on ${host}:${port} (open http://${here}:${port})`);
+      // The same links init prints: the key link only once other devices are set up (logs are kept).
+      for (const line of judgeLinks(judgeToken ?? '', process.env)) console.log(line);
+    });
+    if (devicePort !== undefined) {
+      const devices = listenForOtherDevices(server, devicePort, host, () => {
+        const at = devices.address();
+        console.log(`other devices (judge link only) on ${host}:${typeof at === 'object' && at ? at.port : devicePort}`);
+      });
+    }
+  },
+  init: () =>
+    init({
+      apiUrl: apiUrl(),
+      dashboardUrl: process.env.FLAGSMITH_DASHBOARD_URL || 'http://127.0.0.1:8000',
+      config: loadConfig(configPath()),
+      adminKey: cliFlags['admin-key'] ?? (process.env.SWITCHYARD_ADMIN_KEY || undefined),
+      serverKey: process.env.SWITCHYARD_SERVER_KEY || undefined,
+      envFile: ENV_FILE,
+      codeReferences: { root: process.cwd() },
+    }),
+};
+
+const command = name ? commands[name] : undefined;
+if (!command || cliFlags.help) {
+  console.log(USAGE);
+  process.exit(name && name !== 'help' && !cliFlags.help ? 1 : 0);
+}
+try {
+  await command();
+} catch (error) {
+  // fetch() says only "fetch failed"; the reason (ECONNREFUSED, ENOTFOUND…) is in its cause.
+  const e = error as Error & { cause?: { code?: string; message?: string } };
+  const why = e.cause?.code ?? e.cause?.message;
+  console.error(`switchyard ${name}: ${e.message}${why && !e.message.includes(why) ? ` (${why})` : ''}`);
+  process.exit(1);
+}

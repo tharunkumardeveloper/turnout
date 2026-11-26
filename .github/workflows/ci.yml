@@ -1,0 +1,114 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
+      - name: Typecheck
+        run: npx tsc --noEmit
+      - name: Unit and integration tests
+        run: npm test
+
+  # The README flow end to end on a real Flagsmith: bootstrap, route, send events, check, and confirm the shop
+  # image knows nothing about Flagsmith.
+  smoke:
+    needs: test
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Prepare .env and state directory
+        # The console and the cli write the bind-mounted .env and .switchyard. Compose runs them as
+        # SWITCHYARD_UID:SWITCHYARD_GID, so make that the runner's user (as switchyard.sh does on Linux).
+        run: |
+          cp .env.example .env
+          mkdir -p .switchyard
+          echo "SWITCHYARD_UID=$(id -u)" >> "$GITHUB_ENV"
+          echo "SWITCHYARD_GID=$(id -g)" >> "$GITHUB_ENV"
+
+      - name: Start Flagsmith
+        run: docker compose up -d flagsmith
+
+      - name: Wait for Flagsmith to be healthy
+        run: |
+          for i in $(seq 1 120); do
+            id=$(docker compose ps -q flagsmith)
+            status=$(docker inspect -f '{{if .State.Health}}{{.State.Health.Status}}{{else}}none{{end}}' "$id" 2>/dev/null || true)
+            echo "flagsmith: ${status:-starting}"
+            [ "$status" = healthy ] && exit 0
+            sleep 3
+          done
+          echo "Flagsmith did not become healthy" >&2
+          exit 1
+
+      - name: switchyard init
+        run: docker compose run --build --rm cli init
+
+      - name: Start Switchyard, the console and the shops
+        run: docker compose up -d --build
+
+      - name: Wait for the proxy to be healthy
+        run: |
+          for i in $(seq 1 60); do
+            id=$(docker compose ps -q switchyard)
+            status=$(docker inspect -f '{{if .State.Health}}{{.State.Health.Status}}{{else}}none{{end}}' "$id" 2>/dev/null || true)
+            echo "switchyard: ${status:-starting}"
+            [ "$status" = healthy ] && exit 0
+            sleep 3
+          done
+          echo "The switchyard service did not become healthy" >&2
+          exit 1
+
+      - name: Drive simulated visitors through the proxy
+        run: docker compose run --rm cli demo --visitors 200
+
+      - name: Proxy health
+        run: curl -fsS http://127.0.0.1:8080/__switchyard/health
+
+      - name: switchyard check
+        run: docker compose run --rm cli check
+
+      - name: Read the server key for the action
+        id: keys
+        # Masked first, so the key never appears in the log, even where a later step echoes its inputs.
+        run: |
+          key=$(grep '^SWITCHYARD_SERVER_KEY=' .env | cut -d= -f2-)
+          [ -n "$key" ] || { echo "init wrote no SWITCHYARD_SERVER_KEY to .env" >&2; exit 1; }
+          echo "::add-mask::$key"
+          echo "server-key=$key" >> "$GITHUB_OUTPUT"
+
+      - name: The reusable action, against this job's Flagsmith
+        uses: ./
+        with:
+          api-url: http://127.0.0.1:8000/api/v1/ # Compose publishes Flagsmith on 127.0.0.1 only
+          server-key: ${{ steps.keys.outputs.server-key }}
+
+      - name: The shop image has no Flagsmith in it
+        run: docker compose run --rm --entrypoint sh shop-1-4 -c '! grep -rli flagsmith /app'
+
+      - name: Logs
+        if: failure()
+        run: docker compose logs --no-color
+
+      - name: Tear down
+        if: always()
+        run: docker compose down -v

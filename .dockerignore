@@ -1,0 +1,9 @@
+node_modules
+.git
+.env
+.switchyard
+docs
+spikes
+test
+coverage
+*.log

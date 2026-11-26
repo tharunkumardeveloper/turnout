@@ -1,0 +1,138 @@
+/* Switchyard's Flagsmith feature map. Loaded after style.css: same tokens, cards and buttons as the console and judge
+   mode. One column from 320 px; the cards flow into as many columns as fit. */
+
+.fsmap {
+  --gutter: 16px;
+  font-size: 16px;
+  line-height: 1.5;
+  padding-left: env(safe-area-inset-left);
+  padding-right: env(safe-area-inset-right);
+}
+.fsmap a { color: color-mix(in srgb, var(--control), var(--text) 15%); text-underline-offset: 2px; }
+@media (prefers-color-scheme: dark) { .fsmap a { color: #93b4fb; } }
+.fsmap .btn {
+  min-height: var(--tap);
+  display: inline-flex; align-items: center; justify-content: center; gap: 6px;
+  text-decoration: none; color: var(--text);
+}
+.fsmap .btn[hidden] { display: none; }
+
+/* status colours: used = the treatment green, read only = the control blue, needs more = amber, not used = grey */
+[data-status="used"] { --s: var(--treatment); }
+[data-status="used-read-only"] { --s: var(--control); }
+[data-status="not-available-locally"] { --s: #d97706; }
+[data-status="not-used"] { --s: var(--faint); }
+
+/* ---- header ----------------------------------------------------------------------------------------------- */
+
+.fhead {
+  background: var(--surface);
+  border-bottom: 1px solid var(--border);
+  padding: 14px var(--gutter);
+  padding-top: max(14px, env(safe-area-inset-top));
+}
+.fhead-inner { max-width: calc(1280px - 2 * var(--gutter)); margin: 0 auto; display: grid; gap: 8px; }
+.fhead-title { display: flex; align-items: center; flex-wrap: wrap; gap: 6px 10px; }
+.fhead-title h1 { font-size: 20px; font-weight: 750; letter-spacing: -0.015em; line-height: 1.2; }
+.fhead-mode { font-weight: 500; color: var(--muted); }
+.fhead-sub { color: var(--muted); font-size: 15px; max-width: 75ch; }
+.flinks { display: flex; flex-wrap: wrap; gap: 8px; }
+.flinks .btn { font-size: 14px; padding: 8px 14px; }
+
+.fbanner { margin: 12px var(--gutter) 0; }
+.fbanner[hidden] { display: none; }
+
+/* ---- layout ------------------------------------------------------------------------------------------------ */
+
+.fmain {
+  display: grid;
+  gap: 20px;
+  padding: 16px var(--gutter) 24px;
+  max-width: 1280px;
+  margin: 0 auto;
+}
+.fsummary .card-head { align-items: center; }
+.fsummary .card-sub { font-size: 13.5px; overflow-wrap: anywhere; }
+
+.fcounts { list-style: none; margin: 12px 0 0; padding: 0; display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 150px), 1fr)); gap: 8px; }
+.fcount a {
+  display: flex; align-items: baseline; gap: 8px;
+  min-height: var(--tap);
+  padding: 8px 12px;
+  border-radius: 10px;
+  border: 1px solid color-mix(in srgb, var(--s) 35%, var(--border));
+  border-left: 4px solid var(--s);
+  background: color-mix(in srgb, var(--s) 7%, var(--surface));
+  color: var(--text);
+  text-decoration: none;
+  font-size: 14px;
+}
+.fcount a:hover { background: color-mix(in srgb, var(--s) 13%, var(--surface)); }
+.fcount strong { font-size: 22px; font-weight: 750; line-height: 1; }
+
+.fgroups { display: grid; gap: 24px; }
+.fgroups[aria-busy="true"]:empty::before { content: "Loading the map…"; color: var(--muted); }
+.fgroup { display: grid; gap: 10px; scroll-margin-top: 12px; }
+.fgroup-head { display: grid; gap: 2px; border-left: 4px solid var(--s); padding-left: 10px; }
+.fgroup-head h2 { font-size: 18px; font-weight: 750; letter-spacing: -0.01em; }
+.fgroup-n { color: var(--muted); font-weight: 500; }
+.fgroup-head .card-sub { font-size: 13.5px; }
+
+.fgrid {
+  list-style: none; margin: 0; padding: 0;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 300px), 1fr));
+  gap: 12px;
+}
+
+/* ---- cards ------------------------------------------------------------------------------------------------- */
+
+.fcard {
+  display: flex; flex-direction: column; gap: 8px;
+  min-width: 0;
+  padding: 12px 14px 14px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-top: 4px solid var(--s);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+}
+.fcard-top { display: flex; align-items: center; justify-content: space-between; gap: 8px; flex-wrap: wrap; }
+.fkind { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.07em; color: var(--muted); }
+.fchip {
+  font-size: 11px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.07em;
+  padding: 2px 9px; border-radius: 999px;
+  color: color-mix(in srgb, var(--s), var(--text) 35%);
+  background: color-mix(in srgb, var(--s) 15%, transparent);
+  white-space: nowrap;
+}
+@media (prefers-color-scheme: dark) { .fchip { color: color-mix(in srgb, var(--s), white 35%); } }
+.fcard-name { font-size: 16.5px; font-weight: 700; letter-spacing: -0.005em; overflow-wrap: anywhere; }
+.fcard-what { font-size: 14px; color: var(--text); }
+.flabel { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.06em; color: var(--muted); }
+.flabel-live { color: var(--good); }
+.flabel-live::before {
+  content: ""; display: inline-block; width: 7px; height: 7px; margin-right: 5px; border-radius: 50%;
+  background: var(--good); vertical-align: 1px;
+}
+.flive, .fneeds { font-size: 13.5px; overflow-wrap: anywhere; }
+.flive {
+  padding: 6px 10px; border-radius: 8px;
+  background: var(--surface-2); border: 1px solid var(--border);
+}
+.flive-value { font-family: var(--mono); font-size: 13px; }
+.fdetails { margin: 0; padding-left: 18px; font-family: var(--mono); font-size: 12.5px; overflow-wrap: anywhere; }
+.fcard-foot { margin-top: auto; display: grid; gap: 8px; padding-top: 4px; }
+.fopen { justify-self: start; }
+.fopen::after { content: "↗"; }
+.fsource { font-size: 12px; color: var(--muted); overflow-wrap: anywhere; }
+.fsource code { font-size: 11.5px; }
+
+@media (min-width: 640px) {
+  .fsmap { --gutter: 24px; }
+  .fhead-title h1 { font-size: 22px; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .fsmap .btn { transition: none; }
+}

@@ -1,0 +1,161 @@
+# Switchyard, as an overlay on Flagsmith's official compose file (compose.flagsmith.yml). compose.yaml includes both, so plain
+# `docker compose …` works from any shell.
+#
+# Networks: each service joins only the networks it needs.
+#   default  Flagsmith, its Postgres, the console and the one-off CLI (the admin side)
+#   sdk      Flagsmith and the proxy: flag reads and events (declared in compose.flagsmith.yml)
+#   feed     the proxy and the console: the traffic feed (:8081) and judge mode's simulated visitors (:8080)
+#   apps     the proxy and the shops: the shops can't reach Flagsmith or the console
+# So the public proxy can't reach Postgres or the console's Flagsmith-admin traffic, and each service gets only the
+# keys it needs: the proxy never sees the admin key or the admin login.
+#
+# Published ports are bound to ${SWITCHYARD_PUBLISH_HOST:-127.0.0.1}. Links use 127.0.0.1 rather than localhost: on
+# Windows a client that tries ::1 first waits for the refused IPv6 attempt before falling back.
+
+x-switchyard-image: &switchyard-image
+  build: .
+  image: switchyard:local
+
+# The console and the CLI write .switchyard/ (and the CLI .env) through bind mounts, so they run as the host user that
+# owns them. switchyard.sh sets SWITCHYARD_UID and SWITCHYARD_GID on Linux; 1000 is the image's `node` user.
+x-host-user: &host-user
+  user: '${SWITCHYARD_UID:-1000}:${SWITCHYARD_GID:-1000}'
+
+x-shop: &shop
+  build:
+    context: .
+    dockerfile: demo/shop/Dockerfile
+  image: ridgeline-shop:local
+  restart: unless-stopped
+  networks: [apps]
+  healthcheck:
+    test: ['CMD', 'node', '-e', "fetch('http://127.0.0.1:8080/').then(r=>process.exit(r.ok?0:1),()=>process.exit(1))"]
+    interval: 10s
+    timeout: 3s
+    retries: 3
+
+# Judge mode shows the shop in a frame of the console. The shop allows that from this machine's console and from the
+# hosts in SWITCHYARD_CONSOLE_HOSTS (port 8090); SHOP_FRAME_ANCESTORS replaces the whole list.
+x-shop-env: &shop-env
+  SHOP_FRAME_HOSTS: ${SWITCHYARD_CONSOLE_HOSTS:-}
+  SHOP_FRAME_ANCESTORS: ${SHOP_FRAME_ANCESTORS:-}
+
+services:
+  switchyard:
+    <<: *switchyard-image
+    command: proxy
+    restart: unless-stopped
+    environment:
+      FLAGSMITH_API_URL: http://flagsmith:8000/api/v1/
+      SWITCHYARD_SERVER_KEY: ${SWITCHYARD_SERVER_KEY:-} # written by "docker compose run --rm cli init"
+      SWITCHYARD_PREVIEW_TOKEN: ${SWITCHYARD_PREVIEW_TOKEN:-}
+      SWITCHYARD_SECURE_COOKIES: ${SWITCHYARD_SECURE_COOKIES:-} # "1": mark the proxy's cookies Secure (behind TLS)
+      SWITCHYARD_ACCESS_LOG: ${SWITCHYARD_ACCESS_LOG:-} # "0": no access log lines
+    ports:
+      # The feed on :8081 stays inside the compose network. SWITCHYARD_PUBLISH_HOST=0.0.0.0 lets phones on your
+      # network reach the shop and the console; that requires SWITCHYARD_JUDGE_TOKEN and SWITCHYARD_CONSOLE_HOSTS.
+      - ${SWITCHYARD_PUBLISH_HOST:-127.0.0.1}:8080:8080
+    volumes:
+      - switchyard-state:/app/.switchyard # the last known live release, for cold starts
+    networks: [sdk, feed, apps]
+    healthcheck:
+      test: ['CMD', 'node', '-e', "fetch('http://127.0.0.1:8080/__switchyard/health').then(r=>process.exit(r.ok?0:1),()=>process.exit(1))"]
+      interval: 10s
+      timeout: 3s
+      retries: 3
+    depends_on:
+      flagsmith:
+        condition: service_healthy
+      shop-1-4:
+        condition: service_started
+      shop-1-5:
+        condition: service_started
+      shop-1-6:
+        condition: service_started
+
+  console:
+    <<: [*switchyard-image, *host-user]
+    command: console
+    restart: unless-stopped
+    environment:
+      FLAGSMITH_API_URL: http://flagsmith:8000/api/v1/
+      SWITCHYARD_ADMIN_KEY: ${SWITCHYARD_ADMIN_KEY:-}
+      SWITCHYARD_EXPERIMENT: ${SWITCHYARD_EXPERIMENT:-}
+      GITHUB_TOKEN: ${GITHUB_TOKEN:-}
+      GITHUB_REPOSITORY: ${GITHUB_REPOSITORY:-}
+      SWITCHYARD_FEED_URL: http://switchyard:8081
+      FLAGSMITH_METRICS_URL: http://flagsmith:9100/metrics
+      CONSOLE_HOST: 0.0.0.0 # inside the container; see ports for where it's published
+      CONSOLE_DEVICE_PORT: 8091 # other devices: judge link only, never the admin password (see ports)
+      # Judge mode (/judge): buttons that drive the whole story. Other devices need the judge link and a listed host.
+      SWITCHYARD_JUDGE_TOKEN: ${SWITCHYARD_JUDGE_TOKEN:-}
+      SWITCHYARD_CONSOLE_HOSTS: ${SWITCHYARD_CONSOLE_HOSTS:-}
+      SWITCHYARD_PUBLIC_SHOP_URL: ${SWITCHYARD_PUBLIC_SHOP_URL:-http://127.0.0.1:8080}
+      SWITCHYARD_PROXY_URL: http://switchyard:8080 # where judge mode's simulated visitors go
+      SWITCHYARD_PREVIEW_TOKEN: ${SWITCHYARD_PREVIEW_TOKEN:-} # reads the proxy's routing headers; the preview link
+      SWITCHYARD_SERVER_KEY: ${SWITCHYARD_SERVER_KEY:-} # for judge mode's leftover-split check (read-only)
+      SWITCHYARD_DEMO_RATES: ${SWITCHYARD_DEMO_RATES:-}
+      FLAGSMITH_DASHBOARD_URL: ${FLAGSMITH_DASHBOARD_URL:-http://127.0.0.1:8000}
+      # The judge tour's "sign in to Flagsmith" step. The password is only shown on this machine (loopback), never to other devices.
+      FLAGSMITH_ADMIN_EMAIL: ${FLAGSMITH_ADMIN_EMAIL:-}
+      FLAGSMITH_ADMIN_PASSWORD: ${FLAGSMITH_ADMIN_PASSWORD:-}
+      SWITCHYARD_HEALTH_WEBHOOK: ${SWITCHYARD_HEALTH_WEBHOOK:-} # written by init: Flagsmith Feature Health
+      SWITCHYARD_GUARD: ${SWITCHYARD_GUARD:-off} # "revert": revert automatically on a clearly losing guardrail
+      SWITCHYARD_GUARD_THRESHOLD: ${SWITCHYARD_GUARD_THRESHOLD:-0.01}
+    ports:
+      # The console holds the admin key. :8090 is this machine's console and is only ever published on 127.0.0.1.
+      # :8091 is for other devices: every request there needs the judge cookie, whatever Host header it sends.
+      # SWITCHYARD_PUBLISH_HOST=0.0.0.0 lets phones on your network reach :8091; that requires SWITCHYARD_JUDGE_TOKEN
+      # and SWITCHYARD_CONSOLE_HOSTS.
+      - 127.0.0.1:8090:8090
+      - ${SWITCHYARD_PUBLISH_HOST:-127.0.0.1}:8091:8091
+    volumes:
+      - ./.switchyard:/app/.switchyard # snapshots and the release ledger land on the host
+    networks: [default, feed]
+    healthcheck:
+      test: ['CMD', 'node', '-e', "fetch('http://127.0.0.1:8090/').then(r=>process.exit(r.ok?0:1),()=>process.exit(1))"]
+      interval: 10s
+      timeout: 3s
+      retries: 3
+    depends_on:
+      switchyard:
+        condition: service_started
+
+  # One-off commands: docker compose run --rm cli <command>
+  # (init, demo, status, ship, revert, release, preview, check). It mounts .env so init can write the keys it creates.
+  cli:
+    <<: [*switchyard-image, *host-user]
+    profiles: [tools]
+    environment:
+      FLAGSMITH_API_URL: http://flagsmith:8000/api/v1/
+      SWITCHYARD_PROXY_URL: http://switchyard:8080
+    volumes:
+      - ./.env:/app/.env
+      - ./.switchyard:/app/.switchyard
+    networks: [default, feed] # Flagsmith's admin API; the proxy and the console (demo, doctor)
+
+  shop-1-4:
+    <<: *shop
+    environment:
+      <<: *shop-env
+      SHOP_VERSION: '1.4'
+
+  shop-1-5:
+    <<: *shop
+    environment:
+      <<: *shop-env
+      SHOP_VERSION: '1.5'
+
+  shop-1-6:
+    <<: *shop
+    environment:
+      <<: *shop-env
+      SHOP_VERSION: '1.6'
+      SEEDED_DELAY_MS: '60' # labelled, seeded slowdown: the release the latency guardrail catches
+
+networks:
+  feed: {}
+  apps: {}
+
+volumes:
+  switchyard-state: {}

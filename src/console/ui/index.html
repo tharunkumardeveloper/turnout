@@ -1,0 +1,177 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="light dark">
+  <meta name="switchyard-console" content="">
+  <title>Switchyard console</title>
+  <link rel="icon" href="/favicon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="/style.css">
+  <script type="module" src="/app.js"></script>
+  <script type="module" src="/guard.js"></script>
+</head>
+<body>
+  <a class="skip-link" href="#main">Skip to the console</a>
+
+  <header class="topbar" id="experiment-header">
+    <div class="brand">
+      <svg class="brand-mark" viewBox="0 0 32 32" aria-hidden="true" focusable="false">
+        <path d="M3 16h10c5 0 6-8 13-8" />
+        <path d="M13 16c5 0 6 8 13 8" />
+        <circle cx="13" cy="16" r="3" />
+      </svg>
+      <span class="brand-name">Switchyard</span>
+    </div>
+
+    <div class="experiment">
+      <div class="experiment-title">
+        <h1 id="exp-name">Loading experiment…</h1>
+        <span id="exp-status" class="pill" data-status="unknown">…</span>
+      </div>
+      <p class="hypothesis"><span class="hypothesis-label">Hypothesis</span> <span id="exp-hypothesis">—</span></p>
+    </div>
+
+    <dl class="meta">
+      <div><dt>Started</dt><dd id="exp-started">—</dd></div>
+      <div><dt>Flag</dt><dd id="flag-name" class="mono">—</dd></div>
+      <div class="meta-routing"><dt>Routing</dt><dd id="flag-routing">—</dd></div>
+    </dl>
+
+    <div class="top-side">
+      <ul class="connections" aria-label="Connections">
+        <li id="conn-state" class="conn" data-state="pending"><span class="conn-dot" aria-hidden="true"></span><span class="conn-text">Flagsmith: connecting…</span></li>
+        <li id="conn-feed" class="conn" data-state="pending"><span class="conn-dot" aria-hidden="true"></span><span class="conn-text">Live feed: connecting…</span></li>
+      </ul>
+      <a class="btn btn-small judge-link" href="/judge">Judge mode</a>
+    </div>
+  </header>
+
+  <div id="banner" class="banner" role="alert" hidden></div>
+
+  <main id="main" class="layout">
+    <section class="card map-card" id="traffic" aria-labelledby="traffic-title">
+      <div class="card-head">
+        <h2 id="traffic-title">Traffic map</h2>
+        <p class="card-sub">Each routed request is a dot · counters cover the last <span id="traffic-window">60</span> s</p>
+        <span id="merged-badge" class="merged-badge" hidden></span>
+      </div>
+      <div id="map" class="map" aria-busy="true">
+        <p class="map-empty">Waiting for the experiment…</p>
+      </div>
+      <ul class="legend" aria-label="Map legend">
+        <li><span class="key key-page" aria-hidden="true"></span>page view</li>
+        <li><span class="key key-asset" aria-hidden="true"></span>asset request</li>
+        <li><span class="key key-conversion" aria-hidden="true"></span>conversion</li>
+        <li><span class="key key-error" aria-hidden="true"></span>server error (5xx)</li>
+        <li class="legend-note" id="traffic-note"></li>
+        <li id="sampling" class="sampling"></li>
+      </ul>
+      <div class="sidings" aria-labelledby="sidings-title">
+        <h3 id="sidings-title" class="sidings-title">Sidings <span class="sidings-sub">past experiments on this flag</span></h3>
+        <ol id="siding-list" class="siding-list"></ol>
+      </div>
+    </section>
+
+    <section class="card actions-card" id="actions" aria-labelledby="actions-title">
+      <div class="card-head">
+        <h2 id="actions-title">Decide</h2>
+        <p class="card-sub">Human-confirmed. Each step shows its Flagsmith API call before it runs.</p>
+      </div>
+      <p id="swing-back" class="swing-back" role="note" hidden></p>
+      <form id="ship-form" class="actions-body">
+        <fieldset id="ship-fieldset" class="ship-choices">
+          <legend>Release to ship to everyone</legend>
+          <div id="ship-choices" class="choices"></div>
+        </fieldset>
+        <div class="action-row">
+          <button id="ship-btn" class="btn btn-ship" type="submit" disabled>Ship winner</button>
+          <button id="revert-btn" class="btn btn-revert" type="button" disabled>Revert to control</button>
+        </div>
+        <div class="action-notes">
+          <p id="ship-note" class="action-note"></p>
+          <p id="revert-note" class="action-note">Revert completes the experiment and drains the split: everyone gets control.</p>
+        </div>
+      </form>
+      <p id="action-status" class="action-status" role="status" aria-live="polite"></p>
+    </section>
+
+    <!-- The same jobs judge mode runs (POST /api/judge/run). Hidden when the console has no judge options. -->
+    <section class="card demo-card" id="demo" aria-labelledby="demo-title" hidden>
+      <div class="card-head">
+        <h2 id="demo-title">Demo controls</h2>
+        <p class="card-sub">Simulated visitors and the swing, as in judge mode. One job runs at a time.</p>
+      </div>
+      <form id="visitors-form" class="demo-row">
+        <label class="demo-label" for="visitors-count">Send simulated visitors</label>
+        <input id="visitors-count" class="demo-count" type="number" min="50" max="3000" step="50" value="1500" inputmode="numeric" aria-describedby="visitors-note">
+        <button id="visitors-btn" class="btn" type="submit" disabled>Send visitors</button>
+      </form>
+      <p id="visitors-note" class="action-note"></p>
+      <div class="demo-row" role="group" aria-labelledby="swing-label">
+        <span id="swing-label" class="demo-label">Swing with one flag edit</span>
+        <button id="swing-back-btn" class="btn" type="button" disabled>Swing back</button>
+        <button id="swing-forward-btn" class="btn" type="button" disabled>Swing forward</button>
+      </div>
+      <p id="swing-note" class="action-note"></p>
+      <progress id="demo-progress" class="demo-progress" max="1" value="0" hidden></progress>
+      <p id="demo-status" class="action-status" role="status" aria-live="polite"></p>
+    </section>
+
+    <section class="card results-card" id="results" aria-labelledby="results-title">
+      <div class="card-head">
+        <h2 id="results-title">Flagsmith's results</h2>
+        <button id="refresh-btn" class="btn btn-small" type="button">Refresh</button>
+      </div>
+      <p class="provenance">As returned by Flagsmith's experiment results API. <span id="results-asof"></span></p>
+      <div id="winner" class="winner" data-tone="neutral">
+        <p class="winner-headline" id="winner-headline">Loading…</p>
+        <p class="winner-detail" id="winner-detail"></p>
+      </div>
+      <div id="metrics" class="metrics"></div>
+      <div class="results-foot">
+        <p id="srm" class="foot-line">Sample-ratio check: —</p>
+        <p class="foot-line"><span class="foot-label">Flagsmith events</span> <span id="events">—</span> <span id="events-delta" class="delta"></span></p>
+      </div>
+      <p id="refresh-status" class="refresh-status" role="status" aria-live="polite"></p>
+    </section>
+
+    <section class="card snapshots-card" id="snapshots" aria-labelledby="snapshots-title">
+      <div class="card-head">
+        <h2 id="snapshots-title">Decision snapshots</h2>
+        <p class="card-sub">Flagsmith's results, saved before anything moves</p>
+      </div>
+      <ol id="snapshot-list" class="snapshot-list"></ol>
+    </section>
+    <section id="guard" class="card guard-card" aria-labelledby="guard-title" hidden>
+      <div class="card-head"><h2 id="guard-title">Health and guard</h2></div>
+      <p class="card-sub">Switchyard reports the release flag's health to <strong>Flagsmith's Feature Health</strong>: a losing guardrail tags the flag <em>Unhealthy</em> in Flagsmith's dashboard, with Flagsmith's numbers as the reason.</p>
+      <p id="health-line" class="guard-line" aria-live="polite"></p>
+      <div class="guard-toggle"><button id="guard-button" class="btn btn-secondary" type="button" aria-pressed="false">Turn the guard on</button></div>
+      <p class="card-sub">With the guard on, Switchyard asks Flagsmith for fresh results every 5 minutes and <strong>reverts on its own</strong> when a guardrail's chance to win drops to 1% or below. It never ships on its own.</p>
+      <p id="guard-line" class="guard-line" aria-live="polite"></p>
+    </section>
+  </main>
+
+  <footer class="footer">
+    <p>Flagsmith decides; Switchyard never computes its own statistics. Every action is visible in Flagsmith's audit log.</p>
+  </footer>
+
+  <dialog id="confirm-dialog" class="dialog" aria-labelledby="dialog-title" aria-describedby="dialog-intro">
+    <form method="dialog" class="dialog-inner" id="dialog-form">
+      <h2 id="dialog-title">Confirm</h2>
+      <p id="dialog-intro" class="dialog-intro"></p>
+      <div id="dialog-body" class="dialog-body" aria-live="polite"></div>
+      <div id="dialog-guardrails" class="dialog-guardrails" role="alert" hidden>
+        <ul id="guardrail-list" class="guardrail-list"></ul>
+        <label class="accept-guardrails"><input type="checkbox" id="accept-guardrails"> Ship anyway, I accept this</label>
+      </div>
+      <p id="dialog-result" class="dialog-result" role="status" aria-live="polite"></p>
+      <div class="dialog-buttons">
+        <button id="dialog-cancel" class="btn btn-ghost" value="cancel" type="submit">Cancel</button>
+        <button id="dialog-confirm" class="btn btn-primary" type="button" disabled>Confirm</button>
+      </div>
+    </form>
+  </dialog>
+</body>
+</html>

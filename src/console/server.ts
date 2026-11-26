@@ -1,0 +1,502 @@
+// The console: localhost-only page with the traffic map, Flagsmith's results, and the Ship winner / Revert buttons.
+// It holds the admin key; the public proxy never does. Every request must name a local Host (no DNS rebinding),
+// every /api/* request must carry the per-boot token the page was served with, and writes must be same-origin JSON.
+// Judge mode (/judge) can also be opened from another device, on its own port (listenForOtherDevices): its hostname
+// must be listed in allowedHosts, and the browser must have opened the judge link (/judge?key=<judge token>) once,
+// which leaves an HttpOnly cookie. The Host header is the client's to choose, so it never decides who is local: a
+// request on the other-devices port needs the cookie and never gets the admin password, whatever Host it names.
+import { createHmac, randomBytes, timingSafeEqual } from 'node:crypto';
+import { existsSync, readFileSync, readdirSync } from 'node:fs';
+import http from 'node:http';
+import net from 'node:net';
+import { extname, join } from 'node:path';
+import type { DoctorReport } from '../commands/doctor.ts';
+import { currentRelease } from '../commands/release.ts';
+import { decide, LosingGuardrailsError, plan } from '../decide.ts';
+import { losingGuardrails, pickWinner, type Experiments, type StepResult } from '../flagsmith/experiments.ts';
+import { createMapReader } from '../flagsmith/feature-map.ts';
+import { readLedger } from '../ledger.ts';
+import type { Watcher } from '../health.ts';
+import { createJudge, shared, type JudgeOptions } from './judge.ts';
+
+export type ConsoleOptions = {
+  // A fixed experiment, or a resolver that finds the flag's latest one (so the console follows `release`).
+  experiments: Experiments | (() => Promise<Experiments>);
+  feedUrl: string; // the proxy's internal feed, e.g. http://switchyard:8081
+  metricsUrl?: string; // Flagsmith's Prometheus endpoint, e.g. http://flagsmith:9100/metrics
+  snapshotDir: string;
+  ledgerDir: string; // where decide() appends ledger.jsonl and RELEASES.md
+  uiDir: string;
+  github?: { token: string; repository: string }; // also publish each decision to the release's GitHub Release
+  // Hostnames besides loopback the console answers (any port), each only with the judge cookie. Needs judgeToken.
+  allowedHosts?: string[];
+  judgeToken?: string; // SWITCHYARD_JUDGE_TOKEN: /judge?key=<it> gives a browser the judge cookie
+  judge?: JudgeOptions; // judge mode's jobs; without it /api/judge/* answers 404
+  // Flagsmith's admin login, for the tour's "sign in to Flagsmith" step. The password goes only to loopback pages.
+  flagsmithLogin?: { email: string; password?: string };
+  watcher?: Watcher; // the Feature Health bridge and the guard: GET/POST /api/guard
+  lock?: { busy: boolean }; // pass one to share it with the watcher's guard
+  doctor?: () => Promise<DoctorReport>; // switchyard doctor's checks: GET /api/doctor, shown on /setup
+  cacheMs?: Partial<CacheTimes>; // how long each shared read is kept; defaults in CACHE_MS
+};
+
+// Many pages poll the same few reads. Each read is shared by everyone who asks while it runs, then kept this long.
+// Ship winner, Revert, a results refresh, every judge job and the guard's automatic Revert drop the kept reads.
+export type CacheTimes = {
+  state: number; // GET /api/state
+  latest: number; // which experiment is the flag's latest (switchyard release in a terminal shows up within this)
+  events: number; // Flagsmith's Prometheus event counter
+  doctor: number; // GET /api/doctor; ?fresh=1 skips it
+};
+export const CACHE_MS: CacheTimes = { state: 1500, latest: 10_000, events: 1000, doctor: 15_000 };
+
+export const TOKEN_HEADER = 'x-switchyard-console';
+const DEFAULT_HOSTS = ['localhost', '127.0.0.1', '[::1]'];
+export const JUDGE_COOKIE = 'sy_judge';
+const JUDGE_COOKIE_MAX_AGE = 24 * 60 * 60;
+
+// The judge cookie holds a MAC of the judge token, never the token itself.
+export const judgeMark = (judgeToken: string): string =>
+  createHmac('sha256', judgeToken).update('switchyard-judge').digest('base64url');
+const MAX_BODY = 16 * 1024;
+
+const TYPES: Record<string, string> = {
+  '.html': 'text/html; charset=utf-8',
+  '.js': 'text/javascript; charset=utf-8',
+  '.css': 'text/css; charset=utf-8',
+  '.svg': 'image/svg+xml',
+};
+
+// Judge mode shows the setup check and the feature map as tabs (same-origin frames) and the shop through
+// Switchyard (frame-src names the shop's origin). Nothing else may frame the console.
+function securityHeaders(shopUrl: string | undefined): Record<string, string> {
+  let shop = '';
+  try {
+    if (shopUrl) shop = ` ${new URL(shopUrl).origin}`;
+  } catch {
+    // no shop frame
+  }
+  return {
+    'x-content-type-options': 'nosniff',
+    'x-frame-options': 'SAMEORIGIN',
+    'referrer-policy': 'no-referrer',
+    'cross-origin-resource-policy': 'same-origin',
+    // map.js sets style attributes on SVG elements, hence 'unsafe-inline' for styles only. No inline scripts.
+    'content-security-policy':
+      `default-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; object-src 'none'; base-uri 'none'; form-action 'self'; frame-src 'self'${shop}; frame-ancestors 'self'`,
+  };
+}
+
+// Sockets accepted on the other-devices port. Requests on them are never "this machine".
+const otherDevices = new WeakSet<net.Socket>();
+
+// Serve the console to other devices on a second port. Compose publishes the console's main port on 127.0.0.1 only
+// and this one on SWITCHYARD_PUBLISH_HOST, so the rule for a request comes from the port it arrived on.
+export function listenForOtherDevices(server: http.Server, port: number, host: string, onListening?: () => void): net.Server {
+  const devices = net.createServer((socket) => {
+    otherDevices.add(socket);
+    server.emit('connection', socket);
+  });
+  server.on('close', () => devices.close());
+  return devices.listen(port, host, onListening);
+}
+
+class HttpError extends Error {
+  readonly status: number;
+  constructor(status: number, message: string) {
+    super(message);
+    this.status = status;
+  }
+}
+
+export function createConsole(opts: ConsoleOptions): http.Server {
+  const lock = opts.lock ?? { busy: false }; // one write sequence at a time: Ship/Revert, judge jobs, the guard
+  const token = randomBytes(24).toString('base64url');
+  const loopback = new Set(DEFAULT_HOSTS);
+  const allowedHosts = new Set([...DEFAULT_HOSTS, ...(opts.allowedHosts ?? [])].map((h) => h.trim().toLowerCase()));
+  const remoteHosts = [...allowedHosts].filter((h) => !loopback.has(h));
+  if (remoteHosts.length && !opts.judgeToken) {
+    throw new Error(
+      `SWITCHYARD_CONSOLE_HOSTS lists ${remoteHosts.join(', ')}, but SWITCHYARD_JUDGE_TOKEN is not set. ` +
+        'Other devices need the judge link (/judge?key=<token>): run init to create the token, or remove the hosts.',
+    );
+  }
+  const mark = opts.judgeToken ? judgeMark(opts.judgeToken) : undefined;
+  const SECURITY_HEADERS = securityHeaders(opts.judge?.shopUrl);
+  const ttl: CacheTimes = { ...CACHE_MS, ...opts.cacheMs };
+  const resolve = opts.experiments;
+  const latest = typeof resolve === 'function' ? shared(resolve, ttl.latest) : null;
+  const current = async (): Promise<Experiments> => (latest ? latest.get() : (resolve as Experiments));
+  const events = shared(() => readEventCounter(opts.metricsUrl), ttl.events);
+  const readEvents = () => events.get();
+  const apiState = shared(() => readApiState(), ttl.state);
+  const doctor = opts.doctor ? shared(opts.doctor, ttl.doctor) : null;
+  // After a write: the next read of anything asks Flagsmith again.
+  const invalidate = (scope: 'experiment' | 'all') => {
+    latest?.clear();
+    if (scope === 'experiment') return;
+    events.clear();
+    apiState.clear();
+    flagsmithMap.invalidate();
+    doctor?.clear();
+  };
+  const judge = opts.judge
+    ? createJudge(opts.judge, {
+        experiments: current,
+        readEvents,
+        snapshotDir: opts.snapshotDir,
+        ledgerDir: opts.ledgerDir,
+        ...(opts.github ? { github: opts.github } : {}),
+        lock,
+        invalidate,
+      })
+    : null;
+  // The Flagsmith feature map (/flagsmith): every dashboard menu and integration, with live values.
+  const flagsmithMap = createMapReader({
+    experiments: current,
+    dashboardUrl: opts.judge?.dashboardUrl ?? 'http://localhost:8000',
+    readEvents,
+    ledgerDir: opts.ledgerDir,
+  });
+
+  // GET /api/state. The flag waits only for the detail (it needs the feature id); everything else runs at once.
+  async function readApiState() {
+    const exps = await current();
+    const detail = exps.detail();
+    const [experiment, results, flag, eventCount, traffic, history] = await Promise.all([
+      detail,
+      exps.results(),
+      detail.then((e) => exps.flagState(e.feature.id)),
+      readEvents(),
+      fetchJson(`${opts.feedUrl}/summary`),
+      exps.history().catch(() => null), // the sidings are extra; the console works without them
+    ]);
+    return {
+      experiment,
+      results,
+      winner: pickWinner(experiment, results),
+      flag,
+      serving: currentRelease(flag, experiment.feature.multivariate_options.map((o) => ({ ...o, default_percentage_allocation: 0 }))),
+      events: eventCount,
+      traffic,
+      snapshots: listSnapshots(opts.snapshotDir),
+      history,
+      ledger: readLedger(opts.ledgerDir).filter((e) => e.flag === experiment.feature.name),
+    };
+  }
+
+  const json = (res: http.ServerResponse, status: number, data: unknown) => {
+    res.writeHead(status, { 'content-type': 'application/json', 'cache-control': 'no-store' });
+    res.end(JSON.stringify(data));
+  };
+
+  const changed = (res: http.ServerResponse, experimentId: number) =>
+    json(res, 409, {
+      ok: false,
+      error: 'The experiment changed since this page loaded (a new release started). Reload the page and check the plan again.',
+      experimentId,
+    });
+
+  const act = async (res: http.ServerResponse, action: 'ship' | 'revert', body: ActionBody) => {
+    if (lock.busy) return json(res, 409, { ok: false, error: 'Another action is still running.' });
+    lock.busy = true;
+    const steps: StepResult[] = [];
+    invalidate('experiment'); // check against the latest experiment now, not a cached answer
+    try {
+      const exps = await current();
+      if (exps.ref.experimentId !== body.experimentId) return changed(res, exps.ref.experimentId);
+      const decision = await decide({
+        experiments: exps,
+        action,
+        ...(action === 'ship' ? { winner: body.winner } : {}),
+        acceptLosingGuardrails: body.acceptLosingGuardrails === true,
+        snapshotDir: opts.snapshotDir,
+        ledgerDir: opts.ledgerDir,
+        ...(opts.github ? { github: opts.github } : {}),
+        onStep: (s) => steps.push(s),
+      });
+      json(res, 200, { ok: true, steps, entry: decision.entry, github: decision.github });
+    } catch (error) {
+      if (error instanceof LosingGuardrailsError) json(res, 409, { ok: false, error: error.message, guardrails: error.warnings });
+      else json(res, 502, { ok: false, steps, error: (error as Error).message });
+    } finally {
+      forget();
+      lock.busy = false;
+    }
+  };
+  // Everything kept is dropped after a write from this console, judge mode's state included.
+  const forget = () => {
+    invalidate('all');
+    judge?.forget();
+  };
+  opts.watcher?.onRevert(forget); // the guard's automatic Revert is a write too
+
+  return http.createServer(async (req, res) => {
+    for (const [k, v] of Object.entries(SECURITY_HEADERS)) res.setHeader(k, v);
+    // DNS rebinding: a page on evil.example resolving to 127.0.0.1 still sends Host: evil.example.
+    const hostname = hostnameOf(req.headers.host);
+    // This machine: a loopback name on the port Compose publishes on 127.0.0.1 only. Never the other-devices port.
+    const thisMachine = loopback.has(hostname) && !otherDevices.has(req.socket);
+    if (!allowedHosts.has(hostname)) {
+      res.writeHead(421).end();
+      return;
+    }
+    const url = new URL(req.url ?? '/', 'http://console');
+    try {
+      // The judge link: trade the key for a cookie, then drop the key from the address bar.
+      if (req.method === 'GET' && url.pathname === '/judge' && url.searchParams.has('key')) {
+        if (!opts.judgeToken || !mark || !sameSecret(url.searchParams.get('key') ?? '', opts.judgeToken)) {
+          return page(res, 403, 'Not a valid judge link', 'Ask whoever runs this demo for the current judge link.');
+        }
+        const secure = req.headers['x-forwarded-proto'] === 'https' ? '; Secure' : '';
+        res.writeHead(303, {
+          location: '/judge',
+          'set-cookie': `${JUDGE_COOKIE}=${mark}; Path=/; HttpOnly; SameSite=Lax; Max-Age=${JUDGE_COOKIE_MAX_AGE}${secure}`,
+          'cache-control': 'no-store',
+        });
+        return void res.end();
+      }
+      // Anything but this machine needs the judge cookie, for every page and API call.
+      if (!thisMachine &&!(mark && sameSecret(readCookie(req.headers.cookie, JUDGE_COOKIE) ?? '', mark))) {
+        if (url.pathname.startsWith('/api/')) return json(res, 403, { error: 'Open the judge link on this device first.' });
+        return page(res, 403, 'Open the judge link first', 'This console only answers other devices that opened the judge link (/judge?key=…).');
+      }
+      if (url.pathname.startsWith('/api/')) {
+        const given = req.headers[TOKEN_HEADER] ?? (url.pathname === '/api/traffic' ? url.searchParams.get('token') : null);
+        if (!sameSecret(typeof given === 'string' ? given : '', token)) {
+          return json(res, 403, { error: 'Open the console page to use its API.' });
+        }
+      }
+      if (req.method === 'POST' && !isSameOriginJson(req)) {
+        return json(res, 403, { error: 'Console actions must come from the console page.' });
+      }
+
+      if (req.method === 'GET' && url.pathname === '/api/state') return json(res, 200, await apiState.get());
+
+      if (req.method === 'GET' && url.pathname === '/api/plan') {
+        const action = url.searchParams.get('action') === 'revert' ? 'revert' : 'ship';
+        const winner = url.searchParams.get('winner') ?? '';
+        const experimentId = Number(url.searchParams.get('experimentId'));
+        if (!Number.isInteger(experimentId) || !url.searchParams.get('experimentId')) {
+          return json(res, 400, { error: 'experimentId is required' });
+        }
+        const exps = await current();
+        if (exps.ref.experimentId !== experimentId) return changed(res, exps.ref.experimentId);
+        const [experiment, results] = await Promise.all([exps.detail(), exps.results()]);
+        const steps = await plan(exps, action, winner, opts.snapshotDir);
+        return json(res, 200, {
+          experimentId,
+          steps: steps.map((s) => ({ title: s.title, call: s.call })),
+          guardrails: action === 'ship' ? losingGuardrails(experiment, results, winner) : [],
+        });
+      }
+
+      if (url.pathname === '/api/guard') {
+        if (!opts.watcher) return json(res, 404, { error: 'The health bridge and guard are not configured.' });
+        if (req.method === 'GET') return json(res, 200, opts.watcher.snapshot());
+        if (req.method === 'POST') {
+          const body = (await readJson(req)) as { enabled?: unknown };
+          if (typeof body.enabled !== 'boolean') return json(res, 400, { error: 'enabled must be true or false' });
+          const state = opts.watcher.setGuard(body.enabled);
+          void opts.watcher.tick(); // act on the current results straight away
+          return json(res, 200, state);
+        }
+      }
+
+      if (req.method === 'POST' && url.pathname === '/api/refresh') {
+        await readJson(req);
+        const refreshed = await (await current()).refreshResults();
+        forget();
+        return json(res, 200, refreshed);
+      }
+
+      if (req.method === 'POST' && (url.pathname === '/api/ship' || url.pathname === '/api/revert')) {
+        const body = parseActionBody(await readJson(req));
+        const action = url.pathname === '/api/ship' ? 'ship' : 'revert';
+        if (action === 'ship' && !body.winner) return json(res, 400, { ok: false, error: 'winner is required' });
+        return act(res, action, body);
+      }
+
+      if (url.pathname.startsWith('/api/judge/')) {
+        if (!judge) return json(res, 404, { error: 'Judge mode is not configured for this console.' });
+        if (req.method === 'GET' && url.pathname === '/api/judge/state') return json(res, 200, await judge.state());
+        if (req.method === 'GET' && url.pathname === '/api/judge/job') return json(res, 200, { job: judge.job() });
+        // The tour's sign-in step. Another device (judge link) gets the email only: the password never leaves this machine.
+        if (req.method === 'GET' && url.pathname === '/api/judge/signin') {
+          const login = opts.flagsmithLogin;
+          return json(res, 200, {
+            dashboardUrl: opts.judge?.dashboardUrl ?? null,
+            email: login?.email ?? null,
+            password: login?.password && thisMachine ? login.password : null,
+          });
+        }
+        if (req.method === 'POST' && url.pathname === '/api/judge/run') {
+          const ran = await judge.run(await readJson(req));
+          return json(res, ran.status, ran.body);
+        }
+        return json(res, 404, { error: 'not found' });
+      }
+
+      if (req.method === 'GET' && url.pathname === '/api/doctor') {
+        if (!doctor) return json(res, 404, { error: 'The setup check is not configured for this console.' });
+        return json(res, 200, await doctor.get(url.searchParams.get('fresh') === '1')); // ?fresh=1: "Check again"
+      }
+
+      if (req.method === 'GET' && url.pathname === '/api/flagsmith-map') return json(res, 200, await flagsmithMap.read());
+
+      if (req.method === 'GET' && url.pathname === '/api/traffic') {
+        return relayFeed(`${opts.feedUrl}/traffic`, res);
+      }
+
+      if (req.method === 'GET') return serveStatic(opts.uiDir, url.pathname, res, token);
+      json(res, 404, { error: 'not found' });
+    } catch (error) {
+      if (error instanceof HttpError) return json(res, error.status, { error: error.message });
+      json(res, 500, { error: (error as Error).message });
+    }
+  });
+}
+
+type ActionBody = { experimentId: number; winner?: string; acceptLosingGuardrails?: boolean };
+
+function parseActionBody(body: unknown): ActionBody {
+  const b = (body ?? {}) as Record<string, unknown>;
+  if (typeof b.experimentId !== 'number' || !Number.isInteger(b.experimentId)) throw new HttpError(400, 'experimentId is required');
+  if (b.winner !== undefined && typeof b.winner !== 'string') throw new HttpError(400, 'winner must be a string');
+  return {
+    experimentId: b.experimentId,
+    ...(typeof b.winner === 'string' && b.winner ? { winner: b.winner } : {}),
+    acceptLosingGuardrails: b.acceptLosingGuardrails === true,
+  };
+}
+
+// "localhost:8090" → "localhost", "[::1]:8090" → "[::1]"; the port is whatever the request came in on.
+export function hostnameOf(host: string | undefined): string {
+  if (!host) return '';
+  const h = host.trim().toLowerCase();
+  if (h.startsWith('[')) return h.slice(0, h.indexOf(']') + 1);
+  return h.split(':')[0]!;
+}
+
+function readCookie(header: string | undefined, name: string): string | undefined {
+  for (const part of (header ?? '').split(';')) {
+    const [key, ...rest] = part.trim().split('=');
+    if (key === name) return rest.join('=');
+  }
+  return undefined;
+}
+
+function page(res: http.ServerResponse, status: number, title: string, text: string): void {
+  res.writeHead(status, { 'content-type': 'text/html; charset=utf-8', 'cache-control': 'no-store' });
+  res.end(`<!doctype html><meta charset="utf-8"><meta name="viewport" content="width=device-width"><title>${title}</title><h1>${title}</h1><p>${text}</p>`);
+}
+
+function sameSecret(given: string, expected: string): boolean {
+  const a = Buffer.from(given);
+  const b = Buffer.from(expected);
+  return a.length === b.length && timingSafeEqual(a, b);
+}
+
+// A cross-site form can't send application/json without a preflight we never answer, and a browser always sends
+// Origin on a cross-origin POST. Origin "null" (sandboxed frames, file://) or anything unparseable is refused.
+function isSameOriginJson(req: http.IncomingMessage): boolean {
+  if (!/^application\/json\s*(;\s*charset=utf-8\s*)?$/i.test(req.headers['content-type'] ?? '')) return false;
+  const origin = req.headers.origin;
+  if (origin === undefined) return true;
+  try {
+    return new URL(origin).host === req.headers.host;
+  } catch {
+    return false;
+  }
+}
+
+async function readJson(req: http.IncomingMessage): Promise<unknown> {
+  if (Number(req.headers['content-length'] ?? 0) > MAX_BODY) throw new HttpError(413, 'request body too large');
+  let raw = '';
+  for await (const chunk of req) {
+    raw += chunk;
+    if (raw.length > MAX_BODY) {
+      req.destroy();
+      throw new HttpError(413, 'request body too large');
+    }
+  }
+  if (!raw) return {};
+  try {
+    const body: unknown = JSON.parse(raw);
+    if (body === null || typeof body !== 'object' || Array.isArray(body)) throw new Error('not an object');
+    return body;
+  } catch {
+    throw new HttpError(400, 'request body must be a JSON object');
+  }
+}
+
+async function fetchJson(url: string): Promise<unknown> {
+  try {
+    const res = await fetch(url, { signal: AbortSignal.timeout(2000) });
+    return res.ok ? await res.json() : null;
+  } catch {
+    return null;
+  }
+}
+
+// Flagsmith's own counter of accepted and rejected experiment events.
+export async function readEventCounter(metricsUrl: string | undefined): Promise<{ accepted: number; rejected: number } | null> {
+  if (!metricsUrl) return null;
+  try {
+    const res = await fetch(metricsUrl, { signal: AbortSignal.timeout(2000) });
+    const text = await res.text();
+    const read = (result: string) =>
+      Number(text.match(new RegExp(`^flagsmith_experimentation_sdk_events_total\\{result="${result}"\\} ([0-9.e+]+)$`, 'm'))?.[1] ?? 0);
+    return { accepted: read('accepted'), rejected: read('rejected') };
+  } catch {
+    return null;
+  }
+}
+
+async function relayFeed(url: string, res: http.ServerResponse): Promise<void> {
+  const abort = new AbortController();
+  res.on('close', () => abort.abort());
+  try {
+    const upstream = await fetch(url, { signal: abort.signal });
+    if (!upstream.ok || !upstream.body) throw new Error('feed unavailable');
+    res.writeHead(200, { 'content-type': 'text/event-stream', 'cache-control': 'no-cache' });
+    for await (const chunk of upstream.body) res.write(chunk);
+    res.end();
+  } catch {
+    if (!res.headersSent) res.writeHead(503, { 'content-type': 'text/plain' });
+    res.end();
+  }
+}
+
+function listSnapshots(dir: string): string[] {
+  if (!existsSync(dir)) return [];
+  return sortSnapshots(readdirSync(dir).filter((f) => f.endsWith('.json')));
+}
+
+// Newest first by the time in the name (experiment-<id>-<ISO time with dashes>.json), not by the name itself:
+// "experiment-9-…" sorts after "experiment-21-…" as text. Names without a time go last, by name.
+export function sortSnapshots(files: string[]): string[] {
+  const at = (f: string) => /(\d{4}-\d{2}-\d{2}T\d{2}-\d{2}-\d{2}-\d{3}Z)/.exec(f)?.[1] ?? '';
+  return [...files].sort((a, b) => at(b).localeCompare(at(a)) || b.localeCompare(a));
+}
+
+const TOKEN_META = '<meta name="switchyard-console" content="">';
+// Pages by path; each gets the API token injected.
+const PAGES: Record<string, string> = { '/': 'index.html', '/judge': 'judge.html', '/setup': 'setup.html', '/flagsmith': 'flagsmith.html' };
+
+function serveStatic(dir: string, pathname: string, res: http.ServerResponse, token: string): void {
+  const name = PAGES[pathname] ?? pathname.slice(1);
+  if (name.includes('..') || name.includes('/') || name.includes('\\') || !TYPES[extname(name)]) {
+    res.writeHead(404).end();
+    return;
+  }
+  const file = join(dir, name);
+  if (!existsSync(file)) {
+    res.writeHead(404).end();
+    return;
+  }
+  res.writeHead(200, { 'content-type': TYPES[extname(name)]!, 'cache-control': 'no-store' });
+  // The page learns the API token here; only a same-origin page (Host checked above) can read it.
+  if (Object.values(PAGES).includes(name)) res.end(readFileSync(file, 'utf8').replace(TOKEN_META, `<meta name="switchyard-console" content="${token}">`));
+  else res.end(readFileSync(file));
+}

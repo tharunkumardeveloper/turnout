@@ -1,0 +1,117 @@
+/* Switchyard judge mode: the live track map (track.js) and its legend. Loaded after style.css and judge.css, so it
+   uses the same tokens. Everything is scoped to .track-svg / .track-legend: ".rail" is also the step rail's name. */
+
+.track {
+  --track-ease: cubic-bezier(.22, 1, .36, 1);
+  --track-fs: var(--fs, #6366f1); /* indigo: data read from Flagsmith */
+  width: 100%;
+  min-height: 160px;
+  margin-top: 8px;
+}
+/* Before the first draw the box holds the map's room; once drawn, the SVG sets the height (no empty band under it). */
+@media (min-width: 1024px) { .track:not(:has(.track-svg[viewBox])) { min-height: 288px; } }
+
+.track-svg {
+  display: block;
+  max-width: 100%;
+  height: auto;
+  overflow: visible;
+  font-family: var(--sans);
+  font-variant-numeric: tabular-nums;
+}
+
+/* ---- column captions (horizontal layout only) ---- */
+.track-svg .track-caption {
+  fill: var(--faint);
+  font-size: 11px;
+  font-weight: 650;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+/* ---- rails: the tracks a request can ride ---- */
+.track-svg .rail { fill: none; stroke-linecap: round; transition: opacity 0.35s var(--track-ease); }
+.track-svg .rail-feed, .track-svg .rail-rule { stroke: var(--border-strong, var(--border)); stroke-width: 3px; }
+.track-svg .rail-out { opacity: 0.75; }
+.track-svg .rail-empty { stroke-dasharray: 3 6; opacity: 0.4; }
+.track-svg.is-demo .rail-out:not(.rail-empty) { stroke-dasharray: 10 8; animation: rail-march 0.7s linear infinite; }
+@keyframes rail-march { to { stroke-dashoffset: -18; } }
+
+/* ---- boxes ---- */
+.track-svg .tnode { transition: opacity 0.35s var(--track-ease); }
+.track-svg.is-animating .tnode { transition: opacity 0.35s var(--track-ease), transform 0.45s var(--track-ease); }
+.track-svg .tnode rect { fill: var(--surface-2); stroke: var(--border); stroke-width: 1.5px; transition: stroke-width 0.25s ease; }
+.track-svg .tnode-source rect { fill: var(--surface); }
+.track-svg .tnode-junction rect { stroke: var(--focus); stroke-width: 2px; fill: color-mix(in srgb, var(--focus) 8%, var(--surface)); }
+.track-svg .tnode-rule rect { fill: var(--surface); }
+.track-svg .tnode-rule-experiment rect { stroke: color-mix(in srgb, var(--track-fs) 60%, var(--border)); }
+.track-svg .tnode-rule-preview rect { stroke-dasharray: 5 4; }
+.track-svg .tnode-fs { fill: var(--track-fs); }
+.track-svg .tnode-title { fill: var(--text); font-size: 14px; font-weight: 650; }
+.track-svg .tnode-release .tnode-title { font-family: var(--mono); font-size: 13.5px; }
+.track-svg .tnode-sub { fill: var(--muted); font-size: 12.5px; }
+.track-svg.is-vertical .tnode-title { font-size: 13px; }
+.track-svg.is-vertical .tnode-sub { font-size: 11.5px; }
+.track-svg .tnode-idle { opacity: 0.45; }
+.track-svg .tnode-flash rect { animation: tnode-flash 0.5s ease-out; }
+@keyframes tnode-flash { 0% { stroke-width: 5px; } 100% { stroke-width: 1.5px; } }
+
+/* ---- the split's percentages ---- */
+.track-svg .pct-tag rect { fill: var(--surface); stroke-width: 1.5px; }
+.track-svg .pct-tag text { fill: var(--text); font-size: 12.5px; font-weight: 750; }
+.track-svg .track-pcts, .track-svg .pct-tag { transition: opacity 0.35s var(--track-ease); }
+
+/* ---- cross-fades when the routing changes ---- */
+.track-svg .track-rails, .track-svg .track-pcts { transition: opacity 0.45s var(--track-ease); }
+.track-svg .is-entering, .track-svg .is-leaving { opacity: 0 !important; }
+.track-svg .is-leaving { pointer-events: none; }
+
+/* ---- one rule in front (highlight), the rest dimmed ---- */
+.track-svg.has-focus .track-rails [data-rule]:not(.is-focus),
+.track-svg.has-focus .pct-tag:not(.is-focus),
+.track-svg.has-focus .tnode-rule:not(.is-focus),
+.track-svg.has-focus .tnode-release:not(.is-focus),
+.track-svg.has-focus .tdot:not(.is-focus) { opacity: 0.16; }
+.track-svg.has-focus .rail-out.is-focus { opacity: 1; }
+.track-svg.has-focus .tnode.is-focus rect { stroke-width: 2.5px; }
+
+/* ---- the dots ---- */
+.track-svg .tdot { stroke: var(--surface); stroke-width: 1px; transition: opacity 0.3s ease; }
+.track-svg .tdot-order { stroke: var(--text); stroke-width: 1.5px; }
+.track-svg .tdot-error { fill: var(--bad) !important; }
+.track-svg .tdot-asset { opacity: 0.55; }
+.track-svg .tdot-demo { stroke-width: 1.5px; }
+
+/* ---- the legend under the map (judge.html: ul#track-legend.track-legend) ---- */
+.track-legend {
+  list-style: none;
+  margin: 12px 0 0;
+  padding: 10px 0 0;
+  border-top: 1px solid var(--border);
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 20px;
+  font-size: 12.5px;
+  color: var(--muted);
+}
+.track-legend li { display: inline-flex; align-items: center; gap: 8px; }
+.track-legend .lg-dot {
+  flex: none;
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  background: var(--faint);
+  box-shadow: 0 0 0 1px var(--surface);
+}
+.track-legend .lg-order { width: 12px; height: 12px; box-shadow: 0 0 0 1.5px var(--text); }
+.track-legend .lg-error { background: var(--bad); }
+.track-legend .lg-colour { color: var(--faint); }
+@media (min-width: 1024px) { .track-legend .lg-colour { margin-left: auto; } }
+
+@media (prefers-reduced-motion: reduce) {
+  .track-svg .rail, .track-svg .tnode, .track-svg.is-animating .tnode, .track-svg .tnode rect,
+  .track-svg .track-rails, .track-svg .track-pcts, .track-svg .pct-tag, .track-svg .tdot { transition: none !important; }
+  .track-svg .tnode-flash rect, .track-svg.is-demo .rail-out { animation: none !important; }
+  .track-svg.is-demo .rail-out:not(.rail-empty) { stroke-dasharray: none; }
+}

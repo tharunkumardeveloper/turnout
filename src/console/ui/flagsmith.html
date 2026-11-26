@@ -1,0 +1,55 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="color-scheme" content="light dark">
+  <meta name="switchyard-console" content="">
+  <title>Switchyard: Flagsmith feature map</title>
+  <link rel="icon" href="/favicon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="/style.css">
+  <link rel="stylesheet" href="/flagsmith.css">
+  <script type="module" src="/flagsmith.js"></script>
+</head>
+<body class="fsmap">
+  <a class="skip-link" href="#groups">Skip to the map</a>
+
+  <header class="fhead">
+    <div class="fhead-inner">
+      <div class="fhead-title">
+        <svg class="brand-mark" viewBox="0 0 32 32" aria-hidden="true" focusable="false">
+          <path d="M3 16h10c5 0 6-8 13-8" />
+          <path d="M13 16c5 0 6 8 13 8" />
+          <circle cx="13" cy="16" r="3" />
+        </svg>
+        <h1>Switchyard <span class="fhead-mode">— Flagsmith feature map</span></h1>
+      </div>
+      <p class="fhead-sub">Every menu of Flagsmith's dashboard and every integration it lists: what Switchyard does with it, or what it would take on this laptop demo. Values marked <strong>live</strong> were just read from Flagsmith's own API.</p>
+      <nav class="flinks" aria-label="Open">
+        <a id="open-flagsmith" class="btn" href="/" target="_blank" rel="noopener" hidden>Open Flagsmith<span class="sr-only"> (new tab)</span></a>
+        <a class="btn" href="/judge">Judge mode</a>
+        <a class="btn btn-ghost" href="/">Full console</a>
+      </nav>
+    </div>
+  </header>
+
+  <div id="banner" class="banner fbanner" role="alert" hidden></div>
+
+  <main id="main" class="fmain">
+    <section class="card fsummary" aria-labelledby="summary-title">
+      <div class="card-head">
+        <h2 id="summary-title">At a glance</h2>
+        <button id="refresh" class="btn btn-small" type="button">Read again</button>
+      </div>
+      <p id="summary-line" class="card-sub" aria-live="polite">Reading Flagsmith…</p>
+      <ul id="counts" class="fcounts" aria-label="Items by status"></ul>
+    </section>
+
+    <div id="groups" class="fgroups" aria-busy="true"></div>
+  </main>
+
+  <footer class="footer">
+    <p>Statuses describe this laptop demo on self-hosted Flagsmith 2.291.0, not Flagsmith in general. Each “needs” item names the Flagsmith source it rests on. Switchyard never works around those limits.</p>
+  </footer>
+</body>
+</html>

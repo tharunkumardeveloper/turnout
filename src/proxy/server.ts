@@ -1,0 +1,443 @@
+import { createHmac, randomUUID, timingSafeEqual } from 'node:crypto';
+import http from 'node:http';
+import https from 'node:https';
+import { matchesRule, type Config } from '../config.ts';
+import type { Receipt } from '../flagsmith/receipts.ts';
+
+export const ID_COOKIE = 'sy_id';
+export const PREVIEW_COOKIE = 'sy_preview';
+// Paths under this prefix are answered by Switchyard itself and never reach the app.
+export const OWN_PREFIX = '/__switchyard/';
+
+const CONTROL = 'control';
+const ONE_YEAR_S = 365 * 24 * 60 * 60;
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
+const BOT_RE = /bot|crawl|spider|slurp|headless|lighthouse|preview|curl|wget|python-requests/i;
+// RFC 9110 §7.6.1: meaningful for one connection only, never forwarded.
+const HOP_BY_HOP = ['connection', 'keep-alive', 'proxy-authenticate', 'proxy-authorization', 'proxy-connection', 'te', 'trailer', 'transfer-encoding', 'upgrade'];
+
+// variant: the experiment key (control, v2…) used for events; release: the flag's value, which picks the container.
+export type Assignment = { variant: string; release: string | undefined; enrolled: boolean };
+export type FlagSourceStatus = { ready: boolean; environmentAgeSeconds: number | null; lastError: string | null };
+
+// The proxy's only view of Flagsmith; src/flagsmith/flag-source.ts implements it with the SDK.
+export interface FlagSource {
+  assign(identity: string, opts: { recordExposure: boolean; traits?: Record<string, string> }): Promise<Assignment>;
+  track(event: string, identity: string, value?: number): void;
+  ready?(): boolean; // false until the first environment document has arrived
+  status?(): FlagSourceStatus;
+}
+
+export type TrafficEvent = {
+  at: number;
+  variant: string;
+  release: string;
+  method: string;
+  path: string;
+  status: number;
+  latencyMs: number;
+  document: boolean;
+  enrolled: boolean;
+  converted: boolean;
+  fallback?: string;
+};
+
+// Where the live release is remembered between restarts, so a cold start without Flagsmith serves it.
+export type ReleaseMemory = { load(): string | undefined; save(release: string): void };
+
+type Options = {
+  config: Config;
+  flags: FlagSource;
+  onTraffic?: (event: TrafficEvent) => void;
+  receipts?: { get(identity: string): Receipt | undefined; undelivered?: number };
+  previewToken?: string; // opening /__switchyard/preview?token=<it> puts this browser in the preview segment
+  debugToken?: string; // x-switchyard-debug: <it> adds the variant headers to a response; unset = never
+  assignTimeoutMs?: number; // a visitor never waits longer than this for a flag; default 150
+  upstreamTimeoutMs?: number; // default 30 s, then 504
+  secureCookies?: boolean; // also set automatically for https or X-Forwarded-Proto: https
+  memory?: ReleaseMemory;
+  log?: (line: Record<string, unknown>) => void; // one access-log entry per request
+  warn?: (message: string) => void;
+};
+
+class Deadline extends Error {}
+
+export function createProxy(opts: Options): http.Server {
+  const { config, flags, onTraffic, receipts, previewToken, debugToken } = opts;
+  const assignTimeoutMs = opts.assignTimeoutMs ?? 150;
+  const upstreamTimeoutMs = opts.upstreamTimeoutMs ?? 30_000;
+  const log = opts.log ?? ((line) => console.log(JSON.stringify(line)));
+  const warn = opts.warn ?? ((message) => console.warn(message));
+  // The preview cookie holds a MAC of the token, never the token itself.
+  const previewMark = previewToken ? createHmac('sha256', previewToken).update('switchyard-preview').digest('base64url') : undefined;
+
+  // The live release: what a visitor outside the experiment, or in its control, is served. Bots, cold starts and
+  // Flagsmith outages get it. Starts from memory, else the first release in the config.
+  let live = opts.memory?.load();
+  if (live && !config.releases.has(live)) live = undefined;
+  const remember = (release: string) => {
+    if (release === live) return;
+    live = release;
+    try {
+      opts.memory?.save(release);
+    } catch (error) {
+      warn(`switchyard: couldn't save the live release: ${(error as Error).message}`);
+    }
+  };
+
+  // At most one warning per reason every 10 s, with how many requests it covered.
+  const fallbacks = new Map<string, { count: number; warnedAt: number }>();
+  const noteFallback = (reason: string) => {
+    const f = fallbacks.get(reason) ?? { count: 0, warnedAt: 0 };
+    f.count++;
+    fallbacks.set(reason, f);
+    if (Date.now() - f.warnedAt > 10_000) {
+      warn(`switchyard: serving the live release (${live ?? config.fallback}) because ${FALLBACK_TEXT[reason] ?? reason} (${f.count} requests so far)`);
+      f.warnedAt = Date.now();
+    }
+  };
+
+  const assign = async (identity: string, recordExposure: boolean, traits?: Record<string, string>): Promise<Assignment> => {
+    let timer: NodeJS.Timeout | undefined;
+    const deadline = new Promise<never>((_, reject) => {
+      timer = setTimeout(() => reject(new Deadline()), assignTimeoutMs);
+    });
+    try {
+      return await Promise.race([flags.assign(identity, { recordExposure, ...(traits ? { traits } : {}) }), deadline]);
+    } finally {
+      clearTimeout(timer);
+    }
+  };
+
+  const handle = async (req: http.IncomingMessage, res: http.ServerResponse): Promise<void> => {
+    const started = performance.now();
+    const method = req.method ?? 'GET';
+    const target = originForm(req.url ?? '');
+    if (!target) return plain(res, 400, 'Switchyard: only origin-form request targets ("/path") are accepted.\n');
+    const path = target.pathname + target.search;
+
+    const cookieId = readCookie(req.headers.cookie, ID_COOKIE);
+    const known = !!cookieId && UUID_RE.test(cookieId);
+
+    const previewing = !!previewMark && safeEqual(readCookie(req.headers.cookie, PREVIEW_COOKIE), previewMark);
+    if (target.pathname.startsWith(OWN_PREFIX)) {
+      return ownEndpoint({ req, res, url: target, identity: known ? cookieId : undefined, previewing });
+    }
+
+    const bot = BOT_RE.test(req.headers['user-agent'] ?? '');
+    const document = isDocumentRequest(req);
+    const id = known ? cookieId! : randomUUID();
+    // Only a visitor who sent our cookie back counts: one-request clients and cookie-less scripts never become
+    // identities in Flagsmith. Exposures come from page loads (GET, not HEAD).
+    const counted = known && !bot;
+
+    let assignment: Assignment | undefined;
+    let fallback: string | undefined;
+    if (bot) {
+      fallback = 'bot';
+    } else if (flags.ready && !flags.ready()) {
+      fallback = 'not-ready';
+    } else {
+      try {
+        assignment = await assign(id, counted && document && method === 'GET', previewing ? { preview: 'true' } : undefined);
+      } catch (error) {
+        fallback = error instanceof Deadline ? 'deadline' : 'error';
+      }
+    }
+
+    // Only allowlisted releases are reachable; anything else gets the live release.
+    let release: string;
+    if (assignment?.release && config.releases.has(assignment.release)) {
+      release = assignment.release;
+      if (!previewing && (!assignment.enrolled || assignment.variant === CONTROL)) remember(release);
+    } else {
+      fallback ??= assignment?.release ? 'unknown-release' : 'flag-off';
+      release = live ?? config.fallback;
+    }
+    if (fallback && fallback !== 'bot') noteFallback(fallback);
+    const variant = assignment && !fallback ? assignment.variant : CONTROL;
+    const enrolled = !!assignment?.enrolled && !fallback;
+    const tracked = counted && !fallback;
+    const upstream = config.releases.get(release)!;
+
+    let done = false;
+    const finish = (status: number, latencyMs: number) => {
+      if (done) return;
+      done = true;
+      let converted = false;
+      if (tracked) {
+        if (matchesRule(config.goal.when, method, target.pathname, status)) {
+          flags.track(config.goal.event, id);
+          converted = true;
+        }
+        if (document && method === 'GET' && config.guardrails.includes('doc_latency_ms')) flags.track('doc_latency_ms', id, latencyMs);
+        if (config.guardrails.includes('server_error') && (document || status >= 500)) {
+          flags.track('server_error', id, status >= 500 ? 1 : 0);
+        }
+      }
+      const event: TrafficEvent = { at: Date.now(), variant, release, method, path: target.pathname, status, latencyMs, document, enrolled, converted };
+      if (fallback) event.fallback = fallback;
+      onTraffic?.(event);
+      log({ t: new Date().toISOString(), method, path: target.pathname, status, ms: latencyMs, variant, release, enrolled, ...(fallback ? { fallback } : {}) });
+    };
+    const elapsed = () => Math.round(performance.now() - started);
+
+    const url = new URL(upstream.href);
+    url.pathname = upstream.pathname.replace(/\/$/, '') + target.pathname;
+    url.search = target.search;
+    const secure = opts.secureCookies || isHttps(req);
+    const client = url.protocol === 'https:' ? https : http;
+    let timedOut = false;
+
+    const upstreamReq = client.request(url, { method, headers: forwardHeaders(req, upstream, secure), timeout: upstreamTimeoutMs }, (upstreamRes) => {
+      const status = upstreamRes.statusCode ?? 502;
+      const latencyMs = elapsed(); // time to the app's response headers
+      const headers = responseHeaders(upstreamRes.headers, upstream);
+      if (debugToken && safeEqual(header(req, 'x-switchyard-debug'), debugToken)) {
+        headers['x-switchyard-variant'] = variant;
+        headers['x-switchyard-release'] = release;
+        headers['x-switchyard-enrolled'] = String(enrolled);
+      }
+      if (!known && !bot) {
+        const cookie = `${ID_COOKIE}=${id}; Path=/; Max-Age=${ONE_YEAR_S}; HttpOnly; SameSite=Lax${secure ? '; Secure' : ''}`;
+        headers['set-cookie'] = [...asArray(headers['set-cookie']), cookie];
+      }
+      res.writeHead(status, headers);
+      upstreamRes.pipe(res);
+      upstreamRes.on('end', () => finish(status, latencyMs));
+      upstreamRes.on('error', () => res.destroy()); // a body cut mid-way must not look complete
+    });
+    upstreamReq.on('timeout', () => {
+      timedOut = true;
+      upstreamReq.destroy(new Error('upstream timeout'));
+    });
+    upstreamReq.on('error', () => {
+      const status = timedOut ? 504 : 502;
+      if (!res.headersSent) {
+        plain(res, status, timedOut ? 'Switchyard: this version of the app took too long to answer.\n' : 'Switchyard: this version of the app is unreachable.\n');
+      } else {
+        res.destroy();
+      }
+      finish(status, elapsed());
+    });
+    // The visitor went away: stop the app's work too.
+    res.on('close', () => {
+      if (!res.writableFinished) upstreamReq.destroy();
+    });
+    req.on('aborted', () => upstreamReq.destroy());
+    req.pipe(upstreamReq);
+  };
+
+  // GET /__switchyard/receipt, /preview, /preview/off and /health. Never records an exposure.
+  const ownEndpoint = async (o: { req: http.IncomingMessage; res: http.ServerResponse; url: { pathname: string; search: string }; identity: string | undefined; previewing: boolean }) => {
+    const { res, identity } = o;
+    const send = (status: number, body: unknown) => {
+      res.writeHead(status, { 'content-type': 'application/json', 'cache-control': 'no-store' });
+      res.end(JSON.stringify(body));
+    };
+    const pathname = o.url.pathname;
+    const params = new URLSearchParams(o.url.search);
+
+    if (pathname === `${OWN_PREFIX}health`) {
+      const status = flags.status?.() ?? null;
+      // With the debug token, also ask each release's container (`switchyard doctor` uses this: the shops sit on a
+      // network only the proxy can reach). Never without it, so a public request can't fan out to the apps.
+      const upstreams = debugToken && safeEqual(header(o.req, 'x-switchyard-debug'), debugToken) ? await probeUpstreams(config) : undefined;
+      return send(200, {
+        ok: true,
+        flagsmith: status,
+        liveRelease: live ?? config.fallback,
+        fallbacks: Object.fromEntries([...fallbacks].map(([k, v]) => [k, v.count])),
+        undeliveredEvents: receipts?.undelivered ?? 0,
+        ...(upstreams ? { upstreams } : {}),
+      });
+    }
+    if (pathname === `${OWN_PREFIX}preview` || pathname === `${OWN_PREFIX}preview/off`) {
+      const off = pathname.endsWith('/off');
+      if (!previewToken || !previewMark || (!off && !safeEqual(params.get('token') ?? undefined, previewToken))) {
+        return send(403, { error: 'Not a valid preview link.' });
+      }
+      const secure = opts.secureCookies || isHttps(o.req) ? '; Secure' : '';
+      const cookie = off
+        ? `${PREVIEW_COOKIE}=; Path=/; Max-Age=0; HttpOnly; SameSite=Lax${secure}`
+        : `${PREVIEW_COOKIE}=${previewMark}; Path=/; Max-Age=${7 * 24 * 60 * 60}; HttpOnly; SameSite=Lax${secure}`;
+      res.writeHead(303, { location: '/', 'set-cookie': cookie, 'cache-control': 'no-store', 'referrer-policy': 'no-referrer' });
+      return void res.end();
+    }
+    if (pathname !== `${OWN_PREFIX}receipt`) return send(404, { error: 'not found' });
+    if (!identity) return send(404, { error: 'No Switchyard visitor cookie yet. Load a page first.' });
+    let assignment: Assignment | undefined;
+    if (!flags.ready || flags.ready()) {
+      try {
+        assignment = await assign(identity, false, o.previewing ? { preview: 'true' } : undefined); // as the pages route it
+      } catch {
+        // reported as not assigned
+      }
+    }
+    send(200, {
+      variant: assignment?.variant ?? null,
+      release: assignment?.release ?? null,
+      enrolled: assignment?.enrolled ?? false,
+      receipt: receipts?.get(identity) ?? null,
+    });
+  };
+
+  const server = http.createServer((req, res) => {
+    handle(req, res).catch((error: Error) => {
+      warn(`switchyard: request failed: ${error.message}`);
+      if (!res.headersSent) plain(res, 502, 'Switchyard: internal error.\n');
+      else res.destroy();
+    });
+  });
+  // WebSockets and other upgrades aren't routed: say so instead of hanging.
+  server.on('upgrade', (_req, socket) => {
+    socket.end('HTTP/1.1 501 Not Implemented\r\nconnection: close\r\ncontent-length: 0\r\n\r\n');
+  });
+  server.on('clientError', (_error, socket) => {
+    if (socket.writable) socket.end('HTTP/1.1 400 Bad Request\r\nconnection: close\r\ncontent-length: 0\r\n\r\n');
+  });
+  return server;
+}
+
+const FALLBACK_TEXT: Record<string, string> = {
+  'not-ready': "Flagsmith's environment document hasn't arrived yet",
+  deadline: 'the flag took too long to evaluate',
+  error: 'the flag evaluation failed',
+  'unknown-release': "the flag's value isn't a release in switchyard.config.yml",
+  'flag-off': 'the flag is off or missing',
+};
+
+// Accepts only "/path?query" request targets. Absolute-form ("http://x/"), authority-form and scheme-relative
+// paths ("//host/…", "/\host") are refused, so a request can never pick the host Switchyard connects to.
+export function originForm(raw: string): { pathname: string; search: string } | null {
+  if (!raw.startsWith('/') || raw.startsWith('//') || raw.includes('\\')) return null;
+  try {
+    const base = 'http://switchyard.invalid';
+    const url = new URL(raw, base);
+    if (url.origin !== base) return null;
+    return { pathname: url.pathname, search: url.search };
+  } catch {
+    return null;
+  }
+}
+
+export function isDocumentRequest(req: http.IncomingMessage): boolean {
+  if (req.method !== 'GET' && req.method !== 'HEAD') return false;
+  const dest = req.headers['sec-fetch-dest'];
+  if (dest) return dest === 'document';
+  return (req.headers.accept ?? '').includes('text/html');
+}
+
+export function readCookie(header: string | undefined, name: string): string | undefined {
+  for (const part of (header ?? '').split(';')) {
+    const [key, ...rest] = part.trim().split('=');
+    if (key === name) return rest.join('=');
+  }
+  return undefined;
+}
+
+// GET / on each allowlisted release's container, as Compose's own healthcheck does. Any answer below 500 counts.
+export type UpstreamProbe = { ok: boolean; status?: number; ms: number; error?: string };
+async function probeUpstreams(config: Config, timeoutMs = 3000): Promise<Record<string, UpstreamProbe>> {
+  const entries = await Promise.all(
+    [...config.releases].map(async ([label, url]): Promise<[string, UpstreamProbe]> => {
+      const started = performance.now();
+      const ms = () => Math.round(performance.now() - started);
+      try {
+        const res = await fetch(url, { signal: AbortSignal.timeout(timeoutMs), redirect: 'manual' });
+        await res.body?.cancel();
+        return [label, { ok: res.status < 500, status: res.status, ms: ms() }];
+      } catch (error) {
+        const cause = (error as { cause?: { code?: string } }).cause?.code;
+        return [label, { ok: false, ms: ms(), error: (error as Error).name === 'TimeoutError' ? `no answer in ${timeoutMs} ms` : (cause ?? 'unreachable') }];
+      }
+    }),
+  );
+  return Object.fromEntries(entries);
+}
+
+function safeEqual(a: string | undefined, b: string): boolean {
+  if (a === undefined) return false;
+  const x = Buffer.from(a);
+  const y = Buffer.from(b);
+  return x.length === y.length && timingSafeEqual(x, y);
+}
+
+function header(req: http.IncomingMessage, name: string): string | undefined {
+  const value = req.headers[name];
+  return Array.isArray(value) ? value[0] : value;
+}
+
+function asArray(value: string | string[] | number | undefined): string[] {
+  if (value === undefined) return [];
+  return Array.isArray(value) ? value : [String(value)];
+}
+
+function isHttps(req: http.IncomingMessage): boolean {
+  return !!(req.socket as { encrypted?: boolean }).encrypted || header(req, 'x-forwarded-proto') === 'https';
+}
+
+function stripHopByHop(headers: http.IncomingHttpHeaders): Record<string, string | string[] | undefined> {
+  const out: Record<string, string | string[] | undefined> = { ...headers };
+  const listed = String(headers.connection ?? '')
+    .split(',')
+    .map((h) => h.trim().toLowerCase())
+    .filter(Boolean);
+  for (const name of [...HOP_BY_HOP, ...listed]) delete out[name];
+  return out;
+}
+
+function forwardHeaders(req: http.IncomingMessage, upstream: URL, secure: boolean): http.OutgoingHttpHeaders {
+  const headers = stripHopByHop(req.headers);
+  headers.host = upstream.host;
+  delete headers['x-switchyard-debug'];
+  // Switchyard's own cookies stay between the visitor and Switchyard.
+  const cookie = (req.headers.cookie ?? '')
+    .split(';')
+    .map((c) => c.trim())
+    .filter((c) => c && !c.startsWith(`${ID_COOKIE}=`) && !c.startsWith(`${PREVIEW_COOKIE}=`))
+    .join('; ');
+  if (cookie) headers.cookie = cookie;
+  else delete headers.cookie;
+  const forwardedFor = header(req, 'x-forwarded-for');
+  const clientIp = req.socket.remoteAddress ?? '';
+  headers['x-forwarded-for'] = forwardedFor ? `${forwardedFor}, ${clientIp}` : clientIp;
+  headers['x-forwarded-host'] = req.headers.host ?? '';
+  headers['x-forwarded-proto'] = header(req, 'x-forwarded-proto') ?? (secure ? 'https' : 'http');
+  return headers;
+}
+
+function responseHeaders(incoming: http.IncomingHttpHeaders, upstream: URL): http.OutgoingHttpHeaders {
+  const headers: http.OutgoingHttpHeaders = stripHopByHop(incoming);
+  // Responses differ per visitor, so shared caches must never store them.
+  headers['cache-control'] = privateCacheControl(incoming['cache-control']);
+  headers.vary = appendVary(incoming.vary);
+  // The app sees its own host; a redirect to it must stay on the visitor's.
+  const location = incoming.location;
+  if (location) {
+    try {
+      const to = new URL(location, upstream);
+      if (to.origin === upstream.origin) headers.location = to.pathname + to.search + to.hash;
+    } catch {
+      // leave an unparseable Location alone
+    }
+  }
+  return headers;
+}
+
+function privateCacheControl(value: string | undefined): string {
+  if (!value) return 'private';
+  if (/\b(private|no-store)\b/i.test(value)) return value;
+  return `private, ${value.replace(/\bpublic\b,?\s*/i, '')}`.replace(/,\s*$/, '');
+}
+
+function appendVary(value: string | string[] | undefined): string {
+  const current = Array.isArray(value) ? value.join(', ') : (value ?? '');
+  if (/\bcookie\b/i.test(current)) return current;
+  return current ? `${current}, Cookie` : 'Cookie';
+}
+
+function plain(res: http.ServerResponse, status: number, text: string): void {
+  res.writeHead(status, { 'content-type': 'text/plain; charset=utf-8', 'cache-control': 'no-store' });
+  res.end(text);
+}

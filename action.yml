@@ -1,0 +1,68 @@
+# A reusable GitHub Action: run `switchyard check` against any self-hosted Flagsmith in CI.
+# It fails the job when an experiment's split is still on a flag while the experiment isn't running, so the
+# "end the experiment, then edit the flag" trap is caught before release day. With only the server-side key it
+# can't tell a created or paused experiment from a completed one, so their splits fail the job too. With admin-key,
+# check reads each experiment's status (read-only), and only completed or deleted experiments' splits fail the job.
+#
+# With an Organisation API key it also submits Flagsmith Code References for the release flag: where the flag's name
+# appears in the checked-out repository (run actions/checkout first). GitHub's own GITHUB_SERVER_URL,
+# GITHUB_REPOSITORY and GITHUB_SHA name the repository and the commit, so Flagsmith's permalinks point at this run.
+#
+#   - uses: actions/checkout@v5
+#   - uses: <owner>/switchyard@v1
+#     with:
+#       api-url: https://flagsmith.example.com/api/v1/
+#       server-key: ${{ secrets.FLAGSMITH_SERVER_KEY }}
+#       admin-key: ${{ secrets.FLAGSMITH_ADMIN_KEY }}   # optional: experiment statuses and Code References
+#       project-id: 1                                     # with admin-key
+name: Switchyard check
+description: Find Flagsmith experiment splits left behind on any flag (read-only, needs only a server-side key); optionally submit Code References.
+branding:
+  icon: git-merge
+  color: green
+inputs:
+  api-url:
+    description: "Your Flagsmith API, e.g. https://flagsmith.example.com/api/v1/"
+    required: true
+  server-key:
+    description: "A server-side environment key (ser.…). Read-only use: the environment document."
+    required: true
+  admin-key:
+    description: "Optional. An Organisation API key; when set, check tells created and paused experiments from completed ones, and the flag's Code References are submitted to Flagsmith."
+    required: false
+    default: ""
+  project-id:
+    description: "The Flagsmith project id the flag belongs to (needed with admin-key)."
+    required: false
+    default: ""
+  config:
+    description: "Path to switchyard.config.yml in your repository; its flag is the one scanned for."
+    required: false
+    default: switchyard.config.yml
+runs:
+  using: composite
+  steps:
+    - uses: actions/setup-node@v5
+      with:
+        node-version: 24
+    - name: Install Switchyard
+      shell: bash
+      run: npm ci --omit=dev --prefix "$GITHUB_ACTION_PATH" --no-audit --no-fund
+    - name: switchyard check
+      shell: bash
+      env:
+        FLAGSMITH_API_URL: ${{ inputs.api-url }}
+        SWITCHYARD_SERVER_KEY: ${{ inputs.server-key }}
+        SWITCHYARD_ADMIN_KEY: ${{ inputs.admin-key }} # optional; empty means server key only
+        SWITCHYARD_ENV_FILE: /dev/null/none
+      run: node "$GITHUB_ACTION_PATH/src/cli.ts" check
+    - name: switchyard code-refs
+      if: ${{ !cancelled() && inputs.admin-key != '' }} # also after check finds a leftover split
+      shell: bash
+      env:
+        FLAGSMITH_API_URL: ${{ inputs.api-url }}
+        SWITCHYARD_ADMIN_KEY: ${{ inputs.admin-key }}
+        SWITCHYARD_PROJECT_ID: ${{ inputs.project-id }}
+        SWITCHYARD_CONFIG: ${{ inputs.config }}
+        SWITCHYARD_ENV_FILE: /dev/null/none
+      run: node "$GITHUB_ACTION_PATH/src/cli.ts" code-refs

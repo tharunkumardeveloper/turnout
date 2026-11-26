@@ -1,0 +1,15 @@
+# Switchyard routing config for the demo shop.
+flag: shop_release
+
+# Allowlist: release label (the flag's value in Flagsmith) → container.
+# The first release is served whenever Flagsmith can't answer or the flag is off.
+releases:
+  "shop:1.4": http://shop-1-4:8080
+  "shop:1.5": http://shop-1-5:8080
+  "shop:1.6": http://shop-1-6:8080
+
+goal:
+  event: order_placed
+  when: { method: POST, path: /checkout, status: 2xx }
+
+guardrails: [doc_latency_ms, server_error]   # sent on every page load

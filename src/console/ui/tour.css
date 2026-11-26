@@ -1,0 +1,274 @@
+/* The judge tour: shade, spotlight, the bubble (compact during SHOW, open during EXPLAIN), the autoplay cursor.
+   Loaded after judge.css. Every value comes from style.css's tokens; light and dark both work. */
+
+.tour {
+  --tour-accent: var(--accent, var(--treatment));
+  --tour-ease: cubic-bezier(0.22, 1, 0.36, 1);
+  --tour-indigo: #4f46e5;
+  --tour-shade: rgb(8 13 24 / 0.56);
+  --tour-move: 0.45s;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) .tour { --tour-indigo: #a5b4fc; --tour-shade: rgb(2 6 14 / 0.66); }
+}
+:root[data-theme="dark"] .tour { --tour-indigo: #a5b4fc; --tour-shade: rgb(2 6 14 / 0.66); }
+.tour[hidden] { display: none; }
+
+/* ---- shade and spotlight ------------------------------------------------------------------------------------- */
+
+.tour-block {
+  position: fixed; z-index: 60; background: var(--tour-shade);
+  transition: left var(--tour-move) var(--tour-ease), top var(--tour-move) var(--tour-ease), width var(--tour-move) var(--tour-ease), height var(--tour-move) var(--tour-ease);
+}
+.tour-hole {
+  position: fixed; z-index: 61; pointer-events: none; border-radius: 14px;
+  box-shadow: 0 0 0 2px var(--tour-accent), 0 0 0 8px color-mix(in srgb, var(--tour-accent) 22%, transparent), 0 0 40px 6px color-mix(in srgb, var(--tour-accent) 18%, transparent);
+  transition: left var(--tour-move) var(--tour-ease), top var(--tour-move) var(--tour-ease), width var(--tour-move) var(--tour-ease), height var(--tour-move) var(--tour-ease);
+  animation: tour-hole-glow 2.4s ease-in-out infinite;
+}
+.tour-hole[hidden] { display: none; }
+.tour[data-phase="show"] .tour-hole { animation: tour-hole-ping 1.1s var(--tour-ease) infinite; }
+@keyframes tour-hole-glow {
+  50% { box-shadow: 0 0 0 2px var(--tour-accent), 0 0 0 12px color-mix(in srgb, var(--tour-accent) 10%, transparent), 0 0 48px 10px color-mix(in srgb, var(--tour-accent) 12%, transparent); }
+}
+@keyframes tour-hole-ping {
+  0% { box-shadow: 0 0 0 2px var(--tour-accent), 0 0 0 0 color-mix(in srgb, var(--tour-accent) 45%, transparent), 0 0 40px 6px color-mix(in srgb, var(--tour-accent) 18%, transparent); }
+  100% { box-shadow: 0 0 0 2px var(--tour-accent), 0 0 0 16px transparent, 0 0 40px 6px color-mix(in srgb, var(--tour-accent) 18%, transparent); }
+}
+
+/* ---- the bubble ---------------------------------------------------------------------------------------------- */
+
+.tour-bubble {
+  position: fixed; z-index: 63; left: 50%; top: 40%;
+  width: 300px; max-width: calc(100vw - 32px);
+  overflow: hidden; overscroll-behavior: contain;
+  background: var(--surface); color: var(--text);
+  border: 1px solid var(--border); border-radius: 14px;
+  box-shadow: 0 1px 2px rgb(15 23 42 / 0.06), 0 24px 64px -20px rgb(2 6 23 / 0.55);
+  opacity: 0; transform: translateY(6px) scale(0.98);
+  transition:
+    opacity 0.3s var(--tour-ease), transform 0.3s var(--tour-ease),
+    left var(--tour-move) var(--tour-ease), top var(--tour-move) var(--tour-ease),
+    width 0.4s var(--tour-ease), height 0.4s var(--tour-ease);
+}
+.tour-bubble.is-in { opacity: 1; transform: none; }
+.tour-bubble.is-scroll { overflow-y: auto; }
+.tour-bubble:focus { outline: none; }
+.tour-bubble:focus-visible { outline: 3px solid var(--focus); outline-offset: 2px; }
+.tour-bubble[data-phase="show"] { cursor: pointer; }
+
+.tour-inner {
+  display: grid; gap: 10px; padding: 14px 16px;
+  transition: opacity 0.14s ease;
+}
+.tour-inner.is-swap { opacity: 0; }
+/* Opening from compact: the new text waits for the bubble to reach its width, then fades in. */
+.tour-inner.is-grow .tour-more { opacity: 0; animation: none !important; }
+
+/* Compact (SHOW): the "Look here" chip and the title only. Open (EXPLAIN): everything but the chip. */
+.tour-bubble[data-size="compact"] .tour-more { display: none !important; }
+.tour-bubble[data-size="compact"] .tour-inner { padding: 12px 14px; }
+.tour-bubble[data-size="full"] .tour-look { display: none; }
+.tour-bubble[data-size="full"] .tour-more:not([hidden]) { animation: tour-fade-in 0.32s var(--tour-ease) both; }
+.tour-bubble[data-size="full"] .tour-body { animation-delay: 0.04s; }
+.tour-bubble[data-size="full"] .tour-extra, .tour-bubble[data-size="full"] .tour-foot { animation-delay: 0.08s; }
+@keyframes tour-fade-in { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: none; } }
+.tour-more[hidden] { display: none !important; }
+
+/* The arrow from the bubble to its target. */
+.tour-arrow {
+  position: fixed; z-index: 62; width: 14px; height: 14px; pointer-events: none;
+  background: var(--surface); border: 1px solid var(--border); transform: rotate(45deg);
+  transition: left var(--tour-move) var(--tour-ease), top var(--tour-move) var(--tour-ease), opacity 0.25s;
+}
+.tour-arrow[hidden] { display: none; }
+.tour[data-phase="idle"] .tour-arrow { opacity: 0; }
+
+/* ---- header: step count, progress segments, mode, pause, exit ------------------------------------------------ */
+
+.tour-head { display: grid; gap: 9px; padding-bottom: 10px; border-bottom: 1px solid var(--border); }
+/* Row 1: the mode switch, then Pause and Exit as icons (their words stay for screen readers). */
+.tour-head-row { display: flex; align-items: center; gap: 4px; min-width: 0; }
+.tour-head-row > .tour-mode { margin-right: auto; min-width: 0; }
+/* Row 2: the chapter and the segmented progress bar. */
+.tour-progress { display: flex; align-items: center; gap: 10px; min-width: 0; }
+.tour-chapter {
+  flex: none; max-width: 55%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  font-size: 11.5px; font-weight: 750; letter-spacing: 0.06em; text-transform: uppercase; color: var(--muted);
+}
+.tour-segs { display: flex; gap: 3px; height: 4px; flex: 1; min-width: 0; }
+.tour-seg { flex: 1; border-radius: 99px; background: var(--bar-bg); transition: background 0.4s var(--tour-ease); }
+.tour-seg[data-s="done"] { background: color-mix(in srgb, var(--tour-accent) 70%, var(--bar-bg)); }
+.tour-seg[data-s="current"] {
+  background: linear-gradient(90deg, var(--tour-accent), color-mix(in srgb, var(--tour-accent) 35%, var(--bar-bg)), var(--tour-accent));
+  background-size: 200% 100%; animation: tour-seg-run 1.6s linear infinite;
+}
+@keyframes tour-seg-run { from { background-position: 100% 0; } to { background-position: -100% 0; } }
+
+.tour-mode { display: inline-flex; padding: 2px; border-radius: 8px; background: var(--surface-2); border: 1px solid var(--border); flex: none; }
+.tour-mode-btn {
+  border: 0; background: transparent; font: inherit; font-size: 12px; font-weight: 650; color: var(--muted);
+  padding: 3px 9px; border-radius: 6px; cursor: pointer; min-height: 26px; white-space: nowrap;
+  transition: background 0.2s var(--tour-ease), color 0.2s var(--tour-ease), box-shadow 0.2s;
+}
+.tour-mode-btn:hover { color: var(--text); }
+.tour-mode-btn[aria-pressed="true"] { background: var(--surface); color: var(--text); box-shadow: 0 1px 2px rgb(15 23 42 / 0.16), 0 0 0 1px var(--border); }
+
+.tour-ctl {
+  display: inline-flex; align-items: center; justify-content: center; flex: none;
+  border: 1px solid transparent; background: transparent; color: var(--muted);
+  font: inherit; font-size: 12px; font-weight: 650; cursor: pointer;
+  padding: 0; width: 30px; height: 30px; border-radius: 7px;
+  transition: background 0.2s, color 0.2s, border-color 0.2s;
+}
+.tour-ctl-text {
+  position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden;
+  clip: rect(0 0 0 0); white-space: nowrap; border: 0;
+}
+.tour-ctl:focus-visible { outline: 3px solid var(--focus); outline-offset: 1px; }
+.tour-ctl:hover { color: var(--text); background: var(--surface-2); border-color: var(--border); }
+.tour-ctl[hidden] { display: none; }
+.tour-pause[aria-pressed="true"] { color: var(--warn); border-color: color-mix(in srgb, var(--warn) 40%, transparent); background: color-mix(in srgb, var(--warn) 10%, transparent); }
+.tour-pause-icon { display: inline-flex; }
+.tour-icon { fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; flex: none; }
+.tour-pause-icon .tour-icon path[d^="M7 5"] { fill: currentColor; }
+
+/* ---- lead: "Look here" + title ------------------------------------------------------------------------------- */
+
+.tour-lead { display: grid; gap: 6px; justify-items: start; }
+.tour-look {
+  display: inline-flex; align-items: center; gap: 7px;
+  font-size: 11.5px; font-weight: 750; letter-spacing: 0.06em; text-transform: uppercase;
+  color: color-mix(in srgb, var(--tour-accent), var(--text) 20%);
+  padding: 3px 9px 3px 7px; border-radius: 999px;
+  background: color-mix(in srgb, var(--tour-accent) 12%, transparent);
+  border: 1px solid color-mix(in srgb, var(--tour-accent) 30%, transparent);
+}
+.tour-look-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--tour-accent); animation: tour-look 1.3s ease-out infinite; }
+@keyframes tour-look {
+  0% { box-shadow: 0 0 0 0 color-mix(in srgb, var(--tour-accent) 60%, transparent); }
+  100% { box-shadow: 0 0 0 8px transparent; }
+}
+.tour-title { margin: 0; font-size: 17px; line-height: 1.3; font-weight: 700; letter-spacing: -0.01em; }
+.tour-bubble[data-size="compact"] .tour-title { font-size: 15.5px; }
+.tour-body { margin: 0; font-size: 14.5px; line-height: 1.55; color: color-mix(in srgb, var(--text) 86%, var(--muted)); }
+
+/* "from Flagsmith": the beat shows data read from Flagsmith's API. */
+.tour-tag {
+  display: inline-flex; align-items: center; gap: 6px; justify-self: start;
+  font-size: 11.5px; font-weight: 700; color: var(--tour-indigo);
+  padding: 2px 8px; border-radius: 999px;
+  background: color-mix(in srgb, #6366f1 10%, transparent);
+  border: 1px solid color-mix(in srgb, #6366f1 28%, transparent);
+}
+.tour-tag-dot { width: 6px; height: 6px; border-radius: 50%; background: #6366f1; }
+
+/* ---- extras: Flagsmith tab, sign-in, in-bubble action ---------------------------------------------------------- */
+
+.tour-extra { display: grid; gap: 8px; }
+.tour-extra:empty { display: none !important; }
+.tour-fs { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 10px; }
+.tour .tour-fs-btn {
+  display: inline-flex; align-items: center; gap: 6px;
+  font-size: 13px; padding: 7px 12px; border-radius: 8px;
+  color: var(--tour-indigo); border-color: color-mix(in srgb, #6366f1 35%, var(--border));
+  background: color-mix(in srgb, #6366f1 6%, var(--surface));
+}
+.tour .tour-fs-btn:hover:not(:disabled) { background: color-mix(in srgb, #6366f1 12%, var(--surface)); }
+.tour-fs-note { font-size: 12.5px; color: var(--muted); margin: 0; }
+.tour .tour-action { --c: var(--tour-accent); border-radius: 8px; }
+.tour-creds { display: grid; gap: 4px; padding: 8px 10px; border-radius: 10px; background: var(--surface-2); border: 1px solid var(--border); }
+.tour-cred { display: flex; align-items: center; gap: 8px; font-size: 13px; min-width: 0; }
+.tour-cred-label { color: var(--muted); width: 5.5em; flex: none; }
+.tour-cred code { font-family: var(--mono); overflow-wrap: anywhere; min-width: 0; flex: 1; }
+.tour-link {
+  border: 0; background: none; padding: 2px 0; font: inherit; font-size: 12.5px; font-weight: 650;
+  color: var(--tour-indigo); cursor: pointer; text-decoration: underline; text-underline-offset: 2px; justify-self: start;
+}
+
+/* ---- a running job: live stage + mini progress ------------------------------------------------------------------ */
+
+.tour-work {
+  display: grid; gap: 6px; padding: 9px 10px; border-radius: 10px;
+  background: var(--surface-2); border: 1px solid var(--border);
+}
+.tour-work-line { display: flex; align-items: center; gap: 8px; font-size: 13px; font-weight: 600; min-width: 0; }
+.tour-work-text { min-width: 0; flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.tour-work-count { color: var(--muted); font-weight: 500; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.tour-spin {
+  width: 12px; height: 12px; flex: none; border-radius: 50%;
+  border: 2px solid color-mix(in srgb, var(--tour-accent) 30%, transparent); border-top-color: var(--tour-accent);
+  animation: tour-spin 0.9s linear infinite;
+}
+.tour[data-phase="after"] .tour-spin { animation: none; border-color: var(--tour-accent); background: var(--tour-accent); }
+@keyframes tour-spin { to { transform: rotate(1turn); } }
+.tour-mini { height: 6px; border-radius: 99px; background: var(--bar-bg); overflow: hidden; }
+.tour-mini-fill {
+  display: block; height: 100%; width: 0%; border-radius: 99px;
+  background: linear-gradient(90deg, color-mix(in srgb, var(--tour-accent) 70%, var(--control)), var(--tour-accent));
+  transition: width 0.6s var(--tour-ease);
+}
+
+.tour-status { margin: 0; font-size: 13px; font-weight: 600; color: var(--good); }
+.tour-status:empty { display: none !important; }
+.tour-status[data-tone="bad"] { color: var(--bad); }
+
+/* ---- footer: autoplay timer, key hint, Next ---------------------------------------------------------------------- */
+
+.tour-foot { display: flex; align-items: center; gap: 10px; padding-top: 2px; }
+.tour-timer { flex: 1; height: 3px; border-radius: 99px; background: var(--bar-bg); overflow: hidden; min-width: 40px; }
+.tour-timer[hidden] { display: none; }
+.tour-timer span { display: block; height: 100%; width: 100%; background: var(--tour-accent); transform-origin: left center; transform: scaleX(0); }
+.tour[data-paused="true"] .tour-timer span { background: var(--warn); }
+.tour-keys { font-size: 11.5px; color: var(--faint); white-space: nowrap; }
+.tour-keys[hidden] { display: none; }
+.tour-timer[hidden] + .tour-keys { margin-right: auto; }
+.tour .tour-next { --c: var(--tour-accent); margin-left: auto; min-height: 36px; padding: 7px 18px; border-radius: 8px; font-size: 14px; }
+.tour .tour-quit { min-height: 36px; padding: 7px 14px; border-radius: 8px; font-size: 13.5px; }
+.tour .tour-next[hidden], .tour .tour-quit[hidden] { display: none; }
+
+/* ---- bottom sheet on phones -------------------------------------------------------------------------------------- */
+
+.tour-bubble[data-dock="sheet"] {
+  left: 0 !important; right: 0; bottom: 0; top: auto !important; width: auto !important; max-width: none;
+  border-radius: 16px 16px 0 0; border-bottom: 0;
+}
+.tour-bubble[data-dock="sheet"] .tour-inner { width: auto !important; padding-bottom: calc(14px + env(safe-area-inset-bottom)); }
+.tour-bubble[data-dock="sheet"] .tour-keys { display: none; }
+@media (max-width: 639px) {
+  .tour-mode-btn { padding: 4px 8px; }
+  .tour-ctl { width: 40px; height: 40px; }
+  .tour .tour-next, .tour .tour-quit { min-height: var(--tap, 44px); }
+}
+
+/* ---- the autoplay cursor and the buttons it touches -------------------------------------------------------------- */
+
+.tour-cursor {
+  position: fixed; left: 0; top: 0; z-index: 64; pointer-events: none; opacity: 0;
+  transition: transform 0.9s var(--tour-ease), opacity 0.3s;
+}
+.tour-cursor.is-on { opacity: 1; }
+.tour-cursor svg { display: block; fill: #111827; stroke: #fff; stroke-width: 1.4; filter: drop-shadow(0 3px 6px rgb(0 0 0 / 0.35)); }
+.tour-cursor::after {
+  content: ""; position: absolute; left: -14px; top: -14px; width: 28px; height: 28px; border-radius: 50%;
+  border: 2px solid var(--tour-accent); opacity: 0; transform: scale(0.4);
+}
+.tour-cursor.is-click::after { animation: tour-ripple 0.6s var(--tour-ease); }
+.tour-cursor.is-click svg { transform: scale(0.9); transition: transform 0.12s; }
+@keyframes tour-ripple { 0% { opacity: 1; transform: scale(0.4); } 100% { opacity: 0; transform: scale(1.9); } }
+
+.tour-hover {
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent, var(--treatment)) 35%, transparent), 0 10px 24px -12px color-mix(in srgb, var(--accent, var(--treatment)) 80%, transparent) !important;
+  transform: translateY(-1px);
+  transition: transform 0.2s cubic-bezier(0.22, 1, 0.36, 1), box-shadow 0.2s;
+}
+.tour-pressed { transform: scale(0.96) !important; }
+
+/* ---- reduced motion: no movement; the content still changes ------------------------------------------------------ */
+
+@media (prefers-reduced-motion: reduce) {
+  .tour-hole, .tour-look-dot, .tour-seg[data-s="current"], .tour-spin, .tour-cursor::after, .tour-more { animation: none !important; }
+  .tour-block, .tour-hole, .tour-bubble, .tour-arrow, .tour-cursor, .tour-inner, .tour-seg, .tour-mini-fill, .tour-hover, .tour-mode-btn, .tour-ctl { transition: none !important; }
+  .tour-bubble { transform: none; }
+  .tour-hover { transform: none; }
+}

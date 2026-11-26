@@ -1,0 +1,29 @@
+{
+  "name": "switchyard",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Every deploy is a Flagsmith experiment, with zero app code. Ship it or roll it back on the same flag.",
+  "license": "BSD-3-Clause",
+  "type": "module",
+  "engines": {
+    "node": ">=24"
+  },
+  "bin": {
+    "switchyard": "src/cli.ts"
+  },
+  "scripts": {
+    "start": "node src/cli.ts proxy",
+    "console": "node src/cli.ts console",
+    "shop": "node demo/shop/server.ts",
+    "typecheck": "tsc --noEmit",
+    "test": "node --test \"test/**/*.test.ts\""
+  },
+  "dependencies": {
+    "@flagsmith/nodejs": "^9.4.0",
+    "yaml": "^2.8.0"
+  },
+  "devDependencies": {
+    "@types/node": "^24.0.0",
+    "typescript": "^5.9.0"
+  }
+}
