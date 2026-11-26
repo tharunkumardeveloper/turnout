@@ -47,3 +47,9 @@ test("your app's settings: KEY=value lines become the containers' environment; c
   assert.deepEqual(parseEnv('DATABASE_URL=postgresql://u:p@host.docker.internal:5433/db\r\n# a comment\n\nNEXTAUTH_SECRET=a=b\nnot a setting\n'), ['DATABASE_URL=postgresql://u:p@host.docker.internal:5433/db', 'NEXTAUTH_SECRET=a=b']);
   assert.deepEqual(parseEnv(undefined), []);
 });
+
+test('a repository Docker cannot build says what to add, in words a person can act on', async () => {
+  const { gitBuildError } = await import('../src/tryit/server.ts');
+  assert.match(gitBuildError('Cannot locate specified Dockerfile: Dockerfile'), /no Dockerfile at its root/);
+  assert.equal(gitBuildError('step 3 failed'), 'step 3 failed');
+});

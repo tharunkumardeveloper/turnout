@@ -377,6 +377,8 @@ describe('format: wording', () => {
     assert.equal(losing.tone, 'bad');
     assert.equal(losing.headline, 'v2 (shop:1.5) is losing a guardrail');
     const done = { ...e, status: 'completed' };
+    const safer = F.winnerText(e, { key: 'v3', chanceToWin: 0.999, isControl: false }, { recommendation: { call: 'ship', variant: 'v2', reason: 'clears zero' } });
+    assert.match(safer.headline, /^Ship v2 .*v3 leads .*fails a safety check/);
     const reverted = F.winnerText(done, winner, { ledger: [{ experimentId: e.id, decision: 'reverted', release: 'shop:1.4', at: '2026-11-24T15:06:01.754Z' }] });
     assert.equal(reverted.headline, 'Rolled back: everyone stays on shop:1.4');
     assert.equal(reverted.tone, 'bad');

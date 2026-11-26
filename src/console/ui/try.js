@@ -88,7 +88,7 @@ function rowView(r, i) {
           h('button', { type: 'button', class: 'try-kind', 'aria-pressed': String(r.kind === k), on: { click: () => ((r.kind = k), render()) } }, label))),
       field),
     h('div', { class: 'try-side' },
-      h('label', {}, 'Port', h('input', { class: 'try-num', type: 'number', min: 1, max: 65535, placeholder: 'auto', value: r.port, title: "The port your app listens on (default: the image's EXPOSE, else 80)", on: { input: (e) => (r.port = e.target.value) } })),
+      h('label', {}, 'App port', h('input', { class: 'try-num', type: 'number', min: 1, max: 65535, placeholder: 'auto', value: r.port, title: "The port your app listens on inside its container, not a port on your machine. Leave it on auto: Turnout reads the Dockerfile's EXPOSE line (else 80) and also passes it as PORT.", on: { input: (e) => (r.port = e.target.value) } })),
       h('label', { title: 'Simulated visitors convert at this rate on this version (an input you choose, not evidence). Real differences in page speed and errors are measured as they are.' }, 'Pretend %', h('input', { class: 'try-num', type: 'number', min: 0, max: 100, step: 1, value: r.rate, on: { input: (e) => (r.rate = e.target.value) } }))));
 }
 

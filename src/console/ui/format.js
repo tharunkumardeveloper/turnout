@@ -264,6 +264,14 @@ export function winnerText(experiment, winner, context = {}) {
       detail: `Flagsmith: ${rec.reason}. Turnout recommends: revert, whatever ${primary} says.`,
     };
   }
+  // The goal leader fails a safety check and another version is the one to ship: name both, never just the leader.
+  if (winner && rec?.call === 'ship' && rec.variant && rec.variant !== winner.key) {
+    return {
+      tone: 'good',
+      headline: `Ship ${rec.variant} (${releaseLabel(experiment, rec.variant)}): ${winner.key} leads ${primary} but fails a safety check`,
+      detail: `${winner.key} (${releaseLabel(experiment, winner.key)}) scores highest on ${primary} (${formatChance(winner.chanceToWin)} chance to win) but loses a guardrail in Flagsmith's results, so it can't ship. ${rec.variant} also beats control and passes every guardrail.`,
+    };
+  }
   if (!winner) {
     return {
       tone: 'neutral',

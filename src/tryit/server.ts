@@ -65,6 +65,17 @@ export function parseEnv(text: string | undefined): string[] {
 }
 
 /** "A/A" for one version, "A/B" for two, "A/B/C" for three. */
+/** Docker's answer when a repository can't be built, said so a person knows what to add. */
+export function gitBuildError(message: string): string {
+  if (/locate specified Dockerfile|Dockerfile.*no such file|failed to read dockerfile/i.test(message)) {
+    return 'this repository has no Dockerfile at its root (or at the folder after the colon in repo.git#branch:folder). Turnout runs any app that has a working Dockerfile: add one to the repo, or build the image yourself and give it as an Image.';
+  }
+  if (/repository not found|could not read Username|authentication|not found/i.test(message)) {
+    return `Docker couldn't fetch the repository (${message}). It must be a public git URL.`;
+  }
+  return message;
+}
+
 export const kindFor = (n: number) => (n <= 1 ? 'A/A' : 'ABC'.slice(0, n).split('').join('/'));
 
 /** Display names: the image, the repository or "Dockerfile 2"; an A/A test's copy is "(copy)". */
@@ -163,7 +174,9 @@ export function startTryit(o: TryitOptions) {
         if (v.kind === 'image') await o.docker.pull(image, onLog).catch(async (error) => {
           if (!(await o.docker.imageExists(image))) throw error; // a local-only image is fine
         });
-        else if (v.kind === 'git') await o.docker.build(image, { remote: v.value.trim() }, onLog);
+        else if (v.kind === 'git') await o.docker.build(image, { remote: v.value.trim() }, onLog).catch((error: Error) => {
+          throw new Error(gitBuildError(error.message));
+        });
         else await o.docker.build(image, { dockerfile: v.value }, onLog);
         get!.status = 'done';
         get!.detail = undefined;
