@@ -98,10 +98,20 @@ build_branch() {
   echo "$tag"
 }
 
+# Release containers built from branches (services named turnout-<project>-<branch>-<commit>).
+app_services() { compose config --services 2>/dev/null | grep '^turnout-' || true; }
+# Those that crashed: restarted, or not running. Seconds after start, long before doctor could tell.
+crashed_apps() {
+  for svc in $(app_services); do
+    id=$(compose ps -a -q "$svc" 2>/dev/null | head -1); [ -n "$id" ] || continue
+    st=$(docker inspect -f '{{.State.Status}} {{.RestartCount}}' "$id" 2>/dev/null)
+    case "$st" in "running 0") ;; *) echo "$svc" ;; esac
+  done
+}
 # Release containers doctor says don't answer (its "expected: container <name> answers" lines).
 failing_apps() { grep -A2 '\[FAIL\]' "$STATE/doctor.log" 2>/dev/null | sed -n 's/.*expected: container \([^ ]*\) answers.*/\1/p' | sort -u; }
 app_logs() {
-  for svc in $( { failing_apps; compose config --services 2>/dev/null | grep '^turnout-'; } | sort -u ); do
+  for svc in ${1:-$(failing_apps)}; do
     say "--- last log lines of $svc:" >&2
     compose logs --no-log-prefix --tail 20 "$svc" >&2 2>/dev/null || true
   done
@@ -166,11 +176,20 @@ app_port=$APP_PORT"
     printf '%s\nproxy_port=%s\nconsole_port=%s\n' "$WANT" "$PROXY_PORT" "$CONSOLE_PORT" > "$STATE/compare.args"
   fi
 
+  NOT_ANSWERING="a version doesn't answer: its last log lines are above. If it needs a database or other services, start both versions yourself and run: turnout compare http://localhost:<port-a> http://localhost:<port-b>"
+  if [ -n "$BRANCHES" ]; then
+    # Start the branch builds first and give them a few seconds: a crash shows now, before Flagsmith's set-up.
+    say "Starting both branches…"
+    compose up -d $(app_services) >"$STATE/apps.log" 2>&1 || { tail -20 "$STATE/apps.log" >&2; die "couldn't start the branches (full log: $STATE/apps.log)."; }
+    sleep 8
+    crashed=$(crashed_apps)
+    if [ -n "$crashed" ]; then app_logs "$crashed"; compose down >/dev/null 2>&1 || true; die "$NOT_ANSWERING"; fi
+  fi
   say "Starting Flagsmith and Turnout (the first time takes a few minutes)…"
   compose run --rm cli init >"$STATE/init.log" 2>&1 || { tail -20 "$STATE/init.log" >&2; die "setting up Flagsmith failed (full log: $STATE/init.log)."; }
   if ! compose up -d --wait >"$STATE/up.log" 2>&1; then
     tail -20 "$STATE/up.log" >&2
-    [ -n "$BRANCHES" ] && app_logs
+    [ -n "$BRANCHES" ] && app_logs "$(crashed_apps)"
     die "starting failed (full log: $STATE/up.log)."
   fi
   # An app can take a few seconds to listen: check up to three times before calling a version broken.
@@ -181,7 +200,7 @@ app_port=$APP_PORT"
   done
   if [ -n "$(failing_apps)" ]; then
     app_logs
-    die "a version doesn't answer: its last log lines are above. If it needs a database or other services, start both versions yourself and run: turnout compare http://localhost:<port-a> http://localhost:<port-b>"
+    die "$NOT_ANSWERING"
   fi
   say "Check: $(grep -v '^[[:space:]]*$' "$STATE/doctor.log" | tail -1)"
   banner
