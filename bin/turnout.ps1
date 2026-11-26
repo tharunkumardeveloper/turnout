@@ -103,7 +103,13 @@ function Invoke-Compare([string[]]$a) {
     Read-Args | Out-Null
     Say "Resuming ${Name}: $Live vs $New."
   } else {
-    if ($old) { Say "New versions or settings: setting $Name up again."; Compose down *> $null }
+    if ($old) {
+      # A running experiment keeps its split and its main metric (Flagsmith fixes it at creation), so different
+      # versions or settings need a new experiment, from scratch.
+      Say "Different versions or settings start a new experiment: the previous one's data is discarded."
+      Compose down -v *> $null
+      Get-ChildItem -Force $State | Remove-Item -Recurse -Force
+    }
     $script:ProxyPort = Get-FreePort 8080
     $script:ConsolePort = Get-FreePort 8090 @($ProxyPort)
     $fsPort = Get-FreePort 8000 @($ProxyPort, $ConsolePort)

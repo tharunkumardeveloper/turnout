@@ -315,6 +315,10 @@ export async function init(opts: Options): Promise<void> {
       },
     });
   }
+  const rollout = (experiment as { experiment_rollout?: { rollout_percentage?: number } }).experiment_rollout?.rollout_percentage;
+  if (experiment.status !== 'completed' && rollout !== undefined && rollout !== opts.config.traffic) {
+    log(`! experiment ${experiment.id} sends ${rollout}% of visitors into the experiment, but turnout.config.yml says traffic: ${opts.config.traffic}. A running experiment keeps its split: start a new one (turnout release, or turnout compare with the new settings) to change it.`);
+  }
   if (experiment.status === 'created') {
     experiment = await api.post<Experiment>(`${envPath}/experiments/${experiment.id}/start/`);
   }

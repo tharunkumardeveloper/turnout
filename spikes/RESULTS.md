@@ -379,3 +379,20 @@ Windows 11, Docker Desktop 29.9.3, the demo stack already running (ports 8000, 8
 | `turnout down`, `turnout reset --yes` | stopped; wiped |
 
 Bugs the end-to-end run found and fixed: PowerShell 5.1 made git's stderr fatal; `$A` overwrote the argument list `$a` (PowerShell names ignore case); `-w /work` broke the image's start (also in README and SETUP); a stale `turnout:local` was reused (now always rebuilt, cached); `--split 50` put only 25% on the new version; doctor expected a count-up goal for a speed-only experiment; the "Check:" line was blank.
+
+### The split, checked at scale (2026-11-24)
+
+2,000 new visitors per run through `turnout compare` on Windows (each without a cookie, browser user agent):
+
+| `--split` | New version got | Expected |
+|---|---|---|
+| 50 | 49.3% (985 of 2,000) | 50% |
+| 50 | 50.8% (1,017 of 2,000) | 50% |
+| 10, changed on an existing setup (before the fix) | **51.9%** | 10%: a running experiment kept its split; `init` reused it silently |
+| 20, changed on an existing setup (after the fix) | 19.7% (393 of 2,000) | 20% |
+
+The earlier 86 / 114 (200 visitors) was chance: z ≈ 2.0. The bug it led to was real: changing `--split` (or the goal) on an existing setup didn't reach the running experiment. Now different versions or settings start a new experiment from scratch, with a message saying the previous data is discarded, and `init` warns when a running experiment's split differs from the config.
+
+## Flagsmith Node SDK: events lost faster than one batch round-trip (2026-11-24)
+
+SDK-only reproduction, no Turnout: [`sdk-buffer-repro/repro.mjs`](sdk-buffer-repro/repro.mjs), results in [`results.jsonl`](sdk-buffer-repro/results.jsonl), and a draft upstream issue in [`ISSUE.md`](sdk-buffer-repro/ISSUE.md) (not posted). With the SDK's defaults, 300 events/s and a 5 s batch round-trip lost 28.4%; a 20,000-event buffer lost 92.5% (two batches over Flagsmith's 2 MiB limit refused whole with 413). Every drop is logged as an SDK warning; nothing reaches the app programmatically.

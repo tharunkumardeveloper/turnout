@@ -109,7 +109,13 @@ app_port=$APP_PORT"
     ports_from_state
     say "Resuming $NAME: $A vs $B."
   else
-    [ -f "$STATE/compare.args" ] && { say "New versions or settings: setting $NAME up again."; compose down >/dev/null 2>&1 || true; }
+    if [ -f "$STATE/compare.args" ]; then
+      # A running experiment keeps its split and its main metric (Flagsmith fixes it at creation), so different
+      # versions or settings need a new experiment, from scratch.
+      say "Different versions or settings start a new experiment: the previous one's data is discarded."
+      compose down -v >/dev/null 2>&1 || true
+      find "$STATE" -mindepth 1 -delete
+    fi
     PROXY_PORT=$(free_port 8080); CONSOLE_PORT=$(free_port 8090)
     [ "$CONSOLE_PORT" = "$PROXY_PORT" ] && CONSOLE_PORT=$(free_port $((PROXY_PORT + 1)))
     FLAGSMITH_PORT=$(free_port 8000)
