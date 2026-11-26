@@ -90,11 +90,19 @@ export function parseEnv(text: string | undefined): string[] {
 }
 
 /** "A/A" for one version, "A/B" for two, "A/B/C" for three. */
+/** Without a branch Docker fetches "master", which many repositories don't have: HEAD is the repository's default. */
+export function defaultBranch(url: string): string {
+  const u = url.trim();
+  if (!u.includes('#')) return `${u}#HEAD`;
+  return u.replace('#:', '#HEAD:');
+}
+
 /** Docker's answer when a repository can't be built, said so a person knows what to add. */
 export function gitBuildError(message: string): string {
   if (/locate specified Dockerfile|Dockerfile.*no such file|failed to read dockerfile/i.test(message)) {
-    return 'this repository has no Dockerfile at its root (or at the folder after the colon in repo.git#branch:folder). Turnout runs any app that has a working Dockerfile: add one to the repo, or build the image yourself and give it as an Image.';
+    return 'this repository has no Dockerfile at its root (or at the folder after the colon in repo.git#branch:folder). Turnout runs any app that has a working Dockerfile: add one to the repository, or build the image yourself and paste its name instead.';
   }
+  if (/couldn't find remote ref/i.test(message)) return `that branch doesn't exist in the repository (${message.trim()}). Leave the branch out to use the repository's default one.`;
   if (/repository not found|could not read Username|authentication|not found/i.test(message)) {
     return `Docker couldn't fetch the repository (${message}). It must be a public git URL.`;
   }
@@ -237,8 +245,8 @@ export function startTryit(o: TryitOptions) {
           throw new Error(/locate specified Dockerfile|no such file/i.test(error.message) ? `your folder has no ${v.dockerfile || 'Dockerfile'} at its top level` : error.message);
         });
         else if (v.kind === 'imagefile') image = await o.docker.load(uploadPath(v.value), onLog);
-        else if (v.kind === 'git') await o.docker.build(image, { remote: v.value.trim() }, onLog).catch((error: Error) => {
-          throw new Error(gitBuildError(error.message));
+        else if (v.kind === 'git') await o.docker.build(image, { remote: defaultBranch(v.value) }, onLog).catch((error: Error) => {
+          throw new Error(`${slot.name} (version ${slot.slot.toUpperCase()}): ${gitBuildError(error.message)}`);
         });
         else await o.docker.build(image, { dockerfile: v.value }, onLog);
         get!.status = 'done';

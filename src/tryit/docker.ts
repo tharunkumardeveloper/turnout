@@ -27,7 +27,7 @@ export function createDocker(o: DockerOptions = {}) {
         let streamError: string | null = null;
         res.setEncoding('utf8');
         res.on('data', (chunk: string) => {
-          if (!opts.onLine) return void (text += chunk);
+          if (!opts.onLine || (res.statusCode ?? 200) >= 400) return void (text += chunk);
           pending += chunk;
           let at;
           while ((at = pending.indexOf('\n')) >= 0) {

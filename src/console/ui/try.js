@@ -35,7 +35,7 @@ function examplePage(v) {
     + `.cta{display:inline-block;padding:${v.ctaPad};border-radius:${v.radius};background:${v.accent};color:#fff;font-weight:700;text-decoration:none;font-size:${v.ctaSize}}`
     + `.ghost{margin-left:12px;color:${v.accent};font-weight:600}`
     + `.cards{display:grid;grid-template-columns:repeat(3,1fr);gap:20px;max-width:1040px;margin:0 auto;padding:0 48px 48px}`
-    + `.card{background:#fff;border-radius:${v.radius};padding:22px;box-shadow:0 8px 24px -12px rgba(15,23,42,.25);border-top:4px solid ${v.accent}}.card h3{margin:0 0 6px}.card p{margin:0;color:#4b5565}`
+    + `.card{background:#fff;border-radius:${v.cardRadius};padding:22px;box-shadow:0 8px 24px -12px rgba(15,23,42,.25);border-top:4px solid ${v.accent}}.card h3{margin:0 0 6px}.card p{margin:0;color:#4b5565}`
     + `.quote{max-width:760px;margin:0 auto 56px;padding:0 48px;font-size:20px;font-style:italic;color:#334155;text-align:center}`
     + `.foot{padding:26px 48px;background:${v.nav};color:${v.navText};font-size:14px}`;
   const nav = `<div class="nav"><b>${v.brand}</b><span><a href="/pricing.html">Pricing</a><a href="/about.html">About</a><a href="/pricing.html">Start free</a></span></div>`;
@@ -51,14 +51,14 @@ function examplePage(v) {
 const EXAMPLE = [
   examplePage({
     letter: 'A', name: 'the classic page', brand: 'Ledgerly', font: 'Georgia,serif', bg: '#f5f7fb', nav: '#1e3a8a', navText: '#fff', accent: '#1d4ed8',
-    align: 'left', h1: '44px', radius: '6px', ctaPad: '12px 22px', ctaSize: '16px', kicker: 'BOOKKEEPING FOR SMALL TEAMS',
+    align: 'left', h1: '44px', radius: '6px', cardRadius: '6px', ctaPad: '12px 22px', ctaSize: '16px', kicker: 'BOOKKEEPING FOR SMALL TEAMS',
     headline: 'Accounting software that keeps your books tidy', pitch: 'Ledgerly tracks invoices, expenses and payroll, reconciles your bank every night, and prepares your quarterly reports so you can focus on the work you love.',
     cta: 'Start a free trial', ghost: 'Read how it works', quote: 'We closed our books in a day instead of a week.',
     cards: [['Invoices', 'Send branded invoices and get paid online.'], ['Expenses', 'Snap a receipt; Ledgerly files it.'], ['Reports', 'Quarterly reports, ready for your accountant.']],
   }),
   examplePage({
     letter: 'B', name: 'the bold page', brand: 'Ledgerly', font: 'system-ui,sans-serif', bg: '#effaf3', nav: '#14532d', navText: '#ecfdf3', accent: '#16a34a',
-    align: 'center', h1: '56px', radius: '999px', ctaPad: '16px 34px', ctaSize: '19px', kicker: 'FREE FOR ONE PERSON',
+    align: 'center', h1: '56px', radius: '999px', cardRadius: '18px', ctaPad: '16px 34px', ctaSize: '19px', kicker: 'FREE FOR ONE PERSON',
     headline: 'Your books, done.', pitch: 'Invoices, expenses and payroll in one place. Set up in two minutes.',
     cta: 'Get started free', ghost: '', quote: 'Two minutes to set up. I never looked back.',
     cards: [['2-minute setup', 'Connect your bank and you are done.'], ['Paid faster', 'Online payments on every invoice.'], ['No surprises', 'One price. Cancel any time.']],
@@ -70,6 +70,7 @@ const EXAMPLE = [
 // saved with docker save). Nobody has to know which kind they have.
 const rows = LETTERS.map(() => ({ text: '', folder: null, file: null, port: '', rate: '10' }));
 let polling = 0;
+let justBuilt = false; // a build started from this box: open /try when it is ready
 let offline = false; // the tryit service isn't running (or this is the public server)
 let ready = ''; // the line once a build is ready (kept until the versions change)
 const mb = (n) => (n >= 1024 ** 2 ? `${(n / 1024 ** 2).toFixed(1)} MB` : `${Math.max(1, Math.round(n / 1024))} KB`);
@@ -229,7 +230,7 @@ async function poll() {
     }
     if (!res.ok) throw new Error(st.error ?? `HTTP ${res.status}`);
     const last = st.status === 'building' ? (st.log ?? []).filter((l) => !l.startsWith('  ')).at(-1) : null;
-    $('try-progress').replaceChildren(...(st.versions ?? []).map(stageList), last ? h('li', { class: 'try-now' }, last) : null);
+    $('try-progress').replaceChildren(...(st.versions ?? []).map(stageList), ...(last ? [h('li', { class: 'try-now' }, last)] : []));
     const err = $('try-error');
     err.hidden = st.status !== 'failed';
     err.textContent = st.status === 'failed' ? `Stopped: ${st.error}` : '';
@@ -239,6 +240,12 @@ async function poll() {
       $('try-open-page').hidden = false;
       ready = `Ready: the ${st.kind} test is running in Flagsmith. Open the test page: Play it for me runs it (simulated visitors, then Flagsmith's results), as in judge mode.`;
       if (fresh) $('try-previews').scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+      // A build you just started: once it is ready, go straight to its test page.
+      if (justBuilt) {
+        justBuilt = false;
+        ready = 'Ready. Opening the test page…';
+        setTimeout(() => location.assign('/try'), 1200);
+      }
     } else ready = '';
     if (st.status === 'building') polling = setTimeout(poll, 1500);
     else polling = 0;
@@ -273,6 +280,7 @@ async function build() {
     return;
   }
   polling = 1;
+  justBuilt = true;
   kindLine();
   void poll();
 }

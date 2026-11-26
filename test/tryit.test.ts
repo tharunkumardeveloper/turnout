@@ -117,3 +117,11 @@ test("a folder becomes a tar archive the system tar reads back, long paths inclu
   execFileSync('tar', ['-xf', 'a.tar'], { cwd: dir });
   assert.equal(readFileSync(join(dir, long), 'utf8'), 'héllo');
 });
+
+test("a git URL without a branch builds the repository's default branch, not Docker's guess of master", async () => {
+  const { defaultBranch, gitBuildError } = await import('../src/tryit/server.ts');
+  assert.equal(defaultBranch('https://github.com/acme/web.git'), 'https://github.com/acme/web.git#HEAD');
+  assert.equal(defaultBranch('https://github.com/acme/web.git#:site'), 'https://github.com/acme/web.git#HEAD:site');
+  assert.equal(defaultBranch('https://github.com/acme/web.git#main'), 'https://github.com/acme/web.git#main');
+  assert.match(gitBuildError("error fetching: fatal: couldn't find remote ref dev"), /that branch doesn't exist/);
+});
