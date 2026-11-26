@@ -1,4 +1,6 @@
-# Draft issue for Flagsmith/flagsmith (not posted)
+# Issue for Flagsmith/flagsmith
+
+Filed 26 Nov 2026: https://github.com/Flagsmith/flagsmith/issues/9120
 
 **Title:** Experimentation: after an experiment is completed, its rollout override keeps splitting identities, so the documented "end it, then update the flag" doesn't reach them
 

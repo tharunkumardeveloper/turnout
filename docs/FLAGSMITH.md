@@ -61,7 +61,7 @@ Measured on the pinned image with 300 fresh identities through a local-evaluatio
 | B after Ship winner (pause → default = v2 → rollout 0% with v2 weights → complete) | v2 300 |
 | B after one environment-default edit back to control | control 300 |
 
-So until the next experiment starts, the documented edit doesn't reach the identities the rollout covers. Ship winner drains the rollout first. I'd like to offer this upstream as an optional "roll out the winner" on Complete; the repro script is ready.
+So until the next experiment starts, the documented edit doesn't reach the identities the rollout covers. Ship winner drains the rollout first. Reported upstream as [Flagsmith#9120](https://github.com/Flagsmith/flagsmith/issues/9120), suggesting an optional "roll out the winner" on Complete.
 
 ## Things we found on the pinned image
 

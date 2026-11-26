@@ -1,4 +1,6 @@
-# Draft issue for Flagsmith/flagsmith-nodejs-client (not posted)
+# Issue for Flagsmith/flagsmith-nodejs-client
+
+Filed 26 Nov 2026: https://github.com/Flagsmith/flagsmith-nodejs-client/issues/330
 
 **Title:** Experimentation events are dropped when they're tracked faster than one batch round-trip, and the buffer can't be raised past Flagsmith's 2 MiB batch limit
 
