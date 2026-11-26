@@ -251,6 +251,20 @@ start() {
     failed
   fi
 
+  if [ "$MODE" = server ]; then
+    # The live experiment for real visitors (turnout.live.yml): its own flag and experiment, never mixed with the
+    # autopilot's simulated visitors. init reads its keys from .turnout/live.env; it gets the same keys as .env.
+    echo "       and the live experiment for real visitors (\"Be a visitor\")..."
+    mkdir -p .turnout
+    grep -E '^(TURNOUT_ADMIN_KEY|TURNOUT_SERVER_KEY|TURNOUT_PREVIEW_TOKEN|TURNOUT_JUDGE_TOKEN)=' .env > .turnout/live.env.new
+    [ -f .turnout/live.env ] && grep -vE '^(TURNOUT_ADMIN_KEY|TURNOUT_SERVER_KEY|TURNOUT_PREVIEW_TOKEN|TURNOUT_JUDGE_TOKEN)=' .turnout/live.env >> .turnout/live.env.new
+    mv .turnout/live.env.new .turnout/live.env
+    if ! cli --no-deps -v "$PWD/turnout.live.yml:/app/turnout.live.yml:ro" -e TURNOUT_CONFIG=turnout.live.yml -e TURNOUT_ENV_FILE=.turnout/live.env cli init >/dev/null; then
+      echo " init for the live experiment failed: run it again to see why."
+      failed
+    fi
+  fi
+
   echo
   echo " [3/5] Starting Turnout, the console and the three shop releases..."
   [ "$MODE" = server ] && echo "       and Caddy (HTTPS for $(env_get TURNOUT_HOSTNAME); the first certificate can take a minute)"

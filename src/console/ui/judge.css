@@ -845,3 +845,17 @@ body.welcome-open { overflow: hidden; }
 .details-toggle[hidden] { display: none; }
 .focus-view .col-left, .focus-view .fs-panel, .focus-view #flowline, .focus-view #kpis { display: none !important; }
 @media (min-width: 1024px) { .focus-view .story { grid-template-columns: minmax(0, 1fr); grid-template-areas: "main"; max-width: 1100px; margin: 0 auto; } }
+
+/* ---- be a visitor: the live experiment for real people ------------------------------------------------------- */
+.visitor-card[hidden] { display: none; }
+.visitor-row { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 16px; margin: 10px 0; }
+.visitor-go { font-size: 16px; padding: 10px 18px; text-decoration: none; border: 2px solid var(--treatment, #2f9e6b); font-weight: 700; }
+.visitor-you { margin: 0; font-size: 15px; }
+.visitor-you strong { font-size: 16px; }
+.visitor-arms { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
+.visitor-arms li { display: grid; grid-template-columns: minmax(90px, 140px) minmax(0, 1fr) auto; gap: 10px; align-items: center; font-size: 14px; }
+.visitor-bar { height: 12px; border-radius: 999px; background: var(--border); overflow: hidden; }
+.visitor-bar > span { display: block; height: 100%; background: var(--treatment, #2f9e6b); }
+.visitor-arms li[data-you='true'] { font-weight: 700; }
+.visitor-arms li[data-you='true'] .visitor-label::after { content: '  ← you'; color: var(--treatment, #2f9e6b); }
+.visitor-note { margin-top: 8px; }

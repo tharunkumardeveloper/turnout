@@ -66,7 +66,7 @@ describe('code references: the scan', () => {
     const flag = loadConfig(join(REPO, 'turnout.config.yml')).flag;
     const refs = findReferences(REPO, [flag]);
     assert.ok(refs.length > 0, 'the config names the flag');
-    for (const r of refs) assert.match(r.file_path, /^(turnout\.config\.yml|compose[\w.-]*\.ya?ml|action\.yml|\.github\/)/, `${r.file_path}:${r.line_number}`);
+    for (const r of refs) assert.match(r.file_path, /^(turnout\.(config|live)\.yml|compose[\w.-]*\.ya?ml|action\.yml|\.github\/)/, `${r.file_path}:${r.line_number}`);
   });
 });
 

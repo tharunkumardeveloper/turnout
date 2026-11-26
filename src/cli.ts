@@ -14,7 +14,7 @@ import { revert, ship, status } from './commands/ship.ts';
 import { simulate } from '../demo/simulator/simulate.ts';
 import { defaultHypothesis, describeGoal, loadConfig } from './config.ts';
 import { createFlagSource } from './flagsmith/flag-source.ts';
-import { DEFAULT_RATES, parseRates } from './console/judge.ts';
+import { DEFAULT_RATES, parseRates, readLiveVisitors } from './console/judge.ts';
 import { createBlindStore } from './console/blind.ts';
 import { createConsole, listenForOtherDevices, listenForPublic } from './console/server.ts';
 import { autopilotFromEnv } from './console/autopilot.ts';
@@ -464,6 +464,11 @@ const commands: Record<string, () => Promise<void>> = {
       ...(consoleServerKey ? { serverKey: consoleServerKey } : {}),
     };
     const latest = () => latestExperiment(new AdminClient(apiUrl(), { apiKey: key }), envKey(), loadConfig(configPath()).flag);
+    // Server mode's live experiment for real visitors (turnout.live.yml's flag), shown on the public judge page.
+    const liveFlag = process.env.TURNOUT_LIVE_FLAG || undefined;
+    const liveVisitors = liveFlag
+      ? async () => readLiveVisitors(await latestExperiment(new AdminClient(apiUrl(), { apiKey: key }), envKey(), liveFlag))
+      : undefined;
     // The Feature Health bridge and the guard share the console's lock, so they never act during a Ship or a job.
     const lock = { busy: false };
     const healthWebhookUrl = process.env.TURNOUT_HEALTH_WEBHOOK || undefined;
@@ -518,6 +523,7 @@ const commands: Record<string, () => Promise<void>> = {
         : {}),
       doctor: () => runDoctor({ ...doctorOptions(true), adminKey: key }), // GET /api/doctor and the /setup page
       uiDir: fileURLToPath(new URL('./console/ui/', import.meta.url)),
+      ...(liveVisitors ? { liveVisitors } : {}),
       site: {
         url: process.env.TURNOUT_PUBLIC_SHOP_URL || 'http://127.0.0.1:8080',
         dashboardUrl: process.env.FLAGSMITH_DASHBOARD_URL || 'http://127.0.0.1:8000',

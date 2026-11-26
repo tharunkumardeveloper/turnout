@@ -158,7 +158,39 @@ export type JudgeState = {
     recent: { experimentId: number; v2: string; control: string; outcome: Round['outcome']; call: Round['call']; expected: Round['expected'] }[];
   };
   history?: Point[];
+  // Server mode's live experiment for real visitors ("Be a visitor"): its own flag and experiment, never mixed
+  // with the simulated ones. Null when there is none (local mode).
+  visitors?: LiveVisitors | null;
 };
+
+export type LiveVisitors = {
+  flag: string;
+  experimentId: number;
+  status: string;
+  arms: { key: string; release: string | null; identities: number }[]; // exposed visitors per release, from Flagsmith
+  asOf: string | null; // Flagsmith's results time (it refreshes them at most every 5 minutes)
+  chanceToWin: number | null;
+};
+
+/** The live experiment's summary from Flagsmith: who it has counted, per release. */
+export async function readLiveVisitors(exps: Experiments): Promise<LiveVisitors> {
+  const [experiment, results] = await Promise.all([exps.detail(), exps.results()]);
+  const goal = results?.payload?.metrics.find((m) => m.metric_id === experiment.metrics[0]?.metric);
+  const keys = [CONTROL, ...experiment.feature.multivariate_options.flatMap((o) => (o.key ? [o.key] : []))];
+  const tested = experiment.name.match(/: (.+) vs (.+)$/);
+  return {
+    flag: experiment.feature.name,
+    experimentId: experiment.id,
+    status: experiment.status,
+    arms: keys.map((key) => ({
+      key,
+      release: key === CONTROL ? (tested?.[2] ?? null) : (tested?.[1] ?? null),
+      identities: goal?.variants[key]?.n ?? 0,
+    })),
+    asOf: results?.as_of ?? null,
+    chanceToWin: goal?.inference.v2?.chance_to_win ?? null,
+  };
+}
 
 // What the jobs call outside this process. Defaults drive the real stack; tests replace them.
 export type JudgeDeps = {
@@ -203,6 +235,7 @@ export type JudgeContext = {
   // Drops the console's cached reads: 'experiment' before an action checks which experiment is latest, 'all' after
   // a job, which may have changed the flag or started a new experiment.
   invalidate?: (scope: 'experiment' | 'all') => void;
+  liveVisitors?: () => Promise<LiveVisitors | null>; // server mode's real-visitor experiment, if any
 };
 
 // One read shared by everyone who asks while it runs, then kept for `ttlMs` after it succeeds. A failed read is
@@ -671,11 +704,14 @@ export function createJudge(opts: JudgeOptions, ctx: JudgeContext) {
       },
       ...(blind ? { blind } : {}),
       ...(store ? { history: store.series(experiment.id) } : {}),
+      ...(liveRead ? { visitors: await liveRead.get().catch(() => null) } : {}),
     };
   }
 
   // Every viewer polls the state. One read of Flagsmith answers all of them for a moment; a job starting or ending
   // drops it, so nobody sees a finished job next to the state from before it ended.
+  // The live experiment changes slowly (Flagsmith refreshes results every 5 minutes at most): read it every 15 s.
+  const liveRead = ctx.liveVisitors ? shared(ctx.liveVisitors, 15_000, () => deps.now()) : null;
   const stateCache = shared(readState, opts.stateCacheMs ?? STATE_CACHE_MS, () => deps.now());
   const state = (): Promise<JudgeState> => stateCache.get();
 

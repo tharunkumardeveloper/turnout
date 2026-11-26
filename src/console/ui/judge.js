@@ -333,6 +333,7 @@ function render() {
   renderFlow(s);
   renderKpis(s);
   renderRound(s);
+  renderVisitor(s);
   renderTrack(s);
   renderStage(s);
   renderHistory(s);
@@ -388,6 +389,55 @@ function renderRound(s) {
       : null,
   ]);
 }
+
+// ---- be a visitor: this browser's own assignment in the live experiment -------------------------------------------
+// The public page and the shop share one origin (Caddy sends everything but /judge to the live proxy), so this
+// browser's visitor cookie goes with a same-origin request to the proxy's receipt: which release it got, and what
+// Flagsmith said about its last event. Polled only while the card shows and the tab is visible.
+const visitor = { receipt: null, polling: false };
+async function pollReceipt() {
+  if (visitor.polling || document.hidden) return;
+  visitor.polling = true;
+  try {
+    const res = await fetch('/__turnout/receipt', { cache: 'no-store', credentials: 'same-origin' });
+    visitor.receipt = res.ok ? await res.json() : null;
+  } catch {
+    visitor.receipt = null;
+  } finally {
+    visitor.polling = false;
+  }
+  if (ui.state) renderVisitor(ui.state);
+}
+let receiptTimer = 0;
+
+function renderVisitor(s) {
+  const card = $('visitor-card');
+  const v = s.visitors;
+  card.hidden = !READONLY || !v;
+  if (card.hidden) return;
+  if (!receiptTimer) {
+    receiptTimer = setInterval(pollReceipt, 5000);
+    pollReceipt();
+  }
+  const r = visitor.receipt;
+  const mine = r?.release ?? null;
+  setSlot($('visitor-you'), JSON.stringify([mine, r?.receipt?.event, r?.receipt?.status]), () => {
+    if (!mine) return ["You haven't visited yet. Press the button, look around the shop, maybe buy something."];
+    const parts = ['You got ', h('strong', {}, mine), r.enrolled ? ', in the live experiment.' : '.'];
+    if (r.receipt) parts.push(` Your last event, ${r.receipt.event}, ${r.receipt.status === 'accepted' ? 'was accepted by Flagsmith' : `was ${r.receipt.status.replace(/_/g, ' ')}`}.`);
+    return parts;
+  });
+  const total = v.arms.reduce((n, a) => n + a.identities, 0);
+  setSlot($('visitor-arms'), JSON.stringify([v.arms, mine]), () =>
+    v.arms.map((a) =>
+      h('li', { 'data-you': String(!!mine && a.release === mine) },
+        h('span', { class: 'visitor-label' }, a.release ?? a.key),
+        h('span', { class: 'visitor-bar', 'aria-hidden': 'true' }, h('span', { vars: { width: `${total ? Math.round((100 * a.identities) / total) : 0}%` } })),
+        h('span', {}, `${a.identities} real visitor${a.identities === 1 ? '' : 's'}`))),
+  );
+  setText($('visitor-note'), `Counted by Flagsmith in experiment ${v.experimentId} on the flag ${v.flag}${v.asOf ? `, as of ${new Date(v.asOf).toLocaleTimeString()}` : ''}. Flagsmith refreshes these numbers at most every 5 minutes, so a new visit shows up after its next refresh. A few visitors decide nothing: an experiment needs a few hundred per version.`);
+}
+document.addEventListener('visibilitychange', () => { if (!document.hidden && receiptTimer) pollReceipt(); });
 
 // The public page opens on one focus (the story, the round, the track); "Show details" brings back the full view.
 function setupFocusView() {

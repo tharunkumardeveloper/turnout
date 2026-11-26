@@ -1,0 +1,14 @@
+# Server mode's live experiment for real visitors ("Be a visitor" on the public judge page). Its own flag, so its own
+# Flagsmith experiment: Flagsmith computes an experiment only from visitors exposed to that experiment's flag, so
+# real people here and the autopilot's simulated visitors (flag shop_release) never mix in one result.
+flag: shop_release_live
+releases:
+  "shop:1.4": http://shop-1-4:8080
+  "shop:1.5": http://shop-1-5:8080
+goal:
+  event: order_placed
+  when: { method: POST, path: /checkout, status: 2xx }
+metrics:
+  - event: add_to_cart
+    when: { method: POST, path: /cart/add, status: "2xx,303" }
+guardrails: [doc_latency_ms, server_error]

@@ -20,7 +20,7 @@ import { createMapReader } from '../flagsmith/feature-map.ts';
 import { readLedger } from '../ledger.ts';
 import type { Watcher } from '../health.ts';
 import { createAutopilot, type AutopilotOptions } from './autopilot.ts';
-import { createJudge, shared, type JudgeOptions } from './judge.ts';
+import { createJudge, shared, type JudgeOptions, type LiveVisitors } from './judge.ts';
 
 export type ConsoleOptions = {
   // A fixed experiment, or a resolver that finds the flag's latest one (so the console follows `release`).
@@ -44,6 +44,7 @@ export type ConsoleOptions = {
   // The console's first card: where visitors open the app through Turnout, the Flagsmith dashboard, and the goal
   // (null: none yet, the experiment is judged on page speed).
   site?: { url: string; dashboardUrl: string; goal: string | null };
+  liveVisitors?: () => Promise<LiveVisitors | null>; // server mode's real-visitor experiment, for judge mode
   // Server mode: runs the judge story by itself (autopilot.ts) while the console listens. Needs `judge`.
   autopilot?: AutopilotOptions;
 };
@@ -178,6 +179,7 @@ export function createConsole(opts: ConsoleOptions): http.Server {
   const judge = opts.judge
     ? createJudge(opts.judge, {
         experiments: current,
+        ...(opts.liveVisitors ? { liveVisitors: opts.liveVisitors } : {}),
         readEvents,
         snapshotDir: opts.snapshotDir,
         ledgerDir: opts.ledgerDir,

@@ -156,10 +156,12 @@ describe('server mode: compose.server.yml and the Caddyfile', () => {
     assert.equal(services.console!.environment.CONSOLE_PUBLIC_PORT, 8092);
   });
 
-  test('secure cookies on the proxy; the edge network has only Caddy, the proxy, the console (and doctor)', () => {
+  test('secure cookies on both proxies; the edge network has only Caddy, the live proxy, the console (and doctor)', () => {
     assert.equal(services.turnout!.environment.TURNOUT_SECURE_COOKIES, '1');
+    assert.equal(services['turnout-live']!.environment.TURNOUT_SECURE_COOKIES, '1');
+    assert.deepEqual(services['turnout-live']!.ports, [], 'the live proxy is reached through Caddy only');
     const onEdge = Object.entries(services).filter(([, s]) => (s.networks ?? []).includes('edge')).map(([n]) => n).sort();
-    assert.deepEqual(onEdge, ['caddy', 'cli', 'console', 'turnout']);
+    assert.deepEqual(onEdge, ['caddy', 'cli', 'console', 'turnout-live'], 'the simulated proxy is not public');
     assert.ok(!(services.flagsmith!.networks ?? []).includes('edge'));
   });
 
@@ -179,7 +181,7 @@ describe('server mode: compose.server.yml and the Caddyfile', () => {
     assert.match(caddy, /@judge path \/judge \/judge\/\*/);
     assert.match(caddy, /@read method GET HEAD/);
     const proxied = [...caddy.matchAll(/reverse_proxy (\S+)/g)].map((m) => m[1]);
-    assert.deepEqual(proxied, ['console:8092', 'turnout:8080'], 'never console:8090, never flagsmith');
+    assert.deepEqual(proxied, ['console:8092', 'turnout-live:8080'], 'never console:8090, never flagsmith, never the simulated proxy');
     assert.match(caddy, /respond "[^"]+" 405/);
   });
 });
