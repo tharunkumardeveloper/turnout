@@ -321,3 +321,29 @@ The landing example ([examples/landing](../examples/landing/README.md)): a stati
 - **Seen along the way:** the proxy's Flagsmith SDK logged a few `updateEnvironment failed` timeouts (6 in the first minutes, 3 in two minutes after the ship) while a direct fetch of the environment document took 242 ms; routing and event delivery weren't affected (no undelivered events logged). Not investigated further.
 - Afterwards: `.env` and `.turnout/` restored from the backup, the landing containers removed, the shop stack rebuilt and restarted with the default config.
 - The shop's own judge story was at step 4 (experiment "shop:1.6 vs shop:1.5" completed) before and after; judge mode's Reset started "shop:1.5 vs shop:1.4" (running), so `/judge` is at **Step 1 of 7**. Doctor: 29 ok, 0 warnings, 0 failing (one warning on the run straight after the restart, gone on the next).
+
+## Server-mode stress tests on the VM (2026-11-24)
+
+Azure VM, 2 vCPU, 7.7 GiB RAM, Ubuntu, Docker 29.10.0, Compose v5.8.0; Flagsmith 2.291.0; public at https://172-198-62-67.sslip.io with the autopilot on. All times UTC.
+
+**Found first: after ~10 hours of autopilot, Flagsmith was "unhealthy".** Three causes, each measured and fixed:
+
+| Cause | Measured | Fix |
+|---|---|---|
+| Flagsmith image's health check, `flagsmith healthcheck tcp`, starts a Python/Django process every 2 s with a 2 s timeout | That process alone took ~35% CPU per run; under any load it timed out, so the container flapped to unhealthy | Server overlay runs the same check every 30 s (15 s timeout, every 3 s while starting). After: Flagsmith ~0% CPU idle, healthy throughout |
+| The autopilot read the judge state (several admin API calls) every 1 s while waiting | Kept Flagsmith's web process busy around the clock | Reads at most every 30 s while waiting (test: autopilot.test.ts) |
+| Flagsmith's SDK event table only grows ("Flagsmith never deletes events") | 530,572 events, 228 MB after 10 h; results queries ran up to 37 s, 7 at once | `event-pruner` service deletes events older than 6 h hourly (`TURNOUT_EVENT_RETENTION_HOURS`); first run deleted 210,711 |
+| 20 simulated visitors in flight at once | 1,130+ events lost in 3 min (`not_delivered`, events POST aborted after 15 s) | Server mode sends 5 at once (`TURNOUT_DEMO_CONCURRENCY`); then 0 lost |
+
+**Then the tests:**
+
+| Test | Result |
+|---|---|
+| `sudo systemctl reboot` | SSH back after 27 s; public `/judge` 200 after 50 s; shop 200 after 51 s; `turnout.sh status`: **35 ok, 0 warnings, 0 failing**, no manual step; all 10 containers healthy, restart count 0; autopilot resumed |
+| Flagsmith (web + task processor) stopped, 150 page loads through the public HTTPS URL | Before fix: 150/150 served, but mean 4.4 s, max 10.0 s. Cause: the SDK's lookups of the stopped host hang ~5 s and fill Node's 4-thread DNS pool, so resolving `shop-1-4` waited behind them. Fix: the proxy caches release hostname lookups. After: **100/100 served, mean 86 ms**, max 5.2 s (the first request after a proxy restart, before the cache had an entry) |
+| 5,000 simulated visitors in one job, `docker stats` every 3 s | 37 s; **0 events lost**; Flagsmith stayed healthy. Peak memory: flagsmith 582 MiB, postgres 302 MiB, task processor 256 MiB, proxy 118 MiB, console 90 MiB, each shop ~31 MiB, caddy 16 MiB (stack ≈ 1.45 GiB; host 2.2 GiB used of 7.7) |
+| Ship during traffic: a new browser visitor every ~0.1 s (debug header names the release) through release → 1,000 visitors → score → ship | Ship took 11 s. Before: 57 shop:1.5 / 63 shop:1.6. During: 54 / 22. **From the moment Ship finished: 263 of 263 new visitors on the winner (shop:1.5), 0 left behind.** Flagsmith's pick was control: shop:1.6 lost the latency guardrail (its 60 ms test fault) |
+| Autopilot reset | Deletes nothing: it reverts a running experiment (decision snapshot + ledger entry), sets the default back to shop:1.4 and starts a new experiment. Past experiments stay in Flagsmith; the ledger and snapshots stay on disk. Raw events older than 6 h are pruned; Flagsmith's stored results for old experiments are kept until someone refreshes them |
+| Is every public number labelled simulated? | Yes: a fixed "Simulated visitors" badge in the header, "Every visitor here is simulated" in the footer, and "simulated visitors sent" on the counter |
+
+Not done here (needs people): the 10-developer cold-start test against docs/PLUG_AND_PLAY.md.

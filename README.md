@@ -219,6 +219,7 @@ All on Flagsmith `2.291.0` and Node SDK `9.4.0`, Docker Desktop on Windows 11 un
 | The same edit in Flagsmith's own flag editor (n = 7) | Click → every new visitor on the new release: median 3.25 s, range 1.50–9.68 s |
 | Feature Health and the guard | Flagsmith tagged `shop_release` "Unhealthy" within 20 s, with Turnout's reason and links; the guard, once switched on, reverted the experiment and the tag cleared; 30 of 30 new visitors on shop:1.5 |
 | Preview | A preview browser kept shop:1.6 through the experiment, `enrolled: false`, out of the data |
+| Server mode on a 2-vCPU VM ([spikes/RESULTS.md](spikes/RESULTS.md#server-mode-stress-tests-on-the-vm-2026-11-24)) | Reboot: back with 35 ok, 0 failing, no manual step (public page in 50 s). Flagsmith stopped: 100/100 pages served, mean 86 ms. 5,000 visitors: 0 events lost, stack peak ≈ 1.45 GiB. Ship during live traffic: 263 of 263 later visitors on the winner |
 | Open-proxy attempts (`//flagsmith:8000/…`, `//console:8090/…`, absolute-form, `/\host`) | 400, and the proxy keeps serving; covered by tests |
 
 Seen in testing (shop:1.5 is about 0.7 ms slower than shop:1.4): the first experiment's latency guardrail read as losing in 2 of the 5 runs on record as of 18 Nov 2026, so Ship asked for that loss to be accepted. Losing: a fresh Windows stack (1,500 visitors, 3.0% chance to win) and experiment 23 (18,000 visitors, 2.6%). Inconclusive: the Linux run (21.5%). Not losing: the timed tour. Not recorded: the experiment 22 timing runs.
