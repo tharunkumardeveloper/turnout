@@ -118,6 +118,15 @@ export function createProxy(opts: Options): http.Server {
     }
   };
 
+  // Events handed to Flagsmith's SDK since start, by name: with the debug token, /__turnout/health reports them, so a
+  // load test can compare what the proxy sent with the rows Flagsmith stored.
+  const trackedEvents = new Map<string, number>();
+  const track = (event: string, identity: string, value?: number) => {
+    trackedEvents.set(event, (trackedEvents.get(event) ?? 0) + 1);
+    if (value === undefined) flags.track(event, identity);
+    else flags.track(event, identity, value);
+  };
+
   const handle = async (req: http.IncomingMessage, res: http.ServerResponse): Promise<void> => {
     const started = performance.now();
     const method = req.method ?? 'GET';
@@ -180,21 +189,20 @@ export function createProxy(opts: Options): http.Server {
       let converted = false;
       if (tracked) {
         if (config.goal.when && matchesRule(config.goal.when, method, target.pathname, status)) {
-          flags.track(config.goal.event, id);
+          track(config.goal.event, id);
           converted = true;
         }
         for (const m of config.metrics ?? []) {
-          if (matchesRule(m.when, method, target.pathname, status)) flags.track(m.event, id);
+          if (matchesRule(m.when, method, target.pathname, status)) track(m.event, id);
         }
         for (const e of appEvents) {
           if (e.event === config.goal.event && converted) continue; // the rule already counted this request
-          if (e.value === undefined) flags.track(e.event, id);
-          else flags.track(e.event, id, e.value);
+          track(e.event, id, e.value);
           if (e.event === config.goal.event) converted = true;
         }
-        if (document && method === 'GET' && config.guardrails.includes('doc_latency_ms')) flags.track('doc_latency_ms', id, latencyMs);
+        if (document && method === 'GET' && config.guardrails.includes('doc_latency_ms')) track('doc_latency_ms', id, latencyMs);
         if (config.guardrails.includes('server_error') && (document || status >= 500)) {
-          flags.track('server_error', id, status >= 500 ? 1 : 0);
+          track('server_error', id, status >= 500 ? 1 : 0);
         }
       }
       const event: TrafficEvent = { at: Date.now(), variant, release, method, path: target.pathname, status, latencyMs, document, enrolled, converted };
@@ -270,7 +278,8 @@ export function createProxy(opts: Options): http.Server {
       const status = flags.status?.() ?? null;
       // With the debug token, also ask each release's container (`turnout doctor` uses this: the shops sit on a
       // network only the proxy can reach). Never without it, so a public request can't fan out to the apps.
-      const upstreams = debugToken && safeEqual(header(o.req, 'x-turnout-debug'), debugToken) ? await probeUpstreams(config) : undefined;
+      const debug = !!debugToken && safeEqual(header(o.req, 'x-turnout-debug'), debugToken);
+      const upstreams = debug ? await probeUpstreams(config) : undefined;
       return send(200, {
         ok: true,
         flagsmith: status,
@@ -278,6 +287,7 @@ export function createProxy(opts: Options): http.Server {
         fallbacks: Object.fromEntries([...fallbacks].map(([k, v]) => [k, v.count])),
         undeliveredEvents: receipts?.undelivered ?? 0,
         ...(upstreams ? { upstreams } : {}),
+        ...(debug ? { trackedEvents: Object.fromEntries(trackedEvents) } : {}),
       });
     }
     if (pathname === `${OWN_PREFIX}preview` || pathname === `${OWN_PREFIX}preview/off`) {
