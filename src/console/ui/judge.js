@@ -382,6 +382,9 @@ function fitFrames() {
   }
 }
 addEventListener('resize', fitFrames);
+// The boxes also change size when "Show details" or the tour switches the layout: re-fit then too.
+const sdResize = typeof ResizeObserver === 'function' ? new ResizeObserver(() => fitFrames()) : null;
+for (const id of ['sd-control', 'sd-v2']) { const el = document.getElementById(id); if (el && sdResize) sdResize.observe(el); }
 
 function renderShowdown(s) {
   const card = $('showdown-card');
@@ -412,7 +415,7 @@ function renderShowdown(s) {
       h('div', { class: 'sd-stats' },
         h('div', { class: 'sd-stat' }, h('b', { 'data-k': 'pages' }, '0'), h('span', {}, 'page views now')),
         h('div', { class: 'sd-stat' }, h('b', { 'data-k': 'orders' }, '0'), h('span', {}, 'orders now')),
-        h('div', { class: 'sd-stat' }, h('b', {}, side.flagsmith ? `${(side.flagsmith.rate * 100).toFixed(1)}%` : '—'), h('span', {}, side.flagsmith ? `ordered (Flagsmith, ${side.flagsmith.n} visitors)` : 'Flagsmith: no result yet'))),
+        h('div', { class: 'sd-stat' }, h('b', {}, side.flagsmith ? `${(side.flagsmith.rate * 100).toFixed(1)}%` : '—'), h('span', {}, side.flagsmith ? 'ordered' : 'no result yet'), h('small', {}, side.flagsmith ? `Flagsmith · ${side.flagsmith.n.toLocaleString('en-GB')} visitors` : 'from Flagsmith'))),
     ]);
   }
   paintShowdownCounts();
