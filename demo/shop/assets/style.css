@@ -494,7 +494,10 @@ html[data-theme="bold"] h2 { text-transform: uppercase; letter-spacing: .02em; }
 .step-bar-list { display: flex; flex-wrap: wrap; gap: 6px; margin: 0; padding: 0; list-style: none; counter-reset: sb; }
 .step-bar-list li { counter-increment: sb; padding: 6px 14px; border-radius: 4px; background: #fff; border: 2px solid var(--brand-700); color: var(--brand-900); font-weight: 700; }
 .step-bar-list li::before { content: counter(sb) ". "; }
-.step-bar-list li:first-child { background: var(--brand-800); border-color: var(--brand-800); color: #fff; }
+.step-bar-list li.sb-current { background: var(--brand-800); border-color: var(--brand-800); color: #fff; transform: translateY(-1px); box-shadow: 0 4px 10px -4px var(--brand-800); }
+.step-bar-list li.sb-done { background: color-mix(in srgb, var(--brand-700) 14%, #fff); }
+.step-bar-list li.sb-done::before { content: ""; }
+.step-bar-list li { transition: background .2s, transform .2s; }
 .slow-label { padding: 8px 14px; border-radius: 6px; background: #fef3c7; color: #78350f; border: 2px dashed #b45309; font-weight: 800; }
 .view-link { font-size: .875rem; font-weight: 600; color: var(--brand-800); text-decoration: underline; padding: 10px 4px; }
 .buy-now { margin-top: 12px; }

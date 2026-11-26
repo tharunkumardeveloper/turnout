@@ -145,7 +145,7 @@ describe('judge.html and judge.js', () => {
     const selectors = css.replace(/\/\*[\s\S]*?\*\//g, '');
     assert.doesNotMatch(selectors, /\.(tour[\w-]*|tnode[\w-]*|tdot[\w-]*|pct-tag|rail-[\w-]+|track-svg|track-legend)\b/);
     assert.doesNotMatch(selectors, /\.track\s*[{,]/);
-    assert.doesNotMatch(js, /'rail-dot'/, 'the old stage rail is gone: the steps panel shows progress');
+    assert.doesNotMatch(js, /'rail-dot'/, 'the track map owns rail-* names; the stage card step rail uses srail-*');
   });
 });
 
@@ -658,4 +658,12 @@ test('this round: the chance-to-win chart geometry, the scoreboard and the blind
   assert.equal(r.head, 'Revealed: ✓ right');
   assert.match(r.text, /Truth: identical on orders \(10\.0% each\)\. Flagsmith's numbers said: no clear winner yet \(keep running\) \(61\.0% chance to win\)/);
   assert.equal(J.revealText({ enabled: false, round: null }), null);
+});
+
+test('the chance headline says the latest chance in words', () => {
+  assert.equal(J.chanceHeadline([]).verdict, "Waiting for Flagsmith's first results");
+  const p = (c: number) => ({ asOf: 'x', chanceToWin: c, low: null, high: null, identities: 800 });
+  assert.deepEqual(J.chanceHeadline([p(0.2), p(0.62)]), { pct: 62, verdict: 'not sure yet: keep running', tone: 'wait', visitors: 800 });
+  assert.equal(J.chanceHeadline([p(0.97)]).verdict, 'clearly better: ship');
+  assert.equal(J.chanceHeadline([p(0.01)]).tone, 'bad');
 });

@@ -234,6 +234,15 @@ export function createTrack(root, { colorOf, summary }) {
     setTimeout(() => g.remove(), FADE_MS + 50);
   }
 
+  const you = { release: null, label: '' };
+  /** Pins "you are here" on a release (null removes it). */
+  function markYou(release, label = 'you are here') {
+    if (you.release === release && you.label === label) return;
+    you.release = release;
+    you.label = label;
+    if (geo) draw(false);
+  }
+
   function draw(animate = false) {
     const width = root.clientWidth || 640;
     geo = layout(width, rules, releases);
@@ -333,6 +342,27 @@ export function createTrack(root, { colorOf, summary }) {
       const sub = live ? formatRate(perSecond(times.get(rel) ?? [], now)) : 'not served';
       const n = put(`rel:${rel}`, geo.box.releases[i], `tnode-release${live ? '' : ' tnode-idle'}`, rel, sub, { color: colorOf(rel) });
       if (live) rateText.set(rel, n.t2);
+      // "You are here": the release this browser is on (Be a visitor, or a version it chose to look at).
+      const mine = rel === you.release;
+      if (mine && !n.you) {
+        n.you = el('g', { class: 'tnode-you' });
+        n.you.append(el('rect', { rx: 9, height: 18 }), el('text', { 'text-anchor': 'middle' }));
+        n.g.append(n.you);
+      } else if (!mine && n.you) {
+        n.you.remove();
+        n.you = null;
+      }
+      if (n.you) {
+        const label = you.label;
+        const w = Math.max(64, label.length * 6.6 + 16);
+        n.you.querySelector('rect').setAttribute('width', String(r1(w)));
+        n.you.querySelector('rect').setAttribute('x', String(r1(geo.box.releases[i].w / 2 - w / 2)));
+        n.you.querySelector('rect').setAttribute('y', '-11');
+        const t = n.you.querySelector('text');
+        t.setAttribute('x', String(r1(geo.box.releases[i].w / 2)));
+        t.setAttribute('y', '2');
+        t.textContent = label;
+      }
     });
     for (const [key, n] of nodes) {
       if (seen.has(key)) continue;
@@ -530,5 +560,5 @@ export function createTrack(root, { colorOf, summary }) {
     });
   }).observe(root);
 
-  return { update, pulse, tickRates, clear, demo, highlight, rates };
+  return { update, pulse, tickRates, clear, demo, highlight, rates, markYou };
 }

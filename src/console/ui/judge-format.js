@@ -839,3 +839,12 @@ export function revealText(blind) {
     text: `Truth: ${r.truth}. Flagsmith's numbers said: ${CALL_TEXT[r.round.call] ?? r.round.call}${typeof r.round.chanceToWin === 'number' ? ` (${(r.round.chanceToWin * 100).toFixed(1)}% chance to win)` : ''}. The right call was: ${CALL_TEXT[r.round.expected] ?? r.round.expected}.`,
   };
 }
+
+/** The headline over the chance chart: the latest chance, in words. */
+export function chanceHeadline(points) {
+  const last = [...(points ?? [])].reverse().find((p) => typeof p.chanceToWin === 'number');
+  if (!last) return { pct: null, verdict: "Waiting for Flagsmith's first results", tone: 'wait', visitors: 0 };
+  const c = last.chanceToWin;
+  const verdict = c >= 0.95 ? 'clearly better: ship' : c <= 0.05 ? 'clearly worse: revert' : 'not sure yet: keep running';
+  return { pct: Math.round(c * 100), verdict, tone: c >= 0.95 ? 'good' : c <= 0.05 ? 'bad' : 'wait', visitors: last.identities };
+}

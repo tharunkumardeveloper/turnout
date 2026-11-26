@@ -5,6 +5,7 @@ flag: shop_release_live
 releases:
   "shop:1.4": http://shop-1-4:8080
   "shop:1.5": http://shop-1-5:8080
+  "shop:1.6": http://shop-1-6:8080 # only for "look at a version": the live experiment is 1.5 vs 1.4
 goal:
   event: order_placed
   when: { method: POST, path: /checkout, status: 2xx }

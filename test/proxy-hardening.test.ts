@@ -222,3 +222,55 @@ test('release hostnames are resolved once and served from the cache, in both loo
   assert.equal(all[0]!.address, '127.0.0.1');
   assert.ok(performance.now() - t < 5, 'answered from the cache');
 });
+
+test('view switch: a browser can look at any allowlisted release, is never counted, and can go back', async () => {
+  const { createProxy, VIEW_COOKIE, ID_COOKIE } = await import('../src/proxy/server.ts');
+  const { parseConfig } = await import('../src/config.ts');
+  const apps = await Promise.all(['A', 'B'].map(async (name) => {
+    const s = http.createServer((req, res) => res.writeHead(200, { 'content-type': 'text/html' }).end(`${name} cookie=${req.headers.cookie ?? ''}`));
+    await new Promise<void>((r) => s.listen(0, '127.0.0.1', r));
+    return { s, url: `http://127.0.0.1:${(s.address() as AddressInfo).port}` };
+  }));
+  const exposures: string[] = [];
+  const tracked: string[] = [];
+  const flags = {
+    async assign(id: string, o: { recordExposure: boolean }) { if (o.recordExposure) exposures.push(id); return { variant: 'control', release: 'app:a', enrolled: true }; },
+    track: (e: string) => void tracked.push(e),
+  };
+  const config = parseConfig({ flag: 'f', releases: { 'app:a': apps[0]!.url, 'app:b': apps[1]!.url }, guardrails: ['doc_latency_ms', 'server_error'] });
+  const proxy = createProxy({ config, flags, viewSwitch: true, log: () => {}, warn: () => {} });
+  await new Promise<void>((r) => proxy.listen(0, '127.0.0.1', r));
+  const base = `http://127.0.0.1:${(proxy.address() as AddressInfo).port}`;
+  try {
+    const set = await fetch(`${base}/__turnout/view?release=app%3Ab`, { redirect: 'manual' });
+    assert.equal(set.status, 303);
+    const view = set.headers.get('set-cookie')!.split(';')[0]!;
+    assert.ok(view.startsWith(`${VIEW_COOKIE}=`));
+    const ua = { 'user-agent': 'Mozilla/5.0 x', accept: 'text/html' };
+    const page = await (await fetch(`${base}/`, { headers: { ...ua, cookie: `${view}; ${ID_COOKIE}=11111111-1111-4111-8111-111111111111` } })).text();
+    assert.match(page, /^B /, 'served the chosen release');
+    assert.doesNotMatch(page, /tn_view|tn_id/, 'Turnout cookies never reach the app');
+    await new Promise((r) => setTimeout(r, 20));
+    assert.deepEqual([exposures, tracked], [[], []], 'looking is never counted');
+    const receipt = await (await fetch(`${base}/__turnout/receipt`, { headers: { cookie: view } })).json();
+    assert.deepEqual([receipt.release, receipt.viewing, receipt.enrolled], ['app:b', true, false]);
+    assert.equal((await fetch(`${base}/__turnout/view?release=evil`, { redirect: 'manual' })).status, 400, 'only allowlisted releases');
+    const off = await fetch(`${base}/__turnout/view/off`, { redirect: 'manual' });
+    assert.match(off.headers.get('set-cookie')!, /Max-Age=0/);
+  } finally {
+    proxy.close();
+    for (const a of apps) a.s.close();
+  }
+});
+
+test('view switch is off unless enabled', async () => {
+  const { createProxy } = await import('../src/proxy/server.ts');
+  const { parseConfig } = await import('../src/config.ts');
+  const proxy = createProxy({ config: parseConfig({ flag: 'f', releases: { a: 'http://127.0.0.1:9' } }), flags: { async assign() { return { variant: 'control', release: 'a', enrolled: false }; }, track() {} }, log: () => {}, warn: () => {} });
+  await new Promise<void>((r) => proxy.listen(0, '127.0.0.1', r));
+  try {
+    assert.equal((await fetch(`http://127.0.0.1:${(proxy.address() as AddressInfo).port}/__turnout/view?release=a`, { redirect: 'manual' })).status, 404);
+  } finally {
+    proxy.close();
+  }
+});

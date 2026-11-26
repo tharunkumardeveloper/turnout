@@ -137,8 +137,8 @@ describe('track.js demoPlan: the synthetic dots of a demo', () => {
 
 describe('track.js: the contract the page and the tour rely on', () => {
   const src = read('track.js');
-  test('createTrack returns update, pulse, tickRates, clear, demo, highlight and rates', () => {
-    assert.match(src, /return \{ update, pulse, tickRates, clear, demo, highlight, rates \};/);
+  test('createTrack returns update, pulse, tickRates, clear, demo, highlight, rates and markYou', () => {
+    assert.match(src, /return \{ update, pulse, tickRates, clear, demo, highlight, rates, markYou \};/);
     assert.equal(typeof T.createTrack, 'function');
   });
   test('demo dots are never counted in the rates', () => {

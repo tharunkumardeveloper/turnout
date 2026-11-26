@@ -256,6 +256,7 @@ async function proxy(): Promise<void> {
     onTraffic: (e) => feed.publish(e),
     memory: fileMemory(STATE_DIR),
     secureCookies: process.env.TURNOUT_SECURE_COOKIES === '1',
+    viewSwitch: process.env.TURNOUT_VIEW_SWITCH === '1',
     log: process.env.TURNOUT_ACCESS_LOG === '0' ? () => {} : undefined,
     ...(previewToken ? { previewToken, debugToken: previewToken } : {}),
   } as Parameters<typeof createProxy>[0]);

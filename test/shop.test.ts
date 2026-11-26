@@ -208,7 +208,7 @@ describe('release differences', () => {
     const SHOP_1_6 = start({ version: '1.6', delayMs: 60 });
     const [h14, h15, h16] = await Promise.all([SHOP_1_4, SHOP_1_5, SHOP_1_6].map(async (b) => (await get(`${await b}/`)).text()));
     assert.match(h14!, /data-step-bar/);
-    assert.match(h14!, /Step 1 of 3/);
+    assert.match(h14!, /Checkout in 3 steps/, "the home page names the 3 steps; the checkout pages say which one you are on");
     assert.ok(!h14!.includes('data-buy-now') && !h14!.includes('data-onepage-badge') && !h14!.includes('data-slow-label'));
     for (const h of [h15!, h16!]) {
       assert.match(h, /data-onepage-badge>One-page checkout</);
@@ -511,4 +511,22 @@ describe('release difference and badge', () => {
     const marked = await fetch(`${fresh}/`, { headers: { accept: 'text/html', 'x-turnout-release': 'shop:1.5' } });
     assert.match(await marked.text(), /data-release-badge>Release 1\.5</);
   });
+});
+
+test('the demo checkout: the step bar follows the step, and the forms come filled with made-up details that vary', async () => {
+  const { layout, demoValues, demoCardNumber } = await import('../demo/shop/views.ts');
+  const r = { version: '1.4', onePage: false, ribbon: true };
+  for (const [step, name] of [[1, 'Shipping'], [2, 'Payment'], [3, 'Confirmation']] as const) {
+    const html = layout(r, { title: 't', body: '', cartCount: 0, step });
+    assert.match(html, new RegExp(`Checkout: step ${step} of 3`));
+    assert.match(html, new RegExp(`<li class="sb-current" aria-current="step">${name}</li>`));
+  }
+  assert.match(layout(r, { title: 't', body: '', cartCount: 0, step: 3 }), /<li class="sb-done">✓ Shipping<\/li><li class="sb-done">✓ Payment<\/li>/);
+  const luhn = (n: string) => [...n.replace(/\D/g, '')].reverse().reduce((s, c, i) => { let d = +c; if (i % 2) { d *= 2; if (d > 9) d -= 9; } return s + d; }, 0) % 10 === 0;
+  const cards = new Set(Array.from({ length: 20 }, () => demoCardNumber()));
+  assert.ok(cards.size > 15, 'a different card each time');
+  for (const c of cards) assert.ok(luhn(c) && /^4\d{3}( \d{4}){3}$/.test(c), c);
+  const a = demoValues(), b = demoValues();
+  assert.ok(a.name !== b.name || a.email !== b.email || a.card_number !== b.card_number, 'made-up details vary');
+  assert.match(a.card_expiry!, /^(0[1-9]|1[0-2])\/\d\d$/);
 });

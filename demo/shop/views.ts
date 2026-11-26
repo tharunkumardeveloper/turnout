@@ -25,14 +25,66 @@ export type Release = {
 const RELEASE_NAME: Record<Theme, string> = { classic: 'Classic', express: 'Express', bold: 'Bold' };
 
 // A strip under the header that shows the checkout this release offers: the thing the experiment measures.
-function releaseStrip(r: Release): string {
+function releaseStrip(r: Release, step = 0): string {
   const slow = r.slowMs
     ? `<p class="slow-label" data-slow-label>Test release: deliberately slow (${Math.round(r.slowMs)} ms)</p>`
     : '';
   const mode = r.onePage
     ? `<p class="onepage-badge" data-onepage-badge>One-page checkout</p><p class="strip-text">Buy now from any product, then pay on one page.</p>`
-    : `<div class="step-bar" data-step-bar><p class="step-bar-title">Step 1 of 3 at checkout</p><ol class="step-bar-list"><li>Shipping</li><li>Payment</li><li>Confirmation</li></ol></div>`;
+    : `<div class="step-bar" data-step-bar data-step="${step}"><p class="step-bar-title">${step ? `Checkout: step ${step} of 3` : 'Checkout in 3 steps'}</p><ol class="step-bar-list">${['Shipping', 'Payment', 'Confirmation']
+        .map((name, i) => {
+          const n = i + 1;
+          const state = !step ? 'todo' : n < step ? 'done' : n === step ? 'current' : 'todo';
+          return `<li class="sb-${state}"${state === 'current' ? ' aria-current="step"' : ''}>${state === 'done' ? '✓ ' : ''}${name}</li>`;
+        })
+        .join('')}</ol></div>`;
   return `<div class="release-strip" data-release-strip><div class="wrap strip-inner">${mode}${slow}</div></div>`;
+}
+
+// ---- demo autofill: made-up checkout details, different every time ----------------------------------------------
+const pick = <T,>(xs: readonly T[]): T => xs[Math.floor(Math.random() * xs.length)]!;
+const FIRST = ['Ava', 'Noah', 'Mia', 'Arjun', 'Lena', 'Kai', 'Zara', 'Leo', 'Priya', 'Omar', 'Nina', 'Theo', 'Ines', 'Ravi'];
+const LAST = ['Patel', 'Nguyen', 'Garcia', 'Okafor', 'Smith', 'Rossi', 'Kim', 'Haddad', 'Silva', 'Novak', 'Iyer', 'Brown'];
+const STREETS = ['Maple Ave', 'Harbour Rd', 'Pine St', 'Station Rd', 'Elm Way', 'Lakeview Dr', 'Mill Lane', 'Cedar Ct'];
+const PLACES: [string, string, string][] = [['Portland', '97205', 'US'], ['Bristol', 'BS1 4DJ', 'GB'], ['Toronto', 'M5V 2T6', 'CA'], ['Austin', '78701', 'US'], ['Leeds', 'LS1 4AP', 'GB']];
+const digit = () => String(Math.floor(Math.random() * 10));
+/** A made-up card number that passes the Luhn check (a 4… test-style number, never a real card). */
+export function demoCardNumber(): string {
+  const body = '4' + Array.from({ length: 14 }, digit).join('');
+  let sum = 0;
+  for (let i = 0; i < body.length; i++) {
+    let d = Number(body[body.length - 1 - i]);
+    if (i % 2 === 0) { d *= 2; if (d > 9) d -= 9; }
+    sum += d;
+  }
+  const full = body + String((10 - (sum % 10)) % 10);
+  return full.replace(/(\d{4})(?=\d)/g, '$1 ');
+}
+/** Made-up shipping and payment details for the demo checkout. */
+export function demoValues(): FormValues {
+  const first = pick(FIRST);
+  const last = pick(LAST);
+  const [city, postcode, country] = pick(PLACES);
+  const year = (new Date().getFullYear() % 100) + 1 + Math.floor(Math.random() * 4);
+  return {
+    email: `${first}.${last}${Math.floor(Math.random() * 90 + 10)}@example.com`.toLowerCase(),
+    name: `${first} ${last}`,
+    address: `${Math.floor(Math.random() * 900 + 10)} ${pick(STREETS)}`,
+    city,
+    postcode,
+    country,
+    card_number: demoCardNumber(),
+    card_expiry: `${String(Math.floor(Math.random() * 12) + 1).padStart(2, '0')}/${year}`,
+    card_cvc: Array.from({ length: 3 }, digit).join(''),
+  } as FormValues;
+}
+/** The visitor's values, with any empty field filled in with made-up ones (demo only). */
+function withDemo(values: FormValues, fill: boolean): FormValues {
+  if (!fill) return values;
+  const demo = demoValues();
+  const out = { ...values } as Record<string, string>;
+  for (const [k, v] of Object.entries(demo)) if (!out[k]) out[k] = v as string;
+  return out as FormValues;
 }
 
 export type Order = { number: string; values: FormValues; last4: string; summary: CartSummary };
@@ -75,7 +127,7 @@ const HERO: Record<Theme, { eyebrow: string; title: string; lead: string; cta: s
   },
 };
 
-type PageOptions = { title: string; body: string; cartCount: number; description?: string };
+type PageOptions = { title: string; body: string; cartCount: number; description?: string; step?: 1 | 2 | 3 };
 
 export function layout(r: Release, page: PageOptions): string {
   const theme = themeFor(r.version);
@@ -104,7 +156,7 @@ export function layout(r: Release, page: PageOptions): string {
     </nav>
   </div>
 </header>
-${releaseStrip(r)}
+${releaseStrip(r, page.step ?? 0)}
 ${r.ribbon ? `<p class="release-ribbon" data-release-ribbon>You’re seeing ${e(r.version)} ${RELEASE_NAME[theme]}</p>` : ''}
 <main id="main" tabindex="-1">
 ${page.body}
@@ -279,8 +331,8 @@ export function cartPage(r: Release, s: CartSummary, state: CheckoutState = {}):
       <h2 id="checkout-heading">Checkout</h2>
       <p class="muted">Everything on one page. Your order is placed when you press the button below.</p>
       <form id="checkout-form" class="checkout-form" method="post" action="/checkout">
-        ${shippingFieldsets(state.values ?? {}, errors)}
-        ${paymentFieldset(state.values ?? {}, errors)}
+        ${shippingFieldsets(withDemo(state.values ?? {}, !!r.ribbon), errors)}
+        ${paymentFieldset(state.values ?? {}, errors, !!r.ribbon)}
         <button class="btn btn-large btn-block" type="submit">Place order · ${formatMoney(s.totalCents)}</button>
         <p class="fine-print">By placing your order you agree to our terms of sale. You won’t be charged: this is a demo store.</p>
       </form>
@@ -376,14 +428,14 @@ export function detailsPage(r: Release, s: CartSummary, values: FormValues, erro
   <div class="two-col">
     <div class="main-col">
       <form class="card checkout-form" method="post" action="/checkout/details">
-        ${shippingFieldsets(values, errors)}
+        ${shippingFieldsets(withDemo(values, !!r.ribbon), errors)}
         <div class="form-actions"><a class="link-back" href="/cart">← Back to cart</a><button class="btn btn-large" type="submit">Continue to payment</button></div>
       </form>
     </div>
     <aside class="summary-col" aria-label="Order summary">${summaryBox(s)}</aside>
   </div>
 </div>`;
-  return layout(r, { title: 'Shipping details', body, cartCount: s.count });
+  return layout(r, { title: 'Shipping details', body, cartCount: s.count, step: 1 });
 }
 
 export function paymentPage(r: Release, s: CartSummary, values: FormValues, errors: FormErrors = {}): string {
@@ -402,14 +454,14 @@ export function paymentPage(r: Release, s: CartSummary, values: FormValues, erro
       </section>
       <form class="card checkout-form" method="post" action="/checkout">
         ${hidden}
-        ${paymentFieldset(values, errors)}
+        ${paymentFieldset(values, errors, !!r.ribbon)}
         <div class="form-actions"><a class="link-back" href="/checkout/details">← Back</a><button class="btn btn-large" type="submit">Place order · ${formatMoney(s.totalCents)}</button></div>
       </form>
     </div>
     <aside class="summary-col" aria-label="Order summary">${summaryBox(s)}</aside>
   </div>
 </div>`;
-  return layout(r, { title: 'Payment', body, cartCount: s.count });
+  return layout(r, { title: 'Payment', body, cartCount: s.count, step: 2 });
 }
 
 export function confirmationPage(r: Release, order: Order): string {
@@ -432,7 +484,7 @@ export function confirmationPage(r: Release, order: Order): string {
     <a class="btn btn-large" href="/">Continue shopping</a>
   </section>
 </div>`;
-  return layout(r, { title: `Order ${order.number} confirmed`, body, cartCount: 0 });
+  return layout(r, { title: `Order ${order.number} confirmed`, body, cartCount: 0, step: 3 });
 }
 
 export function notFoundPage(r: Release, cartCount: number): string {
@@ -550,12 +602,12 @@ function shippingFieldsets(values: FormValues, errors: FormErrors): string {
     </fieldset>`;
 }
 
-function paymentFieldset(values: FormValues, errors: FormErrors): string {
-  // The security code is never echoed back into the page.
-  const safe: FormValues = { ...values, card_cvc: '' };
+function paymentFieldset(values: FormValues, errors: FormErrors, fill = false): string {
+  // The security code a visitor typed is never echoed back into the page; a made-up one may be filled in.
+  const safe: FormValues = withDemo({ ...values, card_cvc: '' }, fill);
   return `<fieldset>
       <legend>Payment</legend>
-      <p class="demo-card">Demo store: use card <strong>4242 4242 4242 4242</strong>, any future expiry date and any 3-digit code.</p>
+      <p class="demo-card">${fill ? 'Demo store: filled in with made-up details so you can check out in one click. Change anything you like; any valid test card number works.' : 'Demo store: any valid test card number (for example 4242 4242 4242 4242), any future expiry date and any 3-digit code.'}</p>
       ${input({ name: 'card_number', label: 'Card number', autocomplete: 'cc-number', inputmode: 'numeric', placeholder: '1234 5678 9012 3456', maxlength: 23 }, safe, errors)}
       <div class="field-row">
         ${input({ name: 'card_expiry', label: 'Expiry date', autocomplete: 'cc-exp', inputmode: 'numeric', placeholder: 'MM/YY', maxlength: 7, half: true }, safe, errors)}

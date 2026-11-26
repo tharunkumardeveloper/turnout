@@ -69,6 +69,7 @@ services:
     environment:
       TURNOUT_SECURE_COOKIES: '1'
       TURNOUT_STATE_DIR: /app/.turnout/live
+      TURNOUT_VIEW_SWITCH: '1' # judges can look at any version (/__turnout/view?release=…), uncounted
     ports: !reset []
     volumes: !override
       - ./turnout.live.yml:/app/turnout.config.yml:ro

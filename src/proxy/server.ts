@@ -8,6 +8,9 @@ import type { Receipt } from '../flagsmith/receipts.ts';
 
 export const ID_COOKIE = 'tn_id';
 export const PREVIEW_COOKIE = 'tn_preview';
+// "View this version" (server mode's public demo, TURNOUT_VIEW_SWITCH=1): a judge picks a release to look at. That
+// browser is then served that release and never counted (no exposure, no events), so looking never skews the data.
+export const VIEW_COOKIE = 'tn_view';
 // Paths under this prefix are answered by Turnout itself and never reach the app.
 export const OWN_PREFIX = '/__turnout/';
 // The app may name conversion events itself: "X-Turnout-Event: signup, plan_chosen;value=49". Turnout always
@@ -64,6 +67,7 @@ type Options = {
   assignTimeoutMs?: number; // a visitor never waits longer than this for a flag; default 150
   upstreamTimeoutMs?: number; // default 30 s, then 504
   secureCookies?: boolean; // also set automatically for https or X-Forwarded-Proto: https
+  viewSwitch?: boolean; // /__turnout/view?release=…: look at one release, uncounted (TURNOUT_VIEW_SWITCH=1)
   memory?: ReleaseMemory;
   log?: (line: Record<string, unknown>) => void; // one access-log entry per request
   warn?: (message: string) => void;
@@ -138,8 +142,9 @@ export function createProxy(opts: Options): http.Server {
     const known = !!cookieId && UUID_RE.test(cookieId);
 
     const previewing = !!previewMark && safeEqual(readCookie(req.headers.cookie, PREVIEW_COOKIE), previewMark);
+    const viewing = opts.viewSwitch ? viewedRelease(readCookie(req.headers.cookie, VIEW_COOKIE)) : undefined;
     if (target.pathname.startsWith(OWN_PREFIX)) {
-      return ownEndpoint({ req, res, url: target, identity: known ? cookieId : undefined, previewing });
+      return ownEndpoint({ req, res, url: target, identity: known ? cookieId : undefined, previewing, viewing });
     }
 
     const bot = BOT_RE.test(req.headers['user-agent'] ?? '');
@@ -150,11 +155,13 @@ export function createProxy(opts: Options): http.Server {
     // assets and cookie-less scripts never become identities in Flagsmith. Exposures come from page loads.
     // Debug-token probes without the cookie (Turnout's own checks) stay out of the data too.
     const probe = !!debugToken && safeEqual(header(req, 'x-turnout-debug'), debugToken);
-    const counted = !bot && (known || (!probe && document && method === 'GET' && BROWSER_RE.test(req.headers['user-agent'] ?? '')));
+    const counted = !viewing && !bot && (known || (!probe && document && method === 'GET' && BROWSER_RE.test(req.headers['user-agent'] ?? '')));
 
     let assignment: Assignment | undefined;
     let fallback: string | undefined;
-    if (bot) {
+    if (viewing) {
+      // A chosen version, looked at: no flag evaluation, no exposure, no events.
+    } else if (bot) {
       fallback = 'bot';
     } else if (flags.ready && !flags.ready()) {
       fallback = 'not-ready';
@@ -168,7 +175,9 @@ export function createProxy(opts: Options): http.Server {
 
     // Only allowlisted releases are reachable; anything else gets the live release.
     let release: string;
-    if (assignment?.release && config.releases.has(assignment.release)) {
+    if (viewing) {
+      release = viewing;
+    } else if (assignment?.release && config.releases.has(assignment.release)) {
       release = assignment.release;
       if (!previewing && (!assignment.enrolled || assignment.variant === CONTROL)) remember(release);
     } else {
@@ -265,7 +274,19 @@ export function createProxy(opts: Options): http.Server {
   };
 
   // GET /__turnout/receipt, /preview, /preview/off and /health. Never records an exposure.
-  const ownEndpoint = async (o: { req: http.IncomingMessage; res: http.ServerResponse; url: { pathname: string; search: string }; identity: string | undefined; previewing: boolean }) => {
+  // A release name from the view cookie or the view link, if it's one this proxy may route to.
+  const viewedRelease = (raw: string | undefined): string | undefined => {
+    if (!raw) return undefined;
+    let name: string;
+    try {
+      name = decodeURIComponent(raw);
+    } catch {
+      return undefined;
+    }
+    return config.releases.has(name) ? name : undefined;
+  };
+
+  const ownEndpoint = async (o: { req: http.IncomingMessage; res: http.ServerResponse; url: { pathname: string; search: string }; identity: string | undefined; previewing: boolean; viewing?: string | undefined }) => {
     const { res, identity } = o;
     const send = (status: number, body: unknown) => {
       res.writeHead(status, { 'content-type': 'application/json', 'cache-control': 'no-store' });
@@ -302,7 +323,19 @@ export function createProxy(opts: Options): http.Server {
       res.writeHead(303, { location: '/', 'set-cookie': cookie, 'cache-control': 'no-store', 'referrer-policy': 'no-referrer' });
       return void res.end();
     }
+    if (opts.viewSwitch && (pathname === `${OWN_PREFIX}view` || pathname === `${OWN_PREFIX}view/off`)) {
+      const off = pathname.endsWith('/off');
+      const wanted = off ? undefined : viewedRelease(params.get('release') ?? undefined);
+      if (!off && !wanted) return send(400, { error: `Not a release here: ${[...config.releases.keys()].join(', ')}` });
+      const secure = opts.secureCookies || isHttps(o.req) ? '; Secure' : '';
+      const cookie = off
+        ? `${VIEW_COOKIE}=; Path=/; Max-Age=0; HttpOnly; SameSite=Lax${secure}`
+        : `${VIEW_COOKIE}=${encodeURIComponent(wanted!)}; Path=/; Max-Age=${24 * 60 * 60}; HttpOnly; SameSite=Lax${secure}`;
+      res.writeHead(303, { location: '/', 'set-cookie': cookie, 'cache-control': 'no-store' });
+      return void res.end();
+    }
     if (pathname !== `${OWN_PREFIX}receipt`) return send(404, { error: 'not found' });
+    if (o.viewing) return send(200, { variant: null, release: o.viewing, enrolled: false, viewing: true, receipt: null });
     if (!identity) return send(404, { error: 'No Turnout visitor cookie yet. Load a page first.' });
     let assignment: Assignment | undefined;
     if (!flags.ready || flags.ready()) {
@@ -438,7 +471,7 @@ function forwardHeaders(req: http.IncomingMessage, upstream: URL, secure: boolea
   const cookie = (req.headers.cookie ?? '')
     .split(';')
     .map((c) => c.trim())
-    .filter((c) => c && !c.startsWith(`${ID_COOKIE}=`) && !c.startsWith(`${PREVIEW_COOKIE}=`))
+    .filter((c) => c && !c.startsWith(`${ID_COOKIE}=`) && !c.startsWith(`${PREVIEW_COOKIE}=`) && !c.startsWith(`${VIEW_COOKIE}=`))
     .join('; ');
   if (cookie) headers.cookie = cookie;
   else delete headers.cookie;

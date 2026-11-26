@@ -344,6 +344,7 @@ function render() {
   renderSteps(s);
   renderFlow(s);
   renderKpis(s);
+  renderRail(s);
   renderRound(s);
   renderVisitor(s);
   renderTrack(s);
@@ -353,6 +354,19 @@ function render() {
   renderShopHead(s);
   preloadFrames(s);
   tour.update(s);
+}
+
+// ---- the step rail: where the story is, at a glance, on top of the stage card -----------------------------------
+function renderRail(s) {
+  const rail = $('stage-rail');
+  const steps = s.steps ?? [];
+  const running = s.job?.status === 'running';
+  setSlot(rail, JSON.stringify([steps.map((st) => [st.id, st.status]), running]), () =>
+    steps.map((st, i) =>
+      h('li', { class: 'srail-step', 'data-status': st.status, 'data-running': String(running && st.status === 'current'), 'aria-current': st.status === 'current' ? 'step' : null },
+        h('span', { class: 'srail-dot', 'aria-hidden': 'true' }, st.status === 'done' ? '✓' : String(i + 1)),
+        h('span', { class: 'srail-label' }, st.title))),
+  );
 }
 
 // ---- this round: blind reveal, chance-to-win line, scoreboard ------------------------------------------------------
@@ -376,19 +390,38 @@ function renderRound(s) {
       ? [h('h3', {}, reveal.head), h('p', {}, reveal.text)]
       : [h('h3', {}, 'Live experiment'), h('p', {}, "Flagsmith's chance to win, each time it refreshes its results.")];
   });
-  const chart = J.chanceChart(history, 640, 200, 22);
-  setSlot($('round-chart'), JSON.stringify(chart.dots), () => {
-    if (chart.empty) return h('p', { class: 'round-empty' }, 'The line starts at the first results from Flagsmith (it refreshes at most every 5 minutes).');
-    const g = svg('svg', { viewBox: `0 0 ${chart.width} ${chart.height}`, role: 'img', 'aria-label': `Chance to win: ${chart.dots.map((d) => `${Math.round(d.chance * 100)}%`).join(', ')}` });
-    g.append(
-      svg('line', { class: 'grid-line', x1: 0, x2: chart.width, y1: chart.half, y2: chart.half }),
-      svg('line', { class: 'ship-line', x1: 0, x2: chart.width, y1: chart.ship, y2: chart.ship }),
-      svg('text', { x: 4, y: chart.ship - 3 }, '95%: ship'),
-      svg('text', { x: 4, y: chart.half - 3 }, '50%: a coin flip'),
-      svg('polyline', { class: 'chance-line', points: chart.line }),
-      ...chart.dots.map((d) => svg('circle', { class: 'chance-dot', cx: d.x, cy: d.y, r: 4 }, svg('title', {}, `${(d.chance * 100).toFixed(1)}% after ${d.identities} visitors`))),
-    );
-    return g;
+  // Flagsmith's chance over time: a headline in words, then a chart with a labelled axis and a shaded "ship" zone.
+  const head = J.chanceHeadline(history);
+  const W = 640, H = 210, L = 46, T = 10, B = 26;
+  const chart = J.chanceChart(history, W - L, H - B + T, T);
+  setSlot($('round-chart'), JSON.stringify([chart.dots, head]), () => {
+    const headline = h('p', { class: 'chance-head', 'data-tone': head.tone },
+      head.pct === null ? h('span', { class: 'loading-dots' }, head.verdict) : [h('strong', { class: 'chance-big' }, `${head.pct}%`), ` chance the new version is better: ${head.verdict}`],
+      head.visitors ? h('span', { class: 'chance-n' }, ` · after ${head.visitors} visitors`) : null);
+    if (chart.empty) return [headline, h('p', { class: 'round-empty' }, 'The line starts with Flagsmith\'s first results. It recomputes them at most every 5 minutes.')];
+    const y = (v) => T + (1 - v) * (H - B - T);
+    const g = svg('svg', { viewBox: `0 0 ${W} ${H}`, role: 'img', 'aria-label': `Chance to win at each refresh: ${chart.dots.map((d) => `${Math.round(d.chance * 100)}%`).join(', ')}` });
+    g.append(svg('rect', { class: 'ship-zone', x: L, y: y(1), width: W - L - 4, height: y(0.95) - y(1) }));
+    for (const [v, label] of [[0.95, '95%'], [0.5, '50%'], [0, '0%']]) {
+      g.append(
+        svg('line', { class: v === 0.95 ? 'ship-line' : 'grid-line', x1: L, x2: W - 4, y1: y(v), y2: y(v) }),
+        svg('text', { class: 'axis', x: L - 8, y: y(v) + 4, 'text-anchor': 'end' }, label),
+      );
+    }
+    g.append(svg('text', { class: 'zone-label', x: W - 10, y: y(0.975) + 4, 'text-anchor': 'end' }, 'ship zone'));
+    const pts = chart.dots.map((d) => ({ ...d, x: d.x + L }));
+    if (pts.length > 1) {
+      g.append(svg('polygon', { class: 'chance-area', points: `${pts[0].x},${y(0)} ${pts.map((p) => `${p.x},${p.y}`).join(' ')} ${pts[pts.length - 1].x},${y(0)}` }));
+      g.append(svg('polyline', { class: 'chance-line', points: pts.map((p) => `${p.x},${p.y}`).join(' ') }));
+    }
+    for (const p of pts) {
+      g.append(
+        svg('circle', { class: 'chance-dot', cx: p.x, cy: p.y, r: 5 }, svg('title', {}, `${(p.chance * 100).toFixed(1)}% after ${p.identities} visitors`)),
+        svg('text', { class: 'axis', x: p.x, y: H - 6, 'text-anchor': 'middle' }, `${p.identities}`),
+      );
+    }
+    g.append(svg('text', { class: 'axis', x: L, y: H - 6, 'text-anchor': 'start' }, 'visitors:'));
+    return [headline, g];
   });
   const score = J.scoreText(s.blind?.score);
   const recent = s.blind?.recent ?? [];
@@ -434,11 +467,20 @@ function renderVisitor(s) {
   }
   const r = visitor.receipt;
   const mine = r?.release ?? null;
-  setSlot($('visitor-you'), JSON.stringify([visitor.checked, mine, r?.receipt?.event, r?.receipt?.status]), () => {
+  if (typeof track?.markYou === 'function') track.markYou(mine, r?.viewing ? 'you (looking)' : 'you are here');
+  // Look at any version: this browser is served it and never counted; one link goes back to its own version.
+  setSlot($('visitor-views'), JSON.stringify([s.releases, mine, !!r?.viewing]), () => [
+    h('span', { class: 'views-label' }, 'Look at a version (not counted):'),
+    ...(s.releases ?? []).map((rel) =>
+      h('a', { class: 'btn btn-small view-btn', href: `/__turnout/view?release=${encodeURIComponent(rel)}`, target: '_blank', rel: 'noopener', 'aria-current': r?.viewing && rel === mine ? 'true' : null }, rel)),
+    r?.viewing ? h('a', { class: 'btn btn-small btn-ghost view-btn', href: '/__turnout/view/off', target: '_blank', rel: 'noopener' }, 'Back to my own version') : null,
+  ]);
+  setSlot($('visitor-you'), JSON.stringify([visitor.checked, mine, r?.viewing, r?.receipt?.event, r?.receipt?.status]), () => {
     $('visitor-you').setAttribute('aria-busy', String(!visitor.checked));
     if (!visitor.checked) return [h('span', { class: 'loading-dots' }, "Checking this browser's visit")];
+    if (r?.viewing) return ["You're looking at ", h('strong', {}, mine), ' (you chose it, so it is not counted). The map marks it.'];
     if (!mine) return ["You haven't visited yet. Press the button, look around the shop, maybe buy something."];
-    const parts = ['You got ', h('strong', {}, mine), r.enrolled ? ', in the live experiment.' : '.'];
+    const parts = ['You got ', h('strong', {}, mine), r.enrolled ? ', in the live experiment. The map marks it: you are here.' : '.'];
     if (r.receipt) parts.push(` Your last event, ${r.receipt.event}, ${r.receipt.status === 'accepted' ? 'was accepted by Flagsmith' : `was ${r.receipt.status.replace(/_/g, ' ')}`}.`);
     return parts;
   });

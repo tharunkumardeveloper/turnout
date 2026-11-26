@@ -115,3 +115,10 @@
   .track-svg .tnode-flash rect, .track-svg.is-demo .rail-out { animation: none !important; }
   .track-svg.is-demo .rail-out:not(.rail-empty) { stroke-dasharray: none; }
 }
+
+/* "You are here" on the release this browser is on */
+.track-svg .tnode .tnode-you rect { fill: #111827; stroke: none; }
+.track-svg .tnode .tnode-you text { fill: #fff; font: 700 11px var(--sans, system-ui); letter-spacing: .02em; }
+@media (prefers-color-scheme: dark) { .track-svg .tnode .tnode-you rect { fill: #f9fafb; } .track-svg .tnode .tnode-you text { fill: #111827; } }
+/* A release nobody is routed to stays faded, unless it's the one you're looking at. */
+.track-svg .tnode-idle:has(.tnode-you) { opacity: 1; }
