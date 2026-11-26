@@ -87,9 +87,11 @@
         <div class="action-row">
           <button id="ship-btn" class="btn btn-ship" type="submit" disabled>Ship winner</button>
           <button id="revert-btn" class="btn btn-revert" type="button" disabled>Revert to control</button>
+          <button id="keep-running-btn" class="btn btn-ghost" type="button" disabled>Keep running</button>
         </div>
         <div class="action-notes">
           <p id="ship-note" class="action-note"></p>
+          <p id="recommendation-note" class="action-note"></p>
           <p id="revert-note" class="action-note">Revert completes the experiment and drains the split: everyone gets control.</p>
         </div>
       </form>
@@ -161,6 +163,7 @@
     <form method="dialog" class="dialog-inner" id="dialog-form">
       <h2 id="dialog-title">Confirm</h2>
       <p id="dialog-intro" class="dialog-intro"></p>
+      <p id="dialog-recommendation" class="dialog-intro" hidden></p>
       <div id="dialog-body" class="dialog-body" aria-live="polite"></div>
       <div id="dialog-guardrails" class="dialog-guardrails" role="alert" hidden>
         <ul id="guardrail-list" class="guardrail-list"></ul>

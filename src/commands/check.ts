@@ -3,6 +3,7 @@
 // reads each stopped experiment's status, so a created or paused experiment is not reported as left behind, and it
 // names the segments an experiment's audience is limited to.
 import { AdminClient } from '../flagsmith/admin.ts';
+import { experimentDoctor } from './experiment-doctor.ts';
 
 type DocCondition = { operator: string; value?: string | null; property_?: string | null };
 type DocRule = { type?: string; conditions?: DocCondition[]; rules?: DocRule[] };
@@ -206,12 +207,17 @@ async function readExperiments(findings: Finding[], api: AdminClient, envKey: st
   return [];
 }
 
-// Returns the number of splits left behind (created and paused experiments are not counted).
+// Returns the number of failures: splits left behind (created and paused experiments are not counted), plus, with an
+// Organisation API key, the Experiment Doctor's failed checks.
 export async function check(opts: { apiUrl: string; serverKey: string; adminKey?: string | undefined; log?: (line: string) => void }): Promise<number> {
   const log = opts.log ?? console.log;
   const doc = await fetchEnvironmentDocument(opts.apiUrl, opts.serverKey);
   const findings = analyze(doc);
-  const notes = opts.adminKey && doc.api_key ? await readExperiments(findings, new AdminClient(opts.apiUrl, { apiKey: opts.adminKey }), doc.api_key) : [];
+  const api = opts.adminKey && doc.api_key ? new AdminClient(opts.apiUrl, { apiKey: opts.adminKey }) : undefined;
+  const notes = api ? await readExperiments(findings, api, doc.api_key!) : [];
   for (const line of [...describe(findings), ...notes]) log(line);
-  return findings.filter((f) => f.status === 'leftover').length;
+  const leftovers = findings.filter((f) => f.status === 'leftover').length;
+  // A refused key was already reported; the doctor would only repeat it.
+  if (!api || notes.some((n) => n.includes('was refused'))) return leftovers;
+  return leftovers + (await experimentDoctor(api, doc.api_key!, log));
 }

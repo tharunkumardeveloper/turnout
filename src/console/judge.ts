@@ -7,21 +7,24 @@ import { simulate as runSimulation, type SimOptions, type SimReport } from '../.
 import { check as runCheck } from '../commands/check.ts';
 import { preview as runPreview, PREVIEW_SEGMENT } from '../commands/preview.ts';
 import { currentRelease, release as runRelease } from '../commands/release.ts';
-import { decide, LosingGuardrailsError } from '../decide.ts';
+import { decide, keepRunning, LosingGuardrailsError } from '../decide.ts';
 import {
   CONTROL,
   losingGuardrails,
   pickWinner,
+  recommend,
   releaseOf,
+  type Recommendation,
   type ExperimentDetail,
   type Experiments,
   type FlagState,
   type GuardrailWarning,
   type Results,
+  formatInterval,
 } from '../flagsmith/experiments.ts';
 import { readLedger, type LedgerEntry } from '../ledger.ts';
 
-export const JUDGE_ACTIONS = ['visitors', 'score', 'ship', 'revert', 'verify', 'swing-back', 'swing-forward', 'preview', 'release', 'reset'] as const;
+export const JUDGE_ACTIONS = ['visitors', 'score', 'ship', 'revert', 'keep-running', 'verify', 'swing-back', 'swing-forward', 'preview', 'release', 'reset'] as const;
 export type JudgeAction = (typeof JUDGE_ACTIONS)[number];
 export type StepId = 'visitors' | 'score' | 'decide' | 'verify' | 'swing' | 'preview' | 'release';
 export type StepStatus = 'done' | 'current' | 'todo' | 'optional';
@@ -62,6 +65,7 @@ export const JOB_STAGES: Record<JudgeAction, string[]> = {
   score: ["Wait for the events to reach Flagsmith", 'Ask Flagsmith to compute the results', 'Read the new results'],
   ship: ['Pause the experiment', "Save a snapshot of Flagsmith's results", "Set the flag's default to the winner", 'Drain the rollout to 0%', 'Complete the experiment', 'Write the release ledger'],
   revert: ['Pause the experiment', "Save a snapshot of Flagsmith's results", "Set the flag's default to control", 'Drain the rollout to 0%', 'Complete the experiment', 'Write the release ledger'],
+  'keep-running': ["Read Flagsmith's credible interval", 'Write the release ledger (nothing changes in Flagsmith)'],
   verify: ['Send 50 brand-new visitors', 'Count the release each one got', 'Check no experiment split is left'],
   'swing-back': ["Edit the flag's default in Flagsmith", 'Wait for Switchyard to follow the flag'],
   'swing-forward': ["Edit the flag's default in Flagsmith", 'Wait for Switchyard to follow the flag'],
@@ -130,6 +134,7 @@ export type JudgeState = {
     metrics: MetricSummary[];
     winner: { key: string; release: string | null; chanceToWin: number } | null;
     losingGuardrails: GuardrailWarning[];
+    recommendation: Recommendation; // ship / keep running / revert, read off Flagsmith's interval and chance to win
   } | null;
   ledger: LedgerEntry[];
   preview: { active: boolean; release: string | null };
@@ -283,6 +288,8 @@ export type StepInput = {
   lastVisitorsAt: string | null; // when the last visitors job for this experiment finished
   losingGuardrails: boolean; // the winner is losing a guardrail
   decision: 'shipped' | 'reverted' | null; // the ledger's decision on this experiment
+  keptRunningAt?: string | null; // the last "Keep running" on this experiment, if any
+  recommendation?: Recommendation['call'] | null; // what recommend() says now
   verified: boolean;
   swungBack: boolean;
   swungForward: boolean;
@@ -300,6 +307,8 @@ export function deriveSteps(i: StepInput): { steps: Step[]; current: StepId | 'r
       ? 'Ship winner'
       : i.losingGuardrails
         ? 'Revert (a guardrail is losing)'
+        : !completed && i.recommendation === 'keep-running'
+          ? 'Keep running (interval crosses zero)'
         : completed && i.decision === 'reverted'
           ? 'Revert'
           : 'Ship winner';
@@ -316,8 +325,10 @@ export function deriveSteps(i: StepInput): { steps: Step[]; current: StepId | 'r
 
   if (!completed) {
     const visitors = i.visitorsSent > 0 || i.identities >= 100;
-    const scored = visitors && (i.lastVisitorsAt ? later(i.resultsAsOf, i.lastVisitorsAt) : i.resultsAsOf !== null && i.identities >= 100);
-    set('visitors', visitors ? 'done' : 'current');
+    // Kept running since the last visitors: send more visitors, then get the results again.
+    const keptSince = Boolean(i.keptRunningAt) && (i.lastVisitorsAt === null || later(i.keptRunningAt ?? null, i.lastVisitorsAt));
+    const scored = visitors && !keptSince && (i.lastVisitorsAt ? later(i.resultsAsOf, i.lastVisitorsAt) : i.resultsAsOf !== null && i.identities >= 100);
+    set('visitors', visitors && !keptSince ? 'done' : 'current');
     if (visitors) set('score', scored ? 'done' : 'current');
     if (scored) set('decide', 'current');
   } else {
@@ -463,9 +474,11 @@ export function createJudge(opts: JudgeOptions, ctx: JudgeContext) {
 
   const shippedEntry = (experimentId: number, flag: string): LedgerEntry | null => {
     const mine = readLedger(ctx.ledgerDir).filter((e) => e.flag === flag && e.experimentId === experimentId);
-    const last = mine[mine.length - 1];
+    const last = mine.filter((e) => e.decision !== 'kept-running').pop();
     return last ?? null;
   };
+  const keptRunningAt = (experimentId: number, flag: string): string | null =>
+    readLedger(ctx.ledgerDir).filter((e) => e.flag === flag && e.experimentId === experimentId && e.decision === 'kept-running').pop()?.at ?? null;
 
   const refreshAllowedAt = (experimentId: number, results: Results | null): string | null => {
     const fromFlagsmith = results?.refresh_requested_at ? Date.parse(results.refresh_requested_at) + REFRESH_EVERY_MS : 0;
@@ -491,6 +504,8 @@ export function createJudge(opts: JudgeOptions, ctx: JudgeContext) {
     const winner = pickWinner(experiment, results);
     const losing = winner ? losingGuardrails(experiment, results, winner.key) : [];
     const entry = shippedEntry(experiment.id, experiment.feature.name);
+    const kept = keptRunningAt(experiment.id, experiment.feature.name);
+    const recommendation = recommend(experiment, results);
     const preview = previewState(experiment, flag, segmentId);
     return {
       exps,
@@ -502,6 +517,8 @@ export function createJudge(opts: JudgeOptions, ctx: JudgeContext) {
       winner,
       losing,
       entry,
+      kept,
+      recommendation,
       preview,
       live: currentRelease(flag, options),
       next: nextRelease(opts.releases, tested.v2),
@@ -517,7 +534,9 @@ export function createJudge(opts: JudgeOptions, ctx: JudgeContext) {
       resultsAsOf: s.results?.as_of ?? null,
       lastVisitorsAt: lastVisitorsAt.get(s.experiment.id) ?? null,
       losingGuardrails: s.losing.length > 0,
-      decision: s.entry?.decision ?? null,
+      decision: (s.entry?.decision as 'shipped' | 'reverted' | undefined) ?? null,
+      keptRunningAt: s.kept,
+      recommendation: s.recommendation.call,
       verified: verified.has(s.experiment.id),
       swungBack: swung.get(s.experiment.id)?.back ?? false,
       swungForward: swung.get(s.experiment.id)?.forward ?? false,
@@ -598,6 +617,7 @@ export function createJudge(opts: JudgeOptions, ctx: JudgeContext) {
             metrics: summarizeResults(experiment, results),
             winner: winner ? { key: winner.key, release: winner.key === CONTROL ? tested.control : tested.v2, chanceToWin: winner.chanceToWin } : null,
             losingGuardrails: losing,
+            recommendation: s.recommendation,
           }
         : null,
       ledger: readLedger(ctx.ledgerDir).filter((e) => e.flag === experiment.feature.name),
@@ -634,6 +654,7 @@ export function createJudge(opts: JudgeOptions, ctx: JudgeContext) {
         if (finished) return 'This experiment is already decided.';
         return s.winner ? null : 'Flagsmith has no winner yet. Send visitors, then get the results.';
       case 'revert':
+      case 'keep-running':
         return finished ? 'This experiment is already decided.' : null;
       case 'verify':
         return finished ? null : 'Verify checks what everyone gets after the decision. Ship the winner or revert first.';
@@ -660,7 +681,7 @@ export function createJudge(opts: JudgeOptions, ctx: JudgeContext) {
   async function run(raw: unknown): Promise<RunResponse> {
     const body = parseRunBody(raw);
     if ('error' in body) return { status: 400, body: { error: body.error } };
-    const needsId = ['score', 'ship', 'revert', 'verify', 'swing-back', 'swing-forward'].includes(body.action);
+    const needsId = ['score', 'ship', 'revert', 'keep-running', 'verify', 'swing-back', 'swing-forward'].includes(body.action);
     if (needsId && body.experimentId === undefined) return { status: 400, body: { error: 'experimentId is required' } };
     if (ctx.lock.busy) return { status: 409, body: { error: 'Another action is still running. Wait for it to finish.' } };
     ctx.lock.busy = true; // held through the checks so two clicks can't both pass them
@@ -848,7 +869,7 @@ export function createJudge(opts: JudgeOptions, ctx: JudgeContext) {
     for (const m of summarizeResults(s.experiment, results)) {
       log(
         m.v2
-          ? `${m.name} (${m.role}): v2 lift ${pct(m.v2.lift)}, ${pct(m.v2.chanceToWin)} chance to win: ${m.verdict}`
+          ? `${m.name} (${m.role}): v2 lift ${pct(m.v2.lift)} (interval ${formatInterval({ low: m.v2.ciLow, high: m.v2.ciHigh })}), ${pct(m.v2.chanceToWin)} chance to win: ${m.verdict}`
           : `${m.name} (${m.role}): ${m.verdict === 'no-events' ? 'no events in either release' : 'collecting data'}`,
       );
     }
@@ -859,6 +880,8 @@ export function createJudge(opts: JudgeOptions, ctx: JudgeContext) {
         log(`! ${winner.key} is losing the ${g.metric} guardrail (${pct(g.chanceToWin)} chance to win).`);
       }
     }
+    const rec = recommend(s.experiment, results);
+    log(`Switchyard recommends: ${rec.call === 'ship' ? 'ship' : rec.call === 'revert' ? 'revert' : 'keep running'} (${rec.reason}).`);
     return { asOf: results.as_of };
   };
 
@@ -890,6 +913,19 @@ export function createJudge(opts: JudgeOptions, ctx: JudgeContext) {
     if (decision.github && 'url' in decision.github) log(`Written to the GitHub Release: ${decision.github.url}`);
     if (decision.github && 'error' in decision.github) log(`Not written to GitHub: ${decision.github.error}`);
     return { entry: decision.entry, github: decision.github };
+  };
+
+  const keepRunningAction: Action = async (s, _body, { log, stage }) => {
+    const rec = s.recommendation;
+    log(
+      rec.interval
+        ? `Flagsmith's credible interval for ${rec.variant} on the goal: ${formatInterval(rec.interval)}${rec.chanceToWin !== null ? `, ${pct(rec.chanceToWin)} chance to win` : ''}.`
+        : 'Flagsmith has no interval on the goal yet.',
+    );
+    stage(1);
+    const entry = await keepRunning({ experiments: s.exps, ledgerDir: ctx.ledgerDir });
+    log(`Kept running: ${entry.reason}. Nothing changed in Flagsmith; send more visitors, then get the results again.`);
+    return { entry };
   };
 
   const visitBatch = async (count: number) => {
@@ -1019,6 +1055,7 @@ export function createJudge(opts: JudgeOptions, ctx: JudgeContext) {
     score,
     ship: decideAction('ship'),
     revert: decideAction('revert'),
+    'keep-running': keepRunningAction,
     verify,
     'swing-back': swing('back'),
     'swing-forward': swing('forward'),

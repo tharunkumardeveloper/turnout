@@ -10,7 +10,7 @@ export type LedgerEntry = {
   experiment: string;
   hypothesis: string;
   flag: string;
-  decision: 'shipped' | 'reverted';
+  decision: 'shipped' | 'reverted' | 'kept-running'; // kept-running writes nothing to Flagsmith
   variant: string; // the variant everyone now gets
   release: string | null; // the release label it serves
   replaced: string | null; // what control served
@@ -20,6 +20,8 @@ export type LedgerEntry = {
   snapshot: string | null;
   by?: 'person' | 'guard'; // who decided; the guard only ever reverts
   guardReason?: string;
+  reason?: string; // kept-running: why (e.g. "interval −14% to +44% crosses zero")
+  interval?: { low: number; high: number } | null; // the goal's credible interval Flagsmith reported, as a relative lift
 };
 
 export function readLedger(dir: string): LedgerEntry[] {
@@ -43,16 +45,21 @@ export function recordDecision(dir: string, entry: LedgerEntry): void {
   const entries = readLedger(dir).reverse();
   writeFileSync(
     join(dir, 'RELEASES.md'),
-    `# Releases\n\nWritten by Switchyard on each Ship winner or Revert. Results are Flagsmith's, as returned.\n\n${entries.map(renderEntry).join('\n')}`,
+    `# Releases\n\nWritten by Switchyard on each Ship winner, Revert or Keep running. Results are Flagsmith's, as returned.\n\n${entries.map(renderEntry).join('\n')}`,
   );
 }
 
 export function renderEntry(e: LedgerEntry): string {
-  const verb = e.decision === 'shipped' ? `Shipped ${e.variant}${e.release ? ` (${e.release})` : ''}` : `Reverted to control${e.replaced ? ` (${e.replaced})` : ''}`;
+  const verb =
+    e.decision === 'shipped'
+      ? `Shipped ${e.variant}${e.release ? ` (${e.release})` : ''}`
+      : e.decision === 'kept-running'
+        ? `Kept running${e.reason ? `: ${e.reason}` : ''}`
+        : `Reverted to control${e.replaced ? ` (${e.replaced})` : ''}`;
   const lines = [
     `## ${e.release ?? e.variant} · Flagsmith experiment ${e.experimentId}`,
     '',
-    `**${verb}** ${e.by === 'guard' ? `automatically by Switchyard's guard (${e.guardReason ?? 'a guardrail was losing'})` : 'by a person'}, on flag \`${e.flag}\`, at ${e.at}.`,
+    `**${verb}** ${e.by === 'guard' ? `automatically by Switchyard's guard (${e.guardReason ?? 'a guardrail was losing'})` : 'by a person'}, on flag \`${e.flag}\`, at ${e.at}.${e.decision === 'kept-running' ? ' Nothing changed in Flagsmith; the experiment keeps running.' : ''}`,
     '',
     `- Experiment: ${e.experiment}`,
     `- Hypothesis: ${e.hypothesis}`,

@@ -3,7 +3,7 @@ import { existsSync, mkdtempSync, readFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { describe, test } from 'node:test';
-import { decide, describeResults, LosingGuardrailsError } from '../src/decide.ts';
+import { decide, describeResults, keepRunning, LosingGuardrailsError } from '../src/decide.ts';
 import { AdminClient } from '../src/flagsmith/admin.ts';
 import { Experiments } from '../src/flagsmith/experiments.ts';
 import { readLedger } from '../src/ledger.ts';
@@ -159,5 +159,29 @@ describe('describeResults', () => {
   test('says when there are no results yet', () => {
     const state = initialState();
     assert.deepEqual(describeResults(state.experiment, null).slice(2), ['Flagsmith results: not computed yet ("Collecting data")']);
+  });
+});
+
+describe('keepRunning', () => {
+  test('writes nothing to Flagsmith; records the reason and the interval in the ledger', async () => {
+    const state = initialState();
+    const { fake, exp, ledgerDir } = await setup(state);
+    const entry = await keepRunning({ experiments: exp, ledgerDir });
+    fake.close();
+    assert.deepEqual(writes(state), []);
+    assert.equal(state.experiment.status, 'running');
+    assert.equal(entry.decision, 'kept-running');
+    assert.equal(entry.reason, 'interval −2% to +62% crosses zero');
+    assert.deepEqual(entry.interval, { low: -0.02, high: 0.62 });
+    assert.equal(readLedger(ledgerDir)[0]!.decision, 'kept-running');
+    assert.match(readFileSync(join(ledgerDir, 'RELEASES.md'), 'utf8'), /Kept running: interval −2% to \+62% crosses zero/);
+  });
+
+  test('refuses a completed experiment', async () => {
+    const state = initialState();
+    state.experiment.status = 'completed';
+    const { fake, exp, ledgerDir } = await setup(state);
+    await assert.rejects(keepRunning({ experiments: exp, ledgerDir }), /already decided/);
+    fake.close();
   });
 });

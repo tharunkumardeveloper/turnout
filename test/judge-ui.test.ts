@@ -207,6 +207,23 @@ describe('judge-format: which buttons a state allows', () => {
     assert.equal(J.stepControls(s, 'decide').buttons[0].label, "Ship Flagsmith's pick (v2 → shop:1.5)", 'no "winner" below the 95% bar');
   });
 
+  test('an interval crossing zero: Keep running is primary, Ship is secondary, and the note shows the interval', () => {
+    const s = fixtures.v2Winner();
+    (s.results as any).recommendation = { call: 'keep-running', variant: 'v2', reason: 'interval −14% to +44% crosses zero', interval: { low: -0.14, high: 0.44 }, chanceToWin: 0.967 };
+    const c = J.stepControls(s, 'decide');
+    assert.deepEqual(labels(c), ['Keep running (interval crosses zero)', 'Ship anyway (v2 → shop:1.5)']);
+    assert.deepEqual(actions(c), ['keep-running', 'ship']);
+    assert.equal(c.buttons[0].tone, 'primary');
+    assert.equal(c.buttons[1].tone, 'secondary');
+    assert.match(c.note, /96\.7% chance to win\. Credible interval −14\.0% to \+44\.0%\./);
+    assert.match(J.winnerLine(s).text, /not a win yet: interval −14% to \+44% crosses zero/);
+    assert.equal(J.JOB_STEP['keep-running'], 'decide');
+  });
+
+  test('a kept-running ledger entry reads as such', () => {
+    assert.equal(J.decisionText({ decision: 'kept-running', reason: 'interval −2% to +62% crosses zero' }), 'Kept running: interval −2% to +62% crosses zero. Nothing changed in Flagsmith.');
+  });
+
   test('no v2 lead: Revert first, Ship v2 second', () => {
     const s = fixtures.v2Winner();
     (s.results as any).winner = { key: 'control', release: 'shop:1.4', chanceToWin: 0.7 };

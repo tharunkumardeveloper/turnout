@@ -177,3 +177,17 @@ test('the guard leaves a just-started experiment alone (nothing to score yet)', 
   await w.tick();
   assert.equal(calls.refresh, 0);
 });
+
+describe('a practical minimum for guardrails', () => {
+  test('a sure but tiny harm (0.7 ms on 120 ms) is not losing, so neither reported nor reverted', () => {
+    const s = initialState();
+    s.results!.payload!.metrics.push({
+      metric_id: 2,
+      variants: { control: { n: 1000, sum: 120_000, sum_squares: 0 }, v2: { n: 1000, sum: 120_700, sum_squares: 0 } },
+      inference: { v2: { lift: 0.0058, ci_low: 0.004, ci_high: 0.008, chance_to_win: 0.0001 } },
+    });
+    assert.deepEqual(losingFor(s.experiment, s.results), []);
+    const big = losingState();
+    assert.equal(losingFor(big.experiment, big.results).length, 1, 'a 504% rise still is');
+  });
+});

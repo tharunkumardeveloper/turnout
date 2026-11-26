@@ -98,7 +98,7 @@ export function bubbleSpot({ target: r, vw, vh, minY, compact, bw, bh, fw, fh, c
  *   loadShop(mode): 'reload' | 'preview'
  *   signin(): Promise<{ email, password?, dashboardUrl }>
  *   unhealthy(): Promise<boolean | null>   Flagsmith Feature Health shows the flag Unhealthy (null: not reported here)
- *   recommended(state): 'ship' | 'revert'
+ *   recommended(state): 'ship' | 'revert' | 'keep-running'
  *   run(action): starts a judge job ("Start over", the restart beat)
  *   onChange(active, mode): the page shows or hides its welcome overlay
  *   demo(name, targetEl): Promise<void>  the SHOW animation (<= 2 s; immediate under reduced motion)

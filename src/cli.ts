@@ -31,11 +31,14 @@ Commands:
   preview    Serve a new release to your team only: preview <label>
   release    Start the next experiment on the same flag: release <label> [--hypothesis "…"]
              [--split <1-99>]  % of visitors in the experiment who get the new release (default 50)
+             [--aa | <label> --against-itself]  A/A run: the live release on both arms (any winner is noise)
+             [--mde <pct>] [--daily-visitors <n>]  size the launch estimate (default a 10% relative lift)
   status     Flagsmith's results for an experiment [--refresh]
   ship       Ship the winner on the same flag [--winner <variant>] [--yes] [--accept-losing-guardrails]
   revert     Send everyone back to control, drain the split and complete [--yes]
   check      Find experiment splits left behind on any flag (read-only, server key; with an admin key it
-             also reads each experiment's status, so created and paused experiments are not counted)
+             also reads each experiment's status, so created and paused experiments are not counted, and
+             runs the Experiment Doctor on running and recent experiments: exposures, tracking, sample ratio)
   doctor     Check that everything is set up as expected: Flagsmith, keys, flag, metrics, proxy, shops [--json]
   demo       Drive labelled simulated visitors through the proxy [--visitors 2000] [--rate v2=0.13]
              [--concurrency 20] [--seed 42] [--target http://switchyard:8080]
@@ -80,6 +83,10 @@ const parseCommandLine = () =>
       target: { type: 'string' },
       hypothesis: { type: 'string' },
       split: { type: 'string' },
+      aa: { type: 'boolean' },
+      'against-itself': { type: 'boolean' },
+      mde: { type: 'string' },
+      'daily-visitors': { type: 'string' },
       project: { type: 'string' },
       help: { type: 'boolean', short: 'h' },
     },
@@ -111,6 +118,15 @@ function splitOption(): number | undefined {
   if (raw === undefined) return undefined;
   const value = raw.trim() === '' ? Number.NaN : Number(raw);
   if (!Number.isFinite(value) || value <= 0 || value >= 100) throw new Error(`--split expects a percentage above 0 and below 100, got "${raw}"`);
+  return value;
+}
+
+// A positive number option (--mde, --daily-visitors), or undefined when not given.
+function positiveOption(option: 'mde' | 'daily-visitors', max: number): number | undefined {
+  const raw = cliFlags[option];
+  if (raw === undefined) return undefined;
+  const value = raw.trim() === '' ? Number.NaN : Number(raw);
+  if (!Number.isFinite(value) || value <= 0 || value > max) throw new Error(`--${option} expects a number above 0 and up to ${max}, got "${raw}"`);
   return value;
 }
 
@@ -325,17 +341,23 @@ const commands: Record<string, () => Promise<void>> = {
   revert: async () => revert({ experiments: await experiments(), ...decision() }),
   release: async () => {
     const label = positionals[0];
-    if (!label) throw new Error('Usage: switchyard release <release label> [--hypothesis "…"] [--split <1-99>]');
+    const aa = cliFlags.aa === true || cliFlags['against-itself'] === true;
+    if (!label && !aa) throw new Error('Usage: switchyard release <release label> [--hypothesis "…"] [--split <1-99>], or switchyard release --aa');
     const split = splitOption();
+    const mde = positiveOption('mde', 1000);
+    const dailyVisitors = positiveOption('daily-visitors', 1e9);
     const config = loadConfig(configPath());
     const { experimentId } = await release({
       ...(split !== undefined ? { split } : {}),
+      ...(mde !== undefined ? { mde } : {}),
+      ...(dailyVisitors !== undefined ? { dailyVisitors } : {}),
+      aa,
       apiUrl: apiUrl(),
       adminKey: await adminKey(),
       envKey: envKey(),
       flag: config.flag,
       releases: new Set(config.releases.keys()),
-      newRelease: label,
+      newRelease: label ?? '',
       hypothesis: cliFlags.hypothesis ?? `${label} raises ${config.goal.event} without hurting latency or errors`,
     });
     writeEnv(ENV_FILE, { SWITCHYARD_EXPERIMENT: `${envKey()}/${experimentId}` });

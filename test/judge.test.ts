@@ -74,6 +74,17 @@ describe('deriveSteps', () => {
     assert.equal(deriveSteps(shippedAnyway).steps.find((s) => s.id === 'decide')!.title, 'Ship winner');
   });
 
+  test('keep running: the decide step says so, and after it the next step is more visitors', () => {
+    const scored = input({ visitorsSent: 1500, lastVisitorsAt: '2026-11-17T10:00:00Z', resultsAsOf: '2026-11-17T10:00:30Z' });
+    const kr = { ...scored, recommendation: 'keep-running' as const };
+    assert.equal(deriveSteps(kr).steps.find((s) => s.id === 'decide')!.title, 'Keep running (interval crosses zero)');
+    const kept = { ...kr, keptRunningAt: '2026-11-17T10:01:00Z' };
+    assert.equal(deriveSteps(kept).current, 'visitors');
+    const more = { ...kept, lastVisitorsAt: '2026-11-17T10:05:00Z' };
+    assert.equal(deriveSteps(more).current, 'score', 'more visitors sent: get the results again');
+    assert.equal(deriveSteps({ ...more, resultsAsOf: '2026-11-17T10:06:00Z' }).current, 'decide');
+  });
+
   test('a completed experiment: verify, optional swing, preview, release', () => {
     const done = input({ status: 'completed', decision: 'shipped' });
     assert.equal(deriveSteps(done).current, 'verify');
@@ -529,13 +540,29 @@ describe('judge mode API', () => {
     assert.equal(s.job.status, 'done', s.job.error);
     const log = logText(s);
     assert.match(log, /Flagsmith has accepted 9,000 events/);
-    assert.match(log, /order_placed \(goal\): v2 lift 30\.0%, 96\.7% chance to win: winning/);
+    assert.match(log, /order_placed \(goal\): v2 lift 30\.0% \(interval −2% to \+62%\), 96\.7% chance to win: winning/);
+    assert.match(log, /Switchyard recommends: keep running \(interval −2% to \+62% crosses zero\)/);
     assert.equal(s.current, 'decide');
     assert.ok(s.results.refreshAllowedAt, 'the next refresh is 5 minutes away');
 
     const again = await runToEnd({ action: 'score', experimentId: 7 });
     assert.equal(again.job.status, 'failed');
     assert.match(again.job.error, /one refresh per experiment every 5 minutes; next at \d\d:\d\d UTC/);
+  });
+
+  test('keep running: Flagsmith untouched, the ledger says why, and the next step is more visitors', async () => {
+    const before = await getState();
+    assert.equal(before.results.recommendation.call, 'keep-running');
+    assert.equal(before.results.recommendation.reason, 'interval −2% to +62% crosses zero');
+    assert.equal(before.steps.find((x: any) => x.id === 'decide').title, 'Keep running (interval crosses zero)');
+    const writesBefore = state.requests.filter((r) => !r.startsWith('GET')).length;
+    const s = await runToEnd({ action: 'keep-running', experimentId: 7 });
+    assert.equal(s.job.status, 'done', s.job.error);
+    assert.match(logText(s), /Kept running: interval −2% to \+62% crosses zero/);
+    assert.equal(state.requests.filter((r) => !r.startsWith('GET')).length, writesBefore, 'no Flagsmith write');
+    assert.equal(state.experiment.status, 'running');
+    assert.equal(s.job.result.entry.decision, 'kept-running');
+    assert.equal(s.current, 'visitors');
   });
 
   test('a losing guardrail fails Ship with the guardrails; accepting it ships', async () => {
@@ -562,8 +589,8 @@ describe('judge mode API', () => {
     assert.equal(shipped.job.result.entry.decision, 'shipped');
     assert.equal(state.experiment.status, 'completed');
     assert.equal(shipped.live, 'shop:1.5');
-    assert.equal(shipped.ledger.length, 1);
-    assert.equal(readLedger(ledgerDir)[0]!.release, 'shop:1.5');
+    assert.deepEqual(shipped.ledger.map((e: any) => e.decision), ['kept-running', 'shipped']);
+    assert.equal(readLedger(ledgerDir).at(-1)!.release, 'shop:1.5');
     assert.equal(shipped.current, 'verify');
     // The page's checklist and before → after card.
     assert.deepEqual(shipped.job.stages.map((s: any) => s.status), ['done', 'done', 'done', 'done', 'done', 'done']);
@@ -641,7 +668,7 @@ describe('judge mode API', () => {
     assert.equal(s.experiment.v2, 'shop:1.5');
     assert.equal(s.next, 'shop:1.6');
     assert.equal(s.current, 'visitors');
-    assert.deepEqual(s.ledger.map((e: any) => [e.experimentId, e.decision]), [[7, 'shipped'], [8, 'reverted']]);
+    assert.deepEqual(s.ledger.map((e: any) => [e.experimentId, e.decision]), [[7, 'kept-running'], [7, 'shipped'], [8, 'reverted']]);
   });
 });
 

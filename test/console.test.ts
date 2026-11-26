@@ -125,6 +125,9 @@ describe('console API', () => {
     assert.equal(plan.steps.length, 5);
     assert.match(plan.steps[3].title, /Drain/);
     assert.deepEqual(plan.guardrails, []);
+    assert.equal(plan.recommendation.call, 'keep-running', 'the plan carries the recommendation');
+    assert.equal(plan.recommendation.reason, 'interval −2% to +62% crosses zero');
+    assert.equal((await json(await get('/api/state'))).recommendation.call, 'keep-running');
     losingLatency();
     const warned = await json(await get('/api/plan?action=ship&winner=v2&experimentId=7'));
     assert.deepEqual(warned.guardrails, [{ metric: 'doc_latency_ms', chanceToWin: 0.0001, lift: 0.4 }]);
@@ -204,6 +207,14 @@ describe('console API', () => {
     const s = await json(await get('/api/state'));
     assert.equal(s.serving, 'shop:1.5');
     assert.equal(s.ledger[0].experimentId, 7);
+  });
+
+  test('Keep running refuses another experiment, and a decided one', async () => {
+    assert.equal((await post('/api/keep-running', { experimentId: 6 })).status, 409);
+    const res = await post('/api/keep-running', { experimentId: 7 });
+    assert.equal(res.status, 409);
+    assert.match((await json(res)).error, /already decided/);
+    assert.equal(readLedger(ledgerDir).length, 1);
   });
 
   test('reports a refused action instead of crashing', async () => {

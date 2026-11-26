@@ -2,7 +2,7 @@
 // control, the new release becomes v2. Flagsmith clears the previous experiment's leftover override when this one
 // starts (merged in Flagsmith #8770).
 import { AdminClient, type Experiment, type Feature } from '../flagsmith/admin.ts';
-import { CONTROL, type ExperimentDetail, type FlagState } from '../flagsmith/experiments.ts';
+import { CONTROL, type ExperimentDetail, type FlagState, type Results } from '../flagsmith/experiments.ts';
 
 type Options = {
   apiUrl: string;
@@ -13,6 +13,9 @@ type Options = {
   newRelease: string;
   hypothesis: string;
   split?: number; // % of the rollout that gets the new release
+  aa?: boolean; // A/A: v2 serves the live release too (newRelease is then ignored unless it names the live one)
+  mde?: number; // relative lift the launch estimate sizes for, % (default 10)
+  dailyVisitors?: number; // visitors a day through the experiment, for the estimate in days
   log?: (line: string) => void;
 };
 
@@ -25,6 +28,37 @@ export function currentRelease(flag: FlagState, options: Feature['multivariate_o
     }
   }
   return flag.environment_default.value.value;
+}
+
+export const AA_HYPOTHESIS = 'A/A: same release on both arms; any winner is noise';
+
+// Rough visitors per arm to detect a relative lift `mde` at baseline rate p (80% power, 5% two-sided):
+// n ≈ 16·p(1−p)/(p·mde)². Flagsmith's own statistics decide the result; this only sizes the launch.
+export function visitorsPerArm(p: number, mde: number): number {
+  return Math.ceil((16 * p * (1 - p)) / (p * mde) ** 2);
+}
+
+export function launchEstimate(baseline: number | null, opts: { mde?: number; split?: number; dailyVisitors?: number } = {}): string {
+  const mde = (opts.mde ?? 10) / 100;
+  const tail = "rough estimate; Flagsmith does the real statistics; don't ship on an early reading";
+  if (baseline == null || !(baseline > 0 && baseline < 1)) {
+    return `Launch estimate: visitors needed per arm for a ${Math.round(mde * 100)}% lift: unknown (no baseline goal rate from a previous experiment) (${tail}).`;
+  }
+  const n = visitorsPerArm(baseline, mde);
+  let days = '';
+  if (opts.dailyVisitors && opts.dailyVisitors > 0) {
+    const smaller = Math.min(opts.split ?? 50, 100 - (opts.split ?? 50)) / 100; // the smaller arm sets the pace
+    days = `, about ${Math.ceil(n / (opts.dailyVisitors * smaller))} days at ${opts.dailyVisitors} visitors a day`;
+  }
+  return `Launch estimate: ~${n.toLocaleString('en-US')} visitors per arm to detect a ${Math.round(mde * 100)}% relative lift on a ${(baseline * 100).toFixed(1)}% baseline${days} (${tail}).`;
+}
+
+// Control's goal rate in an experiment's results: the primary (first) metric, as conversions per exposed visitor.
+export function baselineRate(experiment: ExperimentDetail, results: Results | null): number | null {
+  const primary = experiment.metrics[0];
+  if (!primary || primary.aggregation !== 'occurrence') return null;
+  const control = results?.payload?.metrics.find((m) => m.metric_id === primary.metric)?.variants[CONTROL];
+  return control && control.n > 0 ? control.sum / control.n : null;
 }
 
 export async function release(opts: Options): Promise<{ experimentId: number }> {
@@ -49,18 +83,24 @@ export async function release(opts: Options): Promise<{ experimentId: number }> 
   }
   const previous = experiments.sort((a, b) => b.id - a.id)[0];
   if (!previous) throw new Error('No previous experiment on this flag to take metrics from. Run switchyard init first.');
-  const metrics = (await api.get<ExperimentDetail>(`${envPath}/experiments/${previous.id}/`)).metrics.map((m) => ({
+  const previousDetail = await api.get<ExperimentDetail>(`${envPath}/experiments/${previous.id}/`);
+  const metrics = previousDetail.metrics.map((m) => ({
     metric: m.metric,
     expected_direction: m.expected_direction,
   }));
 
   const flagPath = `/api/__future__/environments/${opts.envKey}/features/${feature.id}/`;
   const live = currentRelease(await api.get<FlagState>(flagPath), feature.multivariate_options);
-  if (live === opts.newRelease) throw new Error(`${opts.newRelease} is already what everyone gets.`);
-  for (const label of [live, opts.newRelease]) {
+  if (opts.aa) {
+    if (opts.newRelease && opts.newRelease !== live) throw new Error(`An A/A run serves the live release on both arms; ${live} is live, not ${opts.newRelease}.`);
+  } else if (live === opts.newRelease) {
+    throw new Error(`${opts.newRelease} is already what everyone gets. To test the setup itself, run an A/A: switchyard release --aa.`);
+  }
+  const next = opts.aa ? live : opts.newRelease;
+  for (const label of new Set([live, next])) {
     if (!opts.releases.has(label)) throw new Error(`"${label}" isn't in switchyard.config.yml's releases, so the proxy couldn't route to it.`);
   }
-  log(`Live today: ${live}. New: ${opts.newRelease}.`);
+  log(opts.aa ? `Live today: ${live}. A/A run: ${live} on both arms.` : `Live today: ${live}. New: ${opts.newRelease}.`);
 
   // 1. Everyone keeps getting the live release, now as control (the flag's own value), with v2 at 0%.
   await api.patch(flagPath, {
@@ -74,18 +114,18 @@ export async function release(opts: Options): Promise<{ experimentId: number }> 
   await api.put(`/api/v1/projects/${env.project}/features/${feature.id}/mv-options/${v2.id}/`, {
     feature: feature.id,
     type: 'unicode',
-    string_value: opts.newRelease,
+    string_value: next, // in an A/A, the same value as control: Flagsmith only requires unique keys (features/multivariate/serializers.py:138-147)
     default_percentage_allocation: 0,
     key: 'v2',
   });
-  log(`✓ v2 → ${opts.newRelease}`);
+  log(`✓ v2 → ${next}`);
 
   // 3. The next experiment, same flag, same metrics.
   const split = opts.split ?? 50;
   const created = await api.post<Experiment>(`${envPath}/experiments/`, {
     feature: feature.id,
-    name: `${opts.flag}: ${opts.newRelease} vs ${live}`,
-    hypothesis: opts.hypothesis,
+    name: opts.aa ? `${opts.flag}: A/A ${live}` : `${opts.flag}: ${opts.newRelease} vs ${live}`,
+    hypothesis: opts.aa ? AA_HYPOTHESIS : opts.hypothesis,
     metrics,
     experiment_rollout: {
       enabled: true,
@@ -95,6 +135,15 @@ export async function release(opts: Options): Promise<{ experimentId: number }> 
     },
   });
   const started = await api.post<Experiment>(`${envPath}/experiments/${created.id}/start/`);
-  log(`✓ experiment ${started.id} "${started.name}" is ${started.status}: ${split}% of visitors get ${opts.newRelease}, the rest ${live} (${CONTROL})`);
+  log(`✓ experiment ${started.id} "${started.name}" is ${started.status}: ${split}% of visitors get ${next}${opts.aa ? ' (v2)' : ''}, the rest ${live} (${CONTROL})`);
+
+  // The baseline: control's goal rate in the previous experiment. Any failure just makes it unknown.
+  let baseline: number | null = null;
+  try {
+    baseline = baselineRate(previousDetail, (await api.get<{ results: Results | null }>(`${envPath}/experiments/${previous.id}/results/`)).results);
+  } catch {
+    baseline = null;
+  }
+  log(launchEstimate(baseline, { split, ...(opts.mde !== undefined ? { mde: opts.mde } : {}), ...(opts.dailyVisitors !== undefined ? { dailyVisitors: opts.dailyVisitors } : {}) }));
   return { experimentId: started.id };
 }

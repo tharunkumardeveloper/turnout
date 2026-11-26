@@ -12,8 +12,8 @@ import net from 'node:net';
 import { extname, join } from 'node:path';
 import type { DoctorReport } from '../commands/doctor.ts';
 import { currentRelease } from '../commands/release.ts';
-import { decide, LosingGuardrailsError, plan } from '../decide.ts';
-import { losingGuardrails, pickWinner, type Experiments, type StepResult } from '../flagsmith/experiments.ts';
+import { decide, keepRunning, LosingGuardrailsError, plan } from '../decide.ts';
+import { losingGuardrails, pickWinner, recommend, type Experiments, type StepResult } from '../flagsmith/experiments.ts';
 import { createMapReader } from '../flagsmith/feature-map.ts';
 import { readLedger } from '../ledger.ts';
 import type { Watcher } from '../health.ts';
@@ -175,6 +175,7 @@ export function createConsole(opts: ConsoleOptions): http.Server {
       experiment,
       results,
       winner: pickWinner(experiment, results),
+      recommendation: recommend(experiment, results),
       flag,
       serving: currentRelease(flag, experiment.feature.multivariate_options.map((o) => ({ ...o, default_percentage_allocation: 0 }))),
       events: eventCount,
@@ -288,6 +289,7 @@ export function createConsole(opts: ConsoleOptions): http.Server {
           experimentId,
           steps: steps.map((s) => ({ title: s.title, call: s.call })),
           guardrails: action === 'ship' ? losingGuardrails(experiment, results, winner) : [],
+          recommendation: recommend(experiment, results),
         });
       }
 
@@ -315,6 +317,24 @@ export function createConsole(opts: ConsoleOptions): http.Server {
         const action = url.pathname === '/api/ship' ? 'ship' : 'revert';
         if (action === 'ship' && !body.winner) return json(res, 400, { ok: false, error: 'winner is required' });
         return act(res, action, body);
+      }
+
+      // Keep running: no Flagsmith write, a ledger entry with Flagsmith's interval and the reason.
+      if (req.method === 'POST' && url.pathname === '/api/keep-running') {
+        const body = parseActionBody(await readJson(req));
+        if (lock.busy) return json(res, 409, { ok: false, error: 'Another action is still running.' });
+        lock.busy = true;
+        invalidate('experiment');
+        try {
+          const exps = await current();
+          if (exps.ref.experimentId !== body.experimentId) return changed(res, exps.ref.experimentId);
+          return json(res, 200, { ok: true, entry: await keepRunning({ experiments: exps, ledgerDir: opts.ledgerDir }) });
+        } catch (error) {
+          return json(res, 409, { ok: false, error: (error as Error).message });
+        } finally {
+          forget();
+          lock.busy = false;
+        }
       }
 
       if (url.pathname.startsWith('/api/judge/')) {

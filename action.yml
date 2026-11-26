@@ -2,7 +2,9 @@
 # It fails the job when an experiment's split is still on a flag while the experiment isn't running, so the
 # "end the experiment, then edit the flag" trap is caught before release day. With only the server-side key it
 # can't tell a created or paused experiment from a completed one, so their splits fail the job too. With admin-key,
-# check reads each experiment's status (read-only), and only completed or deleted experiments' splits fail the job.
+# check reads each experiment's status (read-only), and only completed or deleted experiments' splits fail the job;
+# it also runs the Experiment Doctor on running and recent experiments (exposures on both arms, events tracked on
+# every arm, sample ratio vs the configured split) and fails the job on a failed check. See docs/CLI.md.
 #
 # With an Organisation API key it also submits Flagsmith Code References for the release flag: where the flag's name
 # appears in the checked-out repository (run actions/checkout first). GitHub's own GITHUB_SERVER_URL,
@@ -13,10 +15,10 @@
 #     with:
 #       api-url: https://flagsmith.example.com/api/v1/
 #       server-key: ${{ secrets.FLAGSMITH_SERVER_KEY }}
-#       admin-key: ${{ secrets.FLAGSMITH_ADMIN_KEY }}   # optional: experiment statuses and Code References
+#       admin-key: ${{ secrets.FLAGSMITH_ADMIN_KEY }}   # optional: experiment statuses, Experiment Doctor, Code References
 #       project-id: 1                                     # with admin-key
 name: Switchyard check
-description: Find Flagsmith experiment splits left behind on any flag (read-only, needs only a server-side key); optionally submit Code References.
+description: Find Flagsmith experiment splits left behind on any flag (read-only, needs only a server-side key); with an admin key, sanity-check running experiments' data and submit Code References.
 branding:
   icon: git-merge
   color: green
@@ -28,7 +30,7 @@ inputs:
     description: "A server-side environment key (ser.…). Read-only use: the environment document."
     required: true
   admin-key:
-    description: "Optional. An Organisation API key; when set, check tells created and paused experiments from completed ones, and the flag's Code References are submitted to Flagsmith."
+    description: "Optional. An Organisation API key; when set, check tells created and paused experiments from completed ones and runs the Experiment Doctor (read-only), and the flag's Code References are submitted to Flagsmith."
     required: false
     default: ""
   project-id:

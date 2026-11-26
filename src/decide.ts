@@ -4,6 +4,8 @@ import {
   losingGuardrails,
   planRevert,
   planShip,
+  recommend,
+  formatInterval,
   releaseOf,
   runSteps,
   snapshotFileOf,
@@ -37,7 +39,7 @@ export function describeResults(experiment: ExperimentDetail, results: Results |
     const allZero = Object.values(r.variants).every((v) => v.sum === 0);
     const inf = Object.entries(r.inference)
       .map(([key, i]) =>
-        i ? `${key}: lift ${pct(i.lift)}, chance to win ${pct(i.chance_to_win)}` : `${key}: ${allZero ? 'no events in either release' : 'collecting data'}`,
+        i ? `${key}: lift ${pct(i.lift)} (interval ${formatInterval({ low: i.ci_low, high: i.ci_high })}), chance to win ${pct(i.chance_to_win)}` : `${key}: ${allZero ? 'no events in either release' : 'collecting data'}`,
       )
       .join('; ');
     // A Mean metric's figure is per exposed identity: one with no event counts as 0 (experimentation/results_query.py:123-124,
@@ -131,4 +133,33 @@ export async function decide(opts: DecideOptions): Promise<Decision> {
     }
   }
   return { entry, github };
+}
+
+// Keep running: the honest call when Flagsmith's interval still crosses zero. Writes nothing to Flagsmith (the
+// experiment stays running, so more visitors can be sent); records the reason and the interval in the ledger.
+export async function keepRunning(opts: { experiments: Experiments; ledgerDir: string }): Promise<LedgerEntry> {
+  const experiment = await opts.experiments.detail();
+  if (experiment.status === 'completed') throw new Error('This experiment is already decided.');
+  const results = await opts.experiments.results();
+  const rec = recommend(experiment, results);
+  const variant = rec.variant ?? CONTROL;
+  const entry: LedgerEntry = {
+    at: new Date().toISOString(),
+    experimentId: experiment.id,
+    experiment: experiment.name,
+    hypothesis: experiment.hypothesis,
+    flag: experiment.feature.name,
+    decision: 'kept-running',
+    variant,
+    release: releaseOf(experiment, variant),
+    replaced: releaseOf(experiment, CONTROL),
+    results: describeResults(experiment, results).slice(2).filter((l) => !l.startsWith('Flagsmith results as of')),
+    resultsAsOf: results?.as_of ?? null,
+    losingGuardrailsAccepted: [],
+    snapshot: null,
+    reason: rec.reason,
+    interval: rec.interval,
+  };
+  recordDecision(opts.ledgerDir, entry);
+  return entry;
 }

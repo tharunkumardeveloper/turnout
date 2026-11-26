@@ -346,6 +346,21 @@ export function guardrailWarningText(variantKey, warning) {
   return `${variantKey} is losing on ${warning.metric}: ${formatPercent(warning.chanceToWin)} chance to win`;
 }
 
+/**
+ * Switchyard's recommendation (recommend() on the server, read off Flagsmith's interval and chance to win) in one
+ * line: "Keep running: interval −14% to +44% crosses zero". Empty when there is none.
+ */
+export function recommendationText(rec) {
+  if (!rec || typeof rec.reason !== 'string') return '';
+  const call = rec.call === 'ship' ? 'Ship' : rec.call === 'revert' ? 'Revert' : 'Keep running';
+  return `${call}: ${rec.reason}`;
+}
+
+/** The goal's credible interval from a recommendation, "−14.0% to +44.0%", or '' when Flagsmith has none. */
+export function recommendationInterval(rec) {
+  return rec?.interval ? formatInterval(rec.interval.low, rec.interval.high) : '';
+}
+
 /** The most recent ledger entry for an experiment, or null. */
 export function latestEntryFor(ledger, experimentId) {
   const entries = (Array.isArray(ledger) ? ledger : []).filter((e) => e && e.experimentId === experimentId);
@@ -357,6 +372,7 @@ export function latestEntryFor(ledger, experimentId) {
 export function ledgerDecisionText(entry) {
   if (!entry) return '';
   if (entry.decision === 'reverted') return 'reverted';
+  if (entry.decision === 'kept-running') return 'kept running';
   return `shipped ${entry.variant}${entry.release ? ` (${entry.release})` : ''}`;
 }
 

@@ -1,13 +1,38 @@
 # Switchyard
 
-**Every deploy is a Flagsmith experiment, with zero app code. Ship it or roll it back on the same flag.**
+Switchyard is a small proxy that sits in front of your web app and turns each new release into a Flagsmith experiment, without any change to the app.
 
-Switchyard is a small reverse proxy that sits in front of your app, beside your self-hosted Flagsmith. Each release is the next experiment on one multivariate flag: visitors split between today's version and the new one, Flagsmith scores them, and one confirmed click ships the winner (or reverts) on that same flag. The decision and Flagsmith's result, as returned, go into the release notes.
+**The question it answers:** can every release be a Flagsmith experiment, and be shipped or reverted on the same flag without leaving anyone behind, with zero changes to the app?
 
-<!-- Before submission: replace the next line with the real submission status, and add the video link below it. -->
-> **Status:** built for **Toggle Wars: The Flagsmith Experimentation Hackathon** (Nov 26–29, 2026), **Track 03: Build on Open Source Flagsmith**. Runs as an overlay on Flagsmith's official self-hosted Docker Compose. Licence: BSD-3-Clause.
+## Try it
+
+You need Docker with Compose 2.20+ and about 8 GB of RAM for Docker. Get the code (`git clone https://github.com/tharunkumardeveloper/switchyard-practice.git`, a private practice repo), then:
+
+| | Start (one command) |
+|---|---|
+| Windows | double-click `switchyard.bat` (first time on this machine: `setup.bat` checks and installs what's needed) |
+| macOS, Linux | `sh switchyard.sh` (first time: `sh setup.sh`) |
+| In the browser | [![Open in GitHub Codespaces](https://github.com/codespaces/badge.svg)](https://codespaces.new/tharunkumardeveloper/switchyard-practice) (needs access to the repo; open the judge link the terminal prints at the end) |
+
+**When it works,** your browser opens judge mode at <http://127.0.0.1:8090/judge> showing **Step 1 of 7**. Follow the steps, or choose **Play it for me**. If anything is missing, <http://127.0.0.1:8090/setup> (or `docker compose run --rm cli doctor`) says what.
+
+## Why it can't make the four wiring mistakes
+
+Hand-wiring an experiment into an app commonly goes wrong in four ways. Switchyard's design rules each one out:
+
+| Mistake | Why it can't happen here |
+|---|---|
+| Unstable identifier | Every visitor gets one random first-party ID cookie, kept for a year, and that ID is the Flagsmith identity ([`src/proxy/server.ts:119-129`](src/proxy/server.ts), [`:202`](src/proxy/server.ts)) |
+| Exposures recorded on one side only | The proxy routes the request from the same evaluation that records the exposure, so every arm records them the same way ([`src/proxy/server.ts:141-150`](src/proxy/server.ts)) |
+| Exposures rising while conversions stay flat | Conversions come from the real HTTP response (`POST /checkout` returning 2xx) under the same ID ([`src/proxy/server.ts:166-171`](src/proxy/server.ts)) |
+| A boolean flag converted to multivariate late | `init` creates the release flag with a release label as its value and adds the `v2` variant in the same run, before any experiment ([`src/commands/init.ts:130-135`](src/commands/init.ts), [`:176-185`](src/commands/init.ts)) |
+
+Decisions read Flagsmith's own credible interval: when it crosses zero, Switchyard recommends **Keep running** rather than a ship. `switchyard release --aa` runs an A/A test (the same release on both sides), and `switchyard check` is an Experiment Doctor for any Flagsmith team, proxy or not.
 
 ![Judge mode during an experiment: the steps on the left, the flow line, live numbers and the track map in the middle, and what Flagsmith holds right now on the right](docs/images/judge-dashboard.png)
+
+> **Status:** built for **Toggle Wars: The Flagsmith Experimentation Hackathon** (Nov 26–29, 2026), **Track 03: Build on Open Source Flagsmith**. Runs as an overlay on Flagsmith's official self-hosted Docker Compose. Licence: BSD-3-Clause.
+<!-- Before submission: replace the status line with the real submission status, and add the video link below it. -->
 
 ## The problem
 
@@ -85,17 +110,7 @@ While an experiment runs, the console reports the release flag's health to **Fla
 
 <!-- The GitHub Release writer is tested against a stub of GitHub's REST API (test/ledger.test.ts). Before submission: run it once against a real repo and link the release here. -->
 
-## Quick start
-
-1. **Get the code:** `git clone https://github.com/tharunkumardeveloper/switchyard-practice.git` (private practice repo; the hackathon repo replaces it), or **Code → Download ZIP** on GitHub and unzip it.
-2. **Check and install what's needed, then start.** You need Docker with Compose 2.20+ and about 8 GB of RAM for Docker.
-
-   | | Setup (once) | Start |
-   |---|---|---|
-   | Windows | double-click `setup.bat` | double-click `switchyard.bat` |
-   | macOS, Linux | `sh setup.sh` | `sh switchyard.sh` |
-
-3. **Open judge mode** at <http://127.0.0.1:8090/judge>; the start script opens it for you. The setup check is at <http://127.0.0.1:8090/setup>, and `docker compose run --rm cli doctor` prints the same checks in a terminal.
+## Running it by hand
 
 The start script also takes `demo`, `status`, `stop` and `reset` (`reset --yes`, or `reset /yes` on Windows, wipes without asking). Plain `docker compose` works in any shell too:
 
@@ -107,7 +122,7 @@ docker compose up -d --build            # proxy :8080, console :8090, three shop
 docker compose run --rm cli doctor      # is everything in place?
 ```
 
-Links use `127.0.0.1` rather than `localhost`: on Windows, a browser that tries `localhost`'s IPv6 address first waits for that attempt to fail. More in [docs/SETUP.md](docs/SETUP.md): what the scripts check and install, judge mode on a phone or another computer, Linux user ids, ports and networks, and using an existing Flagsmith instance.
+Links use `127.0.0.1` rather than `localhost`: on Windows, a browser that tries `localhost`'s IPv6 address first waits for that attempt to fail. In Codespaces, [`.devcontainer/start.sh`](.devcontainer/start.sh) runs these steps and adds the forwarded `*.app.github.dev` hostnames to `.env`. More in [docs/SETUP.md](docs/SETUP.md): what the scripts check and install, judge mode on a phone or another computer, Linux user ids, ports and networks, and using an existing Flagsmith instance.
 
 ## Judge mode
 

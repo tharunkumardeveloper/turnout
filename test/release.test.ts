@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { afterEach, test } from 'node:test';
 import { preview, PREVIEW_SEGMENT } from '../src/commands/preview.ts';
-import { currentRelease, release } from '../src/commands/release.ts';
+import { AA_HYPOTHESIS, currentRelease, launchEstimate, release, visitorsPerArm } from '../src/commands/release.ts';
 import type { FlagState } from '../src/flagsmith/experiments.ts';
 import { calls, flagKey, SEED, seededState, shipV2, startFakeAdmin, writes, type FakeAdminState } from './fake-admin.ts';
 
@@ -158,4 +158,41 @@ test('preview, then release: the team keeps the new release and the experiment r
   assert.ok(previewOverride.priority < rolloutOverride.priority, 'the preview outranks the experiment');
   assert.equal(state.features[0]!.multivariate_options[0]!.string_value, 'shop:1.6');
   assert.equal(newest(state).status, 'running');
+});
+
+test('release --aa: v2 serves the live release too, with the A/A hypothesis', async () => {
+  const state = seededState();
+  fake = await startFakeAdmin(state);
+  const lines: string[] = [];
+  const base = { apiUrl: fake.apiUrl, adminKey: SEED.adminKey, envKey: SEED.envKey, flag: 'shop_release', releases: RELEASES, hypothesis: 'ignored', log: (l: string) => lines.push(l) };
+  await assert.rejects(release({ ...base, newRelease: 'shop:1.6', aa: true }), /A\/A run serves the live release on both arms; shop:1\.4 is live, not shop:1\.6/);
+  assert.deepEqual(writes(state), []);
+  await release({ ...base, newRelease: '', aa: true });
+  const experiment = newest(state);
+  assert.equal(experiment.name, 'shop_release: A/A shop:1.4');
+  assert.equal(experiment.hypothesis, AA_HYPOTHESIS);
+  assert.equal(experiment.status, 'running');
+  assert.equal(experiment.experiment_rollout!.feature_state_value.value, 'shop:1.4');
+  assert.equal(state.features[0]!.multivariate_options[0]!.string_value, 'shop:1.4'); // both arms, same release
+  assert.ok(lines.includes('Live today: shop:1.4. A/A run: shop:1.4 on both arms.'));
+});
+
+test('release prints a rough launch estimate from the previous experiment’s control rate', async () => {
+  const state = seededState();
+  state.results = new Map([[SEED.experimentId, { as_of: null, last_error_at: null, refresh_requested_at: null, is_final: true, payload: { srm_p_value: null, metrics: [{ metric_id: 6, variants: { control: { n: 1000, sum: 100, sum_squares: 100 } }, inference: {} }] } }]]);
+  fake = await startFakeAdmin(state);
+  const lines: string[] = [];
+  await release({ apiUrl: fake.apiUrl, adminKey: SEED.adminKey, envKey: SEED.envKey, flag: 'shop_release', releases: RELEASES, newRelease: 'shop:1.6', hypothesis: 'h', dailyVisitors: 1000, log: (l) => lines.push(l) });
+  // 16·0.1·0.9/(0.1·0.1)² = 14,400 per arm; the 50% arm gets 500 a day.
+  assert.equal(lines.at(-1), "Launch estimate: ~14,400 visitors per arm to detect a 10% relative lift on a 10.0% baseline, about 29 days at 1000 visitors a day (rough estimate; Flagsmith does the real statistics; don't ship on an early reading).");
+});
+
+test('the launch estimate says unknown without a baseline', async () => {
+  assert.equal(visitorsPerArm(0.1, 0.1), 14400);
+  assert.match(launchEstimate(null), /visitors needed per arm for a 10% lift: unknown/);
+  assert.match(launchEstimate(0.05, { mde: 20 }), /~7,600 visitors per arm to detect a 20% relative lift on a 5\.0% baseline \(/);
+  const state = seededState(); // no results for the previous experiment
+  fake = await startFakeAdmin(state);
+  const { lines } = await run(state, 'shop:1.6');
+  assert.match(lines.at(-1)!, /unknown \(no baseline goal rate from a previous experiment\)/);
 });

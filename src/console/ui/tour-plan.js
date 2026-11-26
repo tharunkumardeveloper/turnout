@@ -239,6 +239,15 @@ export function actionBeat(s, rec) {
           `${v.v2} may sell more, but Flagsmith says it is losing on ${losing.map((g) => g.metric).join(' and ')}. The safe call is to keep everyone on ${v.control}. Revert drains the experiment the same careful way a ship does.`,
         );
       }
+      if (rec === 'keep-running') {
+        const r = s.results?.recommendation;
+        const c = r?.chanceToWin;
+        return beat(
+          'keep-running',
+          /crosses zero/.test(r?.reason ?? '') ? 'Keep running: the interval crosses zero' : 'Keep running: not sure yet',
+          `Flagsmith puts ${v.v2}${Number.isFinite(c) ? ` at a ${formatChance(c)} chance to win` : ' ahead'}, but its credible interval${r?.reason ? ` (${r.reason.replace(/^interval /, '')})` : ''} still includes no difference at all. An interval crossing zero isn't a win, so the honest call is to keep the experiment running and send more visitors. Nothing changes in Flagsmith.`,
+        );
+      }
       if (rec === 'revert') return beat('revert', 'Revert to the current release', `Flagsmith doesn't show ${v.v2} ahead, so keep everyone on ${v.control}.`);
       if (!winningChance(s)) {
         const c = s.results?.winner?.chanceToWin;

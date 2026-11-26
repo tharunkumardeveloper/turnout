@@ -605,7 +605,7 @@ function renderStage(s) {
   const swingBtn = /** @type {HTMLButtonElement | null} */ ($('stage-extra').querySelector('.stage-swing'));
   if (swingBtn) swingBtn.disabled = busy() || ui.error?.kind === 'expired';
   // The step's caveat, in Flagsmith's terms: an inconclusive lead says so next to the button.
-  const caveat = s.current === 'decide' && /inconclusive|losing/.test(c.note);
+  const caveat = s.current === 'decide' && /inconclusive|losing|Not a win/.test(c.note);
   $('stage-note').hidden = !c.note || busy();
   $('stage-note').dataset.tone = caveat ? 'warn' : '';
   setText($('stage-note'), c.note);
@@ -732,6 +732,7 @@ function resultsPanel(v, releases) {
                 chanceBar(m, `v2: ${m.v2.chance} chance to win; Flagsmith's thresholds are 5% and 95%`),
                 h('strong', {}, m.v2.chance),
                 h('span', { class: 'jcell-lift' }, `lift ${m.v2.lift}`),
+                h('span', { class: 'jcell-lift jcell-interval', title: "Flagsmith's credible interval for v2's lift" }, `interval ${m.v2.interval}`),
               )
             : h('span', { class: 'jcell-none', role: 'cell' }, 'no comparison yet'),
         ),

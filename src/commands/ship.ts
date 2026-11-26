@@ -1,6 +1,6 @@
 import { createInterface } from 'node:readline/promises';
 import { decide, describeResults, plan, type DecideOptions } from '../decide.ts';
-import { losingGuardrails, pickWinner, type Experiments } from '../flagsmith/experiments.ts';
+import { formatInterval, losingGuardrails, pickWinner, recommend, type Experiments, type Recommendation } from '../flagsmith/experiments.ts';
 
 export { describeResults };
 
@@ -36,6 +36,18 @@ export async function status(opts: Common & { refresh?: boolean }): Promise<void
   for (const w of winner ? losingGuardrails(experiment, results, winner.key) : []) {
     log(RED(`  Guardrail: ${winner!.key} is losing on ${w.metric} (${pct(w.chanceToWin)} chance to win)`));
   }
+  for (const line of recommendationLines(recommend(experiment, results))) log(line);
+}
+
+// Flagsmith's interval on the goal and what Switchyard recommends from it: an interval crossing zero isn't a win.
+export function recommendationLines(rec: Recommendation): string[] {
+  const call = rec.call === 'ship' ? 'ship' : rec.call === 'revert' ? 'revert' : 'keep running';
+  return [
+    rec.interval
+      ? `Credible interval for ${rec.variant} on the goal: ${formatInterval(rec.interval)}${rec.chanceToWin !== null ? ` (${pct(rec.chanceToWin)} chance to win)` : ''}`
+      : 'Credible interval on the goal: not computed yet',
+    `Switchyard recommends: ${call} (${rec.reason})`,
+  ];
 }
 
 async function ask(question: string): Promise<boolean> {
@@ -104,7 +116,12 @@ export async function ship(opts: DecisionOptions & { winner?: string }): Promise
       ? `\nShipping ${winner} (chosen by you${suggested ? `; Flagsmith's results page leans ${suggested.key}` : ''}).`
       : `\nShipping ${winner}, the variation Flagsmith's results page shows as winning (${pct(suggested!.chanceToWin)}).`,
   );
-  if (await run(opts, 'ship', winner, 'Ship it?')) {
+  const rec = recommend(experiment, results);
+  for (const line of recommendationLines(rec)) log(line);
+  if (rec.call === 'keep-running' && !opts.yes) {
+    log(RED(`! Switchyard recommends keeping the experiment running: ${rec.reason}. An interval crossing zero isn't a win.`));
+  }
+  if (await run(opts, 'ship', winner, rec.call === 'keep-running' ? 'Ship it anyway, against the recommendation?' : 'Ship it?')) {
     log(`\nEveryone now gets ${winner} from the flag's environment default. Rolling back is an ordinary flag edit.`);
   }
 }

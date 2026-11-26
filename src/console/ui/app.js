@@ -478,6 +478,14 @@ function renderActions(s) {
   else note = `Pre-selected: Flagsmith's pick, but inconclusive (${F.formatChance(s.winner.chanceToWin)}, below 95%). Shipping now is your call.`;
   $('ship-note').textContent = note;
 
+  // Switchyard's call, read off Flagsmith's interval: an interval crossing zero isn't a win.
+  const rec = s.recommendation;
+  $('recommendation-note').textContent = completed || !rec ? '' : `Switchyard recommends: ${F.recommendationText(rec)}.`;
+  const keep = /** @type {HTMLButtonElement} */ ($('keep-running-btn'));
+  keep.disabled = completed || busy;
+  keep.textContent = rec?.call === 'keep-running' ? 'Keep running (interval crosses zero)' : 'Keep running';
+  keep.classList.toggle('btn-primary', !completed && rec?.call === 'keep-running');
+
   const revert = /** @type {HTMLButtonElement} */ ($('revert-btn'));
   revert.disabled = completed || busy || !e.experiment_rollout;
   const control = variants.find((v) => v.isControl);
@@ -501,6 +509,34 @@ $('ship-form').addEventListener('submit', (ev) => {
 });
 
 $('revert-btn').addEventListener('click', () => openDialog('revert', null));
+
+// Keep running: no Flagsmith write; the ledger records Flagsmith's interval and the reason.
+$('keep-running-btn').addEventListener('click', async () => {
+  const e = app.state?.experiment;
+  if (!e || app.busy) return;
+  app.busy = true;
+  renderActions(app.state);
+  let text;
+  let ok = false;
+  try {
+    const res = await api('/api/keep-running', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ experimentId: e.id }),
+    });
+    const body = await res.json().catch(() => ({}));
+    ok = res.ok && body.ok === true;
+    text = ok
+      ? `Kept running: ${body.entry?.reason ?? 'recorded'}. Nothing changed in Flagsmith; recorded in the release ledger.`
+      : body.error || `HTTP ${res.status}`;
+  } catch {
+    text = "Couldn't reach the console server.";
+  }
+  app.busy = false;
+  $('action-status').dataset.tone = ok ? 'good' : 'bad';
+  $('action-status').textContent = text;
+  await refreshNow();
+});
 
 // ---- confirmation dialog -------------------------------------------------------------------------------------
 
@@ -550,6 +586,7 @@ async function openDialog(action, key) {
   dialog.style.setProperty('--c', action === 'ship' ? (F.variantList(e).find((v) => v.key === key)?.color ?? 'var(--treatment)') : 'var(--control)');
   $('dialog-body').replaceChildren(h('p', { class: 'loading' }, h('span', { class: 'spinner', 'aria-hidden': 'true' }), 'Fetching the plan…'));
   showGuardrails(pending, []);
+  $('dialog-recommendation').hidden = true;
   $('dialog-result').textContent = '';
   $('dialog-result').dataset.tone = 'neutral';
   confirmBtn.hidden = false;
@@ -575,6 +612,16 @@ async function openDialog(action, key) {
       ),
     );
     showGuardrails(mine, body.guardrails);
+    const rec = body.recommendation;
+    if (rec) {
+      const interval = F.recommendationInterval(rec);
+      $('dialog-recommendation').textContent =
+        `${interval ? `Flagsmith's credible interval for ${rec.variant} on the goal: ${interval}` : 'Flagsmith has no interval on the goal yet'}` +
+        `${rec.chanceToWin != null ? `, ${F.formatChance(rec.chanceToWin)} chance to win` : ''}. Switchyard recommends: ${F.recommendationText(rec)}.` +
+        (action === 'ship' && rec.call !== 'ship' ? ' Shipping now is your call, against the recommendation.' : '');
+      $('dialog-recommendation').dataset.tone = rec.call === 'ship' ? 'good' : 'bad';
+      $('dialog-recommendation').hidden = false;
+    }
     updateConfirm();
   } catch (err) {
     if (pending !== mine) return;

@@ -46,6 +46,37 @@ function withLosingGuardrail(state: FakeState): FakeState {
   return state;
 }
 
+describe('the recommendation: an interval crossing zero is not a win', () => {
+  test('status prints the interval and the recommendation', async () => {
+    const state = initialState(); // v2: 96.7% chance to win, interval −2% to +62%
+    const { fake, lines, opts } = await setup(state);
+    await status(opts);
+    fake.close();
+    assert.ok(lines.includes('Credible interval for v2 on the goal: −2% to +62% (96.7% chance to win)'));
+    assert.ok(lines.includes('Switchyard recommends: keep running (interval −2% to +62% crosses zero)'));
+  });
+
+  test('ship without --yes warns when the call is keep running, and asks to ship against it', async () => {
+    const state = initialState();
+    const { fake, lines, questions, opts } = await setup(state, [false]);
+    await ship(opts);
+    fake.close();
+    assert.ok(lines.some((l) => l.includes("Switchyard recommends keeping the experiment running: interval −2% to +62% crosses zero. An interval crossing zero isn't a win.")));
+    assert.deepEqual(questions, ['Ship it anyway, against the recommendation?']);
+    assert.deepEqual(writes(state), []);
+  });
+
+  test('ship --yes prints the recommendation but does not stop on it', async () => {
+    const state = initialState();
+    const { fake, lines, opts } = await setup(state);
+    await ship({ ...opts, yes: true });
+    fake.close();
+    assert.ok(lines.includes('Switchyard recommends: keep running (interval −2% to +62% crosses zero)'));
+    assert.ok(!lines.some((l) => l.includes('recommends keeping the experiment running')));
+    assert.equal(readLedger(opts.ledgerDir)[0]?.decision, 'shipped');
+  });
+});
+
 describe('status', () => {
   test("prints Flagsmith's results, the results page's winner and any losing guardrail", async () => {
     const state = withLosingGuardrail(initialState());
@@ -105,9 +136,12 @@ describe('ship', () => {
 
   test('asks before shipping; a declined confirm changes nothing', async () => {
     const state = initialState();
+    const goal = state.results!.payload!.metrics[0]!.inference.v2!;
+    goal.ci_low = 0.05; // the interval clears zero: the recommendation is ship
     const { fake, lines, questions, opts } = await setup(state, [false]);
     await ship(opts);
     fake.close();
+    assert.ok(lines.includes('Switchyard recommends: ship (interval +5% to +62% clears zero, 96.7% chance to win)'));
     assert.deepEqual(questions, ['Ship it?']);
     assert.equal(lines.at(-1), 'Nothing changed.');
     assert.deepEqual(writes(state), []);

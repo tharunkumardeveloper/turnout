@@ -222,6 +222,10 @@ export function winnerLine(state) {
   if (v.word === 'winning') {
     // Winning the goal while losing a guardrail is not a green result.
     const tone = r.losingGuardrails?.length ? 'neutral' : 'good';
+    // A high chance to win with an interval crossing zero is not a win either.
+    if (w.key !== 'control' && r.recommendation?.call === 'keep-running') {
+      return { tone: 'neutral', text: `${who} leads on ${goal} with ${chance} chance to win, but not a win yet: ${r.recommendation.reason}.` };
+    }
     return { tone, text: `${who} is winning on ${goal}: ${chance} chance to win, above Flagsmith's 95% bar.` };
   }
   return { tone: 'neutral', text: `${who} leads on ${goal}, inconclusive: ${chance} chance to win. Flagsmith calls only >95% winning.` };
@@ -284,6 +288,10 @@ export function stepControls(state, id, opts = {}) {
       const w = r?.winner;
       const shipsV2 = w && w.key !== 'control';
       const target = shipsV2 ? `${w.key} → ${w.release ?? v2}` : `v2 → ${v2}`;
+      // Switchyard's call from Flagsmith's interval and chance to win: an interval crossing zero isn't a win.
+      const rec = r?.recommendation;
+      const interval = F.recommendationInterval(rec);
+      const intervalNote = interval ? ` Credible interval ${interval}.` : '';
       if (losing.length) {
         out.buttons.push(btn('revert', 'Revert (guardrail losing)', 'primary'));
         out.buttons.push(btn('ship', 'Ship anyway…', 'danger', { acceptLosingGuardrails: true }));
@@ -292,14 +300,20 @@ export function stepControls(state, id, opts = {}) {
           confirmLabel: `Ship anyway (${target})`,
         };
         out.note = `Flagsmith shows ${shipsV2 ? w.key : 'v2'} losing a guardrail. Revert keeps everyone on ${control}.`;
+      } else if (rec?.call === 'keep-running' && r) {
+        const crosses = /crosses zero/.test(rec.reason ?? '');
+        out.buttons.push(btn('keep-running', crosses ? 'Keep running (interval crosses zero)' : 'Keep running (not sure yet)', 'primary'));
+        out.buttons.push(btn('ship', shipsV2 ? `Ship anyway (${target})` : `Ship v2 anyway (${v2})`, 'secondary'));
+        const chance = rec.chanceToWin != null ? `${formatChance(rec.chanceToWin)} chance to win` : 'no chance to win yet';
+        out.note = `Flagsmith: ${chance}.${intervalNote} Not a win yet (${rec.reason}). Keep running sends more visitors; nothing changes in Flagsmith.`;
       } else if (shipsV2) {
         const winning = F.verdict(w.chanceToWin).word === 'winning';
         // "Winner" only when Flagsmith calls it one (above its 95% bar).
         out.buttons.push(btn('ship', winning ? `Ship winner (${target})` : `Ship Flagsmith's pick (${target})`, 'primary'));
         out.buttons.push(btn('revert', `Revert to control (${control})`, 'secondary'));
         out.note = winning
-          ? `Pre-selected by Flagsmith's results page: ${formatChance(w.chanceToWin)} chance to win.`
-          : `Flagsmith's pick, but inconclusive (${formatChance(w.chanceToWin)}, below 95%). Shipping now is your call.`;
+          ? `Pre-selected by Flagsmith's results page: ${formatChance(w.chanceToWin)} chance to win.${intervalNote}`
+          : `Flagsmith's pick, but inconclusive (${formatChance(w.chanceToWin)}, below 95%).${intervalNote} Shipping now is your call.`;
       } else {
         out.buttons.push(btn('revert', `Revert to control (${control})`, 'primary'));
         out.buttons.push(btn('ship', `Ship v2 anyway (${v2})`, 'secondary'));
@@ -378,6 +392,7 @@ export function totalsText(totals, identities) {
 
 export function decisionText(entry) {
   if (!entry) return '';
+  if (entry.decision === 'kept-running') return `Kept running${entry.reason ? `: ${entry.reason}` : ''}. Nothing changed in Flagsmith.`;
   if (entry.decision === 'reverted') {
     return `Reverted: everyone on ${entry.release ?? 'control'}${entry.by === 'guard' ? ` (automatically, by the guard: ${entry.guardReason ?? 'a guardrail was losing'})` : ''}`;
   }
@@ -481,6 +496,7 @@ const ACTION_TEXT = {
   score: 'Asking Flagsmith for results',
   ship: 'Shipping the winner',
   revert: 'Reverting to control',
+  'keep-running': 'Keeping the experiment running',
   verify: 'Checking 50 new visitors',
   'swing-back': 'Swinging everyone back',
   'swing-forward': 'Swinging forward again',
@@ -494,6 +510,7 @@ export const JOB_STEP = {
   score: 'score',
   ship: 'decide',
   revert: 'decide',
+  'keep-running': 'decide',
   verify: 'verify',
   'swing-back': 'swing',
   'swing-forward': 'swing',
@@ -585,6 +602,7 @@ export const STAGES = {
   score: ['Wait for the events to reach Flagsmith', 'Ask Flagsmith to compute the results', 'Read the new results'],
   ship: ['Pause the experiment', "Save a snapshot of Flagsmith's results", "Set the flag's default to the winner", 'Drain the rollout to 0%', 'Complete the experiment', 'Write the release ledger'],
   revert: ['Pause the experiment', "Save a snapshot of Flagsmith's results", "Set the flag's default to control", 'Drain the rollout to 0%', 'Complete the experiment', 'Write the release ledger'],
+  'keep-running': ["Read Flagsmith's credible interval", 'Write the release ledger (nothing changes in Flagsmith)'],
   verify: ['Send 50 brand-new visitors', 'Count the release each one got', 'Check no experiment split is left'],
   'swing-back': ["Edit the flag's default in Flagsmith", 'Wait for Switchyard to follow the flag'],
   'swing-forward': ["Edit the flag's default in Flagsmith", 'Wait for Switchyard to follow the flag'],

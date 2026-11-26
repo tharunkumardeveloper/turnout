@@ -10,7 +10,7 @@
 import http from 'node:http';
 import type { AddressInfo } from 'node:net';
 import type { Environment, Feature, Metric, MvOption, Organisation, Project, WarehouseConnection } from '../src/flagsmith/admin.ts';
-import type { ExperimentDetail, FlagState } from '../src/flagsmith/experiments.ts';
+import type { ExperimentDetail, FlagState, Results } from '../src/flagsmith/experiments.ts';
 
 export type Recorded = { method: string; path: string; body: unknown; authorization: string | undefined };
 export type Tag = { id: number; label: string; color: string; description: string; is_permanent: boolean; project: number };
@@ -33,6 +33,7 @@ export type FakeAdminState = {
   healthProviders: { name: string; project: number; created_by: null; webhook_url: string }[];
   metrics: (Metric & { envKey: string })[];
   experiments: FakeExperiment[];
+  results?: Map<number, Results | null>; // what …/experiments/<id>/results/ answers, by experiment id (absent: null)
   flags: Map<string, FlagState & { segment_overrides: Override[] }>; // "<envKey>/<featureId>"
   segments: Segment[];
   codeScans: CodeScan[]; // POST …/code-references/, kept like ScannedCodeReferences (one row per feature and scan)
@@ -226,6 +227,11 @@ export async function startFakeAdmin(state: FakeAdminState): Promise<{ apiUrl: s
         };
         state.experiments.push(experiment);
         return send(201, publicExperiment(experiment));
+      }
+      if ((m = rest.match(/^experiments\/(\d+)\/results\/$/)) && method === 'GET') {
+        const experiment = state.experiments.find((e) => e.envKey === envKey && e.id === Number(m![1]));
+        if (!experiment) return send(404, { detail: 'Not found.' });
+        return send(200, { results: state.results?.get(experiment.id) ?? null });
       }
       if ((m = rest.match(/^experiments\/(\d+)\/(start\/)?$/))) {
         const experiment = state.experiments.find((e) => e.envKey === envKey && e.id === Number(m![1]));

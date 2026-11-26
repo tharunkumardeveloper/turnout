@@ -9,6 +9,8 @@ import {
   parseExperimentRef,
   losingGuardrails,
   pickWinner,
+  recommend,
+  GUARDRAIL_MIN_HARM,
   planRevert,
   planShip,
   releaseOf,
@@ -290,10 +292,95 @@ describe('losingGuardrails', () => {
     assert.deepEqual(losingGuardrails(s.experiment, s.results, 'v2'), []);
   });
 
+  test('a practical minimum: a sure but tiny harm (under 5% relative) is not losing', () => {
+    const s = initialState();
+    s.results!.payload!.metrics.push({
+      metric_id: 2,
+      variants: { control: { n: 1000, sum: 120_000, sum_squares: 0 }, v2: { n: 1000, sum: 120_700, sum_squares: 0 } },
+      inference: { v2: { lift: 0.006, ci_low: 0.004, ci_high: 0.008, chance_to_win: 0.001 } }, // 0.7 ms on 120 ms
+    });
+    assert.equal(GUARDRAIL_MIN_HARM, 0.05);
+    assert.deepEqual(losingGuardrails(s.experiment, s.results, 'v2'), [], '0.6% slower is not a loss worth blocking');
+    s.results!.payload!.metrics[1]!.inference.v2!.lift = 0.08;
+    assert.equal(losingGuardrails(s.experiment, s.results, 'v2').length, 1, '8% slower is');
+    assert.deepEqual(losingGuardrails(s.experiment, s.results, 'v2', 0.1), [], 'the minimum is configurable');
+    s.results!.payload!.metrics[1]!.inference.v2!.lift = -0.08;
+    assert.deepEqual(losingGuardrails(s.experiment, s.results, 'v2'), [], 'down is better: 8% faster is no harm');
+    s.experiment.metrics[1]!.direction = 'up';
+    assert.equal(losingGuardrails(s.experiment, s.results, 'v2').length, 1, 'up is better: an 8% fall is harm');
+  });
+
   test('ignores the primary metric and missing results', () => {
     const s = initialState();
     s.results!.payload!.metrics[0]!.inference.v2!.chance_to_win = 0.01;
     assert.deepEqual(losingGuardrails(s.experiment, s.results, 'v2'), []);
     assert.deepEqual(losingGuardrails(s.experiment, null, 'v2'), []);
+  });
+});
+
+describe('recommend: read the credible interval, not just the chance to win', () => {
+  const goal = (s: FakeState) => s.results!.payload!.metrics[0]!.inference.v2!;
+  const withGuardrail = (s: FakeState, lift: number, chance: number) =>
+    s.results!.payload!.metrics.push({
+      metric_id: 2,
+      variants: { control: { n: 1000, sum: 6000, sum_squares: 0 }, v2: { n: 1000, sum: 9000, sum_squares: 0 } },
+      inference: { v2: { lift, ci_low: lift - 0.1, ci_high: lift + 0.1, chance_to_win: chance } },
+    });
+
+  test('96.7% chance to win but an interval crossing zero: keep running', () => {
+    const s = initialState(); // v2: lift 30%, interval -2% to +62%
+    const r = recommend(s.experiment, s.results);
+    assert.equal(r.call, 'keep-running');
+    assert.equal(r.reason, 'interval −2% to +62% crosses zero');
+    assert.deepEqual(r.interval, { low: -0.02, high: 0.62 });
+    assert.equal(r.variant, 'v2');
+    assert.equal(r.chanceToWin, 0.967);
+  });
+
+  test('an interval clearing zero with 95%+ chance to win: ship', () => {
+    const s = initialState();
+    goal(s).ci_low = 0.05;
+    const r = recommend(s.experiment, s.results);
+    assert.equal(r.call, 'ship');
+    assert.match(r.reason, /\+5% to \+62% clears zero, 96\.7% chance to win/);
+  });
+
+  test('an interval clearing zero but under 95% chance to win: keep running', () => {
+    const s = initialState();
+    Object.assign(goal(s), { ci_low: 0.01, chance_to_win: 0.9 });
+    const r = recommend(s.experiment, s.results);
+    assert.equal(r.call, 'keep-running');
+    assert.equal(r.reason, 'chance to win 90.0% is under 95%');
+  });
+
+  test('the whole interval on the losing side: revert', () => {
+    const s = initialState();
+    Object.assign(goal(s), { lift: -0.2, ci_low: -0.3, ci_high: -0.1, chance_to_win: 0.01 });
+    assert.equal(recommend(s.experiment, s.results).call, 'revert');
+  });
+
+  test('a losing guardrail: revert, even with a clear win on the goal', () => {
+    const s = initialState();
+    goal(s).ci_low = 0.05;
+    withGuardrail(s, 0.4, 0.001);
+    const r = recommend(s.experiment, s.results);
+    assert.equal(r.call, 'revert');
+    assert.match(r.reason, /v2 is losing doc_latency_ms \(lift \+40%, 0\.1% chance to win\)/);
+  });
+
+  test('a tiny guardrail harm does not stop a ship', () => {
+    const s = initialState();
+    goal(s).ci_low = 0.05;
+    withGuardrail(s, 0.006, 0.001);
+    assert.equal(recommend(s.experiment, s.results).call, 'ship');
+  });
+
+  test('no inference yet: keep running, no interval', () => {
+    const s = initialState();
+    s.results!.payload!.metrics[0]!.inference.v2 = null;
+    assert.deepEqual(recommend(s.experiment, s.results), {
+      call: 'keep-running', variant: null, reason: 'Flagsmith has no result on the goal yet', interval: null, chanceToWin: null,
+    });
+    assert.equal(recommend(s.experiment, null).call, 'keep-running');
   });
 });

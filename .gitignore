@@ -16,3 +16,6 @@ docs/flagsmith-kb/
 *.swp
 .DS_Store
 Thumbs.db
+
+# Local notes
+New Text Document*.txt

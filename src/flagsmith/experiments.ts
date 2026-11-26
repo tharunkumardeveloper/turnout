@@ -84,17 +84,76 @@ export function pickWinner(experiment: ExperimentDetail, results: Results | null
 }
 
 // Guardrails (every metric after the primary) on which the variant about to ship is losing in Flagsmith's own
-// results: chance to win below 5%. Shipping control is the status quo, so it never warns.
+// results: chance to win below 5% AND a harm bigger than a practical minimum (the relative lift is more than 5% in
+// the bad direction), so a sure but tiny difference (0.7 ms of latency) neither blocks a release nor trips the guard.
+// Shipping control is the status quo, so it never warns.
 export const GUARDRAIL_LOSING_BELOW = 0.05;
+export const GUARDRAIL_MIN_HARM = 0.05; // relative lift, in the metric's bad direction
 export type GuardrailWarning = { metric: string; chanceToWin: number; lift: number };
-export function losingGuardrails(experiment: ExperimentDetail, results: Results | null, winnerKey: string): GuardrailWarning[] {
+
+// How much worse a lift is for a metric: positive is harm. "down is better" metrics (latency, errors) are harmed by
+// a rise; every other direction by a fall.
+export const harmOf = (direction: string, lift: number): number => (/^(down|lower|decrease)/i.test(direction) ? lift : -lift);
+
+export function losingGuardrails(
+  experiment: ExperimentDetail,
+  results: Results | null,
+  winnerKey: string,
+  minHarm: number = GUARDRAIL_MIN_HARM,
+): GuardrailWarning[] {
   if (winnerKey === CONTROL || !results?.payload) return [];
   return experiment.metrics.slice(1).flatMap((m) => {
     const inference = results.payload!.metrics.find((r) => r.metric_id === m.metric)?.inference[winnerKey];
-    return inference && inference.chance_to_win < GUARDRAIL_LOSING_BELOW
+    return inference && inference.chance_to_win < GUARDRAIL_LOSING_BELOW && harmOf(m.direction, inference.lift) > minHarm
       ? [{ metric: m.metric_name, chanceToWin: inference.chance_to_win, lift: inference.lift }]
       : [];
   });
+}
+
+// What Switchyard recommends, read off Flagsmith's own inference (it computes everything; this only reads it):
+// - a treatment losing a guardrail → revert;
+// - the goal's credible interval for the best treatment crossing zero, or its chance to win under 95% → keep running;
+// - the interval wholly on the losing side (chance to win at or under 5%) → revert: control is better;
+// - otherwise → ship.
+// "An interval crossing zero isn't a win": a high chance to win alone isn't enough.
+export const SHIP_CHANCE_AT_LEAST = 0.95;
+export type Call = 'ship' | 'keep-running' | 'revert';
+export type Recommendation = { call: Call; variant: string | null; reason: string; interval: { low: number; high: number } | null; chanceToWin: number | null };
+
+const signedPct = (x: number) => `${x < 0 ? '−' : '+'}${Math.abs(x * 100).toFixed(0)}%`;
+export const formatInterval = (i: { low: number; high: number }) => `${signedPct(i.low)} to ${signedPct(i.high)}`;
+
+export function recommend(experiment: ExperimentDetail, results: Results | null): Recommendation {
+  const goal = results?.payload?.metrics.find((m) => m.metric_id === experiment.metrics[0]?.metric);
+  let best: { key: string; inference: Inference } | null = null;
+  for (const key of treatmentKeys(experiment)) {
+    const inference = goal?.inference[key];
+    if (inference && (!best || inference.chance_to_win > best.inference.chance_to_win)) best = { key, inference };
+  }
+  if (!best) {
+    return { call: 'keep-running', variant: null, reason: 'Flagsmith has no result on the goal yet', interval: null, chanceToWin: null };
+  }
+  const { key, inference } = best;
+  const interval = { low: inference.ci_low, high: inference.ci_high };
+  const base = { variant: key, interval, chanceToWin: inference.chance_to_win };
+  const losing = losingGuardrails(experiment, results, key);
+  if (losing.length) {
+    return {
+      call: 'revert',
+      ...base,
+      reason: `${key} is losing ${losing.map((g) => `${g.metric} (lift ${signedPct(g.lift)}, ${(g.chanceToWin * 100).toFixed(1)}% chance to win)`).join(', ')}`,
+    };
+  }
+  if (interval.low <= 0 && interval.high >= 0) {
+    return { call: 'keep-running', ...base, reason: `interval ${formatInterval(interval)} crosses zero` };
+  }
+  if (inference.chance_to_win <= 1 - SHIP_CHANCE_AT_LEAST) {
+    return { call: 'revert', ...base, reason: `control is better: ${key}'s interval ${formatInterval(interval)}, ${(inference.chance_to_win * 100).toFixed(1)}% chance to win` };
+  }
+  if (inference.chance_to_win < SHIP_CHANCE_AT_LEAST) {
+    return { call: 'keep-running', ...base, reason: `chance to win ${(inference.chance_to_win * 100).toFixed(1)}% is under 95%` };
+  }
+  return { call: 'ship', ...base, reason: `interval ${formatInterval(interval)} clears zero, ${(inference.chance_to_win * 100).toFixed(1)}% chance to win` };
 }
 
 // The release label each variant serves: control is the rollout's value, each treatment its option's value.

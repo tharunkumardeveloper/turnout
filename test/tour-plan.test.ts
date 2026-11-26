@@ -85,6 +85,15 @@ describe('the tour script', () => {
     assert.match(b.body, /losing on doc_latency_ms/);
   });
 
+  test('decide follows the recommendation: keep running when the interval crosses zero', () => {
+    const results = { ...fixtures.v2Winner().results, recommendation: { call: 'keep-running', variant: 'v2', reason: 'interval −14% to +44% crosses zero', interval: { low: -0.14, high: 0.44 }, chanceToWin: 0.967 } };
+    const b = P.actionBeat(at('decide', { results }), 'keep-running');
+    assert.equal(b.action, 'keep-running');
+    assert.equal(b.title, 'Keep running: the interval crosses zero');
+    assert.match(b.body, /−14% to \+44% crosses zero/);
+    assert.match(b.body, /isn't a win/);
+  });
+
   test('after a job: show it here first, then the same data in the Flagsmith column, with the Flagsmith tab offered', () => {
     const s = at('decide');
     const score = P.afterBeats('score', s);

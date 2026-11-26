@@ -25,8 +25,9 @@ An unknown option or a missing value prints what was wrong and exits 1, before a
 | `ship [--winner <variant>] [--yes] [--accept-losing-guardrails]` | Ship winner on the same flag. Prints the results and the plan, and waits for you unless `--yes`. A losing guardrail needs `--accept-losing-guardrails` with `--yes`, or a second confirmation. Prints the decision snapshot's path |
 | `revert [--yes]` | Sends everyone back to control, drains the split and completes the experiment |
 | `preview <label>` | Serves a new release to your team only, through the `switchyard-preview` segment. Open `<proxy>/__switchyard/preview?token=<SWITCHYARD_PREVIEW_TOKEN>` once in each browser that should see it |
-| `release <label> [--hypothesis "…"] [--split <1-99>]` | Starts the next experiment on the same flag. `--split` is the share of the experiment's visitors who get the new release (default 50). The experiment has no audience: everyone the proxy routes can be enrolled |
-| `check` | Finds experiment splits left behind on any flag (see below) |
+| `release <label> [--hypothesis "…"] [--split <1-99>] [--mde <pct>] [--daily-visitors <n>]` | Starts the next experiment on the same flag. `--split` is the share of the experiment's visitors who get the new release (default 50). The experiment has no audience: everyone the proxy routes can be enrolled. Prints a rough launch estimate (see below) |
+| `release --aa` | Starts an A/A experiment: the live release on both arms (see below) |
+| `check` | Finds experiment splits left behind on any flag; with an admin key, also runs the Experiment Doctor (see below) |
 | `code-refs [--project <id>]` | Finds the flag's name in this checkout and submits it to Flagsmith's Code References (see below) |
 | `proxy` | Runs the reverse proxy (port 8080). Compose runs it for you |
 | `console` | Runs the console and judge mode (port 8090). Compose runs it for you |
@@ -51,7 +52,37 @@ Every option is checked before any traffic is sent. The rates are the simulator'
 - **With an admin key** (`--admin-key` or `SWITCHYARD_ADMIN_KEY`; never asked for), it reads each experiment's status. Created and paused experiments' splits are shown as warnings and don't fail the run; completed and deleted ones do. Audience segments are named.
 - A drained split (0%) is reported as drained and doesn't fail the run.
 
-The GitHub Action in `action.yml` runs `check` with the `server-key` input, and with `admin-key` when it is given.
+#### Experiment Doctor (with an admin key)
+
+With an admin key, `check` then runs the Experiment Doctor on every running and paused experiment in the environment, and on those completed in the last 14 days. It works for any Flagsmith Experimentation user, with or without the Switchyard proxy, and only reads. Each check prints pass, warn, fail or skip; a warn or fail also prints what it means and how to fix it. Any fail makes `check` exit 1. These are sanity checks on how data reaches the experiment, not results: Flagsmith's results page says which arm is better.
+
+| Check | Fails when |
+| --- | --- |
+| exposures | One arm has exposed visitors and another has none |
+| tracking | An arm has visitors but no events for a metric that another arm records, and the other arm's rate predicts at least 10 events there (3 to 10 warns). For a lower-is-better guardrail (errors, latency) it only warns, since zero can be real |
+| sample ratio | The arms' visitor counts don't match the configured split, p < 0.001. Uses Flagsmith's `srm_p_value` when the results have one; otherwise the same chi-square goodness-of-fit (`experimentation/stats.py:87-129`) against the experiment rollout's split. Skipped under 100 exposed visitors, Flagsmith's own floor (`experimentation/constants.py:24`) |
+| late multivariate | Always skipped: Flagsmith's API keeps no date for when a flag's variants were added, so a flag converted to multivariate after its experiment started can't be detected |
+
+Flagsmith 2.291.0 computes `srm_p_value` against the flag's environment-default allocation (`experimentation/services.py:419-469`). Switchyard keeps v2 at 0% there and splits in the experiment rollout, so for Switchyard's experiments the doctor's own chi-square is the one shown.
+
+#### In GitHub Actions
+
+The Action in `action.yml` runs `check` with the `server-key` input, and with `admin-key` when it is given, which turns the Experiment Doctor on:
+
+```yaml
+- uses: actions/checkout@v5
+- uses: <owner>/switchyard@v1
+  with:
+    api-url: https://flagsmith.example.com/api/v1/
+    server-key: ${{ secrets.FLAGSMITH_SERVER_KEY }}
+    admin-key: ${{ secrets.FLAGSMITH_ADMIN_KEY }} # optional: experiment statuses and the Experiment Doctor
+```
+
+### `release`: A/A runs and the launch estimate
+
+`switchyard release --aa` (or `release <live label> --against-itself`) starts an A/A experiment: v2 serves the live release, the same as control, with the hypothesis "A/A: same release on both arms; any winner is noise". The proxy routes both arms to the same upstream. Use it to test the tracking and the split before a real release; then run `check` with an admin key. Flagsmith accepts two arms with the same value: a flag's variants must have unique keys, not unique values (`features/multivariate/models.py:73`, `features/multivariate/serializers.py:138-147`).
+
+After starting an experiment, `release` prints one line: roughly how many visitors each arm needs to detect a relative lift (`--mde <pct>`, default 10) at control's goal rate in the previous experiment, n ≈ 16·p(1−p)/(p·mde)² (80% power, 5% two-sided). Without a previous goal rate it says unknown. `--daily-visitors <n>` adds the days that takes, paced by the smaller arm. It is a rough estimate; Flagsmith does the real statistics; don't ship on an early reading.
 
 ### `code-refs`
 

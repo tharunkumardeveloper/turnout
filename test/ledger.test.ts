@@ -128,3 +128,19 @@ test('RELEASES.md says when the guard reverted, and why', () => {
   assert.match(text, /\*\*Reverted to control \(shop:1\.5\)\*\* automatically by Switchyard's guard \(shop:1\.6 losing doc_latency_ms, 0\.0% chance to win\)/);
   assert.match(renderEntry(entry()), /\*\* by a person,/);
 });
+
+describe('kept running', () => {
+  test('RELEASES.md says why the experiment kept running, and that nothing changed in Flagsmith', () => {
+    const md = renderEntry(entry({ decision: 'kept-running', variant: 'v2', reason: 'interval −14% to +44% crosses zero', interval: { low: -0.14, high: 0.44 } }));
+    assert.match(md, /\*\*Kept running: interval −14% to \+44% crosses zero\*\* by a person/);
+    assert.match(md, /Nothing changed in Flagsmith; the experiment keeps running\./);
+  });
+
+  test('is recorded in ledger.jsonl and RELEASES.md like any decision', () => {
+    const dir = mkdtempSync(join(tmpdir(), 'sy-ledger-kept-'));
+    recordDecision(dir, entry({ decision: 'kept-running', reason: 'interval −2% to +62% crosses zero', interval: { low: -0.02, high: 0.62 } }));
+    assert.equal(readLedger(dir)[0]!.decision, 'kept-running');
+    assert.deepEqual(readLedger(dir)[0]!.interval, { low: -0.02, high: 0.62 });
+    assert.match(readFileSync(join(dir, 'RELEASES.md'), 'utf8'), /Kept running: interval −2% to \+62% crosses zero/);
+  });
+});
