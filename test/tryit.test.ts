@@ -124,6 +124,18 @@ test("a git URL without a branch builds the repository's default branch, not Doc
   assert.equal(defaultBranch('https://github.com/acme/web.git#:site'), 'https://github.com/acme/web.git#HEAD:site');
   assert.equal(defaultBranch('https://github.com/acme/web.git#main'), 'https://github.com/acme/web.git#main');
   assert.match(gitBuildError("error fetching: fatal: couldn't find remote ref dev"), /that branch doesn't exist/);
+  // A link copied from the browser, with no .git: Docker would take it for a tarball URL.
+  assert.equal(defaultBranch('https://github.com/acme/web'), 'https://github.com/acme/web.git#HEAD');
+  assert.equal(defaultBranch('https://github.com/acme/web/#dev:app'), 'https://github.com/acme/web.git#dev:app');
+});
+
+test('a git source is cloned as a folder: browser links, branches and folders understood; no way out of the repository', async () => {
+  const { parseGitSource } = await import('../src/tryit/gitsource.ts');
+  assert.deepEqual(parseGitSource('https://github.com/acme/web'), { repo: 'https://github.com/acme/web.git', ref: null, folder: '' });
+  assert.deepEqual(parseGitSource('https://github.com/acme/web.git#HEAD:site/'), { repo: 'https://github.com/acme/web.git', ref: null, folder: 'site' });
+  assert.deepEqual(parseGitSource('https://gitlab.com/acme/web#v2'), { repo: 'https://gitlab.com/acme/web.git', ref: 'v2', folder: '' });
+  assert.deepEqual(parseGitSource('https://git.example.com/acme/web'), { repo: 'https://git.example.com/acme/web', ref: null, folder: '' });
+  assert.throws(() => parseGitSource('https://github.com/acme/web#main:../etc'), /inside the repository/);
 });
 
 test('build output becomes clean log lines: colour codes and progress-bar rewrites dropped', async () => {
@@ -159,4 +171,23 @@ test("goals from a page's own HTML: forms that reach the server and downloads; n
   assert.deepEqual(goalsFromHtml(cv), ['GET /docs/CHIGOZIE_OZIRI_CV.pdf']);
   assert.deepEqual(goalsFromHtml('<form action = "javascript:void(0);" class="form"></form><a href="tel:+61">call</a>'), []);
   assert.deepEqual(goalsFromHtml('<form method="post" action="/contact/send"></form><a href="/pricing">p</a><a href="https://x.com/">x</a>'), ['POST /contact/send', 'GET /pricing*']);
+});
+
+test('a tar entry keeps its executable bit when given one (bin/rails from a cloned repository)', async () => {
+  const { tarParts } = await import('../src/console/ui/try-model.js' as string);
+  const data = new TextEncoder().encode('#!/bin/sh\n');
+  const tar = Buffer.concat(tarParts([{ path: 'bin/rails', size: data.length, data, mode: 0o755 }, { path: 'a.txt', size: 0, data: new Uint8Array(0) }]));
+  assert.equal(tar.subarray(100, 107).toString(), '0000755');
+  assert.equal(tar.subarray(1024 + 100, 1024 + 107).toString(), '0000644');
+});
+
+test('before visitors, each version is warmed up straight at its container: home page and goal pages, nothing counted', async () => {
+  const { warmPaths, warmUp } = await import('../src/tryit/server.ts');
+  assert.deepEqual(warmPaths(['GET /users/register*', 'POST /users/login', 'GET /', 'GET /pricing?x']), ['/', '/users/register', '/pricing']);
+  const asked: string[] = [];
+  const fake = (async (u: URL) => (asked.push(u.href), new Response('ok'))) as unknown as typeof fetch;
+  const ms = await warmUp('http://try-a:3000', ['GET /about*'], 2, fake);
+  assert.ok(ms >= 0);
+  assert.ok(asked.every((u) => u.startsWith('http://try-a:3000/')), 'only the container, never the proxy');
+  assert.ok(asked.includes('http://try-a:3000/about') && asked.includes('http://try-a:3000/'));
 });

@@ -3,6 +3,9 @@
 //
 //   npm run scoreboard                      every app (Turnout running: turnout.bat or sh turnout.sh)
 //   npm run scoreboard -- flask express     only these
+//   npm run scoreboard -- https://github.com/owner/repo[#branch:folder] ...
+//                                           public GitHub repos, built by Try it from the git URL; results go to
+//                                           scoreboard/github-run.json, so the 12 sample apps' proof stays as it is
 //   TURNOUT_CONSOLE=http://127.0.0.1:8090   where the console is (default)
 //
 // Nothing is tuned for one app: every app gets the same calls, and the goal is the one Try it picks from the running app.
@@ -71,18 +74,27 @@ async function job(action: string, extra: object = {}): Promise<any> {
   throw new Error(`${action} didn't finish in ${JOB_TIMEOUT_MS / 60_000} min`);
 }
 
+const isGit = (a: string) => /^(https:\/\/|git@)/.test(a);
+const gitName = (url: string) => url.replace(/^.*\/([^/]+?\/[^/#]+?)(\.git)?(#.*)?$/, '$1');
+
 async function runApp(app: string): Promise<Row> {
   const started = Date.now();
   const row: Row = { app, stages: {}, seconds: 0 };
   const set = (s: Stage, pass: boolean, note = '') => (row.stages[s] = { pass, note: note.replace(/\s+/g, ' ').slice(0, 160) });
-  const dir = join(APPS, app);
   try {
-    const files = filesOf(dir);
     // A build left running (a run stopped halfway) has to finish first: Try it builds one thing at a time.
     while ((await call('/try/status')).status === 'building') await sleep(3000);
-    const id = await upload(dir, files);
+    // A sample app is uploaded as a folder; a GitHub repo is given as its git URL, as a person would paste it.
+    let version: { kind: string; value: string };
+    if (isGit(app)) {
+      row.app = gitName(app);
+      version = { kind: 'git', value: app };
+    } else {
+      const dir = join(APPS, app);
+      version = { kind: 'folder', value: await upload(dir, filesOf(dir)) };
+    }
     const buildOnce = async (extra: object) => {
-      const request = { method: 'POST', body: JSON.stringify({ versions: [{ kind: 'folder', value: id }, { kind: 'folder', value: id }], goal: '', rates: RATES, ...extra }) };
+      const request = { method: 'POST', body: JSON.stringify({ versions: [version, version], goal: '', rates: RATES, ...extra }) };
       for (let i = 0; ; i++) {
         try {
           await call('/try/build', request);
@@ -106,7 +118,7 @@ async function runApp(app: string): Promise<Row> {
     let clicked = '';
     // SCOREBOARD_NO_FIX=1 stops here, leaving the card on screen for a person (or npm run ui-check) to look at.
     if (st.status === 'failed' && st.needs && !process.env.SCOREBOARD_NO_FIX) {
-      const env = (st.needs.settings as string[]).filter((n) => !(st.needs.database && /^(DATABASE_URL|DB_|POSTGRES|MYSQL)/.test(n))).map((n) => `${n}=turnout-test`).join('\n');
+      const env = (st.needs.settings as string[]).filter((n) => !(st.needs.database && /^(DATABASE_URL|DB_|POSTGRES|MYSQL|MONGO)/.test(n))).map((n) => `${n}=turnout-test`).join('\n');
       clicked = [st.needs.database && `a throwaway ${st.needs.database}`, env && `settings ${env.replace(/=turnout-test/g, '').replace(/\n/g, ', ')}`].filter(Boolean).join(' and ');
       st = await buildOnce({ ...(st.needs.database ? { database: st.needs.database } : {}), env });
     }
@@ -175,8 +187,10 @@ if (!token) {
   console.error(`No Turnout console with Try it at ${CONSOLE}: start it with turnout.bat or sh turnout.sh.`);
   process.exit(1);
 }
-const wanted = process.argv.slice(2);
-const apps = readdirSync(APPS).filter((a) => statSync(join(APPS, a)).isDirectory() && (!wanted.length || wanted.includes(a)));
+const args = process.argv.slice(2);
+const repos = args.filter(isGit);
+const wanted = args.filter((a) => !isGit(a));
+const apps = repos.length ? repos : readdirSync(APPS).filter((a) => statSync(join(APPS, a)).isDirectory() && (!wanted.length || wanted.includes(a)));
 const rows: Row[] = [];
 for (const app of apps) {
   process.stdout.write(`${app}… `);
@@ -185,6 +199,18 @@ for (const app of apps) {
   console.log(STAGES.map((s) => `${s} ${row.stages[s] ? (row.stages[s]!.pass ? 'ok' : 'FAIL') : '-'}`).join(', '));
 }
 print(rows);
+if (repos.length) {
+  // Real repos have their own file, newest run per repo kept, so the sample apps' last-run.json stays the 12/12 proof.
+  const gitFile = join(HERE, 'github-run.json');
+  let earlier: (Row & { at?: string; url?: string })[] = [];
+  try { earlier = JSON.parse(readFileSync(gitFile, 'utf8')).rows ?? []; } catch { /* first run */ }
+  const at = new Date().toISOString();
+  const fresh = rows.map((r, i) => ({ ...r, url: repos[i], at }));
+  const rowsOut = [...earlier.filter((r) => !fresh.some((f) => f.app === r.app)), ...fresh].sort((a, b) => a.app.localeCompare(b.app));
+  writeFileSync(gitFile, JSON.stringify({ at, rows: rowsOut }, null, 2) + '\n');
+  console.log(`(scoreboard/github-run.json: ${fresh.length} repo(s) updated)`);
+  process.exit(0);
+}
 // A run of some apps (npm run scoreboard -- flask) replaces only their rows; the other apps' results are kept, and
 // each row says when it ran, so the file always holds all 12.
 const at = new Date().toISOString();

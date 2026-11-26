@@ -408,7 +408,7 @@ function needsCard(needs) {
   if (!needs) return [];
   const out = [];
   const env = /** @type {HTMLTextAreaElement} */ ($('try-env'));
-  const fillable = (needs.settings ?? []).filter((n) => !(needs.database && /^(DATABASE_URL|DB_|POSTGRES|MYSQL)/.test(n)));
+  const fillable = (needs.settings ?? []).filter((n) => !(needs.database && /^(DATABASE_URL|DB_|POSTGRES|MYSQL|MONGO)/.test(n)));
   if (fillable.length) {
     out.push(h('p', { class: 'try-error-text' }, `It needs settings: ${fillable.join(', ')}.`),
       h('button', { class: 'btn', type: 'button', onclick: () => {

@@ -32,15 +32,16 @@ export function dockerfilesIn(paths) {
   return top.sort((a, b) => (a === 'Dockerfile' ? -1 : b === 'Dockerfile' ? 1 : a.localeCompare(b)));
 }
 
-/** A tar archive (as Blob parts) of files; a name over 99 bytes goes first as a GNU long-name entry, which Docker reads. */
+/** A tar archive (as Blob parts) of files; a name over 99 bytes goes first as a GNU long-name entry, which Docker reads.
+ *  An entry's mode (e.g. 0o755) is kept when given, so scripts like bin/rails stay executable; otherwise 0644. */
 export function tarParts(entries, now = Date.now()) {
   const enc = new TextEncoder();
   const parts = [];
-  const header = (nameBytes, size, type) => {
+  const header = (nameBytes, size, type, mode = 0o644) => {
     const b = new Uint8Array(512);
     const put = (s, at, len) => b.set(enc.encode(s).subarray(0, len), at);
     b.set(nameBytes.subarray(0, 100), 0);
-    put('0000644\0', 100, 8);
+    put(`${(mode & 0o777).toString(8).padStart(7, '0')}\0`, 100, 8);
     put('0000000\0', 108, 8);
     put('0000000\0', 116, 8);
     put(`${size.toString(8).padStart(11, '0')}\0`, 124, 12);
@@ -54,10 +55,10 @@ export function tarParts(entries, now = Date.now()) {
     return b;
   };
   const pad = (n) => new Uint8Array((512 - (n % 512)) % 512);
-  for (const { path, size, data } of entries) {
+  for (const { path, size, data, mode } of entries) {
     const name = enc.encode(path);
     if (name.length > 99) parts.push(header(enc.encode('././@LongLink'), name.length + 1, 'L'), name, new Uint8Array(1), pad(name.length + 1));
-    parts.push(header(name.subarray(0, 99), size, '0'), data, pad(size));
+    parts.push(header(name.subarray(0, 99), size, '0', mode), data, pad(size));
   }
   parts.push(new Uint8Array(1024));
   return parts;

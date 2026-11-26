@@ -33,3 +33,16 @@ database, the named setting with a test value) and says so in the start stage. N
 on nginx, so no goal is offered: that stage fails on purpose.
 
 The goal is the one Try it picks from the running app; the scoreboard never gives one.
+
+## Real GitHub repositories
+
+The same run, on public repositories as a person would paste them into Try it (the browser link is fine):
+
+```sh
+npm run scoreboard -- https://github.com/heroku/node-js-getting-started https://github.com/render-examples/django
+```
+
+Try it clones each repository (shallow), packs it like a folder upload and builds it the same way: the repository's
+own Dockerfile when it has one, otherwise one Turnout writes. Results go to `scoreboard/github-run.json`, so the 12
+sample apps' `last-run.json` stays as it is. The list in the last run, and why each one is there, is in
+[github-run.json](github-run.json).

@@ -18,6 +18,7 @@ import { join } from 'node:path';
 import { parseConfig, type Config } from '../config.ts';
 import { init as runInit } from '../commands/init.ts';
 import { parseSuccess } from '../commands/new.ts';
+import { gitToTar, hasGit, parseGitSource } from './gitsource.ts';
 import { simulateAny } from '../commands/simulate-any.ts';
 import { createJudge, type Judge, type JudgeOptions } from '../console/judge.ts';
 import { createConsole } from '../console/server.ts';
@@ -32,7 +33,7 @@ import type { Docker } from './docker.ts';
 import { common, describeAction, walk } from './discover.ts';
 import { ActionLog, createTrickle, visitorsNeeded } from './watch.ts';
 import { compareSnapshots, fetchRemoteSnapshot } from '../flagsmith/settings-check.ts';
-import { databaseFor, generatedDockerfile, missingSettings, tarAppend, tarIndex, wantsDatabase } from './autobuild.ts';
+import { DATABASE_KINDS, databaseFor, generatedDockerfile, missingSettings, tarAppend, tarIndex, wantsDatabase, type DatabaseKind } from './autobuild.ts';
 import { readFileSync } from 'node:fs';
 
 export const TRY_FLAG = 'tryit_release';
@@ -45,7 +46,7 @@ const LABELS = SLOTS.map((s) => `try:${s}`);
 export type VersionSource = { kind: 'dockerfile' | 'git' | 'image' | 'folder' | 'imagefile'; value: string; port?: number; name?: string; dockerfile?: string };
 export const UPLOAD_ID = /^[a-f0-9]{24}$/;
 export const MAX_UPLOAD = 2 * 1024 ** 3;
-export type BuildRequest = { versions: VersionSource[]; goal?: string; secondary?: { action: string; rates?: number[] }[]; rates?: number[]; env?: string; database?: 'postgres' | 'mysql' };
+export type BuildRequest = { versions: VersionSource[]; goal?: string; secondary?: { action: string; rates?: number[] }[]; rates?: number[]; env?: string; database?: DatabaseKind };
 type Stage = { title: string; status: 'todo' | 'running' | 'done' | 'failed'; detail?: string };
 /** One line of the build log: when, from whom (a version's letter, or Turnout / Flagsmith), how it reads. */
 export type LogLine = { at: string; from: string; level: 'info' | 'step' | 'ok' | 'error'; text: string };
@@ -75,7 +76,7 @@ export type BuildState = {
   actions?: { goal: string; label: string }[];
   secondary?: { action: string; rates?: number[] }[]; // other actions counted as secondary metrics, each with its pretend rates
   goalSince?: string | null; // the goal changed mid-test: counted from then (a new experiment)
-  needs?: { settings: string[]; database: 'postgres' | 'mysql' | null } | null;
+  needs?: { settings: string[]; database: DatabaseKind | null } | null;
 };
 
 /** Checks one version's source; the error says what to change. */
@@ -120,9 +121,33 @@ export function parseEnv(text: string | undefined): string[] {
 /** "A/A" for one version, "A/B" for two, "A/B/C" for three. */
 /** Without a branch Docker fetches "master", which many repositories don't have: HEAD is the repository's default. */
 export function defaultBranch(url: string): string {
-  const u = url.trim();
+  const { repo } = parseGitSource(url);
+  const u = repo + (url.includes('#') ? url.slice(url.indexOf('#')) : '');
   if (!u.includes('#')) return `${u}#HEAD`;
   return u.replace('#:', '#HEAD:');
+}
+
+/** Pages a warm-up asks for: the home page and each GET goal's page ("GET /pricing*" → /pricing). */
+export function warmPaths(goals: string[]): string[] {
+  const pages = goals.map((g) => g.match(/^GET (\/[^\s*?#]*)/)?.[1]).filter((p): p is string => Boolean(p));
+  return ['/', ...new Set(pages.filter((p) => p !== '/'))].slice(0, 5);
+}
+
+/** Up to `rounds` passes over the warm-up pages, three at a time; the median page time of the last pass, in ms. */
+export async function warmUp(base: string, goals: string[], rounds = 8, fetcher: typeof fetch = fetch): Promise<number> {
+  const paths = warmPaths(goals);
+  let last: number[] = [];
+  for (let r = 0; r < rounds; r++) {
+    last = await Promise.all(
+      [...paths, ...paths, ...paths].slice(0, Math.max(3, paths.length)).map(async (p) => {
+        const t = performance.now();
+        await fetcher(new URL(p, base), { signal: AbortSignal.timeout(5000) }).then((res) => res.arrayBuffer()).catch(() => {});
+        return performance.now() - t;
+      }),
+    );
+  }
+  const sorted = last.sort((a, b) => a - b);
+  return Math.round(sorted[Math.floor(sorted.length / 2)] ?? 0);
 }
 
 /** Docker's answer when a repository can't be built, said so a person knows what to add. */
@@ -517,9 +542,9 @@ export function startTryit(o: TryitOptions) {
         if (v.kind === 'image') await o.docker.pull(image, onLog).catch(async (error) => {
           if (!(await o.docker.imageExists(image))) throw error; // a local-only image is fine
         });
-        else if (v.kind === 'folder') await (async () => {
-          // No Dockerfile: Turnout writes one from what the project is (the repo's own always wins).
-          const tar = uploadPath(v.value);
+        // A folder, or a git repository cloned into one: when it has no Dockerfile, Turnout writes one from what the
+        // project is (the repository's own always wins).
+        const fromFolder = async (tar: string) => {
           let dockerfile = v.dockerfile || 'Dockerfile';
           const { files, read } = tarIndex(readFileSync(tar));
           if (!files.includes(dockerfile) && !v.dockerfile) {
@@ -531,11 +556,24 @@ export function startTryit(o: TryitOptions) {
             }
           }
           return o.docker.buildFolder(image, tar, dockerfile, onLog, buildArgs);
-        })().catch((error: Error) => {
-          throw new Error(`${slot.name} (version ${slot.slot.toUpperCase()}): ${/locate specified Dockerfile|no such file/i.test(error.message) ? `your folder has no ${v.dockerfile || 'Dockerfile'} at its top level` : gitBuildError(error.message)}`);
-        });
+        };
+        const where = v.kind === 'git' ? 'the repository' : 'your folder';
+        const folderError = (error: Error) => {
+          throw new Error(`${slot.name} (version ${slot.slot.toUpperCase()}): ${/locate specified Dockerfile|no such file/i.test(error.message) ? `${where} has no ${v.dockerfile || 'Dockerfile'} at its top level` : gitBuildError(error.message)}`);
+        };
+        if (v.kind === 'folder') await fromFolder(uploadPath(v.value)).catch(folderError);
         else if (v.kind === 'imagefile') image = await o.docker.load(uploadPath(v.value), onLog);
-        else if (v.kind === 'git') await o.docker.build(image, { remote: defaultBranch(v.value) }, onLog, buildArgs).catch((error: Error) => {
+        else if (v.kind === 'git' && (await hasGit())) {
+          // Cloned here and built like a folder, so a repository with no Dockerfile runs too. The same URL twice
+          // (an A/A test, or A and B from one repo) is cloned once per version: each gets its own tar.
+          const tar = join(uploads, `${randomBytes(12).toString('hex')}.tar`);
+          try {
+            await gitToTar(v.value, tar, (l) => note(l, slot.slot.toUpperCase()));
+            await fromFolder(tar).catch(folderError);
+          } finally {
+            rmSync(tar, { force: true });
+          }
+        } else if (v.kind === 'git') await o.docker.build(image, { remote: defaultBranch(v.value) }, onLog, buildArgs).catch((error: Error) => {
           throw new Error(`${slot.name} (version ${slot.slot.toUpperCase()}): ${gitBuildError(error.message)}`);
         });
         else await o.docker.build(image, { dockerfile: v.value }, onLog, buildArgs);
@@ -588,6 +626,11 @@ export function startTryit(o: TryitOptions) {
         state.goal = found[0];
         note(`Goal: a visitor who ${describeAction(found[0])} (${found[0]}), the best of ${found.length} actions found`, 'Turnout', 'ok');
       } else if (!state.goal) note('No action a visitor takes reaches the server on every version: comparing page speed and errors', 'Turnout');
+      // Warm-up, straight to each container (not through the proxy: nothing counted, nothing sent to Flagsmith). A
+      // cold runtime and its first database connections answer slowly, and whichever version got the first visitors
+      // looked slower on page speed: on an A/A test of one Node + Mongo app, 82 ms against 182 ms.
+      const warm = await Promise.all(versions.map((_, i) => warmUp(upstream[LABELS[i]!]!, found)));
+      note(`Warmed up each version before any visitor (not counted): ${warm.map((ms, i) => `${LABELS[i]} ${ms} ms`).join(', ')} per page after warm-up`, 'Turnout');
       current = { versions, releases, upstream };
       await setUp(current);
     } catch (error) {
@@ -657,7 +700,7 @@ export function startTryit(o: TryitOptions) {
             return send(res, 400, { error: `Secondary metric: ${(error as Error).message}` });
           }
         }
-        void build({ versions, goal: body.goal, rates: body.rates, env: typeof body.env === 'string' ? body.env.slice(0, 20_000) : undefined, database: body.database === 'postgres' || body.database === 'mysql' ? body.database : undefined, secondary: Array.isArray(body.secondary) ? body.secondary.filter((x) => x && typeof x.action === 'string').map((x) => ({ action: x.action.trim(), rates: Array.isArray(x.rates) ? x.rates.map((r) => Math.min(1, Math.max(0, Number(r) || 0))) : undefined })) : undefined });
+        void build({ versions, goal: body.goal, rates: body.rates, env: typeof body.env === 'string' ? body.env.slice(0, 20_000) : undefined, database: DATABASE_KINDS.find((k) => k === body.database), secondary: Array.isArray(body.secondary) ? body.secondary.filter((x) => x && typeof x.action === 'string').map((x) => ({ action: x.action.trim(), rates: Array.isArray(x.rates) ? x.rates.map((r) => Math.min(1, Math.max(0, Number(r) || 0))) : undefined })) : undefined });
         return send(res, 202, { ok: true });
       }
       // What Turnout has seen visitors do (through the proxy), the actions offered as goals, and the visitors needed.

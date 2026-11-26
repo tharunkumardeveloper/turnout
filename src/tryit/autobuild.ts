@@ -1,4 +1,4 @@
-// Any repo runs (docs/PLAN.md step 2): a Dockerfile for a folder that has none, the settings an app's error asks for,
+// Any repo runs: a Dockerfile for a folder that has none, the settings an app's error asks for,
 // and a throwaway database for the test. The repo's own Dockerfile always wins.
 import { readFileSync, writeFileSync } from 'node:fs';
 
@@ -14,7 +14,12 @@ export function generatedDockerfile(files: string[], read: Read): string | null 
     } catch {}
     const s = pkg.scripts ?? {};
     const build = s.build ? 'RUN npm run build\n' : '';
-    const start = s.start ? '["npm", "start"]' : `["node", "${pkg.main ?? (has('server.js') ? 'server.js' : 'index.js')}"]`;
+    // No start script: the entry file that is really there ("main" is often left at npm's default index.js), then the
+    // file a dev script runs (nodemon src/index.js).
+    const bare = (f: string | undefined) => f?.replace(/^\.\//, '');
+    const fromDev = Object.values(s).map((c) => c.match(/\b(?:node|nodemon)\b(?:\s+-\S+)*\s+([\w./-]+\.[cm]?js)\b/)?.[1]).find((f) => f && has(bare(f)!));
+    const entry = [pkg.main, 'server.js', 'index.js', 'app.js', fromDev, 'src/index.js', 'src/server.js', 'src/app.js'].map(bare).find((f) => f && has(f)) ?? pkg.main ?? 'index.js';
+    const start = s.start ? '["npm", "start"]' : `["node", "${entry}"]`;
     // A build with no start script is a static site: serve what it built.
     if (!s.start && s.build && !pkg.main) {
       return `FROM node:22-alpine AS build\nWORKDIR /app\nCOPY . .\nRUN npm install --no-audit --no-fund\n${build}FROM nginx:1.27-alpine\nCOPY --from=build /app/dist /usr/share/nginx/html\n`;
@@ -25,13 +30,25 @@ export function generatedDockerfile(files: string[], read: Read): string | null 
     const reqs = (read('requirements.txt') ?? '').toLowerCase();
     const install = has('requirements.txt') ? 'RUN pip install --no-cache-dir -r requirements.txt' : 'RUN pip install --no-cache-dir .';
     let cmd = '["python", "app.py"]';
-    if (has('manage.py')) cmd = '["python", "manage.py", "runserver", "0.0.0.0:8000", "--noreload"]';
+    // Migrations first: a page that reads a table needs it. With no database to reach, migrate fails and says why,
+    // which is what offers the throwaway one.
+    if (has('manage.py')) cmd = '["sh", "-c", "python manage.py migrate --noinput && exec python manage.py runserver 0.0.0.0:8000 --noreload"]';
     else if (/\bflask\b/.test(reqs)) cmd = `["python", "-m", "flask", "--app", "${has('app.py') ? 'app' : has('main.py') ? 'main' : 'wsgi'}", "run", "--host=0.0.0.0", "--port=8000"]`;
     else if (/\b(fastapi|uvicorn)\b/.test(reqs)) cmd = `["python", "-m", "uvicorn", "${has('main.py') ? 'main' : 'app'}:app", "--host", "0.0.0.0", "--port", "8000"]`;
     return `FROM python:3.12-slim\nWORKDIR /app\nCOPY . .\n${install}\nEXPOSE 8000\nCMD ${cmd}\n`;
   }
-  if (has('go.mod')) return 'FROM golang:1.22-alpine AS build\nWORKDIR /src\nCOPY . .\nRUN go build -o /app .\nFROM alpine:3.20\nCOPY --from=build /app /app\nENV PORT=8080\nEXPOSE 8080\nCMD ["/app"]\n';
-  if (has('Gemfile')) return 'FROM ruby:3.3-slim\nWORKDIR /app\nCOPY . .\nRUN bundle install\nEXPOSE 4567\nCMD ["ruby", "app.rb", "-o", "0.0.0.0", "-p", "4567"]\n';
+  if (has('go.mod')) {
+    // The newest Go builds any go.mod (GOTOOLCHAIN=auto fetches a newer one if it asks). The project's files go into the
+    // final image with the binary: templates/ and static/ are read at run time.
+    return 'FROM golang:alpine AS build\nENV GOTOOLCHAIN=auto CGO_ENABLED=0\nWORKDIR /src\nCOPY . .\nRUN go build -o /app .\nFROM alpine:3.20\nWORKDIR /srv\nCOPY --from=build /src /srv\nCOPY --from=build /app /app\nENV PORT=8080\nEXPOSE 8080\nCMD ["/app"]\n';
+  }
+  if (has('Gemfile')) {
+    // The full image: gems with native parts (pg, mysql2, nokogiri) need its compiler and client libraries.
+    const head = 'FROM ruby:3.4\nWORKDIR /app\nCOPY . .\nRUN bundle install\n';
+    if (has('bin/rails')) return `${head}ENV RAILS_ENV=development RAILS_LOG_TO_STDOUT=1\nEXPOSE 3000\nCMD ["sh", "-c", "ruby bin/rails db:prepare && exec ruby bin/rails server -b 0.0.0.0 -p 3000"]\n`;
+    if (has('config.ru')) return `${head}EXPOSE 4567\nCMD ["bundle", "exec", "rackup", "-o", "0.0.0.0", "-p", "4567"]\n`;
+    return `${head}EXPOSE 4567\nCMD ["ruby", "app.rb", "-o", "0.0.0.0", "-p", "4567"]\n`;
+  }
   if (files.some((f) => /^[^/]+\.php$/i.test(f)) || has('composer.json')) return 'FROM php:8.3-apache\nCOPY . /var/www/html/\n';
   if (has('index.html')) return 'FROM nginx:1.27-alpine\nCOPY . /usr/share/nginx/html\n';
   return null;
@@ -51,13 +68,30 @@ export function missingSettings(log: string): string[] {
 }
 
 /** A database the app wants, from the setting names it asked for: postgres, mysql, or null. */
-export function wantsDatabase(names: string[], log = ''): 'postgres' | 'mysql' | null {
-  if (!names.some((n) => /DATABASE|DB_|POSTGRES|MYSQL/.test(n)) && !/ECONNREFUSED[^\n]*:(5432|3306)/.test(log)) return null;
-  return /mysql|3306/i.test(log) || names.some((n) => /MYSQL/.test(n)) ? 'mysql' : 'postgres';
+export type DatabaseKind = 'postgres' | 'mysql' | 'mongo';
+export const DATABASE_KINDS: readonly DatabaseKind[] = ['postgres', 'mysql', 'mongo'];
+
+// How each database's clients say they couldn't reach it: Node (ECONNREFUSED), psycopg ("connection to server at …
+// port 5432 failed"), Rails (PG::ConnectionBad, Mysql2::Error), mysqlclient, and Mongo's drivers and Mongoose.
+const REFUSED = {
+  mongo: /ECONNREFUSED[^\n]*:27017|MongooseServerSelectionError|MongoNetworkError|MongoServerSelectionError|uri[`'"]? parameter to [`'"]?openUri\(\)|mongodb(\+srv)?:\/\/[^\s]*:27017/i,
+  mysql: /ECONNREFUSED[^\n]*:3306|Can't connect to (local )?MySQL|Mysql2::Error::ConnectionError|mysqlclient|port 3306/i,
+  postgres: /ECONNREFUSED[^\n]*:5432|connection to server (at|on)[^\n]*(5432|failed)|could not connect to server|PG::ConnectionBad|psycopg2?\.OperationalError|port 5432 failed/i,
+};
+
+export function wantsDatabase(names: string[], log = ''): DatabaseKind | null {
+  if (names.some((n) => /MONGO/.test(n)) || REFUSED.mongo.test(log)) return 'mongo';
+  if (names.some((n) => /MYSQL/.test(n)) || REFUSED.mysql.test(log)) return 'mysql';
+  if (names.some((n) => /DATABASE|DB_|POSTGRES/.test(n)) || REFUSED.postgres.test(log)) return /mysql/i.test(log) ? 'mysql' : 'postgres';
+  return null;
 }
 
 /** The throwaway database's container and the settings that point an app at it. */
-export function databaseFor(kind: 'postgres' | 'mysql'): { image: string; env: string[]; appEnv: string[] } {
+export function databaseFor(kind: DatabaseKind): { image: string; env: string[]; appEnv: string[] } {
+  if (kind === 'mongo') {
+    const url = 'mongodb://try-db:27017/app';
+    return { image: 'mongo:7', env: [], appEnv: [`MONGODB_URI=${url}`, `MONGO_URI=${url}`, `MONGO_URL=${url}`, `MONGODB_URL=${url}`, `DATABASE_URL=${url}`] };
+  }
   if (kind === 'mysql') {
     return {
       image: 'mysql:8.4',
