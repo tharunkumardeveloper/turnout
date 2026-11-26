@@ -23,6 +23,7 @@ export type NewAnswers = {
   proxyPort?: number | undefined;
   consolePort?: number | undefined; // default 8090; change it to run next to another Turnout
   flagsmithPort?: number | undefined; // the bundled Flagsmith's dashboard on this machine; default 8000
+  appEnvFile?: string | undefined; // your app's .env (a path on this machine), given to each release image's container
   project?: string | undefined; // existing Flagsmith: project and environment init reuses
   environment?: string | undefined;
 };
@@ -207,7 +208,7 @@ ${apps
     (r) => `
   ${r.service}: # release ${r.label}
     image: ${r.image}
-    restart: unless-stopped${bundled ? '\n    networks: [default]' : ''}
+    restart: unless-stopped${a.appEnvFile ? `\n    env_file: [${yamlString(a.appEnvFile)}]` : ''}${bundled ? '\n    networks: [default]' : ''}
 `,
   )
   .join('')}

@@ -3,8 +3,9 @@
 #
 #   turnout compare <live> <new> [--goal "POST /signup"] [--split 50] [--port 3000]
 #       --split: % of visitors who get <new>, up to 50 (the rest get <live>); default 50
-#       <live>/<new>: two URLs (localhost:3001, http://localhost:3002) or two Docker images (myapp:1.0)
-#       --port: the port your images listen on (default 8080); not needed for URLs
+#       <live>/<new>: two URLs (localhost:3001, http://localhost:3002), two Docker images (myapp:1.0), or two
+#       branches of the git project you're in (main new-checkout: each built from its Dockerfile; your .env is passed)
+#       --port: the port your app listens on in its container (default: the Dockerfile's EXPOSE, else 8080)
 #   turnout open | status | down | reset [--yes]
 #
 # Everything runs on your machine's Docker. Turnout's own files live in ~/.turnout/projects/<this folder's name>, not
@@ -75,6 +76,37 @@ banner() {
   say ""
 }
 
+is_branch() {
+  case "$1" in http://*|https://*|*:*|*=*) return 1 ;; esac
+  git rev-parse --verify --quiet "refs/heads/$1" >/dev/null 2>&1
+}
+label_of() { printf '%s' "$1" | tr 'A-Z' 'a-z' | sed 's/[^a-z0-9._-]\{1,\}/-/g'; }
+exposed_port() { git show "refs/heads/$1:Dockerfile" 2>/dev/null | grep -i '^[[:space:]]*EXPOSE[[:space:]]' | head -1 | sed 's/^[^0-9]*\([0-9]\{1,5\}\).*/\1/'; }
+
+# Builds a branch's last commit (git archive: committed files only) from its Dockerfile; prints the image tag.
+build_branch() {
+  git cat-file -e "refs/heads/$1:Dockerfile" 2>/dev/null \
+    || die "branch $1 has no Dockerfile at its root. Build it yourself and give the image name, or run it and give its URL."
+  sha=$(git rev-parse --short "refs/heads/$1")
+  tag="turnout-$NAME-$(label_of "$1"):$sha"
+  logs="${TURNOUT_STATE:-$HOME/.turnout/projects}/.builds"; mkdir -p "$logs"
+  if ! docker image inspect "$tag" >/dev/null 2>&1; then
+    say "Building branch $1 ($sha) from its Dockerfile…" >&2
+    git archive --format=tar "refs/heads/$1" | docker build -t "$tag" - >"$logs/$NAME-$(label_of "$1").log" 2>&1 \
+      || { tail -20 "$logs/$NAME-$(label_of "$1").log" >&2; die "building branch $1 failed (full log: $logs/$NAME-$(label_of "$1").log)."; }
+  fi
+  echo "$tag"
+}
+
+# Release containers doctor says don't answer (its "expected: container <name> answers" lines).
+failing_apps() { grep -A2 '\[FAIL\]' "$STATE/doctor.log" 2>/dev/null | sed -n 's/.*expected: container \([^ ]*\) answers.*/\1/p' | sort -u; }
+app_logs() {
+  for svc in $( { failing_apps; compose config --services 2>/dev/null | grep '^turnout-'; } | sort -u ); do
+    say "--- last log lines of $svc:" >&2
+    compose logs --no-log-prefix --tail 20 "$svc" >&2 2>/dev/null || true
+  done
+}
+
 cmd_compare() {
   [ $# -ge 2 ] || die 'usage: turnout compare <live> <new> [--goal "POST /signup"] [--split 50]'
   A=$(normalise "$1"); B=$(normalise "$2"); shift 2
@@ -87,17 +119,22 @@ cmd_compare() {
       *) die "unknown option $1" ;;
     esac
   done
-  for r in "$A" "$B"; do
-    case "$r" in http*) ;; *)
-      if git rev-parse --verify --quiet "refs/heads/$r" >/dev/null 2>&1; then
-        die "\"$r\" is a git branch. Comparing branches isn't built yet: run both versions (e.g. on ports 3001 and 3002) and give their URLs."
-      fi ;;
-    esac
-  done
   case "$SPLIT" in *[!0-9]*|"") die "--split is a whole percentage from 1 to 50" ;; esac
   [ "$SPLIT" -ge 1 ] && [ "$SPLIT" -le 50 ] || die "--split is a whole percentage from 1 to 50 (Flagsmith splits the experiment's visitors evenly)"
   TRAFFIC=$((SPLIT * 2))   # visitors in the experiment, split evenly between <live> and <new>
   need_docker
+  # Branches of the git project here: each is built from its own Dockerfile into an image, labelled with the branch.
+  BRANCHES=
+  if is_branch "$A" || is_branch "$B"; then
+    is_branch "$A" && is_branch "$B" || die "give two branches, or two URLs, or two images (not a mix): \"$1\" and \"$2\""
+    [ -n "$APP_PORT" ] || APP_PORT=$(exposed_port "$A")
+    [ -n "$APP_PORT" ] || die "branch $A's Dockerfile has no EXPOSE line, so the port your app listens on isn't known: add --port <port>."
+    [ -z "$(git status --porcelain 2>/dev/null)" ] || say "Note: uncommitted changes aren't included; each branch is built from its last commit."
+    BRANCHES="$A $B"
+    IMG_A=$(build_branch "$A") || exit 1   # build_branch's die only leaves the $( ) subshell
+    IMG_B=$(build_branch "$B") || exit 1
+    A="$(label_of "$A")=$IMG_A"; B="$(label_of "$B")=$IMG_B"
+  fi
   need_image
   mkdir -p "$STATE"
 
@@ -120,18 +157,32 @@ app_port=$APP_PORT"
     [ "$CONSOLE_PORT" = "$PROXY_PORT" ] && CONSOLE_PORT=$(free_port $((PROXY_PORT + 1)))
     FLAGSMITH_PORT=$(free_port 8000)
     [ "$PROXY_PORT" = 8080 ] || say "Port 8080 is busy: your app will be on $PROXY_PORT."
+    APP_ENV=; [ -n "$BRANCHES" ] && [ -f "$PWD/.env" ] && APP_ENV="$PWD/.env"
     docker run --rm -v "$STATE:/work" "$IMAGE" new --dir /work --yes --force \
       --release "$A" --release "$B" --success "$GOAL" --traffic "$TRAFFIC" \
       --proxy-port "$PROXY_PORT" --console-port "$CONSOLE_PORT" --flagsmith-port "$FLAGSMITH_PORT" \
-      ${APP_PORT:+--port "$APP_PORT"} --image "$IMAGE" >"$STATE/new.log" 2>&1 \
+      ${APP_PORT:+--port "$APP_PORT"} ${APP_ENV:+--app-env-file "$APP_ENV"} --image "$IMAGE" >"$STATE/new.log" 2>&1 \
       || { cat "$STATE/new.log" >&2; die "couldn't write the setup for $A and $B."; }
     printf '%s\nproxy_port=%s\nconsole_port=%s\n' "$WANT" "$PROXY_PORT" "$CONSOLE_PORT" > "$STATE/compare.args"
   fi
 
   say "Starting Flagsmith and Turnout (the first time takes a few minutes)…"
   compose run --rm cli init >"$STATE/init.log" 2>&1 || { tail -20 "$STATE/init.log" >&2; die "setting up Flagsmith failed (full log: $STATE/init.log)."; }
-  compose up -d --wait >"$STATE/up.log" 2>&1 || { tail -20 "$STATE/up.log" >&2; die "starting failed (full log: $STATE/up.log)."; }
-  compose run --rm cli doctor >"$STATE/doctor.log" 2>&1 || true
+  if ! compose up -d --wait >"$STATE/up.log" 2>&1; then
+    tail -20 "$STATE/up.log" >&2
+    [ -n "$BRANCHES" ] && app_logs
+    die "starting failed (full log: $STATE/up.log)."
+  fi
+  # An app can take a few seconds to listen: check up to three times before calling a version broken.
+  for try in 1 2 3; do
+    compose run --rm cli doctor >"$STATE/doctor.log" 2>&1 || true
+    [ -z "$(failing_apps)" ] && break
+    [ "$try" = 3 ] || sleep 10
+  done
+  if [ -n "$(failing_apps)" ]; then
+    app_logs
+    die "a version doesn't answer: its last log lines are above. If it needs a database or other services, start both versions yourself and run: turnout compare http://localhost:<port-a> http://localhost:<port-b>"
+  fi
   say "Check: $(grep -v '^[[:space:]]*$' "$STATE/doctor.log" | tail -1)"
   banner
   open_url "http://127.0.0.1:$CONSOLE_PORT"
@@ -149,5 +200,5 @@ case "$cmd" in
     need_state; need_docker
     if [ "${1:-}" != --yes ]; then printf 'Delete %s'"'"'s Turnout and Flagsmith data? [y/N] ' "$NAME"; read -r ok; [ "$ok" = y ] || exit 1; fi
     compose down -v; rm -rf "$STATE"; say "Wiped. turnout compare starts fresh." ;;
-  *) sed -n '2,9p' "$0" | sed 's/^# \{0,1\}//' ;;
+  *) sed -n '2,10p' "$0" | sed 's/^# \{0,1\}//' ;;
 esac

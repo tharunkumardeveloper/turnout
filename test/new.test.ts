@@ -151,3 +151,13 @@ test('the bundled Flagsmith gets no fixed container name and the port given, so 
   assert.match(out, /127\.0\.0\.1:8001:8000/);
   assert.doesNotMatch(out, /:8000:8000/);
 });
+
+test("--app-env-file gives each release image your app's .env", async () => {
+  const { renderCompose, parseReleases } = await import('../src/commands/new.ts');
+  const { parse } = await import('yaml');
+  const { releases } = parseReleases(['main=shop-main:abc', 'new=shop-new:def'], 3000);
+  const compose = parse(renderCompose({ flagsmith: 'bundled', releases: [], success: 'none', traffic: 100, appEnvFile: 'C:\Users\me\app\.env' }, releases));
+  assert.deepEqual(compose.services['shop-main-abc'].env_file, ['C:\Users\me\app\.env']);
+  assert.equal(compose.services['shop-main-abc'].image, 'shop-main:abc');
+  assert.deepEqual(compose.services['shop-new-def'].env_file, ['C:\Users\me\app\.env']);
+});
