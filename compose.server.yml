@@ -78,6 +78,9 @@ services:
       # Flagsmith's 5-minute refresh limit, and steps aside for 10 minutes after any action from the private console.
       # It also sends the visitors the public map shows. TURNOUT_AUTOPILOT=off turns it off.
       TURNOUT_AUTOPILOT: ${TURNOUT_AUTOPILOT:-on}
+      # Blind rounds: each experiment's true order rates are drawn at random and hidden until the round is decided,
+      # so Flagsmith has to find the winner (or say there is none); the page keeps a scoreboard.
+      TURNOUT_BLIND: ${TURNOUT_BLIND:-on}
       TURNOUT_AUTOPILOT_VISITORS: ${TURNOUT_AUTOPILOT_VISITORS:-}
       TURNOUT_AUTOPILOT_PAUSE: ${TURNOUT_AUTOPILOT_PAUSE:-}
       TURNOUT_DEMO_CONCURRENCY: ${TURNOUT_DEMO_CONCURRENCY:-} # default 20; 20, 50 and 200 lost no events on a 2-vCPU VM (spikes/RESULTS.md)

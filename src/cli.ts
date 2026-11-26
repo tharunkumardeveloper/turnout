@@ -15,6 +15,7 @@ import { simulate } from '../demo/simulator/simulate.ts';
 import { defaultHypothesis, describeGoal, loadConfig } from './config.ts';
 import { createFlagSource } from './flagsmith/flag-source.ts';
 import { DEFAULT_RATES, parseRates } from './console/judge.ts';
+import { createBlindStore } from './console/blind.ts';
 import { createConsole, listenForOtherDevices, listenForPublic } from './console/server.ts';
 import { autopilotFromEnv } from './console/autopilot.ts';
 import { AdminClient } from './flagsmith/admin.ts';
@@ -452,6 +453,12 @@ const commands: Record<string, () => Promise<void>> = {
       shopUrl: process.env.TURNOUT_PUBLIC_SHOP_URL || 'http://127.0.0.1:8080',
       dashboardUrl: process.env.FLAGSMITH_DASHBOARD_URL || 'http://127.0.0.1:8000',
       rates: parseRates(process.env.TURNOUT_DEMO_RATES || DEFAULT_RATES),
+      // Blind rounds: hidden random rates per experiment (TURNOUT_BLIND=on; server mode turns it on). The store also
+      // keeps Flagsmith's chance-to-win history for the page's chart. The demo's deliberately slow release is 1.6.
+      blind: {
+        store: createBlindStore(join(STATE_DIR, 'blind.json'), { slowRelease: process.env.TURNOUT_DEMO_SLOW_RELEASE ?? 'shop:1.6' }),
+        enabled: (process.env.TURNOUT_BLIND ?? '').trim().toLowerCase() === 'on',
+      },
       ...(Number(process.env.TURNOUT_DEMO_CONCURRENCY) >= 1 ? { concurrency: Math.min(200, Math.floor(Number(process.env.TURNOUT_DEMO_CONCURRENCY))) } : {}),
       ...(previewToken ? { previewToken } : {}),
       ...(consoleServerKey ? { serverKey: consoleServerKey } : {}),

@@ -3,6 +3,7 @@
 // through the proxy, Flagsmith's results, Ship winner / Revert, swing-back, preview, release, verify and reset.
 // Every job reuses the commands the CLI runs; Flagsmith, the simulator and the proxy are injectable for tests.
 import { defaultHypothesis } from '../config.ts';
+import { truthText, type BlindStore, type Point, type Round, type Score } from './blind.ts';
 import { randomBytes } from 'node:crypto';
 import { simulate as runSimulation, type SimOptions, type SimReport } from '../../demo/simulator/simulate.ts';
 import { check as runCheck } from '../commands/check.ts';
@@ -148,6 +149,15 @@ export type JudgeState = {
   current: StepId | 'reset';
   job: Job | null;
   totals: { visitorsSent: number; eventsAccepted: number | null; eventsRejected: number | null };
+  // Blind rounds (blind.ts): the hidden truth stays hidden until the round is decided; the scoreboard; and
+  // Flagsmith's chance to win over time for this experiment.
+  blind?: {
+    enabled: boolean;
+    round: { hidden: true } | { hidden: false; truth: string; round: Round } | null;
+    score: Score;
+    recent: { experimentId: number; v2: string; control: string; outcome: Round['outcome']; call: Round['call']; expected: Round['expected'] }[];
+  };
+  history?: Point[];
 };
 
 // What the jobs call outside this process. Defaults drive the real stack; tests replace them.
@@ -176,6 +186,9 @@ export type JudgeOptions = {
   previewToken?: string; // also the proxy's debug token: the simulator reads the routing headers with it
   serverKey?: string; // for verify's leftover-split check
   rates: Record<string, number>; // true conversion rate per RELEASE (inputs, not evidence)
+  // Blind rounds: hidden random rates per experiment, revealed when the round is decided (TURNOUT_BLIND=on). The
+  // store also keeps the chance-to-win history, with or without blind rounds.
+  blind?: { store: BlindStore; enabled: boolean };
   stateCacheMs?: number; // how long one read of the page's state is shared; default STATE_CACHE_MS
   deps?: Partial<JudgeDeps>;
 };
@@ -590,6 +603,26 @@ export function createJudge(opts: JudgeOptions, ctx: JudgeContext) {
       };
     }
     const { experiment, results, pid, tested, winner, losing } = s;
+    const store = opts.blind?.store;
+    if (store && results?.as_of && experiment.status !== 'created') {
+      const rec = s.recommendation;
+      store.notePoint(experiment.id, {
+        asOf: results.as_of,
+        chanceToWin: rec.chanceToWin,
+        low: rec.interval?.low ?? null,
+        high: rec.interval?.high ?? null,
+        identities: identitiesOf(experiment, results),
+      });
+    }
+    const decided = store?.round(experiment.id) ?? null;
+    const blind: JudgeState['blind'] = store
+      ? {
+          enabled: !!opts.blind?.enabled,
+          round: decided ? { hidden: false, truth: truthText(decided.truth), round: decided } : store.truth(experiment.id) ? { hidden: true } : null,
+          score: store.score(),
+          recent: store.rounds(8).map((r) => ({ experimentId: r.experimentId, v2: r.truth.v2, control: r.truth.control, outcome: r.outcome, call: r.call, expected: r.expected })),
+        }
+      : undefined;
     const base = pid !== undefined ? `${dash}/project/${pid}/environment/${s.exps.ref.envKey}` : null;
     const { steps, current } = stepsFor(s);
     return {
@@ -636,6 +669,8 @@ export function createJudge(opts: JudgeOptions, ctx: JudgeContext) {
         eventsAccepted: events?.accepted ?? null,
         eventsRejected: events?.rejected ?? null,
       },
+      ...(blind ? { blind } : {}),
+      ...(store ? { history: store.series(experiment.id) } : {}),
     };
   }
 
@@ -780,7 +815,8 @@ export function createJudge(opts: JudgeOptions, ctx: JudgeContext) {
     const n = Math.min(3000, Math.max(50, Math.round(body.visitors ?? DEFAULT_VISITORS)));
     const { control, v2 } = s.tested;
     const rateOf = (release: string | null) => (release ? (opts.rates[release] ?? 0.1) : 0.1);
-    const rates = { [CONTROL]: rateOf(control), v2: rateOf(v2) };
+    const truth = opts.blind?.enabled && control && v2 ? opts.blind.store.truthFor(s.experiment.id, control, v2) : null;
+    const rates = truth ? { [CONTROL]: truth.rates.control, v2: truth.rates.v2 } : { [CONTROL]: rateOf(control), v2: rateOf(v2) };
     // Right after a release or reset the proxy may still hold the previous flag state for a few seconds; visitors
     // sent then would land outside the experiment and never be counted.
     for (let i = 0; i <= 20; i++) {
@@ -792,7 +828,11 @@ export function createJudge(opts: JudgeOptions, ctx: JudgeContext) {
     stage(1);
     progress(0, n);
     log(`Sending ${n} simulated visitors (labelled simulation) through the Turnout proxy.`);
-    log(`True order rates, set as inputs (not evidence): ${control} ${pct(rates[CONTROL]!)}, ${v2} ${pct(rates.v2!)}. Add-to-cart: 30% on both, so the difference is at checkout.`);
+    log(
+      truth
+        ? 'Blind round: the true order rates were drawn at random and stay hidden until the round is decided. Flagsmith has to find the difference, if there is one.'
+        : `True order rates, set as inputs (not evidence): ${control} ${pct(rates[CONTROL]!)}, ${v2} ${pct(rates.v2!)}. Add-to-cart: 30% on both, so the difference is at checkout.`,
+    );
     let bucket = 0;
     const report = await deps.simulate({
       target: opts.proxyUrl,
@@ -914,6 +954,8 @@ export function createJudge(opts: JudgeOptions, ctx: JudgeContext) {
     });
     stage(5);
     log(`Everyone now gets ${release} from the flag's environment default. Recorded in the release ledger.`);
+    const round = opts.blind?.store.decide(s.experiment.id, s.recommendation, action);
+    if (round) log(`Blind round revealed: ${truthText(round.truth)}. Flagsmith's call: ${round.call}; ${round.outcome === 'right' ? 'right' : round.outcome === 'no-call' ? 'no clear call yet' : 'wrong'}.`);
     if (decision.github && 'url' in decision.github) log(`Written to the GitHub Release: ${decision.github.url}`);
     if (decision.github && 'error' in decision.github) log(`Not written to GitHub: ${decision.github.error}`);
     return { entry: decision.entry, github: decision.github };
