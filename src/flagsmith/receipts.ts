@@ -17,6 +17,18 @@ export class Receipts {
   private readonly onUndelivered: ((receipt: Receipt) => void) | undefined;
   undelivered = 0; // events Flagsmith didn't accept or the SDK dropped, since start (a retried attempt counts too)
   droppedBySdk = 0; // of those, dropped by the SDK before sending
+  // Every events POST: how many, how big, how slow. A slow batch is what fills the SDK's buffer.
+  batches = { count: 0, events: 0, maxEvents: 0, maxMs: 0, over5s: 0, failed: 0 };
+
+  batch(events: number, ms: number, ok: boolean): void {
+    const b = this.batches;
+    b.count++;
+    b.events += events;
+    b.maxEvents = Math.max(b.maxEvents, events);
+    b.maxMs = Math.max(b.maxMs, Math.round(ms));
+    if (ms > 5000) b.over5s++;
+    if (!ok) b.failed++;
+  }
 
   constructor(onUndelivered?: (receipt: Receipt) => void) {
     this.onUndelivered = onUndelivered;
@@ -64,9 +76,12 @@ export function receiptFetch(receipts: Receipts, base: typeof fetch = fetch): ty
     }
 
     let res: Response;
+    const started = performance.now();
     try {
       res = await base(input, init);
+      receipts.batch(sent.length, performance.now() - started, res.status === 202 || res.status === 200);
     } catch (error) {
+      receipts.batch(sent.length, performance.now() - started, false);
       stamp(receipts, sent, () => ({ status: 'not_delivered', httpStatus: 0, error: (error as Error).message }));
       throw error;
     }

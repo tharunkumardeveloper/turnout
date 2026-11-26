@@ -85,13 +85,23 @@ export function eventFromPath(path: string): string {
 
 const yamlString = (s: string) => JSON.stringify(s); // JSON strings are valid YAML
 
+/** "none" (or empty): no goal yet; the experiment judges the release on page speed, with errors as the guardrail. */
+export const isNoGoal = (success: string): boolean => /^(none|-)?$/i.test(success.trim());
+
 export function renderConfig(a: NewAnswers, releases: Release[]): string {
-  const byHeader = parseHeaderSuccess(a.success);
-  const rule = byHeader ? undefined : parseSuccess(a.success);
+  const noGoal = isNoGoal(a.success);
+  const byHeader = noGoal ? undefined : parseHeaderSuccess(a.success);
+  const rule = noGoal || byHeader ? undefined : parseSuccess(a.success);
   const first = releases[0]!.label;
   const flag = a.flag ?? `${(first.split(':')[0] || 'app').replace(/[^A-Za-z0-9_]/g, '_').replace(/^v\d+$/, 'app')}_release`;
   const event = a.event ?? byHeader?.event ?? (rule ? eventFromPath(rule.path) : 'goal');
-  const goal = rule
+  const goal = noGoal
+    ? `# No goal yet: each release is judged on page speed (doc_latency_ms, lower is better), with server errors as
+# the guardrail. To measure a conversion, add for example:
+# goal:
+#   event: signup
+#   when: { method: POST, path: "/signup", status: 2xx }`
+    : rule
     ? `# Success: the request that counts as a conversion, sent to Flagsmith as an event.
 goal:
   event: ${event}
@@ -111,7 +121,7 @@ ${releases.map((r) => `  ${yamlString(r.label)}: ${r.url}`).join('\n')}
 
 ${goal}
 
-guardrails: [doc_latency_ms, server_error]   # sent on every page load
+${noGoal ? 'guardrails: [server_error]   # sent on every page load' : 'guardrails: [doc_latency_ms, server_error]   # sent on every page load'}
 
 # % of visitors in the experiment; the rest stay on the first release.
 traffic: ${a.traffic}

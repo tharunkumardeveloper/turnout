@@ -129,3 +129,16 @@ test('success can come from a response header: "header <event>"', () => {
   assert.deepEqual([config.goal.event, config.goal.header, config.goal.when], ['signed_up', true, undefined]);
   assert.match(readFileSync(join(dir, 'turnout.config.yml'), 'utf8'), /X-Turnout-Event: signed_up/);
 });
+
+test('success "none": a config with no goal, judged on page speed', async () => {
+  const { renderConfig, parseReleases } = await import('../src/commands/new.ts');
+  const { parseConfig } = await import('../src/config.ts');
+  const { parse } = await import('yaml');
+  const { releases } = parseReleases(['http://localhost:3001', 'http://localhost:3002']);
+  const text = renderConfig({ flagsmith: 'bundled', releases: [], success: 'none', traffic: 50 }, releases);
+  const c = parseConfig(parse(text));
+  assert.equal(c.goal.speedOnly, true);
+  assert.deepEqual(c.guardrails, ['server_error']);
+  assert.equal(c.traffic, 50);
+  assert.match(text, /No goal yet/);
+});

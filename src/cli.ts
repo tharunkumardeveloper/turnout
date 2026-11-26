@@ -572,7 +572,7 @@ async function newCommand(): Promise<void> {
       if (!project) throw new Error('an existing Flagsmith needs --project: the project Turnout may add its flag to');
     }
     const releases = cliFlags.release ?? (await q('2/4 Releases, live first (label=url, url or image; space-separated)?', DEFAULT_RELEASES.join(' '))).split(/\s+/).filter(Boolean);
-    const success = await q('3/4 Success: which request counts as a conversion? (or "header <event>": your app sends X-Turnout-Event: <event>)', DEFAULT_SUCCESS, cliFlags.success);
+    const success = await q('3/4 Success: which request counts as a conversion? (or "header <event>": your app sends X-Turnout-Event: <event>; "none": judge on page speed only)', DEFAULT_SUCCESS, cliFlags.success);
     const traffic = Number(await q('4/4 Traffic: % of visitors in the experiment?', '100', cliFlags.traffic));
     const num = (raw: string | undefined, what: string) => {
       if (raw === undefined) return undefined;

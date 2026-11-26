@@ -507,6 +507,8 @@ test('no goal in the config: page speed is the primary metric (lower is better),
     apiUrl: fake.apiUrl,
     dashboardUrl: 'http://localhost:8000',
     config: parseConfig({ flag: 'app_release', releases: { 'app:1.0': 'http://a:3000', 'app:1.1': 'http://b:3000' } }),
+    adminKey: undefined,
+    serverKey: undefined,
     envFile,
     log: () => {},
   });
