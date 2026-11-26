@@ -2,8 +2,9 @@
 #
 #   turnout compare <live> <new> [--goal "POST /signup"] [--split 50] [--port 3000]
 #       --split: % of visitors who get <new>, up to 50 (the rest get <live>); default 50
-#       <live>/<new>: two URLs (localhost:3001, http://localhost:3002) or two Docker images (myapp:1.0)
-#       --port: the port your images listen on (default 8080); not needed for URLs
+#       <live>/<new>: two URLs (localhost:3001, http://localhost:3002), two Docker images (myapp:1.0), or two
+#       branches of the git project you're in (main new-checkout: each built from its Dockerfile; your .env is passed)
+#       --port: the port your app listens on in its container (default: the Dockerfile's EXPOSE, else 8080)
 #   turnout open | status | down | reset [--yes]
 #
 # Same behaviour as bin/turnout (macOS, Linux). Files live in %USERPROFILE%\.turnout\projects\<this folder's name>.
@@ -72,6 +73,61 @@ function Show-Banner {
   Say ''
 }
 
+function Test-Branch([string]$r) {
+  if ($r -match '^https?://|[:=]' -or -not (Get-Command git -ErrorAction SilentlyContinue)) { return $false }
+  git rev-parse --verify --quiet "refs/heads/$r" *> $null
+  return $LASTEXITCODE -eq 0
+}
+function Get-Label([string]$b) { return ($b.ToLower() -replace '[^a-z0-9._-]+', '-') }
+function Get-ExposedPort([string]$b) {
+  $line = git show "refs/heads/${b}:Dockerfile" 2>$null | Where-Object { $_ -match '^\s*EXPOSE\s+(\d{1,5})' } | Select-Object -First 1
+  if ($line -and $line -match '(\d{1,5})') { return $Matches[1] }
+  return ''
+}
+# Builds a branch's last commit (git archive: committed files only) from its Dockerfile; returns the image tag.
+function Build-Branch([string]$b) {
+  git cat-file -e "refs/heads/${b}:Dockerfile" *> $null
+  if ($LASTEXITCODE -ne 0) { Die "branch $b has no Dockerfile at its root. Build it yourself and give the image name, or run it and give its URL." }
+  $sha = (git rev-parse --short "refs/heads/$b").Trim()
+  $tag = "turnout-$Name-$(Get-Label $b):$sha"
+  $logs = Join-Path $StateRoot '.builds'; New-Item -ItemType Directory -Force $logs | Out-Null
+  $log = Join-Path $logs "$Name-$(Get-Label $b).log"
+  docker image inspect $tag *> $null
+  if ($LASTEXITCODE -ne 0) {
+    Say "Building branch $b ($sha) from its Dockerfile..."
+    # Through cmd: a PowerShell pipeline would re-encode git archive's binary tar.
+    cmd /c "git archive --format=tar refs/heads/$b | docker build -t $tag - > `"$log`" 2>&1"
+    if ($LASTEXITCODE -ne 0) { Get-Content $log -Tail 20; Die "building branch $b failed (full log: $log)." }
+  }
+  return $tag
+}
+function Get-AppServices { return @(Compose config --services 2>$null | Where-Object { $_ -like 'turnout-*' }) }
+# Crashed: restarted, or not running. Seconds after start, long before doctor could tell.
+function Get-CrashedApps {
+  foreach ($svc in Get-AppServices) {
+    $id = Compose ps -a -q $svc 2>$null | Select-Object -First 1
+    if (-not $id) { continue }
+    $st = docker inspect -f '{{.State.Status}} {{.RestartCount}}' $id 2>$null
+    if ($st -ne 'running 0') { $svc }
+  }
+}
+# Release containers doctor says don't answer (its "expected: container <name> answers" lines).
+function Get-FailingApps {
+  $doc = Join-Path $State 'doctor.log'
+  if (-not (Test-Path $doc)) { return @() }
+  $lines = @(Get-Content $doc)
+  $out = @()
+  for ($i = 0; $i -lt $lines.Count; $i++) {
+    if ($lines[$i] -notmatch '\[FAIL\]') { continue }
+    foreach ($j in ($i + 1)..([Math]::Min($i + 2, $lines.Count - 1))) { if ($lines[$j] -match 'expected: container (\S+) answers') { $out += $Matches[1] } }
+  }
+  return @($out | Sort-Object -Unique)
+}
+function Show-AppLogs([string[]]$svcs) {
+  foreach ($svc in $svcs) { Write-Host "--- last log lines of ${svc}:"; Compose logs --no-log-prefix --tail 20 $svc 2>&1 | ForEach-Object { "$_" } }
+}
+$NotAnswering = "a version doesn't answer: its last log lines are above. If it needs a database or other services, start both versions yourself and run: turnout compare http://localhost:<port-a> http://localhost:<port-b>"
+
 function Invoke-Compare([string[]]$a) {
   if ($a.Count -lt 2) { Die 'usage: turnout compare <live> <new> [--goal "POST /signup"] [--split 50] [--port 3000]' }
   $Live = Normalise $a[0]; $New = Normalise $a[1]
@@ -87,13 +143,18 @@ function Invoke-Compare([string[]]$a) {
   $n = 0
   if (-not [int]::TryParse($Split, [ref]$n) -or $n -lt 1 -or $n -gt 50) { Die '--split is a whole percentage from 1 to 50 (Flagsmith splits the experiment''s visitors evenly)' }
   $Traffic = [string]($n * 2)   # visitors in the experiment, split evenly between <live> and <new>
-  foreach ($r in @($Live, $New)) {
-    if ($r -notmatch '^https?://' -and (Get-Command git -ErrorAction SilentlyContinue)) {
-      git rev-parse --verify --quiet "refs/heads/$r" *> $null
-      if ($LASTEXITCODE -eq 0) { Die "`"$r`" is a git branch. Comparing branches isn't built yet: run both versions (e.g. on ports 3001 and 3002) and give their URLs." }
-    }
-  }
   Need-Docker
+  # Branches of the git project here: each is built from its own Dockerfile into an image, labelled with the branch.
+  $script:Branches = $false
+  if ((Test-Branch $Live) -or (Test-Branch $New)) {
+    if (-not ((Test-Branch $Live) -and (Test-Branch $New))) { Die "give two branches, or two URLs, or two images (not a mix): `"$($a[0])`" and `"$($a[1])`"" }
+    if (-not $AppPort) { $AppPort = Get-ExposedPort $Live }
+    if (-not $AppPort) { Die "branch $Live's Dockerfile has no EXPOSE line, so the port your app listens on isn't known: add --port <port>." }
+    if (git status --porcelain 2>$null) { Say "Note: uncommitted changes aren't included; each branch is built from its last commit." }
+    $script:Branches = $true
+    $Live = "$(Get-Label $Live)=$(Build-Branch $Live)"
+    $New = "$(Get-Label $New)=$(Build-Branch $New)"
+  }
   Need-Image
   New-Item -ItemType Directory -Force $State | Out-Null
   $want = @("releases=$Live $New", "goal=$Goal", "split=$Split", "app_port=$AppPort")
@@ -118,9 +179,21 @@ function Invoke-Compare([string[]]$a) {
       '--release', $Live, '--release', $New, '--success', $Goal, '--traffic', $Traffic,
       '--proxy-port', $ProxyPort, '--console-port', $ConsolePort, '--flagsmith-port', $fsPort, '--image', $Image)
     if ($AppPort) { $newArgs += @('--port', $AppPort) }
+    $appEnv = Join-Path (Get-Location) '.env'
+    if ($script:Branches -and (Test-Path $appEnv)) { $newArgs += @('--app-env-file', $appEnv) }
     docker @newArgs *> (Join-Path $State 'new.log')
     if ($LASTEXITCODE -ne 0) { Get-Content (Join-Path $State 'new.log'); Die "couldn't write the setup for $Live and $New." }
     Set-Content -Encoding ascii $argsFile ($want + @("proxy_port=$ProxyPort", "console_port=$ConsolePort"))
+  }
+  if ($script:Branches) {
+    # Start the branch builds first and give them a few seconds: a crash shows now, before Flagsmith's set-up.
+    Say 'Starting both branches...'
+    $apps = Get-AppServices
+    Compose up -d @apps *> (Join-Path $State 'apps.log')
+    if ($LASTEXITCODE -ne 0) { Get-Content (Join-Path $State 'apps.log') -Tail 20; Die "couldn't start the branches." }
+    Start-Sleep 8
+    $crashed = @(Get-CrashedApps)
+    if ($crashed.Count) { Show-AppLogs $crashed; Compose down *> $null; Die $NotAnswering }
   }
   Say 'Starting Flagsmith and Turnout (the first time takes a few minutes)...'
   foreach ($step in @(@{ n = 'init'; a = @('run', '--rm', 'cli', 'init'); m = 'setting up Flagsmith failed' }, @{ n = 'up'; a = @('up', '-d', '--wait'); m = 'starting failed' })) {
@@ -129,7 +202,14 @@ function Invoke-Compare([string[]]$a) {
     if ($LASTEXITCODE -ne 0) { Get-Content $log -Tail 20; Die "$($step.m) (full log: $log)." }
   }
   $doc = Join-Path $State 'doctor.log'
-  Compose run --rm cli doctor *> $doc
+  # An app can take a few seconds to listen: check up to three times before calling a version broken.
+  foreach ($try in 1..3) {
+    Compose run --rm cli doctor *> $doc
+    if (-not (Get-FailingApps).Count) { break }
+    if ($try -lt 3) { Start-Sleep 10 }
+  }
+  $failing = @(Get-FailingApps)
+  if ($failing.Count) { Show-AppLogs $failing; Die $NotAnswering }
   Say "Check: $(Get-Content $doc | Where-Object { $_.Trim() } | Select-Object -Last 1)"
   Show-Banner
   Start-Process "http://127.0.0.1:$ConsolePort"
@@ -147,5 +227,5 @@ switch ($cmd) {
     if ($rest -notcontains '--yes') { $ok = Read-Host "Delete $Name's Turnout and Flagsmith data? [y/N]"; if ($ok -ne 'y') { exit 1 } }
     Compose down -v; Remove-Item -Recurse -Force $State; Say 'Wiped. turnout compare starts fresh.'
   }
-  default { Get-Content $PSCommandPath -TotalCount 7 | ForEach-Object { $_ -replace '^# ?', '' } }
+  default { Get-Content $PSCommandPath -TotalCount 9 | ForEach-Object { $_ -replace '^# ?', '' } }
 }
