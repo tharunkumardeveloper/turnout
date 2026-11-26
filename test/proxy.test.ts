@@ -302,3 +302,50 @@ test("Turnout's own check (debug token, no cookie) never counts; a simulated vis
   await (await fetch(`${base}/`, { headers: { ...headers, 'x-turnout-visitor': '1' } })).text();
   assert.equal(flags.exposures.length, before + 1, 'a one-page simulated visit is in the data');
 });
+
+test('the click script: added to pages only when asked for, and clicks reported by label', async () => {
+  const http = await import('node:http');
+  const { createProxy, CLICK_SCRIPT } = await import('../src/proxy/server.ts');
+  const { parseConfig } = await import('../src/config.ts');
+  const app = http.createServer((_q, r) => r.writeHead(200, { 'content-type': 'text/html' }).end('<h1>Hi</h1>'));
+  await new Promise<void>((r) => app.listen(0, '127.0.0.1', () => r()));
+  const appUrl = `http://127.0.0.1:${(app.address() as { port: number }).port}`;
+  const clicks: unknown[] = [];
+  const flags = { assign: async () => ({ variant: 'control', release: 'v1', enrolled: false }), track: () => {}, ready: () => true };
+  const config = parseConfig({ flag: 'f', releases: { v1: appUrl }, guardrails: [] });
+  const proxy = createProxy({ config, flags, onClick: (c: unknown) => clicks.push(c) } as never);
+  await new Promise<void>((r) => proxy.listen(0, '127.0.0.1', () => r()));
+  const base = `http://127.0.0.1:${(proxy.address() as { port: number }).port}`;
+  try {
+    const page = await (await fetch(`${base}/`, { headers: { accept: 'text/html' } })).text();
+    assert.match(page, /<h1>Hi<\/h1><script src="\/__turnout\/clicks.js" defer><\/script>$/);
+    assert.equal(await (await fetch(`${base}/__turnout/clicks.js`)).text(), CLICK_SCRIPT);
+    const sent = await fetch(`${base}/__turnout/click`, { method: 'POST', body: JSON.stringify({ kind: 'button', label: 'Sign up', target: '' }) });
+    assert.equal(sent.status, 204);
+    assert.equal((clicks[0] as { label: string }).label, 'Sign up');
+    assert.doesNotMatch(CLICK_SCRIPT, /\.value\b(?!\s*\|\|)/); // a button's own value as its label, never a field's
+  } finally {
+    proxy.close();
+    app.close();
+  }
+});
+
+test('a GET whose connection the app resets is sent once more, not answered 502', async () => {
+  const { createProxy } = await import('../src/proxy/server.ts');
+  let n = 0;
+  const app = http.createServer((q, r) => (++n === 1 ? q.socket.destroy() : r.writeHead(200, { 'content-type': 'text/plain' }).end('ok')));
+  await new Promise<void>((r) => app.listen(0, '127.0.0.1', () => r()));
+  const appUrl = `http://127.0.0.1:${(app.address() as AddressInfo).port}`;
+  const flags = { assign: async () => ({ variant: 'control', release: 'v1', enrolled: false }), track: () => {}, ready: () => true };
+  const proxy = createProxy({ config: parseConfig({ flag: 'f', releases: { v1: appUrl }, guardrails: [] }), flags } as never);
+  await new Promise<void>((r) => proxy.listen(0, '127.0.0.1', () => r()));
+  try {
+    const res = await fetch(`http://127.0.0.1:${(proxy.address() as AddressInfo).port}/`);
+    assert.equal(res.status, 200);
+    assert.equal(await res.text(), 'ok');
+    assert.equal(n, 2);
+  } finally {
+    proxy.close();
+    app.close();
+  }
+});

@@ -1,3 +1,4 @@
+import { localSnapshot, type FlagSnapshot } from './settings-check.ts';
 import { Flag, Flagsmith, type FlagsmithConfig } from '@flagsmith/nodejs';
 import type { Assignment, FlagSource, FlagSourceStatus } from '../proxy/server.ts';
 import { receiptFetch, Receipts, type Receipt } from './receipts.ts';
@@ -46,7 +47,7 @@ export function dropLogger(receipts: Receipts, write: (line: string) => void = (
   };
 }
 
-export function createFlagSource(opts: Options): FlagSource & { close(): Promise<void>; receipts: Receipts; held(): number } {
+export function createFlagSource(opts: Options): FlagSource & { close(): Promise<void>; receipts: Receipts; held(): number; snapshot(): FlagSnapshot } {
   const receipts = new Receipts(opts.onUndelivered);
   let environmentAt: number | null = null;
   let lastError: string | null = null;
@@ -106,6 +107,8 @@ export function createFlagSource(opts: Options): FlagSource & { close(): Promise
 
   return {
     ready: () => environmentAt !== null,
+    // The flag as this copy holds it, for the settings check (settings-check.ts).
+    snapshot: () => localSnapshot(flagsmith, opts.flag),
     status: (): FlagSourceStatus => ({
       ready: environmentAt !== null,
       environmentAgeSeconds: environmentAt === null ? null : Math.round((Date.now() - environmentAt) / 1000),

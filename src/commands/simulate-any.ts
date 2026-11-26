@@ -138,12 +138,13 @@ export type AnySimOptions = {
   debugToken: string; // the proxy names the release it served for this token
   rates?: Record<string, number>; // the hidden conversion rate per release; drawn when not given
   truth?: Truth; // the older two-version form of `rates`
+  actionRates?: { action: HttpRule; rates: Record<string, number> }[]; // other actions, each at a pretend rate per release
   rand?: () => number;
   fetchImpl?: typeof fetch;
   log?: (line: string) => void;
 };
 export type ReleaseTally = { visitors: number; goals: number; errors: number; pages: number; bounces: number; forms: number };
-export type AnySimReport = { rates: Record<string, number>; truth: Truth | null; byRelease: Record<string, ReleaseTally>; spa: boolean };
+export type AnySimReport = { rates: Record<string, number>; truth: Truth | null; byRelease: Record<string, ReleaseTally>; spa: boolean; byAction?: Record<string, Record<string, number>>; noAnswer?: string[] };
 
 export async function simulateAny(o: AnySimOptions): Promise<AnySimReport> {
   const rand = o.rand ?? Math.random;
@@ -153,6 +154,8 @@ export async function simulateAny(o: AnySimOptions): Promise<AnySimReport> {
   const byRelease: AnySimReport['byRelease'] = {};
   const tally = (release: string) => (byRelease[release] ??= { visitors: 0, goals: 0, errors: 0, pages: 0, bounces: 0, forms: 0 });
   let homeLinks = 0;
+  const byAction: Record<string, Record<string, number>> = {};
+  const noAnswer: string[] = []; // why a visitor got no answer at all (the first five)
   let serial = 0;
 
   const visit = async () => {
@@ -226,6 +229,19 @@ export async function simulateAny(o: AnySimOptions): Promise<AnySimReport> {
       // Counted only as Flagsmith counts it: an answer the goal's status matches (a 404 page is no conversion).
       if (matchesStatus(o.goal.status, res.status)) t.goals++;
     }
+    // Other actions (secondary metrics), each at its own pretend rate per version.
+    for (const a of o.actionRates ?? []) {
+      if (rand() >= (a.rates[release] ?? 0)) continue;
+      const form = a.action.method === 'GET' ? undefined : forms.find((x) => ruleMatches(a.action, x.method, x.action));
+      const g = goalRequest(a.action);
+      const res = form ? await request(form.method, form.action, fillForm(form, n)) : await request(g.method, g.path);
+      await res.arrayBuffer();
+      if (matchesStatus(a.action.status, res.status)) {
+        const key = `${a.action.method} ${a.action.path}`;
+        ((byAction[key] ??= {})[release] ??= 0);
+        byAction[key]![release]!++;
+      }
+    }
   };
 
   let next = 0;
@@ -233,13 +249,16 @@ export async function simulateAny(o: AnySimOptions): Promise<AnySimReport> {
   const worker = async () => {
     while (next < o.visitors) {
       next++;
-      await visit().catch(() => tally('no answer').visitors++);
+      await visit().catch((error: Error) => {
+        tally('no answer').visitors++;
+        if (noAnswer.length < 5) noAnswer.push(String((error as Error & { cause?: { code?: string } }).cause?.code ?? error.message));
+      });
       done++;
       if (done % 100 === 0 || done === o.visitors) o.log?.(`${done}/${o.visitors} simulated visitors`);
     }
   };
   await Promise.all(Array.from({ length: Math.max(1, Math.min(o.concurrency, o.visitors)) }, worker));
-  return { rates, truth, byRelease, spa: homeLinks === 0 };
+  return { rates, truth, byRelease, spa: homeLinks === 0, byAction, noAnswer };
 }
 
 /** The hidden rates in one sentence, for the end of a run. */

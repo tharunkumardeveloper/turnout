@@ -69,12 +69,37 @@ type Options = {
   upstreamTimeoutMs?: number; // default 30 s, then 504
   secureCookies?: boolean; // also set automatically for https or X-Forwarded-Proto: https
   viewSwitch?: boolean; // /__turnout/view?release=…: look at one release, uncounted (TURNOUT_VIEW_SWITCH=1)
+  // Set: every page gets a small script that reports clicks on links and buttons and form sends, by visible label.
+  onClick?: (click: ClickEvent) => void;
   memory?: ReleaseMemory;
   log?: (line: Record<string, unknown>) => void; // one access-log entry per request
   warn?: (message: string) => void;
 };
 
 class Deadline extends Error {}
+
+export type ClickEvent = { kind: 'link' | 'button' | 'submit'; label: string; target: string; identity: string | undefined; release: string | null };
+
+// Runs in the visitor's browser: a click on a link or button, or a form send, is reported by what it says on it
+// ("Sign up", "Download CV") and where it goes. Never a field's value. sendBeacon, so leaving the page doesn't lose it.
+export const CLICK_SCRIPT = `(() => {
+  const send = (kind, el, target) => {
+    const label = (el.getAttribute('aria-label') || el.innerText || el.value || el.title || '').trim().replace(/\\s+/g, ' ').slice(0, 80);
+    const body = JSON.stringify({ kind, label, target: String(target || '').slice(0, 200) });
+    if (!navigator.sendBeacon || !navigator.sendBeacon('${OWN_PREFIX}click', new Blob([body], { type: 'application/json' }))) fetch('${OWN_PREFIX}click', { method: 'POST', body, keepalive: true }).catch(() => {});
+  };
+  addEventListener('click', (e) => {
+    const el = e.target instanceof Element ? e.target.closest('a[href], button, [role=button], input[type=submit], input[type=button]') : null;
+    if (!el || el.closest('form') && (el.type === 'submit' || el.tagName === 'BUTTON' && !el.type)) return;
+    send(el.tagName === 'A' ? 'link' : 'button', el, el.getAttribute('href'));
+  }, true);
+  addEventListener('submit', (e) => {
+    const f = e.target;
+    const b = e.submitter || f.querySelector('[type=submit], button');
+    send('submit', b || f, (f.getAttribute('method') || 'GET').toUpperCase() + ' ' + (f.getAttribute('action') || location.pathname));
+  }, true);
+})();
+`;
 
 export function createProxy(opts: Options): http.Server {
   const { config, flags, onTraffic, receipts, previewToken, debugToken } = opts;
@@ -263,7 +288,7 @@ export function createProxy(opts: Options): http.Server {
     // Only a previewing browser or a debug-token request tells the app which release it is (the app may show a
     // "Release 1.5" badge); forwardHeaders already dropped any copy a client sent, so nobody else can ask for it.
     if (previewing || debugging) upstreamHeaders[RELEASE_HEADER] = release;
-    const upstreamReq = client.request(url, { method, headers: upstreamHeaders, timeout: upstreamTimeoutMs, lookup: upstreamLookup }, (upstreamRes) => {
+    const onResponse = (upstreamRes: http.IncomingMessage) => {
       const status = upstreamRes.statusCode ?? 502;
       const latencyMs = elapsed(); // time to the app's response headers
       const headers = responseHeaders(upstreamRes.headers, upstream, secure);
@@ -277,24 +302,45 @@ export function createProxy(opts: Options): http.Server {
         const cookie = `${ID_COOKIE}=${id}; Path=/; Max-Age=${ONE_YEAR_S}; HttpOnly; SameSite=Lax${secure ? '; Secure' : ''}`;
         headers['set-cookie'] = [...asArray(headers['set-cookie']), cookie];
       }
+      // The click script, added to the end of every uncompressed page (opt-in).
+      const addScript = Boolean(opts.onClick) && /text\/html/i.test(String(headers['content-type'] ?? '')) && !headers['content-encoding'] && method !== 'HEAD';
+      if (addScript) delete headers['content-length'];
       res.writeHead(status, headers);
-      upstreamRes.pipe(res);
+      upstreamRes.pipe(res, { end: !addScript });
+      if (addScript) upstreamRes.on('end', () => res.end(`<script src="${OWN_PREFIX}clicks.js" defer></script>`));
       upstreamRes.on('end', () => finish(status, latencyMs));
       upstreamRes.on('error', () => res.destroy()); // a body cut mid-way must not look complete
-    });
-    upstreamReq.on('timeout', () => {
-      timedOut = true;
-      upstreamReq.destroy(new Error('upstream timeout'));
-    });
-    upstreamReq.on('error', () => {
-      const status = timedOut ? 504 : 502;
-      if (!res.headersSent) {
-        plain(res, status, timedOut ? 'Turnout: this version of the app took too long to answer.\n' : 'Turnout: this version of the app is unreachable.\n');
-      } else {
-        res.destroy();
-      }
-      finish(status, elapsed());
-    });
+    };
+    const open = () => client.request(url, { method, headers: upstreamHeaders, timeout: upstreamTimeoutMs, lookup: upstreamLookup }, onResponse);
+    let upstreamReq = open();
+    let retried = false;
+    const wire = (r: http.ClientRequest) => {
+      r.on('timeout', () => {
+        timedOut = true;
+        r.destroy(new Error('upstream timeout'));
+      });
+      r.on('error', (error: NodeJS.ErrnoException) => {
+        // An app closes an idle kept-alive connection just as the proxy reuses it: the request fails before any
+        // answer (ECONNRESET). A GET or HEAD has no body to lose, so it is sent once more on a fresh connection; the
+        // visitor (already counted by Flagsmith) would otherwise get a 502 for nothing.
+        if (!retried && !timedOut && !res.headersSent && (method === 'GET' || method === 'HEAD') && (error.code === 'ECONNRESET' || error.code === 'EPIPE')) {
+          retried = true;
+          upstreamReq = open();
+          wire(upstreamReq);
+          upstreamReq.end();
+          return;
+        }
+        const status = timedOut ? 504 : 502;
+        if (!res.headersSent) {
+          if (debugging) res.setHeader('x-turnout-release', release); // which version failed, for Turnout's checks
+          plain(res, status, timedOut ? 'Turnout: this version of the app took too long to answer.\n' : 'Turnout: this version of the app is unreachable.\n');
+        } else {
+          res.destroy();
+        }
+        finish(status, elapsed());
+      });
+    };
+    wire(upstreamReq);
     // The visitor went away: stop the app's work too.
     res.on('close', () => {
       if (!res.writableFinished) upstreamReq.destroy();
@@ -324,6 +370,26 @@ export function createProxy(opts: Options): http.Server {
     };
     const pathname = o.url.pathname;
     const params = new URLSearchParams(o.url.search);
+
+    // The click script (opt-in, Try it only): what a visitor clicks or sends, by its visible label. Never what they type.
+    if (opts.onClick && pathname === `${OWN_PREFIX}clicks.js`) {
+      res.writeHead(200, { 'content-type': 'text/javascript; charset=utf-8', 'cache-control': 'no-store' });
+      return void res.end(CLICK_SCRIPT);
+    }
+    if (opts.onClick && pathname === `${OWN_PREFIX}click` && o.req.method === 'POST') {
+      let text = '';
+      o.req.setEncoding('utf8');
+      for await (const chunk of o.req) {
+        text += chunk;
+        if (text.length > 2048) return void res.writeHead(413).end();
+      }
+      try {
+        const b = JSON.parse(text) as { kind?: unknown; label?: unknown; target?: unknown };
+        const kind = b.kind === 'submit' || b.kind === 'link' || b.kind === 'button' ? b.kind : null;
+        if (kind) opts.onClick({ kind, label: String(b.label ?? '').slice(0, 80), target: String(b.target ?? '').slice(0, 200), identity, release: readCookie(o.req.headers.cookie, VIEW_COOKIE) ?? null });
+      } catch {}
+      return void res.writeHead(204, { 'cache-control': 'no-store' }).end();
+    }
 
     if (pathname === `${OWN_PREFIX}health`) {
       const status = flags.status?.() ?? null;

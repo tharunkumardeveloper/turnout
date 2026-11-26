@@ -6,6 +6,13 @@ import { existsSync, readFileSync, readdirSync, statSync } from 'node:fs';
 import { join, relative, resolve } from 'node:path';
 // @ts-expect-error: a plain browser module with no types (the console page loads it as is)
 import { SKIP, detect, tarParts } from '../console/ui/try-model.js';
+// @ts-expect-error: a plain browser module with no types (the console page loads it as is)
+import * as words from '../console/ui/verdict.js';
+
+// Shared with the console page (verdict.js): the one-sentence verdict, the split check and the report.
+export const verdict = words.verdict as (state: any, names?: Record<string, string>) => string;
+export const splitCheck = words.splitCheck as (arms: Record<string, { n: number }>) => { ok: boolean; text: string };
+export const report = words.report as (state: any, at?: Date) => string;
 
 export type TryClient = { call: <T = any>(path: string, init?: RequestInit) => Promise<T> };
 
@@ -136,50 +143,6 @@ export function afterShip(release: string, names: Record<string, string> = {}): 
 }
 
 const pct = (x: number) => `${Math.round(x * 100)}%`;
-
-/** One sentence from Flagsmith's numbers: "B gets 18% more signup, 97% sure, no slowdown: ship B". */
-export function verdict(state: any, names: Record<string, string> = {}): string {
-  const r = state.results;
-  if (!r?.metrics?.length) return 'Not sure yet: Flagsmith has no results for this test. Send visitors, then run turnout results again.';
-  const goal = r.metrics.find((m: any) => m.role === 'goal') ?? r.metrics[0];
-  const w = r.winner;
-  const arms = Object.entries(goal.arms ?? {}) as [string, { n: number }][];
-  const short = arms.filter(([, a]) => a.n < 50);
-  if (short.length) return `Not sure yet: ${short.map(([k, a]) => `${k} has ${a.n} of 50 visitors`).join(', ')}.`;
-  if (!w) return `Not sure yet: no version is ahead on ${goal.name}. Keep it running.`;
-  const who = names[w.release ?? ''] ?? w.release ?? w.key;
-  const lift = goal.byArm?.[w.key]?.lift ?? goal.v2?.lift;
-  const losing = (r.losingGuardrails ?? []).map((g: any) => g.metric);
-  const call = r.recommendation?.call;
-  return `${who} ${lift != null && w.key !== 'control' ? `gets ${pct(Math.abs(lift))} ${lift >= 0 ? 'more' : 'fewer'} ${goal.name}` : `leads on ${goal.name}`}, ${pct(w.chanceToWin)} sure, ${losing.length ? `but worse on ${losing.join(', ')}` : 'no safety check losing'}: ${call === 'ship' ? `ship ${who}` : call === 'revert' ? 'revert' : 'keep it running'}.`;
-}
-
-/** Split check: visitors per arm vs an even split. A chi-square past 10.83 (p < 0.001) means the split is off. */
-export function splitCheck(arms: Record<string, { n: number }>): { ok: boolean; text: string } {
-  const entries = Object.entries(arms);
-  const total = entries.reduce((n, [, a]) => n + a.n, 0);
-  if (!total) return { ok: true, text: 'Split check: no visitors yet.' };
-  const expected = total / entries.length;
-  const chi = entries.reduce((x, [, a]) => x + (a.n - expected) ** 2 / expected, 0);
-  const ok = chi < 10.83;
-  return { ok, text: `Split check: ${entries.map(([k, a]) => `${k} ${a.n}`).join(', ')} for an even split: ${ok ? 'as expected' : 'off, so the results may be biased (check that every version answers)'}.` };
-}
-
-/** The report: the verdict, the split check and every metric as Flagsmith returned it, in Markdown. */
-export function report(state: any, at = new Date()): string {
-  const r = state.results;
-  const lines = [`# Test report: ${state.experiment?.name ?? state.flag ?? 'Try it'}`, '', `${at.toISOString().slice(0, 16).replace('T', ' ')} UTC. Flagsmith's results as of ${r?.asOf ?? 'never'}.`, '', `**${verdict(state, state.names)}**`, ''];
-  if (!r) return lines.join('\n') + '\n';
-  const goal = r.metrics.find((m: any) => m.role === 'goal') ?? r.metrics[0];
-  lines.push(splitCheck(goal.arms).text, '', '| Metric | Role | Arm | Visitors | Mean | Lift | 95% interval | Chance to win |', '|---|---|---|---|---|---|---|---|');
-  for (const m of r.metrics) {
-    for (const [k, a] of Object.entries(m.arms) as [string, { n: number; mean: number }][]) {
-      const vs = m.byArm?.[k] ?? (k === 'v2' ? m.v2 : null);
-      lines.push(`| ${m.name} | ${m.role} | ${k} | ${a.n} | ${+a.mean.toFixed(4)} | ${vs ? pct(vs.lift) : ''} | ${vs ? `${pct(vs.ciLow)} to ${pct(vs.ciHigh)}` : ''} | ${vs ? pct(vs.chanceToWin) : ''} |`);
-    }
-  }
-  return lines.join('\n') + '\n';
-}
 
 export async function resultsCommand(c: TryClient, full = false, log = console.log, asReport = false): Promise<void> {
   const state = await c.call('/judge/state');

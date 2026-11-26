@@ -26,11 +26,12 @@ import { AdminClient } from '../flagsmith/admin.ts';
 import { latestExperiment } from '../flagsmith/experiments.ts';
 import { createFlagSource } from '../flagsmith/flag-source.ts';
 import { pinnable, readPin, setPin } from '../flagsmith/pins.ts';
-import { createProxy, readCookie } from '../proxy/server.ts';
+import { createProxy, readCookie, type ClickEvent } from '../proxy/server.ts';
 import { TrafficFeed } from '../proxy/feed.ts';
 import type { Docker } from './docker.ts';
 import { common, describeAction, walk } from './discover.ts';
 import { ActionLog, createTrickle, visitorsNeeded } from './watch.ts';
+import { compareSnapshots, fetchRemoteSnapshot } from '../flagsmith/settings-check.ts';
 import { databaseFor, generatedDockerfile, missingSettings, tarAppend, tarIndex, wantsDatabase } from './autobuild.ts';
 import { readFileSync } from 'node:fs';
 
@@ -44,7 +45,7 @@ const LABELS = SLOTS.map((s) => `try:${s}`);
 export type VersionSource = { kind: 'dockerfile' | 'git' | 'image' | 'folder' | 'imagefile'; value: string; port?: number; name?: string; dockerfile?: string };
 export const UPLOAD_ID = /^[a-f0-9]{24}$/;
 export const MAX_UPLOAD = 2 * 1024 ** 3;
-export type BuildRequest = { versions: VersionSource[]; goal?: string; rates?: number[]; env?: string; database?: 'postgres' | 'mysql' };
+export type BuildRequest = { versions: VersionSource[]; goal?: string; secondary?: { action: string; rates?: number[] }[]; rates?: number[]; env?: string; database?: 'postgres' | 'mysql' };
 type Stage = { title: string; status: 'todo' | 'running' | 'done' | 'failed'; detail?: string };
 /** One line of the build log: when, from whom (a version's letter, or Turnout / Flagsmith), how it reads. */
 export type LogLine = { at: string; from: string; level: 'info' | 'step' | 'ok' | 'error'; text: string };
@@ -72,6 +73,7 @@ export type BuildState = {
   // What a version that didn't start asked for: the settings its error names, and a database (one click: database).
   // What a visitor can do on every version, read off the running versions (never counted), best goal first.
   actions?: { goal: string; label: string }[];
+  secondary?: { action: string; rates?: number[] }[]; // other actions counted as secondary metrics, each with its pretend rates
   goalSince?: string | null; // the goal changed mid-test: counted from then (a new experiment)
   needs?: { settings: string[]; database: 'postgres' | 'mysql' | null } | null;
 };
@@ -305,7 +307,7 @@ export function startTryit(o: TryitOptions) {
       old.closeAllConnections?.();
       await new Promise<void>((r) => old.close(() => r()));
     }
-    const server = createProxy({ config, flags, receipts: flags.receipts, onTraffic: (e) => (feed.publish(e), seen.record(e)), viewSwitch: true, previewToken: debugToken, debugToken, log: () => {} } as Parameters<typeof createProxy>[0]);
+    const server = createProxy({ config, flags, receipts: flags.receipts, onTraffic: (e) => (feed.publish(e), seen.record(e)), onClick: (c: ClickEvent) => seen.recordClick(c), viewSwitch: true, previewToken: debugToken, debugToken, log: () => {} } as Parameters<typeof createProxy>[0]);
     await new Promise<void>((r) => server.listen(o.proxyPort, '0.0.0.0', () => r()));
     proxyServer = server;
   }
@@ -366,11 +368,15 @@ export function startTryit(o: TryitOptions) {
     // The flag and its metrics in Flagsmith (idempotent): every slot label is a variant value, so a later build
     // with a different number of versions reuses the same flag.
     const goal = state.goal ? parseSuccess(state.goal) : null;
+    const eventOf = (path: string) => path.replace(/[^a-z0-9]+/gi, '_').replace(/^_|_$/g, '').toLowerCase() || 'goal';
+    // Secondary metrics: other actions, counted alongside the goal (never one that is the goal).
+    const secondary = (state.secondary ?? []).filter((x) => x.action !== state.goal).map((x) => ({ ...x, when: parseSuccess(x.action) }));
     const raw = {
       flag: TRY_FLAG,
       releases: Object.fromEntries(LABELS.map((l) => [l, upstream[l] ?? `http://try-${l.slice(4)}:80`])),
       ...(goal ? { goal: { event: goal.path.replace(/[^a-z0-9]+/gi, '_').replace(/^_|_$/g, '').toLowerCase() || 'goal', when: goal } } : {}),
       guardrails: ['doc_latency_ms', 'server_error'],
+      ...(goal && secondary.length ? { metrics: secondary.map((x) => ({ event: `${eventOf(x.when.path)}_${x.when.method.toLowerCase()}`, when: x.when })) } : {}),
       traffic: 100,
     };
     const initConfig = parseConfig(raw);
@@ -387,7 +393,7 @@ export function startTryit(o: TryitOptions) {
     // allows (step 6): the judge's lock keeps them out of a running step.
     sendSteady = async (visitors: number) => {
       if (lock.busy || !judge) return;
-      await simulateAny({ target: `http://127.0.0.1:${o.proxyPort}`, visitors, concurrency: 5, releases, goal: config.goal.when, debugToken, rates });
+      await simulateAny({ target: `http://127.0.0.1:${o.proxyPort}`, visitors, concurrency: 5, releases, goal: config.goal.when, actionRates: secondary.map((x) => ({ action: x.when, rates: Object.fromEntries(releases.map((r, i) => [r, x.rates?.[releases.length === 2 && versions.length === 1 ? 0 : i] ?? 0.1])) })), debugToken, rates });
       const s = await judge.state();
       const allowed = s.results?.refreshAllowedAt;
       if (s.experiment && (!allowed || Date.parse(allowed) <= Date.now()) && !lock.busy) await judge.run({ action: 'score', experimentId: s.experiment.id });
@@ -400,12 +406,14 @@ export function startTryit(o: TryitOptions) {
         // metrics it is started with.
         metrics: [
           { name: config.goal.event, expected_direction: config.goal.speedOnly ? 'decrease' : 'increase' },
+          ...(config.metrics ?? []).map((m) => ({ name: m.event, expected_direction: 'increase' })),
           ...config.guardrails.filter((g) => g !== config.goal.event).map((g) => ({ name: g, expected_direction: 'not_increase' })),
         ],
         deps: {
           // Your app isn't the demo shop: the explorer walks its own links and fills its forms (simulate-any.ts).
           simulate: async (opts) => {
-            const report = await simulateAny({ target: opts.target, visitors: opts.visitors, concurrency: 20, releases, goal: config.goal.when, debugToken, rates, log: opts.log });
+            const report = await simulateAny({ target: opts.target, visitors: opts.visitors, concurrency: 20, releases, goal: config.goal.when, actionRates: secondary.map((x) => ({ action: x.when, rates: Object.fromEntries(releases.map((r, i) => [r, x.rates?.[releases.length === 2 && versions.length === 1 ? 0 : i] ?? 0.1])) })), debugToken, rates, log: opts.log });
+            if (report.noAnswer?.length) note(`${report.byRelease['no answer']?.visitors ?? 0} simulated visitors got no answer (Flagsmith may still count them): ${report.noAnswer.join(', ')}`, 'Turnout', 'error');
             const byRelease = Object.fromEntries(Object.entries(report.byRelease).map(([r, t]) => [r, { visitors: t.visitors, carts: 0, orders: t.goals, pageErrors: t.errors }]));
             return { byVariant: {}, byRelease, failedOrders: 0, durationMs: 0 };
           },
@@ -446,6 +454,7 @@ export function startTryit(o: TryitOptions) {
     rates = Object.fromEntries(releases.map((r, i) => [r, Math.min(1, Math.max(0, req.rates?.[versions.length === 1 ? 0 : i] ?? 0.1))]));
     Object.assign(state, {
       needs: null,
+      secondary: (req.secondary ?? []).slice(0, 5),
       actions: [],
       status: 'building', kind: kindFor(versions.length), error: null, log: [], goal: req.goal?.trim() || null,
       versions: versions.map((v, i) => ({
@@ -641,7 +650,14 @@ export function startTryit(o: TryitOptions) {
             return send(res, 400, { error: (error as Error).message });
           }
         }
-        void build({ versions, goal: body.goal, rates: body.rates, env: typeof body.env === 'string' ? body.env.slice(0, 20_000) : undefined, database: body.database === 'postgres' || body.database === 'mysql' ? body.database : undefined });
+        for (const x of Array.isArray(body.secondary) ? body.secondary : []) {
+          try {
+            parseSuccess(String(x?.action ?? ''));
+          } catch (error) {
+            return send(res, 400, { error: `Secondary metric: ${(error as Error).message}` });
+          }
+        }
+        void build({ versions, goal: body.goal, rates: body.rates, env: typeof body.env === 'string' ? body.env.slice(0, 20_000) : undefined, database: body.database === 'postgres' || body.database === 'mysql' ? body.database : undefined, secondary: Array.isArray(body.secondary) ? body.secondary.filter((x) => x && typeof x.action === 'string').map((x) => ({ action: x.action.trim(), rates: Array.isArray(x.rates) ? x.rates.map((r) => Math.min(1, Math.max(0, Number(r) || 0))) : undefined })) : undefined });
         return send(res, 202, { ok: true });
       }
       // What Turnout has seen visitors do (through the proxy), the actions offered as goals, and the visitors needed.
@@ -655,6 +671,13 @@ export function startTryit(o: TryitOptions) {
           counted: goalMetric ? Object.fromEntries(Object.entries(goalMetric.arms).map(([k, a]) => [k, a.n])) : {},
           steady: steady.status(),
         });
+      }
+      // Settings check: the proxy's copy of the flag vs what Flagsmith serves now.
+      if (p === '/api/try/settings-check') {
+        const local = flags.snapshot();
+        const remote = await fetchRemoteSnapshot(o.apiUrl, o.serverKey, TRY_FLAG);
+        const differences = compareSnapshots(local, remote);
+        return send(res, 200, { ok: differences.length === 0, differences, ageSeconds: flags.status?.().environmentAgeSeconds ?? null, local, remote });
       }
       // The goal changes mid-test: a new experiment on the same versions, counting from now.
       if (p === '/api/try/goal' && req.method === 'POST') {

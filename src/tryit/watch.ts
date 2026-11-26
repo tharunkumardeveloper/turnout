@@ -29,6 +29,18 @@ export class ActionLog {
     if (!this.seen.has(action) && this.seen.size >= 500) return;
     this.seen.set(action, a);
   }
+  /** A click or form send reported by the click script, by its visible label: 'click "Sign up"'. */
+  recordClick(c: { kind: string; label: string; target: string; release: string | null }): void {
+    if (!c.label && !c.target) return;
+    const what = c.label ? `"${c.label}"` : c.target;
+    const action = `${c.kind === 'submit' ? 'send' : 'click'} ${what}${c.kind === 'link' && /^mailto:/i.test(c.target) ? ' (email link)' : ''}`;
+    const a = this.seen.get(action) ?? { action, count: 0, byRelease: {}, statuses: {} };
+    a.count++;
+    const r = c.release ?? 'browser';
+    a.byRelease[r] = (a.byRelease[r] ?? 0) + 1;
+    if (!this.seen.has(action) && this.seen.size >= 500) return;
+    this.seen.set(action, a);
+  }
   list(): SeenAction[] {
     return [...this.seen.values()].sort((x, y) => y.count - x.count);
   }

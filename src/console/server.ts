@@ -428,7 +428,7 @@ export function createConsole(opts: ConsoleOptions): http.Server {
           return json(res, 200, { dashboardUrl: opts.judge?.dashboardUrl ?? null, email: login?.email ?? null, password: login?.password ?? null });
         }
         const rest = url.pathname.startsWith('/try/api/') ? url.pathname.slice(4) : url.pathname;
-        const allowed = ['/api/try/status', '/api/try/build', '/api/try/actions', '/api/try/goal', '/api/try/steady', '/api/try/upload', '/api/try/repo-files', '/api/judge/state', '/api/judge/job', '/api/judge/run', '/api/traffic', '/api/you', '/api/pin'];
+        const allowed = ['/api/try/status', '/api/try/build', '/api/try/actions', '/api/try/goal', '/api/try/steady', '/api/try/settings-check', '/api/try/upload', '/api/try/repo-files', '/api/judge/state', '/api/judge/job', '/api/judge/run', '/api/traffic', '/api/you', '/api/pin'];
         if (!allowed.includes(rest)) return json(res, 404, { error: 'not found' });
         return relayTry(`${opts.tryitUrl.replace(/\/$/, '')}${rest}${rest === '/api/try/repo-files' ? url.search : ''}`, req, res);
       }

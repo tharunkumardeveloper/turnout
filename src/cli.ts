@@ -434,12 +434,22 @@ const commands: Record<string, () => Promise<void>> = {
     const { startTryit } = await import('./tryit/server.ts');
     const docker = createDocker();
     if (!(await docker.ping())) throw new Error("Can't reach Docker at /var/run/docker.sock: tryit needs the Docker socket mounted.");
+    const admin = await adminKey();
+    // Simulated visitors in their own Flagsmith environment (TURNOUT_TRYIT_SHARED_ENV=1: the main one, as before).
+    let keys = { envKey: envKey(), serverKey: serverKey() };
+    if (process.env.TURNOUT_TRYIT_SHARED_ENV !== '1') {
+      const { simEnvironment, SIM_ENVIRONMENT } = await import('./flagsmith/sim-environment.ts');
+      const { AdminClient } = await import('./flagsmith/admin.ts');
+      const sim = await simEnvironment(new AdminClient(apiUrl(), { apiKey: admin }), keys.envKey, join(STATE_DIR, 'tryit', 'sim-environment.json'));
+      keys = { envKey: sim.envKey, serverKey: sim.serverKey };
+      console.log(`tryit: simulated visitors go to the Flagsmith environment "${SIM_ENVIRONMENT}"${sim.created ? ' (created)' : ''}`);
+    }
     const tryit = startTryit({
       docker,
       apiUrl: apiUrl(),
-      adminKey: await adminKey(),
-      serverKey: serverKey(),
-      envKey: envKey(),
+      adminKey: admin,
+      serverKey: keys.serverKey,
+      envKey: keys.envKey,
       dashboardUrl: process.env.FLAGSMITH_DASHBOARD_URL || 'http://127.0.0.1:8000',
       publicShop: process.env.TURNOUT_TRYIT_SHOP_URL || 'http://127.0.0.1:8085',
       proxyPort: Number(env('TRYIT_PROXY_PORT', '8085')),

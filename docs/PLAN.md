@@ -23,10 +23,14 @@ only counts if it works on all of them.
   experiment, "counting from"); steady simulated visitors with Flagsmith's results fetched every 5 minutes; visitors
   needed; the split check; the one-sentence verdict, the Markdown report, history and the step after Ship.
   Terminal: `turnout try | goals | goal | steady | results [--full] [--report] | history`.
-- Still to do: the optional click script (browser actions), the settings check against Flagsmith, pretend rates per
-  action, a separate Flagsmith environment for simulated visitors, the console's results card and full panel
-  (the terminal has both), and the console's buttons for goal change and steady visitors (the API has them).
-- Not yet checked on screen: the console layout after the latest changes, the Try it wizard, and the tour inside Flagsmith.
+- Also done: the click script (Try it only: links, buttons and form sends by visible label, never what is typed), the
+  settings check (the proxy's copy of the flag vs Flagsmith's), secondary metrics with pretend rates per action and
+  version, simulated visitors in their own Flagsmith environment ("Try it (simulated visitors)"), a GET retried once
+  when an app resets a kept-alive connection (it had cost 1 to 2 visitors per run), and **Your test** on /app: the
+  verdict card, every metric, the checks, the goal choice, steady visitors and the report.
+- Not done: building with Cloud Native Buildpacks (Turnout writes a Dockerfile instead).
+- Not yet checked on screen: the console layout, the Try it wizard and its needs card, Your test on /app, and the tour
+  inside Flagsmith.
 
 ## 1. A test set and a scoreboard (first)
 
