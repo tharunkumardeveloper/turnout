@@ -19,6 +19,7 @@ export type AutopilotOptions = {
   errorPauseMs?: number; // after a refused or failed step; default 60 s
   maxKeepRunning?: number; // "keep running" this many times on one experiment (each waits out Flagsmith's 5-minute refresh limit), then follow its pick; default 1
   pollMs?: number; // how often it looks again while waiting (local checks only); default 1 s
+  watched?: () => boolean; // false while nobody watches the page: no new steps then (server mode: 3 minutes)
   recheckMs?: number; // while waiting for a step, how often it re-reads the judge state from Flagsmith; default 30 s
   sleep?: (ms: number) => Promise<void>;
   now?: () => number;
@@ -34,7 +35,7 @@ export type JudgeLike = {
 
 export type AutopilotStatus = {
   enabled: true;
-  phase: 'starting' | 'waiting' | 'running' | 'paused' | 'stopped';
+  phase: 'starting' | 'waiting' | 'running' | 'paused' | 'idle' | 'stopped';
   next: { action: JudgeAction; title: string; at: string | null } | null; // what it runs next, and not before when
   pausedUntil: string | null; // someone used the private console
   lastError: string | null; // the last refused or failed step (shown as "trying again")
@@ -120,6 +121,12 @@ export function createAutopilot(judge: JudgeLike, lock: { busy: boolean }, opts:
     if (now() < humanUntil) {
       status.phase = 'paused';
       status.pausedUntil = iso(humanUntil);
+      return sleep(pollMs);
+    }
+    // Nobody has the page open: no new step (a running one finishes). Saves a small server's CPU; the next viewer's
+    // page load (which notes them) resumes the story within a poll.
+    if (opts.watched && !opts.watched() && !lock.busy && judge.job()?.status !== 'running') {
+      status.phase = 'idle';
       return sleep(pollMs);
     }
     status.pausedUntil = null;

@@ -437,6 +437,10 @@ function renderShowdown(s) {
 
   // Flagsmith's confidence: one bar with the revert / keep running / ship zones and a marker that slides.
   const m = J.meterModel(s.history);
+  // Once the round is decided, the bar is the final reading, not advice: the decision is in the heading above.
+  if (v.phase !== 'testing' && m.pct !== null) {
+    m.label = v.phase === 'shipped' ? "Flagsmith's final reading: ship" : "Flagsmith's final reading";
+  }
   const meter = $('sd-meter');
   meter.dataset.zone = m.zone;
   setSlot(meter, JSON.stringify([m.label, m.ticks, m.pct === null]), () => [

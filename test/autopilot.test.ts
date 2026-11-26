@@ -239,3 +239,20 @@ describe('autopilotFromEnv', () => {
     assert.throws(() => autopilotFromEnv({ TURNOUT_AUTOPILOT: 'on', TURNOUT_AUTOPILOT_VISITORS: 'lots' }), /TURNOUT_AUTOPILOT_VISITORS/);
   });
 });
+
+test('nobody watching: no new step; a viewer arriving resumes the story', async () => {
+  const clock = { t: T0 };
+  const judge = fakeJudge(clock);
+  let watching = false;
+  const ap = createAutopilot(judge, { busy: false }, { sleep: tick(clock), now: () => clock.t, pauseMs: 1000, watched: () => watching });
+  ap.start();
+  for (let i = 0; i < 500; i++) await new Promise((r) => setImmediate(r));
+  assert.equal(judge.ran.length, 0, 'idle while nobody watches');
+  assert.equal(ap.status().phase, 'idle');
+  watching = true;
+  for (let i = 0; i < 2000 && !judge.ran.length; i++) await new Promise((r) => setImmediate(r));
+  const stopped = ap.stop();
+  clock.t += 1;
+  await stopped;
+  assert.ok(judge.ran.length >= 1, 'resumed once someone watched');
+});

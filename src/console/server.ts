@@ -269,7 +269,12 @@ export function createConsole(opts: ConsoleOptions): http.Server {
     judge?.forget();
   };
   opts.watcher?.onRevert(forget); // the guard's automatic Revert is a write too
-  const autopilot = judge && opts.autopilot ? createAutopilot(judge, lock, { log: (line) => console.log(line), ...opts.autopilot }) : null;
+  // A viewer is anyone whose page asked for the judge state recently (the autopilot's own reads don't pass here).
+  let lastViewer = Date.now();
+  const WATCH_WINDOW_MS = 3 * 60_000;
+  const autopilot = judge && opts.autopilot
+    ? createAutopilot(judge, lock, { log: (line) => console.log(line), watched: () => Date.now() - lastViewer < WATCH_WINDOW_MS, ...opts.autopilot })
+    : null;
 
   // Server mode's public, read-only judge view. GET and HEAD only; no admin password, no preview link, no writes.
   const redact = <T>(data: T): T => {
@@ -423,7 +428,10 @@ export function createConsole(opts: ConsoleOptions): http.Server {
 
       if (url.pathname.startsWith('/api/judge/')) {
         if (!judge) return json(res, 404, { error: 'Judge mode is not configured for this console.' });
-        if (req.method === 'GET' && url.pathname === '/api/judge/state') return json(res, 200, { ...(await judge.state()), ...(autopilot ? { autopilot: autopilot.status() } : {}) });
+        if (req.method === 'GET' && url.pathname === '/api/judge/state') {
+          lastViewer = Date.now();
+          return json(res, 200, { ...(await judge.state()), ...(autopilot ? { autopilot: autopilot.status() } : {}) });
+        }
         if (req.method === 'GET' && url.pathname === '/api/judge/job') return json(res, 200, { job: judge.job() });
         // The tour's sign-in step. Another device (judge link) gets the email only: the password never leaves this machine.
         if (req.method === 'GET' && url.pathname === '/api/judge/signin') {

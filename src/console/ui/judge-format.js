@@ -786,6 +786,7 @@ export function autopilotLine(state, nowMs = Date.now()) {
   const ap = state?.autopilot;
   if (!ap) return { kind: 'off', text: 'Read-only: steps run from the console on the server.' };
   if (ap.phase === 'paused') return { kind: 'paused', text: 'Paused while someone uses the console on the server; it carries on by itself.' };
+  if (ap.phase === 'idle') return { kind: 'running', text: 'Waking up: the story rests while nobody watches, and carries on now' };
   const next = ap.next;
   if (!next) return { kind: 'starting', text: 'Running automatically — starting…' };
   const at = parseTime(next.at);
