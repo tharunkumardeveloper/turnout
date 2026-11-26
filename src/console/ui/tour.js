@@ -639,6 +639,8 @@ export function createTour(app) {
   async function show(b) {
     const seq = ++t.seq;
     t.beat = b;
+    // The public page's tours open or close the full view for the beats that need it (judge.js listens).
+    if (typeof b.details === 'boolean') document.dispatchEvent(new CustomEvent('turnout:details', { detail: b.details }));
     t.shown += 1;
     t.skipShow = null;
     setPhase('show');
@@ -830,7 +832,8 @@ export function createTour(app) {
     if (t.queue.length) return show(t.queue.shift());
     const s = app.state();
     if (!s) return;
-    if (t.mode === 'watch') return show(watchBeat(s));
+    // The public tours are a fixed set of beats that never wait for the autopilot: when they're shown, the tour ends.
+    if (t.mode === 'watch') return end();
     if (s.job?.status === 'running') return show(P.waitBeat()); // a step started elsewhere: carry on when it ends
     if (t.flavor === 'quick' && t.outroDone) return end();
     if (s.current === 'reset') {
@@ -1021,7 +1024,7 @@ export function createTour(app) {
     t.flavor = flavor === 'full' ? 'full' : 'quick';
     t.signinShown = false;
     t.mode = mode === 'watch' ? 'watch' : t.mode;
-    t.queue = mode === 'watch' ? P.watchIntro(app.state()) : P.introBeats(app.state(), t.flavor);
+    t.queue = mode === 'watch' ? P.publicTour(app.state(), t.flavor) : P.introBeats(app.state(), t.flavor);
     t.jobId = null;
     t.afterFor = null;
     t.shown = 0;

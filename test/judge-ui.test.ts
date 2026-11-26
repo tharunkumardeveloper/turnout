@@ -54,11 +54,11 @@ describe('judge.html and judge.js', () => {
     assert.match(html, /Every deploy becomes a Flagsmith experiment\./);
     assert.match(html, /name="tour-mode" value="guide" checked/);
     assert.match(html, /name="tour-mode" value="auto"/);
-    assert.match(js, /tour\.start\(mode, READONLY \? 'full' : chosenLength\(\)\)/);
+    assert.match(js, /tour\.start\(mode, chosenLength\(\)\)/, 'the public page offers Quick and Full too');
     // The public view: one "Watch the tour" button, a narration-only tour, no mode choices.
     assert.match(js, /const mode = READONLY \? 'watch' : chosenMode\(\);/);
     assert.match(js, /go\.textContent = 'Watch the tour'/);
-    assert.match(js, /querySelectorAll\('#welcome \.welcome-mode'\)\) el\.remove\(\)/);
+    assert.match(js, /querySelector\('#welcome \.welcome-mode:has\(input\[name="tour-mode"\]\)'\)\?\.remove\(\)/, 'only the guide/autoplay choice goes; Quick and Full stay');
     assert.match(html, /name="tour-length" value="quick" checked/, 'the quick tour is the default');
     assert.match(html, /name="tour-length" value="full"/);
     // "Explore on my own" is remembered for the session, and storage that throws (private mode) can't break the page.

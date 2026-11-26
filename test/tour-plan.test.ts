@@ -306,3 +306,33 @@ describe('the watch tour (public, read-only view)', () => {
     assert.match(P.watchIdleBeat(at('reset')).title, /whole loop/);
   });
 });
+
+describe('the public page tours: Quick and Full, narration only, never waiting for the autopilot', () => {
+  const html = readFileSync(join(UI, 'judge.html'), 'utf8');
+  for (const flavor of ['quick', 'full']) {
+    test(`${flavor}: every beat points at something on the page and asks for no click`, () => {
+      const beats = P.publicTour(at('score'), flavor);
+      for (const b of beats) {
+        assert.ok(!b.action, `${b.id} asks for a click`);
+        assert.ok(!b.watchJob && !b.watchIdle, `${b.id} waits for the autopilot`);
+        assert.ok(!b.flagsmith, `${b.id} links to Flagsmith (private on the server)`);
+        const id = b.target.replace(/^#/, '');
+        assert.ok(html.includes(`id="${id}"`), `${b.id}: ${b.target} is on the page`);
+        assert.equal(typeof b.details, 'boolean', `${b.id} says whether it needs the full view`);
+        assert.ok(b.body.length > 40, `${b.id} says something`);
+      }
+      assert.equal(beats.at(-1).id, 'pub:end');
+      assert.equal(beats.at(-1).details, false, 'the tour ends on the focus view');
+    });
+  }
+  test('Quick is short and stays on the focus view; Full adds every step and the full view columns', () => {
+    const quick = P.publicTour(at('score'), 'quick');
+    const full = P.publicTour(at('score'), 'full');
+    assert.ok(quick.length <= 10, `${quick.length} beats`);
+    assert.ok(quick.every((b: any) => b.details === false));
+    assert.ok(full.length > quick.length);
+    assert.deepEqual(full.filter((b: any) => b.details).map((b: any) => b.target), ['#steps-panel', '#fs-panel', '#history']);
+    assert.ok(full.some((b: any) => b.id === 'pub:step:reset'));
+    assert.match(quick[0].body, /Right now it's on step 2\. Flagsmith scores both/);
+  });
+});

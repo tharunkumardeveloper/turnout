@@ -696,3 +696,53 @@ export function watchIdleBeat(s) {
   }
   return { id: `watch-idle:${s.current}:${exp}`, tab: 'story', target: '#stage', title: `Up next: ${step.title}`, body: step.body, watchIdle: true };
 }
+
+// ---- the public page's tours: Quick and Full, self-contained -----------------------------------------------------
+// The same two lengths as the console's tours, but narration only (nobody can click on the public page) and never
+// waiting for the autopilot: each beat explains a part of the page or a step, using what the page shows right now,
+// and the tour moves on by itself. `details: true` opens the full view for beats about its columns; `false` closes it.
+const STEP_ORDER = ['visitors', 'score', 'decide', 'verify', 'preview', 'release', 'reset'];
+const STEP_TITLES = {
+  visitors: '1. Visitors arrive', score: "2. Flagsmith scores both", decide: '3. Ship, revert or keep running', verify: '4. Check everyone got it',
+  preview: '5. Preview the next release', release: '6. Release it as the next experiment', reset: '7. Start again',
+};
+const DECIDE_TEXT =
+  "Turnout reads Flagsmith's numbers: if the new release is clearly better, Ship; if it's clearly worse, or slower than the speed guardrail allows, Revert; if Flagsmith isn't sure yet, Keep running and send more visitors. Ship and Revert change one flag, in an order that reaches every visitor.";
+
+/** The public tour, `quick` (~2 minutes) or `full` (~4 minutes). */
+export function publicTour(s, flavor = 'quick') {
+  const v = vars(s);
+  const now = s?.current && STEP_TITLES[s.current] ? ` Right now it's on step ${STEP_TITLES[s.current]}.` : '';
+  const beats = [
+    { id: 'pub:what', tab: 'story', details: false, target: '#stage', demo: 'stage-pulse', title: 'Every release becomes a Flagsmith experiment',
+      body: `Turnout stands in front of a website. For each visitor it asks Flagsmith which version to show, sends them there, and reports what they do. Flagsmith decides which version is better. This page runs on its own, round after round.${now}` },
+    { id: 'pub:round', tab: 'story', details: false, target: '#round-card', title: 'A blind round',
+      body: "Each round, the true order rates are drawn at random and hidden: the new release is better, worse, or no different. Only the (simulated) traffic reaches Flagsmith. When the round is decided, this card reveals the truth next to Flagsmith's call, and the scoreboard counts how often Flagsmith was right." },
+    { id: 'pub:chart', tab: 'story', details: false, target: '#round-chart', title: "Flagsmith's confidence, over time",
+      body: "Each point is Flagsmith's chance that the new release is better, at one of its results refreshes (at most every 5 minutes). Above the dashed 95% line, with its interval clear of zero, Turnout ships. Around 50%, it's a coin flip: keep running." },
+    { id: 'pub:track', tab: 'story', details: false, target: '#track-card', demo: 'track-burst', title: 'Who gets which version, live',
+      body: `Every dot is a request Turnout routed. The lanes are Flagsmith's rules: the experiment's split${v.v2 ? ` between ${v.control} and ${v.v2}` : ''}, a preview for the team, and everyone else on the live release.` },
+  ];
+  const steps = flavor === 'full' ? STEP_ORDER : ['visitors', 'score', 'decide', 'verify'];
+  for (const id of steps) {
+    const body = id === 'decide' ? DECIDE_TEXT : (WATCH_JOB_TEXT[id] ?? '');
+    beats.push({ id: `pub:step:${id}`, tab: 'story', details: false, target: '#stage', title: STEP_TITLES[id], body });
+  }
+  if (flavor === 'full') {
+    beats.push(
+      { id: 'pub:steps', tab: 'story', details: true, target: '#steps-panel', demo: 'steps-sweep', title: 'The seven steps, in the full view',
+        body: '"Show details" opens the full dashboard. On the left, the seven steps: the current one is highlighted, and each finished one says what happened.' },
+      { id: 'pub:fs', tab: 'story', details: true, target: '#fs-panel', title: 'What Flagsmith holds right now',
+        body: "On the right, read live from Flagsmith's API: the experiment, the release flag, and Flagsmith's own results (chance to win and credible interval for each metric). Turnout shows them as returned; it computes no statistics of its own." },
+      { id: 'pub:history', tab: 'story', details: true, target: '#history', title: 'Every decision, kept',
+        body: "Each Ship, Revert or Keep running lands in the release history with Flagsmith's numbers at that moment, saved before anything changed." },
+    );
+  }
+  beats.push(
+    { id: 'pub:visitor', tab: 'story', details: false, target: '#visitor-card', title: 'Your turn: be a visitor',
+      body: "Press \"Be a visitor\": the shop opens and Turnout gives you one version, for real, and keeps you on it. Your visit counts in a separate live experiment, never mixed with the simulated one. Back here, the card says which version you got. Open it in a private window too: you may get the other one." },
+    { id: 'pub:end', tab: 'story', details: false, target: '#round-card', title: "That's the tour",
+      body: 'The autopilot keeps going: when this round is decided, the card above reveals the truth. Use it with your own website: one command, turnout compare, then two addresses. The README says how.' },
+  );
+  return beats;
+}

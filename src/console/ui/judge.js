@@ -39,7 +39,13 @@ if (READONLY) {
   document.getElementById('link-flagsmith')?.remove();
   for (const a of document.querySelectorAll('.footer a[href="/"]')) a.remove();
   // The welcome card: a live demo that runs on its own, and one button that narrates it.
-  for (const el of document.querySelectorAll('#welcome .welcome-mode')) el.remove();
+  document.querySelector('#welcome .welcome-mode:has(input[name="tour-mode"])')?.remove();
+  // The public tours are narration only, so they're shorter than the console's.
+  const lengths = { quick: 'the main ideas, about 2 minutes', full: 'every part of the page, about 4 minutes' };
+  for (const [value, text] of Object.entries(lengths)) {
+    const span = document.querySelector(`#welcome input[name="tour-length"][value="${value}"] + span`);
+    if (span) span.lastChild.textContent = ` ${text}`;
+  }
   const sub = document.querySelector('#welcome .welcome-sub');
   sub?.after(
     Object.assign(document.createElement('p'), {
@@ -451,6 +457,12 @@ function setupFocusView() {
     btn.textContent = details ? 'Show less' : 'Show details';
     btn.setAttribute('aria-pressed', String(details));
   };
+  // A tour beat about the full view's columns opens it, and closes it again after (not saved as a preference).
+  document.addEventListener('turnout:details', (e) => {
+    details = !!e.detail;
+    apply();
+    syncScrollCues();
+  });
   btn.addEventListener('click', () => {
     details = !details;
     try { localStorage.setItem('turnout-details', details ? '1' : '0'); } catch { /* ignore */ }
@@ -1589,7 +1601,7 @@ const tour = createTour({
 $('tour-start').addEventListener('click', () => {
   const mode = READONLY ? 'watch' : chosenMode();
   closeWelcome();
-  tour.start(mode, READONLY ? 'full' : chosenLength());
+  tour.start(mode, chosenLength());
 });
 
 // ---- tickers and start ---------------------------------------------------------------------------------------------
