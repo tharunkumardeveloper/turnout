@@ -10,7 +10,7 @@ only counts if it works on all of them.
   :8080, Flagsmith :8000, Flagsmith with Turnout's tour :8001, Try it's proxy :8085, previews A/B/C :8086-8088.
 - One console page with a **Judge mode** switch. A Try it build lands on **your app's console** at `/app`.
 - VM (public, read-only): `https://172-198-62-67.sslip.io/judge`. Deploy:
-  `ssh -i ~/Downloads/switchyard-key.pem azureuser@172.198.62.67 'cd ~/turnout-practice && git pull -q && docker compose -f compose.yaml -f compose.server.yml up -d --build --wait turnout turnout-live console'`
+  `ssh -i ~/Downloads/switchyard-key.pem azureuser@172.198.62.67 'cd ~/turnout && git pull -q && docker compose -f compose.yaml -f compose.server.yml up -d --build --wait turnout turnout-live console'`
 - Tests: `npm test` (634, 1 skipped on purpose), `npm run typecheck`. CI runs both on every push.
 - The repo and the image are private. Try it never runs on the VM (it builds and runs code over the Docker socket).
 - Scoreboard (`npm run scoreboard`, one clean run of all 12, 25 Nov): builds 12/12, starts 12/12, goals 11/12,

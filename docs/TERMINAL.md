@@ -10,7 +10,7 @@ Everything runs on your machine's Docker. Flagsmith comes with Turnout, so there
 ## 2. Install the `turnout` command (once)
 
 ```sh
-git clone https://github.com/tharunkumardeveloper/turnout-practice.git turnout
+git clone https://github.com/tharunkumardeveloper/turnout.git turnout
 cd turnout
 ```
 

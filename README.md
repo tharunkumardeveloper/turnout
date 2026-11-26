@@ -87,7 +87,7 @@ On your own machine, judge mode is interactive: a guided tour tells you what to 
 You need **Docker** ([Docker Desktop](https://www.docker.com/products/docker-desktop/) on Windows and macOS) with about 4 GB of memory for it, and **Git**.
 
 ```sh
-git clone https://github.com/tharunkumardeveloper/turnout-practice.git turnout
+git clone https://github.com/tharunkumardeveloper/turnout.git turnout
 sh turnout/install.sh                                         # macOS, Linux
 powershell -ExecutionPolicy Bypass -File turnout\install.ps1  # Windows
 ```
@@ -110,7 +110,7 @@ turnout compare localhost:3001 localhost:3002         # your two running version
 2. Install **Git for Windows** if you don't have it.
 3. Open **PowerShell** and run:
    ```powershell
-   git clone https://github.com/tharunkumardeveloper/turnout-practice.git turnout
+   git clone https://github.com/tharunkumardeveloper/turnout.git turnout
    powershell -ExecutionPolicy Bypass -File turnout\install.ps1
    ```
    This adds `turnout` to your PATH and shows what your machine has.
@@ -125,7 +125,7 @@ The first run builds Turnout's image from your checkout (about a minute, once).
 1. Install Docker (Docker Desktop on macOS; Docker Engine with the Compose plugin on Linux) and start it.
 2. Run:
    ```sh
-   git clone https://github.com/tharunkumardeveloper/turnout-practice.git turnout
+   git clone https://github.com/tharunkumardeveloper/turnout.git turnout
    sh turnout/install.sh
    ```
 3. Open a new terminal. `turnout help` shows every command. On Linux, your user must be able to run `docker` (the `docker` group).
