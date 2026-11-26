@@ -213,3 +213,23 @@ test('a flag missing from the environment maps to control with no release', asyn
   await until(() => flags.ready!());
   assert.deepEqual(await flags.assign('visitor-7', { recordExposure: true }), { variant: 'control', release: undefined, enrolled: false });
 });
+
+test("the SDK's buffer-full drops count as undelivered, so the loss shows in health and doctor", async () => {
+  const { dropLogger } = await import('../src/flagsmith/flag-source.ts');
+  const { Receipts } = await import('../src/flagsmith/receipts.ts');
+  const r = new Receipts();
+  const lines: string[] = [];
+  const log = dropLogger(r, (l) => lines.push(l));
+  log.warn('The events buffer is full (7000 events) while a batch is in flight or kept. Dropping its oldest event.');
+  log.warn('The events buffer is full (7000 events). Dropping its 12 oldest events.');
+  log.warn('something else');
+  assert.equal(r.undelivered, 13);
+  assert.equal(r.droppedBySdk, 13);
+  assert.equal(lines.length, 3);
+});
+
+test('the event buffer fits Flagsmith\'s 2 MiB body limit with the largest event Turnout sends', async () => {
+  const { MAX_EVENT_BUFFER } = await import('../src/flagsmith/flag-source.ts');
+  const worst = JSON.stringify({ event: 'x'.repeat(100), feature_name: null, identifier: '0b7e2f0c-1f2a-4d0e-9c1b-2a3b4c5d6e7f', value: '1234567.89', traits: null, metadata: { sdk_version: '9.4.0' }, timestamp: Date.now() });
+  assert.ok((Buffer.byteLength(worst) + 1) * MAX_EVENT_BUFFER + 12 < 2_097_152);
+});

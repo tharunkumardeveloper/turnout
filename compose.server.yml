@@ -80,9 +80,7 @@ services:
       TURNOUT_AUTOPILOT: ${TURNOUT_AUTOPILOT:-on}
       TURNOUT_AUTOPILOT_VISITORS: ${TURNOUT_AUTOPILOT_VISITORS:-}
       TURNOUT_AUTOPILOT_PAUSE: ${TURNOUT_AUTOPILOT_PAUSE:-}
-      # Simulated visitors in flight at once. 20 (local default) on a 2-vCPU VM made Flagsmith's events endpoint
-      # time out (over 1,000 events lost per 600-visitor batch); 5 is gentler. Raise it on a bigger machine.
-      TURNOUT_DEMO_CONCURRENCY: ${TURNOUT_DEMO_CONCURRENCY:-5}
+      TURNOUT_DEMO_CONCURRENCY: ${TURNOUT_DEMO_CONCURRENCY:-} # default 20; 20, 50 and 200 lost no events on a 2-vCPU VM (spikes/RESULTS.md)
     ports: !override
       - 127.0.0.1:8090:8090
       - 127.0.0.1:8091:8091

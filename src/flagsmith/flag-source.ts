@@ -16,6 +16,30 @@ export function eventsApiUrlFor(apiUrl: string): string {
   return apiUrl.replace(/v1\/?$/, '');
 }
 
+export const MAX_EVENT_BUFFER = 7000;
+
+// The SDK reports events it drops (a full buffer while a batch is in flight) only as log warnings. This logger counts
+// them as undelivered, so /__turnout/health and doctor show the loss instead of it passing silently.
+export function dropLogger(receipts: Receipts, write: (line: string) => void = (l) => process.stderr.write(`${l}
+`)) {
+  const out = (level: string, args: unknown[]) => {
+    const msg = args.map((a) => (a instanceof Error ? a.message : typeof a === 'string' ? a : JSON.stringify(a))).join(' ');
+    write(JSON.stringify({ level, msg }));
+    return msg;
+  };
+  return {
+    debug: () => {},
+    info: () => {},
+    error: (...args: unknown[]) => void out('error', args),
+    warn: (...args: unknown[]) => {
+      const msg = out('warn', args);
+      const many = msg.match(/Dropping its (\d+) oldest events/);
+      if (many) receipts.dropped(Number(many[1]));
+      else if (/Dropping its oldest event/.test(msg)) receipts.dropped(1);
+    },
+  };
+}
+
 export function createFlagSource(opts: Options): FlagSource & { close(): Promise<void>; receipts: Receipts } {
   const receipts = new Receipts(opts.onUndelivered);
   let environmentAt: number | null = null;
@@ -32,11 +56,12 @@ export function createFlagSource(opts: Options): FlagSource & { close(): Promise
     retries: 0,
     enableAnalytics: true,
     enableEvents: true,
-    // The SDK's defaults (flush every 10 s, a 1,000-event buffer, a 3 s timeout) dropped events under demo load:
-    // a full buffer drops its oldest events while a batch is in flight, and slow batches time out. Smaller, more
-    // frequent batches with room to queue and time to land; 6,000 events stay well under Flagsmith's 2 MB body
-    // limit (experimentation/constants.py:39).
-    eventProcessorConfig: { eventsApiUrl: eventsApiUrlFor(opts.apiUrl), flushInterval: 2000, maxBuffer: 6000, requestTimeoutMs: 15_000 },
+    // The SDK posts its whole buffer as one batch, one batch at a time, and while a batch is in flight a full buffer
+    // drops its oldest events. Flush every second so batches stay small; the buffer is capped by Flagsmith's 2 MiB body
+    // limit (experimentation/constants.py:39), since the SDK never splits a batch: 7,000 events of the largest kind
+    // Turnout sends (a 100-character event name, 281 bytes) are 1.97 MB. Drops are counted (dropLogger below).
+    eventProcessorConfig: { eventsApiUrl: eventsApiUrlFor(opts.apiUrl), flushInterval: 1000, maxBuffer: MAX_EVENT_BUFFER, requestTimeoutMs: 15_000 },
+    logger: dropLogger(receipts) as unknown as FlagsmithConfig['logger'],
     fetch: receiptFetch(receipts, opts.fetch ?? fetch),
     onEnvironmentChange: (error) => {
       if (error) lastError = error.message;

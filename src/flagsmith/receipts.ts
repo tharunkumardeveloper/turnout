@@ -15,7 +15,8 @@ const MAX_VISITORS = 10_000;
 export class Receipts {
   private byIdentity = new Map<string, Receipt>();
   private readonly onUndelivered: ((receipt: Receipt) => void) | undefined;
-  undelivered = 0; // events Flagsmith didn't accept, since start
+  undelivered = 0; // events Flagsmith didn't accept or the SDK dropped, since start (a retried attempt counts too)
+  droppedBySdk = 0; // of those, dropped by the SDK before sending
 
   constructor(onUndelivered?: (receipt: Receipt) => void) {
     this.onUndelivered = onUndelivered;
@@ -32,6 +33,12 @@ export class Receipts {
       const oldest = this.byIdentity.keys().next().value;
       if (oldest !== undefined) this.byIdentity.delete(oldest);
     }
+  }
+
+  /** Events the SDK dropped before sending them (its buffer was full while a batch was in flight). */
+  dropped(count: number): void {
+    this.undelivered += count;
+    this.droppedBySdk += count;
   }
 
   get(identity: string): Receipt | undefined {
