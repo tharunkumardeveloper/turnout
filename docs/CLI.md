@@ -49,7 +49,7 @@ A release entry is `label=url`, a bare `http(s)` URL (labelled `v1`, `v2`…), o
 
 #### Success from a response header
 
-With `goal.header: true`, the app names events itself: `X-Turnout-Event: signup, plan_chosen;value=49` (comma-separated, optional `;value=<number>` for sum or mean metrics). Each valid name (letters, digits, `_ . -`, starting with a letter; not a guardrail name) becomes a Flagsmith event for that visitor, at most 5 per response, only once the visitor's `tn_id` cookie came back and never for bots. The header is always removed before the response reaches the visitor. `goal.when` becomes optional; with both, a request counted by `when` isn't counted again by the header. `demo --flow goal` needs `goal.when`.
+With `goal.header: true`, the app names events itself: `X-Turnout-Event: signup, plan_chosen;value=49` (comma-separated, optional `;value=<number>` for sum or mean metrics). Each valid name (letters, digits, `_ . -`, starting with a letter; not a guardrail name) becomes a Flagsmith event for that visitor, at most 5 per response, for counted visitors only (from their first page load in a browser) and never for bots. The header is always removed before the response reaches the visitor. `goal.when` becomes optional; with both, a request counted by `when` isn't counted again by the header. `demo --flow goal` needs `goal.when`.
 
 ### `init --project`: bring your own Flagsmith
 

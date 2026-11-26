@@ -379,7 +379,7 @@ export async function freshVisitor(proxyUrl: string, debugToken: string | undefi
   return (await load(cookie)).headers.get('x-turnout-release');
 }
 
-// A single request with no cookie: routed and reported, but the proxy never counts it (no exposure, no events).
+// A single debug-token request with no cookie: routed and reported, but the proxy never counts it (no exposure, no events).
 export async function probeEnrolled(proxyUrl: string, debugToken: string | undefined): Promise<boolean> {
   const res = await fetch(new URL('/', proxyUrl), {
     headers: {

@@ -266,3 +266,30 @@ test('a release container that is down is reported, not thrown', async () => {
     p.close();
   }
 });
+
+const BROWSER_UA = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/131.0 Safari/537.36';
+
+test("a browser's first page load is routed and counted, so a one-page visit (a bounce) is in the data", async () => {
+  flags.tracked = [];
+  const res = await fetch(`${base}/`, { headers: { accept: 'text/html', 'user-agent': BROWSER_UA } });
+  await res.text();
+  await new Promise((r) => setTimeout(r, 20));
+  const id = (res.headers.get('set-cookie') ?? '').match(new RegExp(`${ID_COOKIE}=([0-9a-f-]{36})`))?.[1];
+  assert.ok(id, 'the first response sets the ID cookie');
+  assert.ok(flags.exposures.includes(id), 'exposure recorded on the first page load');
+  assert.ok(flags.tracked.some((t) => t.event === 'doc_latency_ms' && t.identity === id), 'first page counts for the guardrail');
+  // The same visitor coming back keeps the same identity (the cookie from the first response).
+  await (await page(`${ID_COOKIE}=${id}`)).text();
+  assert.equal(flags.exposures.filter((e) => e === id).length, 2);
+});
+
+test('without the cookie, API calls, assets and non-browser clients never become identities', async () => {
+  const before = flags.exposures.length;
+  flags.tracked = [];
+  await (await fetch(`${base}/checkout`, { method: 'POST', headers: { 'user-agent': BROWSER_UA } })).text();
+  await (await fetch(`${base}/app.js`, { headers: { 'user-agent': BROWSER_UA } })).text();
+  await (await fetch(`${base}/`, { headers: { accept: 'text/html', 'user-agent': 'node' } })).text();
+  await new Promise((r) => setTimeout(r, 20));
+  assert.equal(flags.exposures.length, before);
+  assert.equal(flags.tracked.length, 0);
+});

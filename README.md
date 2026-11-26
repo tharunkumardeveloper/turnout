@@ -46,7 +46,8 @@ A second, different example lives in [`examples/landing/`](examples/landing/READ
 - **Test with a browser, not `curl`.** Turnout treats `curl` and other non-browser user agents as bots: they are served but never counted. Use a browser, or send a browser `User-Agent`.
 - **Running next to another Turnout?** `turnout new --proxy-port <port> --console-port <port>` publishes the proxy and the console on free ports; `init` prints the judge link with that console port.
 - **No cookies named `tn_id` or `tn_preview`.** Those are Turnout's: `tn_id` keeps each visitor on the same version. The proxy removes those two from the request before it reaches your app; your app's own cookies pass through both ways untouched.
-- **A visitor counts from their second request.** The first response sets `tn_id`; exposures and events are recorded only once the browser sends it back, so a conversion on the very first request isn't counted.
+- **A visitor counts from their first page load.** The first page a browser loads is routed by the flag, records the exposure and sends the guardrails, and its response sets `tn_id`, so a visitor who leaves after one page (a bounce) is in the data. Without the cookie, only a browser's page load counts: API calls, assets and cookie-less scripts never become identities.
+- **Single-page apps:** after the first load, navigation happens in the browser and Turnout sees no new page loads. The exposure is still right (it's the first load), but set the goal on an API call (`POST /api/signup` returned 2xx) or the `X-Turnout-Event` header, not on a page URL; `doc_latency_ms` covers full page loads only. Verified on a Node SPA ([docs/PLUG_AND_PLAY.md](docs/PLUG_AND_PLAY.md), app d).
 
 #### Optional: name the event in a response header (still no SDK)
 
@@ -58,7 +59,7 @@ goal:
   header: true          # with or instead of `when:`
 ```
 
-and answer the converting request with `X-Turnout-Event: signup`. Several events are comma-separated, and each may carry a number for sum or mean metrics: `X-Turnout-Event: signup, plan_chosen;value=49`. Turnout sends each as a Flagsmith event for that visitor on the same terms as the `when:` goal (only once the visitor's cookie came back, never for bots or when Flagsmith couldn't answer), ignores invalid names and guardrail names, takes at most 5 per response, and removes the header from every response, with or without `header: true`, so visitors never see it. `init` creates the metric for `goal.event`; other event names reach Flagsmith but need a metric there to be measured. If a request both matches `when:` and names `goal.event`, it counts once. `turnout new --success "header signup"` writes this goal.
+and answer the converting request with `X-Turnout-Event: signup`. Several events are comma-separated, and each may carry a number for sum or mean metrics: `X-Turnout-Event: signup, plan_chosen;value=49`. Turnout sends each as a Flagsmith event for that visitor on the same terms as the `when:` goal (counted visitors only, from their first page load; never for bots or when Flagsmith couldn't answer), ignores invalid names and guardrail names, takes at most 5 per response, and removes the header from every response, with or without `header: true`, so visitors never see it. `init` creates the metric for `goal.event`; other event names reach Flagsmith but need a metric there to be measured. If a request both matches `when:` and names `goal.event`, it counts once. `turnout new --success "header signup"` writes this goal.
 
 ## Why it can't make the four wiring mistakes
 
@@ -114,14 +115,16 @@ Turnout runs as an overlay on Flagsmith's official self-hosted Docker Compose. B
 
 1. **Identity and routing.** One random first-party ID cookie per visitor (no names, emails or IPs). The Node SDK evaluates the flag locally, so routing adds no network call. The flag's value names a release; only releases in `turnout.config.yml` are reachable.
 2. **When Flagsmith can't answer** (not loaded yet, slower than 150 ms, flag off, a value not in the allowlist) a visitor gets the **live release**: what visitors outside the experiment are served, remembered across restarts. Bots get it too, and are never counted.
-3. **Events.** Only visitors who sent the cookie back are counted, so one-request clients never become identities. A page load records the exposure; rules turn responses into conversions; page loads send the guardrails. All server-side; no client key is published.
+3. **Events.** A visitor counts from their first page load in a browser (bounces included); API calls, assets and cookie-less scripts without the cookie never become identities. A page load records the exposure; rules turn responses into conversions; page loads send the guardrails. All server-side; no client key is published.
 4. **Scoring.** Flagsmith alone computes lift, credible interval and chance to win. Turnout shows its numbers as returned.
 
 The whole integration is one file, [`turnout.config.yml`](turnout.config.yml): the flag, the allowlist of releases and their containers, the goal as an HTTP rule (`POST /checkout` returning 2xx) and the guardrails.
 
 ### Ship winner and Revert
 
-The winner is pre-selected by the results page's own rule ([how Turnout reads it](docs/FLAGSMITH.md#the-results-pages-winner-as-turnout-reads-it)) and confirmed by a person. If Flagsmith shows it losing a guardrail (under 5% chance to win), the console and CLI say so in red and need an explicit "ship anyway".
+The winner is pre-selected by the results page's own rule ([how Turnout reads it](docs/FLAGSMITH.md#the-results-pages-winner-as-turnout-reads-it)) and confirmed by a person. If Flagsmith shows it losing a guardrail (under 5% chance to win, and a harm worth acting on: more than 5% relative and, for page speed, at least 20 ms), the console and CLI say so in red and need an explicit "ship anyway".
+
+**Why 5% to warn but 1% to revert:** a warning only asks a person to look, so it can fire early; the guard acts on its own with nobody checking, so it waits until Flagsmith is nearly certain (1% or less, with at least 100 identities) before it reverts.
 
 | Step | What Turnout does | Why |
 |---|---|---|
@@ -245,7 +248,7 @@ Turnout never redirects: Flagsmith's docs list "redirects that bypass bucketing"
 ## Limitations
 
 - **Both versions share state**, as in blue/green: schemas must stay backward compatible.
-- **Page-level only.** SPA navigations aren't new exposures; conversions must be visible in HTTP (a request, or an `X-Turnout-Event` response header). A visitor counts from their second request (the first one sets the cookie).
+- **Page-level only.** SPA navigations aren't new exposures; conversions must be visible in HTTP (a request, or an `X-Turnout-Event` response header). In an SPA, set the goal on an API call or the event header.
 - **One experiment per flag per environment** (Flagsmith's rule): releases run one at a time.
 - **A new hop in the traffic path.** Teams will want to put the proxy through their own security review.
 - **The ID cookie** is an online identifier; in the EU a cookie notice or consent may apply.

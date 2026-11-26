@@ -89,6 +89,18 @@ export function pickWinner(experiment: ExperimentDetail, results: Results | null
 // Shipping control is the status quo, so it never warns.
 export const GUARDRAIL_LOSING_BELOW = 0.05;
 export const GUARDRAIL_MIN_HARM = 0.05; // relative lift, in the metric's bad direction
+// A practical floor in the metric's own unit, on top of the relative one: a page-speed difference under 20 ms is
+// never a loss, however sure Flagsmith is of it. Compared on Flagsmith's means per exposed identity.
+export const GUARDRAIL_MIN_ABSOLUTE: Record<string, number> = { doc_latency_ms: 20 };
+function absoluteHarmClears(metric: string, direction: string, variants: Record<string, { n: number; sum: number }>, key: string): boolean {
+  const floor = GUARDRAIL_MIN_ABSOLUTE[metric];
+  if (floor === undefined) return true;
+  const mean = (v?: { n: number; sum: number }) => (v && v.n > 0 ? v.sum / v.n : null);
+  const treated = mean(variants[key]);
+  const control = mean(variants[CONTROL]);
+  if (treated === null || control === null) return true; // can't tell: leave it to the relative rule
+  return harmOf(direction, treated - control) >= floor;
+}
 export type GuardrailWarning = { metric: string; chanceToWin: number; lift: number };
 
 // How much worse a lift is for a metric: positive is harm. "down is better" metrics (latency, errors) are harmed by
@@ -107,8 +119,10 @@ export function losingGuardrails(
 ): GuardrailWarning[] {
   if (winnerKey === CONTROL || !results?.payload) return [];
   return experiment.metrics.slice(1).filter(isGuardrail).flatMap((m) => {
-    const inference = results.payload!.metrics.find((r) => r.metric_id === m.metric)?.inference[winnerKey];
-    return inference && inference.chance_to_win < GUARDRAIL_LOSING_BELOW && harmOf(m.direction, inference.lift) > minHarm
+    const row = results.payload!.metrics.find((r) => r.metric_id === m.metric);
+    const inference = row?.inference[winnerKey];
+    return inference && inference.chance_to_win < GUARDRAIL_LOSING_BELOW && harmOf(m.direction, inference.lift) > minHarm &&
+      absoluteHarmClears(m.metric_name, m.direction, row!.variants, winnerKey)
       ? [{ metric: m.metric_name, chanceToWin: inference.chance_to_win, lift: inference.lift }]
       : [];
   });

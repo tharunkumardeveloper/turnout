@@ -10,6 +10,7 @@ import {
   losingGuardrails,
   pickWinner,
   recommend,
+  GUARDRAIL_MIN_ABSOLUTE,
   GUARDRAIL_MIN_HARM,
   planRevert,
   planShip,
@@ -307,18 +308,33 @@ describe('losingGuardrails', () => {
     const s = initialState();
     s.results!.payload!.metrics.push({
       metric_id: 2,
-      variants: { control: { n: 1000, sum: 120_000, sum_squares: 0 }, v2: { n: 1000, sum: 120_700, sum_squares: 0 } },
-      inference: { v2: { lift: 0.006, ci_low: 0.004, ci_high: 0.008, chance_to_win: 0.001 } }, // 0.7 ms on 120 ms
+      variants: { control: { n: 1000, sum: 300_000, sum_squares: 0 }, v2: { n: 1000, sum: 300_700, sum_squares: 0 } },
+      inference: { v2: { lift: 0.002, ci_low: 0.001, ci_high: 0.003, chance_to_win: 0.001 } }, // 0.7 ms on 300 ms
     });
     assert.equal(GUARDRAIL_MIN_HARM, 0.05);
     assert.deepEqual(losingGuardrails(s.experiment, s.results, 'v2'), [], '0.6% slower is not a loss worth blocking');
     s.results!.payload!.metrics[1]!.inference.v2!.lift = 0.08;
+    s.results!.payload!.metrics[1]!.variants.v2!.sum = 324_000; // 24 ms slower
     assert.equal(losingGuardrails(s.experiment, s.results, 'v2').length, 1, '8% slower is');
     assert.deepEqual(losingGuardrails(s.experiment, s.results, 'v2', 0.1), [], 'the minimum is configurable');
     s.results!.payload!.metrics[1]!.inference.v2!.lift = -0.08;
+    s.results!.payload!.metrics[1]!.variants.v2!.sum = 276_000;
     assert.deepEqual(losingGuardrails(s.experiment, s.results, 'v2'), [], 'down is better: 8% faster is no harm');
     s.experiment.metrics[1]!.direction = 'up';
     assert.equal(losingGuardrails(s.experiment, s.results, 'v2').length, 1, 'up is better: an 8% fall is harm');
+  });
+
+  test('a page-speed floor: under 20 ms slower is never a loss, however sure and however large in percent', () => {
+    const s = initialState();
+    s.results!.payload!.metrics.push({
+      metric_id: 2,
+      variants: { control: { n: 1000, sum: 30_000, sum_squares: 0 }, v2: { n: 1000, sum: 45_000, sum_squares: 0 } },
+      inference: { v2: { lift: 0.5, ci_low: 0.45, ci_high: 0.55, chance_to_win: 0.0 } }, // 15 ms on 30 ms: +50%
+    });
+    assert.equal(GUARDRAIL_MIN_ABSOLUTE.doc_latency_ms, 20);
+    assert.deepEqual(losingGuardrails(s.experiment, s.results, 'v2'), [], '15 ms slower is under the floor');
+    s.results!.payload!.metrics[1]!.variants.v2!.sum = 101_000; // 71 ms slower, like shop:1.6's test fault
+    assert.equal(losingGuardrails(s.experiment, s.results, 'v2').length, 1, '71 ms slower is a loss');
   });
 
   test('ignores the primary metric and missing results', () => {
@@ -334,7 +350,7 @@ describe('recommend: read the credible interval, not just the chance to win', ()
   const withGuardrail = (s: FakeState, lift: number, chance: number) =>
     s.results!.payload!.metrics.push({
       metric_id: 2,
-      variants: { control: { n: 1000, sum: 6000, sum_squares: 0 }, v2: { n: 1000, sum: 9000, sum_squares: 0 } },
+      variants: { control: { n: 1000, sum: 60_000, sum_squares: 0 }, v2: { n: 1000, sum: 90_000, sum_squares: 0 } },
       inference: { v2: { lift, ci_low: lift - 0.1, ci_high: lift + 0.1, chance_to_win: chance } },
     });
 

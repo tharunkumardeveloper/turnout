@@ -18,6 +18,7 @@ export const RELEASE_HEADER = 'x-turnout-release';
 const CONTROL = 'control';
 const ONE_YEAR_S = 365 * 24 * 60 * 60;
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
+const BROWSER_RE = /^Mozilla\/\d/;
 const BOT_RE = /bot|crawl|spider|slurp|headless|lighthouse|preview|curl|wget|python-requests/i;
 // RFC 9110 §7.6.1: meaningful for one connection only, never forwarded.
 const HOP_BY_HOP = ['connection', 'keep-alive', 'proxy-authenticate', 'proxy-authorization', 'proxy-connection', 'te', 'trailer', 'transfer-encoding', 'upgrade'];
@@ -133,9 +134,12 @@ export function createProxy(opts: Options): http.Server {
     const bot = BOT_RE.test(req.headers['user-agent'] ?? '');
     const document = isDocumentRequest(req);
     const id = known ? cookieId! : randomUUID();
-    // Only a visitor who sent our cookie back counts: one-request clients and cookie-less scripts never become
-    // identities in Flagsmith. Exposures come from page loads (GET, not HEAD).
-    const counted = known && !bot;
+    // A visitor counts from their first page load in a browser, so one-page visits (bounces) are in the data.
+    // Without our cookie, only a browser's page load (GET of a document, browser user agent) counts: API calls,
+    // assets and cookie-less scripts never become identities in Flagsmith. Exposures come from page loads.
+    // Debug-token probes without the cookie (Turnout's own checks) stay out of the data too.
+    const probe = !!debugToken && safeEqual(header(req, 'x-turnout-debug'), debugToken);
+    const counted = !bot && (known || (!probe && document && method === 'GET' && BROWSER_RE.test(req.headers['user-agent'] ?? '')));
 
     let assignment: Assignment | undefined;
     let fallback: string | undefined;
@@ -205,7 +209,7 @@ export function createProxy(opts: Options): http.Server {
     const client = url.protocol === 'https:' ? https : http;
     let timedOut = false;
 
-    const debugging = !!debugToken && safeEqual(header(req, 'x-turnout-debug'), debugToken);
+    const debugging = probe;
     const upstreamHeaders = forwardHeaders(req, upstream, secure);
     // Only a previewing browser or a debug-token request tells the app which release it is (the app may show a
     // "Release 1.5" badge); forwardHeaders already dropped any copy a client sent, so nobody else can ask for it.

@@ -57,7 +57,8 @@ Open `http://127.0.0.1:18080`. For releases that are containers, either give `--
 
 ## Known limits
 
-- **Who counts.** A visitor counts from their second request (the first one sets the cookie), so a single-page visit never becomes an experiment identity. Clients whose user agent looks like a bot (`curl`, `wget`, `python-requests`, headless browsers…) always get the live release and send no events: test with a browser user agent.
+- **Who counts.** A visitor counts from their first page load in a browser, so one-page visits (bounces) are in the data. Without the `tn_id` cookie, API calls, assets and cookie-less scripts never become identities.
+- **Single-page apps.** Navigation inside an SPA makes no new page loads, so put the goal on an API call (`POST /api/signup`) or the `X-Turnout-Event` header, not a page URL. App d above is an SPA and passed this way. Clients whose user agent looks like a bot (`curl`, `wget`, `python-requests`, headless browsers…) always get the live release and send no events: test with a browser user agent.
 - **Absolute links in the page.** Turnout rewrites headers, never bodies. A page that links to `https://its-own-host/…` sends the visitor straight to the app, outside the experiment. Use relative links, or let Turnout serve the app's public host name.
 - **Third-party websites** work as a smoke test but are not a use case: a CSP naming the site's own host, assets on the site's CDN, or `<base href>` keep parts of the page on the original site. Your own app, served only through Turnout, has none of these problems.
 - **http to https redirects.** A release given as `http://site` that redirects to `https://site` sends the visitor away (the origins differ). Give the https URL.
