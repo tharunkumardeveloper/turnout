@@ -859,3 +859,13 @@ body.welcome-open { overflow: hidden; }
 .visitor-arms li[data-you='true'] { font-weight: 700; }
 .visitor-arms li[data-you='true'] .visitor-label::after { content: '  ← you'; color: var(--treatment, #2f9e6b); }
 .visitor-note { margin-top: 8px; }
+/* Focus view order: what is happening (the stage), the round, who gets which release, then you as a visitor. */
+.focus-view .col-main > * { order: 5; }
+.focus-view .col-main > #stage { order: 1; }
+.focus-view .col-main > #round-card { order: 2; }
+.focus-view .col-main > #track-card { order: 3; }
+.focus-view .col-main > #visitor-card { order: 4; }
+.visitor-arms { margin-bottom: 4px; }
+.visitor-note { margin-top: 12px !important; }
+.round-sim { font-weight: 500; color: var(--muted); font-size: 0.85em; }
+.round-chart-box text { font-size: 13px; }

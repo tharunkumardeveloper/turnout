@@ -364,7 +364,7 @@ function renderRound(s) {
       ? [h('h3', {}, reveal.head), h('p', {}, reveal.text)]
       : [h('h3', {}, 'Live experiment'), h('p', {}, "Flagsmith's chance to win, each time it refreshes its results.")];
   });
-  const chart = J.chanceChart(history, 320, 130, 16);
+  const chart = J.chanceChart(history, 640, 200, 22);
   setSlot($('round-chart'), JSON.stringify(chart.dots), () => {
     if (chart.empty) return h('p', { class: 'round-empty' }, 'The line starts at the first results from Flagsmith (it refreshes at most every 5 minutes).');
     const g = svg('svg', { viewBox: `0 0 ${chart.width} ${chart.height}`, role: 'img', 'aria-label': `Chance to win: ${chart.dots.map((d) => `${Math.round(d.chance * 100)}%`).join(', ')}` });
