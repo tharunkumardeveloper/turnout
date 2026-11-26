@@ -274,7 +274,10 @@ export function shared<T>(load: () => Promise<T>, ttlMs: number, now: () => numb
 
 // shop:1.6 converts better but carries a deliberate test fault, a seeded 60 ms delay: it wins on orders and loses
 // the latency guardrail.
-export const DEFAULT_RATES = 'shop:1.4=0.10,shop:1.5=0.135,shop:1.6=0.17';
+// The demo's true order rates (inputs, not evidence). 1.5 converts 60% better than 1.4, so 3,000 visitors give Flagsmith a
+// clear answer on its first look: a closer pair often meant "keep running", and Flagsmith allows its next look only
+// 5 minutes later, which stalled the tour.
+export const DEFAULT_RATES = 'shop:1.4=0.10,shop:1.5=0.16,shop:1.6=0.20';
 export const REFRESH_EVERY_MS = 5 * 60_000; // Flagsmith accepts one results refresh per experiment every 5 minutes
 const DEFAULT_VISITORS = 1500;
 const VERIFY_VISITORS = 50;

@@ -85,6 +85,7 @@ code, .mono { font-family: var(--mono); }
   padding: 0; margin: -1px;
   overflow: hidden; clip: rect(0 0 0 0);
   white-space: nowrap; border: 0;
+  user-select: none; /* read aloud by screen readers, never copied with the visible text */
 }
 
 .skip-link {
