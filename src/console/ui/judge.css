@@ -814,3 +814,34 @@ body.welcome-open { overflow: hidden; }
 @keyframes autopilot-blink { 50% { opacity: 0.35; } }
 @media (prefers-reduced-motion: reduce) { .autopilot-line::before { animation: none; } }
 .welcome-live { margin: 0; padding: 10px 12px; border-radius: 10px; background: color-mix(in srgb, var(--treatment, #2f9e6b) 12%, transparent); font-size: 14px; }
+
+/* ---- this round: the blind reveal, Flagsmith's chance to win over time, the scoreboard ------------------------ */
+.round-card[hidden] { display: none; }
+.round-grid { display: grid; gap: 14px; grid-template-columns: minmax(0, 1fr); }
+@media (min-width: 900px) { .round-grid { grid-template-columns: minmax(0, 1.1fr) minmax(0, 1fr); } .round-reveal { grid-column: 1 / -1; } }
+.round-reveal { padding: 12px 14px; border-radius: 12px; border: 1px solid var(--border); }
+.round-reveal h3 { margin: 0 0 4px; font-size: 16px; }
+.round-reveal p { margin: 0; font-size: 14px; line-height: 1.5; }
+.round-reveal[data-kind='right'] { border-color: color-mix(in srgb, #2f9e6b 60%, transparent); background: color-mix(in srgb, #2f9e6b 10%, transparent); }
+.round-reveal[data-kind='wrong'] { border-color: color-mix(in srgb, #d14343 60%, transparent); background: color-mix(in srgb, #d14343 10%, transparent); }
+.round-reveal[data-kind='hidden'] h3::before { content: '\1F512  '; }
+.round-chart { margin: 0; }
+.round-chart figcaption { font-size: 13px; color: var(--muted); margin-bottom: 6px; }
+.round-chart-box svg { width: 100%; height: auto; display: block; }
+.round-chart-box .grid-line { stroke: var(--border); stroke-width: 1; }
+.round-chart-box .ship-line { stroke: #2f9e6b; stroke-width: 1; stroke-dasharray: 4 3; }
+.round-chart-box .chance-line { fill: none; stroke: var(--treatment, #2f9e6b); stroke-width: 2.5; stroke-linejoin: round; }
+.round-chart-box .chance-dot { fill: var(--treatment, #2f9e6b); }
+.round-chart-box text { font: 11px var(--sans, system-ui); fill: var(--muted); }
+.round-empty { font-size: 13px; color: var(--muted); padding: 22px 8px; text-align: center; border: 1px dashed var(--border); border-radius: 10px; margin: 0; }
+.round-score .score-head { margin: 0; font-size: 17px; font-weight: 700; }
+.round-score .score-sub { margin: 4px 0 8px; font-size: 13px; color: var(--muted); }
+.score-rounds { list-style: none; margin: 0; padding: 0; display: flex; flex-wrap: wrap; gap: 6px; }
+.score-rounds li { font-size: 12px; padding: 3px 8px; border-radius: 999px; border: 1px solid var(--border); }
+.score-rounds li[data-outcome='right'] { border-color: #2f9e6b; }
+.score-rounds li[data-outcome='wrong'] { border-color: #d14343; }
+
+/* The public page's first screen: the story, the round and the track. Everything else behind "Show details". */
+.details-toggle[hidden] { display: none; }
+.focus-view .col-left, .focus-view .fs-panel, .focus-view #flowline, .focus-view #kpis { display: none !important; }
+@media (min-width: 1024px) { .focus-view .story { grid-template-columns: minmax(0, 1fr); grid-template-areas: "main"; max-width: 1100px; margin: 0 auto; } }

@@ -793,3 +793,49 @@ export function autopilotLine(state, nowMs = Date.now()) {
   const when = s > 90 ? `in ~${Math.round(s / 60)} min` : s > 0 ? `in ~${s} s` : 'any moment now';
   return { kind: 'waiting', text: `Running automatically — next: ${next.title} ${when}`, retrying: Boolean(ap.lastError) };
 }
+
+// ---- this round: Flagsmith's chance to win over time, the blind reveal, the scoreboard -------------------------
+/**
+ * SVG geometry for the chance-to-win line: one point per Flagsmith results refresh, x by order, y = chance to win
+ * (0 at the bottom, 1 at the top). Also the 95% line and the credible-interval bars (lift, as whiskers around 0).
+ * @param {{ asOf: string, chanceToWin: number|null, low: number|null, high: number|null, identities: number }[]} points
+ */
+export function chanceChart(points, width = 320, height = 120, pad = 14) {
+  const usable = (points ?? []).filter((p) => typeof p.chanceToWin === 'number');
+  const x = (i, n) => (n <= 1 ? width / 2 : pad + (i * (width - 2 * pad)) / (n - 1));
+  const y = (c) => pad + (1 - c) * (height - 2 * pad);
+  const dots = usable.map((p, i) => ({ x: +x(i, usable.length).toFixed(1), y: +y(p.chanceToWin).toFixed(1), chance: p.chanceToWin, identities: p.identities, asOf: p.asOf }));
+  return {
+    width,
+    height,
+    dots,
+    line: dots.map((d) => `${d.x},${d.y}`).join(' '),
+    ship: +y(0.95).toFixed(1), // Turnout ships at 95% with an interval clear of zero
+    half: +y(0.5).toFixed(1),
+    empty: dots.length === 0,
+  };
+}
+
+/** "Flagsmith picked the right release in 24 of 28 rounds" and the details line. */
+export function scoreText(score) {
+  if (!score || !score.rounds) return { head: 'No rounds decided yet', sub: 'Each round, the true rates are drawn at random and hidden. Flagsmith has to find the winner, or say there is none.' };
+  return {
+    head: `Flagsmith's call was right in ${score.right} of ${score.rounds} round${score.rounds === 1 ? '' : 's'}`,
+    sub: `${score.noCall} no clear call yet (too little data, not a mistake) · ${score.wrong} wrong`,
+  };
+}
+
+const CALL_TEXT = { ship: 'ship the new release', revert: 'keep the old release (revert)', 'keep-running': 'no clear winner yet (keep running)' };
+/** The reveal for this round, or why it's still hidden. */
+export function revealText(blind) {
+  if (!blind?.enabled && !blind?.round) return null;
+  const r = blind?.round;
+  if (!r) return { kind: 'waiting', head: 'Blind round', text: 'The true rates are drawn when the first visitors arrive, and stay hidden.' };
+  if (r.hidden) return { kind: 'hidden', head: 'Blind round: the truth is hidden', text: 'The true order rates were drawn at random. Only the traffic reaches Flagsmith; the answer is revealed when the round is decided.' };
+  const verdict = r.round.outcome === 'right' ? '✓ right' : r.round.outcome === 'no-call' ? '… no clear call' : '✗ wrong';
+  return {
+    kind: r.round.outcome,
+    head: `Revealed: ${verdict}`,
+    text: `Truth: ${r.truth}. Flagsmith's numbers said: ${CALL_TEXT[r.round.call] ?? r.round.call}${typeof r.round.chanceToWin === 'number' ? ` (${(r.round.chanceToWin * 100).toFixed(1)}% chance to win)` : ''}. The right call was: ${CALL_TEXT[r.round.expected] ?? r.round.expected}.`,
+  };
+}

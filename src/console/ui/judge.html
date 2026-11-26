@@ -47,6 +47,7 @@
 
       <div class="appbar-end">
         <span id="feed-state" class="feed-state" data-state="pending" role="status">connecting…</span>
+        <button id="details-toggle" class="btn btn-small details-toggle" type="button" aria-pressed="false" hidden>Show details</button>
         <button id="tour-open" class="btn btn-small appbar-tour" type="button" aria-label="Start tour">
           <svg class="ic" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M7 4v16l13-8z" /></svg>
           <span class="appbar-tour-label">Start tour</span>
@@ -130,6 +131,22 @@
             <p id="kpi-chance-sub" class="kpi-sub">no results from Flagsmith yet</p>
             <p class="kpi-src kpi-src-fs"><span class="fs-dot" aria-hidden="true"></span>from Flagsmith</p>
           </article>
+        </section>
+
+        <section id="round-card" class="card round-card" aria-labelledby="round-title" hidden>
+          <div class="card-head">
+            <svg class="ic" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M4 19h16M5 16l4-5 4 3 6-8" /></svg>
+            <h2 id="round-title">This round</h2>
+            <span class="fs-tag"><span class="fs-dot" aria-hidden="true"></span>numbers from Flagsmith</span>
+          </div>
+          <div class="round-grid">
+            <div class="round-reveal" id="round-reveal" aria-live="polite"></div>
+            <figure class="round-chart">
+              <figcaption>Flagsmith's chance that the new release is better, at each results refresh</figcaption>
+              <div id="round-chart" class="round-chart-box"></div>
+            </figure>
+            <div class="round-score" id="round-score"></div>
+          </div>
         </section>
 
         <section id="track-card" class="card track-card" aria-labelledby="routes-title">

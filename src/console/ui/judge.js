@@ -332,6 +332,7 @@ function render() {
   renderSteps(s);
   renderFlow(s);
   renderKpis(s);
+  renderRound(s);
   renderTrack(s);
   renderStage(s);
   renderHistory(s);
@@ -340,6 +341,75 @@ function render() {
   preloadFrames(s);
   tour.update(s);
 }
+
+// ---- this round: blind reveal, chance-to-win line, scoreboard ------------------------------------------------------
+const SVG_NS = 'http://www.w3.org/2000/svg';
+function svg(tag, attrs = {}, ...children) {
+  const node = document.createElementNS(SVG_NS, tag);
+  for (const [k, v] of Object.entries(attrs)) node.setAttribute(k, String(v));
+  for (const c of children) node.append(c instanceof Node ? c : document.createTextNode(String(c)));
+  return node;
+}
+
+function renderRound(s) {
+  const card = $('round-card');
+  const reveal = J.revealText(s.blind);
+  const history = s.history ?? [];
+  card.hidden = !s.blind && !history.length;
+  if (card.hidden) return;
+  setSlot($('round-reveal'), JSON.stringify(reveal), () => {
+    $('round-reveal').dataset.kind = reveal?.kind ?? 'none';
+    return reveal
+      ? [h('h3', {}, reveal.head), h('p', {}, reveal.text)]
+      : [h('h3', {}, 'Live experiment'), h('p', {}, "Flagsmith's chance to win, each time it refreshes its results.")];
+  });
+  const chart = J.chanceChart(history, 320, 130, 16);
+  setSlot($('round-chart'), JSON.stringify(chart.dots), () => {
+    if (chart.empty) return h('p', { class: 'round-empty' }, 'The line starts at the first results from Flagsmith (it refreshes at most every 5 minutes).');
+    const g = svg('svg', { viewBox: `0 0 ${chart.width} ${chart.height}`, role: 'img', 'aria-label': `Chance to win: ${chart.dots.map((d) => `${Math.round(d.chance * 100)}%`).join(', ')}` });
+    g.append(
+      svg('line', { class: 'grid-line', x1: 0, x2: chart.width, y1: chart.half, y2: chart.half }),
+      svg('line', { class: 'ship-line', x1: 0, x2: chart.width, y1: chart.ship, y2: chart.ship }),
+      svg('text', { x: 4, y: chart.ship - 3 }, '95%: ship'),
+      svg('text', { x: 4, y: chart.half - 3 }, '50%: a coin flip'),
+      svg('polyline', { class: 'chance-line', points: chart.line }),
+      ...chart.dots.map((d) => svg('circle', { class: 'chance-dot', cx: d.x, cy: d.y, r: 4 }, svg('title', {}, `${(d.chance * 100).toFixed(1)}% after ${d.identities} visitors`))),
+    );
+    return g;
+  });
+  const score = J.scoreText(s.blind?.score);
+  const recent = s.blind?.recent ?? [];
+  setSlot($('round-score'), JSON.stringify([s.blind?.score, recent]), () => [
+    h('p', { class: 'score-head' }, score.head),
+    h('p', { class: 'score-sub' }, score.sub),
+    recent.length
+      ? h('ul', { class: 'score-rounds', 'aria-label': 'Recent rounds' }, ...recent.map((r) =>
+          h('li', { 'data-outcome': r.outcome }, `#${r.experimentId} ${r.v2} vs ${r.control}: ${r.outcome === 'right' ? '✓' : r.outcome === 'wrong' ? '✗' : '…'}`)))
+      : null,
+  ]);
+}
+
+// The public page opens on one focus (the story, the round, the track); "Show details" brings back the full view.
+function setupFocusView() {
+  if (!READONLY) return;
+  const btn = $('details-toggle');
+  btn.hidden = false;
+  let details = false;
+  try { details = localStorage.getItem('turnout-details') === '1'; } catch { /* storage may be blocked */ }
+  const apply = () => {
+    document.body.classList.toggle('focus-view', !details);
+    btn.textContent = details ? 'Show less' : 'Show details';
+    btn.setAttribute('aria-pressed', String(details));
+  };
+  btn.addEventListener('click', () => {
+    details = !details;
+    try { localStorage.setItem('turnout-details', details ? '1' : '0'); } catch { /* ignore */ }
+    apply();
+    syncScrollCues();
+  });
+  apply();
+}
+setupFocusView();
 
 // The Flagsmith column scrolls on its own: a soft fade at the foot says there is more below. The left column (the
 // steps and the history) never does: it stays in view while it fits on the screen, and scrolls with the page when
