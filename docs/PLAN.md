@@ -9,10 +9,10 @@ only counts if it works on all of them.
 - Local stack: `turnout.bat` (Windows) or `sh turnout.sh` starts everything, Try it included. Console :8090, demo shop
   :8080, Flagsmith :8000, Flagsmith with Turnout's tour :8001, Try it's proxy :8085, previews A/B/C :8086-8088.
 - One console page with a **Judge mode** switch. A Try it build lands on **your app's console** at `/app`.
-- VM (public, read-only): `https://172-198-62-67.sslip.io/judge`. Deploy:
-  `ssh -i ~/Downloads/switchyard-key.pem azureuser@172.198.62.67 'cd ~/turnout && git pull -q && docker compose -f compose.yaml -f compose.server.yml up -d --build --wait turnout turnout-live console'`
-- Tests: `npm test` (634, 1 skipped on purpose), `npm run typecheck`. CI runs both on every push.
-- The repo and the image are private. Try it never runs on the VM (it builds and runs code over the Docker socket).
+- Live demo (public, read-only): `https://172-198-62-67.sslip.io/judge`. It runs this repo's `main`; Try it is off
+  there.
+- Tests: `npm test` (653, 1 skipped on purpose), `npm run typecheck`. CI runs both on every push.
+- The repo is public. Try it never runs on a public server: it builds and runs code over the Docker socket.
 - Scoreboard (`npm run scoreboard`, one clean run of all 12, 25 Nov): builds 12/12, starts 12/12, goals 11/12,
   visitors 12/12, results 12/12, counts match 12/12, ships 12/12. Next.js static has no goal on purpose: its only link
   answers 404 on nginx, so none is offered and it's compared on page speed.

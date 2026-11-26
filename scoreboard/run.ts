@@ -185,4 +185,17 @@ for (const app of apps) {
   console.log(STAGES.map((s) => `${s} ${row.stages[s] ? (row.stages[s]!.pass ? 'ok' : 'FAIL') : '-'}`).join(', '));
 }
 print(rows);
-writeFileSync(join(HERE, 'last-run.json'), JSON.stringify({ at: new Date().toISOString(), rows }, null, 2) + '\n');
+// A run of some apps (npm run scoreboard -- flask) replaces only their rows; the other apps' results are kept, and
+// each row says when it ran, so the file always holds all 12.
+const at = new Date().toISOString();
+const file = join(HERE, 'last-run.json');
+let kept: (Row & { at?: string })[] = [];
+if (wanted.length) {
+  try {
+    const old = JSON.parse(readFileSync(file, 'utf8'));
+    kept = (old.rows ?? []).filter((r: Row) => !apps.includes(r.app)).map((r: Row & { at?: string }) => ({ ...r, at: r.at ?? old.at }));
+  } catch { /* no earlier result */ }
+}
+const all = [...kept, ...rows.map((r) => ({ ...r, at }))].sort((a, b) => a.app.localeCompare(b.app));
+writeFileSync(file, JSON.stringify({ at, rows: all }, null, 2) + '\n');
+if (wanted.length) console.log(`(scoreboard/last-run.json: ${rows.length} app(s) updated, ${kept.length} kept from earlier runs)`);

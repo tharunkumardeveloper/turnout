@@ -21,7 +21,8 @@ Each app goes through the same steps as the console page, with A and B both buil
 | ship | Ship completes |
 
 It ends with one line, e.g. `builds 11/12, starts 9/12, goals found 4/12…`, and writes every stage's notes to
-`scoreboard/last-run.json`.
+`scoreboard/last-run.json`. A run of only some apps (`npm run scoreboard -- flask`) replaces just their rows there;
+the other apps' results stay, each row with the time it ran.
 
 ## The apps
 
