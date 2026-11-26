@@ -4,9 +4,9 @@
 
 # Turnout
 
-**Test a whole new version of your website on real visitors, then move everyone to the winner with one click.<br>No changes to your app's code. Built on self-hosted Flagsmith.**
+**Flagsmith Experimentation for whole releases: test a new version of your website on real visitors, let Flagsmith pick the winner, move everyone to it with one click.<br>No changes to your app's code. Built on self-hosted Flagsmith.**
 
-*Toggle Wars entry, Track 03: self-hosted Flagsmith, integrations and developer tools.*
+*Toggle Wars entry, Track 03: self-hosted Flagsmith, integrations and developer tools. Every experiment, metric, result and rollout here is Flagsmith Experimentation's own: Turnout computes no statistics.*
 
 [![Flagsmith](https://img.shields.io/badge/Flagsmith-self--hosted%20%C2%B7%20Experimentation-6633ff)](https://github.com/Flagsmith/flagsmith)
 [![Node.js 24](https://img.shields.io/badge/Node.js-24-5fa04e?logo=nodedotjs&logoColor=white)](https://nodejs.org)
