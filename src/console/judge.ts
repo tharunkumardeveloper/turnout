@@ -930,9 +930,10 @@ export function createJudge(opts: JudgeOptions, ctx: JudgeContext) {
     const { control, v2 } = s.tested;
     const rateOf = (release: string | null) => (release ? (opts.rates[release] ?? 0.1) : 0.1);
     const truth = opts.blind?.enabled && control && v2 ? opts.blind.store.truthFor(s.experiment.id, control, v2) : null;
-    const rates: Record<string, number> = truth
-      ? { [CONTROL]: truth.rates.control, v2: truth.rates.v2 }
-      : Object.fromEntries(s.arms.map((a) => [a.key, rateOf(a.key === 'v2' ? v2 : a.key === CONTROL ? control : a.release)]));
+    // Every version's own rate; a blind round hides A's and B's (it draws only those two). Without the configured
+    // rates underneath, C in an A/B/C blind round had no rate at all, and its shoppers never ordered.
+    const configured = Object.fromEntries(s.arms.map((a) => [a.key, rateOf(a.key === 'v2' ? v2 : a.key === CONTROL ? control : a.release)]));
+    const rates: Record<string, number> = truth ? { ...configured, [CONTROL]: truth.rates.control, v2: truth.rates.v2 } : configured;
     // Right after a release or reset the proxy may still hold the previous flag state for a few seconds; visitors
     // sent then would land outside the experiment and never be counted.
     for (let i = 0; i <= 20; i++) {
