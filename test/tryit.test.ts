@@ -136,3 +136,27 @@ test("an app's own failed build says what to try: the log, and settings (passed 
   const { gitBuildError } = await import('../src/tryit/server.ts');
   assert.match(gitBuildError("The command '/bin/sh -c npm run build' returned a non-zero code: 1"), /add them to Settings for your app: Turnout passes them to the build/);
 });
+
+test("an app's port comes from its own log when the Dockerfile names none (Django on 8000, Node on 3000)", async () => {
+  const { portsInLog } = await import('../src/tryit/server.ts');
+  assert.deepEqual(portsInLog('[INFO] Starting gunicorn 27.0.1\n[INFO] Listening at: http://0.0.0.0:8000 (1)'), [8000]);
+  assert.deepEqual(portsInLog('Server running on port 3000'), [3000]);
+  assert.deepEqual(portsInLog('  ➜  Local:   http://localhost:5173/'), [5173]);
+  assert.deepEqual(portsInLog('Compiled successfully'), []);
+});
+
+test('goal suggestions come from the site: its pages, the ones people act on first; none for the home page', async () => {
+  const { goalsFrom } = await model();
+  assert.deepEqual(goalsFrom(['index.html', 'about.html', 'contact.html', 'css/style.css', 'projects/index.html']), ['GET /contact.html', 'GET /projects', 'GET /about.html'].map((g) => (g === 'GET /projects' ? 'GET /projects*' : g)));
+  assert.deepEqual(goalsFrom(['app/page.tsx', 'app/[lang]/contact/page.tsx', 'app/(store)/pricing/page.tsx', 'pages/api/x.ts', 'node_modules/a/page.tsx']), ['GET /*/contact', 'GET /pricing*']);
+  assert.deepEqual(goalsFrom(['pages/_app.tsx', 'pages/signup.tsx', 'pages/blog/[slug].tsx']), ['GET /signup*', 'GET /blog/*']);
+  assert.deepEqual(goalsFrom(['Dockerfile', 'manage.py', 'blog/views.py']), []);
+});
+
+test("goals from a page's own HTML: forms that reach the server and downloads; never email links or browser-only forms", async () => {
+  const { goalsFromHtml } = await model();
+  const cv = '<a href="./docs/CHIGOZIE_OZIRI_CV.pdf">CV</a><a href="mailto:me@x.io">mail</a><a href="#about">about</a><link href="css/a.css">';
+  assert.deepEqual(goalsFromHtml(cv), ['GET /docs/CHIGOZIE_OZIRI_CV.pdf']);
+  assert.deepEqual(goalsFromHtml('<form action = "javascript:void(0);" class="form"></form><a href="tel:+61">call</a>'), []);
+  assert.deepEqual(goalsFromHtml('<form method="post" action="/contact/send"></form><a href="/pricing">p</a><a href="https://x.com/">x</a>'), ['POST /contact/send', 'GET /pricing*']);
+});

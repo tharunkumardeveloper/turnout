@@ -143,7 +143,9 @@ export function createDocker(o: DockerOptions = {}) {
     async logs(name: string, tail = 20): Promise<string> {
       const r = await request('GET', `/containers/${encodeURIComponent(name)}/logs?${q({ stdout: '1', stderr: '1', tail: String(tail) })}`).catch(() => ({ body: '' }));
       // The log stream is multiplexed: an 8-byte header per frame. Keep the printable text.
-      return String(r.body ?? '').replace(/[\x00-\x08\x0e-\x1f]/g, '').trim();
+      // Each frame starts with 8 bytes: the stream (1 or 2), three zeros, and the frame's length. Drop them whole (the
+      // length's last byte is often a printable letter: "@[2026…"), then any control characters left.
+      return String(r.body ?? '').replace(/[\x01\x02]\x00\x00\x00[\s\S]{4}/g, '').replace(/[\x00-\x08\x0e-\x1f]/g, '').trim();
     },
   };
 }

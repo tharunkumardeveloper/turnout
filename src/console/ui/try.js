@@ -2,7 +2,7 @@
 // or an image), built and run on this machine by the tryit service, then the same test page as judge mode at /try.
 // One version makes an A/A test, two an A/B test, three an A/B/C test. Every string goes in through textContent.
 
-import { SKIP, detect, dockerfilesIn, tarParts } from './try-model.js';
+import { SKIP, detect, dockerfilesIn, goalsFrom, goalsFromHtml, tarParts } from './try-model.js';
 
 const TOKEN = document.querySelector('meta[name="turnout-console"]')?.getAttribute('content') ?? '';
 const api = (path, init = {}) => fetch(path, { ...init, headers: { ...(init.headers ?? {}), 'x-turnout-console': TOKEN } });
@@ -204,8 +204,61 @@ function go(n) {
   $('try-back').hidden = n === 1;
   $('try-next').hidden = n !== 1;
   $('try-example').hidden = n !== 1;
-  $('try-build').hidden = n === 3 && $('try-error').hidden; // step 3: only to try again after a failure
+  // One highlighted button per step: Next on step 1 (Build waits for step 2), Build on step 2.
+  $('try-build').hidden = n === 1 || (n === 3 && $('try-error').hidden); // step 3: only to try again after a failure
+  $('try-next').classList.toggle('btn-primary', n === 1);
+  if (n === 2) void suggestGoals();
   $('try-build').textContent = n === 3 ? '↻ Build again' : '🚀 Build and try';
+}
+
+// Goals from the site itself: its pages, read from the folder you chose or the GitHub repository's file list (the
+// tryit service asks GitHub; nothing is sent anywhere else). Images and lone Dockerfiles have no pages to read.
+const COMMON_GOALS = ['GET /contact*', 'GET /pricing*', 'POST /signup', 'POST /checkout'];
+const goalView = { key: '', chips: [] };
+function renderChips(goals, fromSite) {
+  const pick = (g) => () => ((/** @type {HTMLInputElement} */ ($('try-goal')).value = g), renderPlan());
+  // A site with nothing a visitor does that reaches the server: say so, and leave the goal empty (page speed).
+  if (fromSite && !goals.length) {
+    return void $('try-goal-chips').replaceChildren(h('span', { class: 'try-chips-label' },
+      "Your site has no form or page a visitor's action reaches (email links and forms that only run in the browser can't be counted): leave the goal empty to compare page speed."));
+  }
+  const list = goals.length ? goals : COMMON_GOALS;
+  $('try-goal-chips').replaceChildren(
+    h('span', { class: 'try-chips-label' }, fromSite ? 'From your site:' : 'Common goals:'),
+    ...list.map((g) => h('button', { type: 'button', class: 'try-chip', title: `Count ${g} as a win`, on: { click: pick(g) } }, g)));
+}
+async function suggestGoals() {
+  const versions = filled();
+  const key = JSON.stringify(versions.map((r) => r.folder?.shared.name ?? r.file?.name ?? r.text.trim()));
+  if (key === goalView.key) return renderChips(goalView.chips, goalView.readable);
+  goalView.key = key;
+  $('try-goal-chips').replaceChildren(h('span', { class: 'try-chips-label' }, 'Reading your site for goals…'));
+  const all = [];
+  let readable = false;
+  for (const r of versions) {
+    let paths = [];
+    let html = '';
+    if (r.folder) {
+      paths = r.folder.shared.files.map((x) => x.path);
+      const home = r.folder.shared.files.find((x) => /^(public\/|src\/)?index\.html$/i.test(x.path));
+      html = home ? await home.f.text().catch(() => '') : '';
+    } else {
+      const d = detect(r.text);
+      if (d?.kind === 'git') {
+        const res = await api(`/api/try/repo-files?url=${encodeURIComponent(d.value)}`, { cache: 'no-store' }).catch(() => null);
+        const body = res?.ok ? await res.json() : {};
+        paths = body.files ?? [];
+        html = body.html ?? '';
+      } else continue; // an image or a lone Dockerfile: no pages to read
+    }
+    // What a visitor does on the home page (a form, a download) first, then the site's other pages.
+    for (const g of [...goalsFromHtml(html), ...goalsFrom(paths, 6)]) if (!all.includes(g)) all.push(g);
+    readable = true;
+  }
+  if (goalView.key !== key) return; // the versions changed while reading
+  goalView.chips = all.slice(0, 8);
+  goalView.readable = readable;
+  renderChips(goalView.chips, readable);
 }
 
 function renderPlan() {
@@ -509,8 +562,7 @@ export async function setupTry() {
   $('try-next').addEventListener('click', () => go(2));
   $('try-back').addEventListener('click', () => go(Math.max(1, step - 1)));
   $('try-goal').addEventListener('input', renderPlan);
-  $('try-goal-chips').replaceChildren(...['GET /pricing*', 'POST /signup', 'POST /checkout', 'GET /product/*'].map((g) =>
-    h('button', { type: 'button', class: 'try-chip', on: { click: () => ((/** @type {HTMLInputElement} */ ($('try-goal')).value = g), renderPlan()) } }, g)));
+  renderChips([], false);
   $('try-example').addEventListener('click', () => {
     for (const r of rows) Object.assign(r, { folder: null, file: null, text: '' });
     rows[0].text = EXAMPLE[0];

@@ -128,6 +128,55 @@ export function gitBuildError(message: string): string {
   return message;
 }
 
+/** A public GitHub repository's file paths (at its branch and folder, if the link names them), for goal suggestions. */
+export async function repoFiles(link: string): Promise<string[]> {
+  const m = link.trim().match(/^https:\/\/github\.com\/([\w.-]+)\/([\w.-]+?)(?:\.git)?\/?(?:#([^:]*)(?::(.*))?)?$/i);
+  if (!m) return [];
+  const [, owner, repo, branch, folder] = m;
+  try {
+    const r = await fetch(`https://api.github.com/repos/${owner}/${repo}/git/trees/${encodeURIComponent(branch || 'HEAD')}?recursive=1`, {
+      headers: { accept: 'application/vnd.github+json', 'user-agent': 'turnout-tryit' },
+      signal: AbortSignal.timeout(8000),
+    });
+    if (!r.ok) return [];
+    const body = (await r.json()) as { tree?: { path: string; type: string }[] };
+    const prefix = folder ? `${folder.replace(/^\/+|\/+$/g, '')}/` : '';
+    return (body.tree ?? []).filter((t) => t.type === 'blob' && t.path.startsWith(prefix)).map((t) => t.path.slice(prefix.length)).slice(0, 20000);
+  } catch {
+    return [];
+  }
+}
+
+/** A public GitHub repository's home page (index.html at its root or folder), raw, for goals: its forms and links. */
+export async function repoPage(link: string): Promise<string> {
+  const m = link.trim().match(/^https:\/\/github\.com\/([\w.-]+)\/([\w.-]+?)(?:\.git)?\/?(?:#([^:]*)(?::(.*))?)?$/i);
+  if (!m) return '';
+  const [, owner, repo, branch, folder] = m;
+  const dir = folder ? `${folder.replace(/^\/+|\/+$/g, '')}/` : '';
+  for (const file of ['index.html', 'public/index.html', 'src/index.html']) {
+    try {
+      const r = await fetch(`https://raw.githubusercontent.com/${owner}/${repo}/${encodeURIComponent(branch || 'HEAD')}/${dir}${file}`, { signal: AbortSignal.timeout(8000) });
+      if (r.ok) return (await r.text()).slice(0, 500_000);
+    } catch {
+      /* next */
+    }
+  }
+  return '';
+}
+
+/** The ports most web apps listen on, after the Dockerfile's and the log's. */
+export const COMMON_PORTS = [80, 8000, 3000, 8080, 5000, 4000, 8888, 5173, 1337, 9000];
+
+/** Ports an app's log says it listens on: "Listening at: http://0.0.0.0:8000", "on port 3000", "localhost:5173". */
+export function portsInLog(log: string): number[] {
+  const found: number[] = [];
+  for (const m of log.matchAll(/(?:listening|running|started|serving|server|bound|available)[^\n]{0,60}?(?:port\s*:?\s*|:)(\d{2,5})\b|(?:0\.0\.0\.0|localhost|127\.0\.0\.1|\[::\]):(\d{2,5})\b/gi)) {
+    const n = Number(m[1] ?? m[2]);
+    if (n > 0 && n < 65536 && !found.includes(n)) found.push(n);
+  }
+  return found;
+}
+
 export const kindFor = (n: number) => (n <= 1 ? 'A/A' : 'ABC'.slice(0, n).split('').join('/'));
 
 /** Display names: the image, the repository or "Dockerfile 2"; an A/A test's copy is "(copy)". */
@@ -277,14 +326,21 @@ export function startTryit(o: TryitOptions) {
   }
 
   // Waits until a container answers HTTP (any status), or gives up with its last log lines.
-  async function waitUp(name: string, url: string, stage: Stage): Promise<void> {
+  // Waits until a container answers HTTP (any status) and says on which port. Given a port, only that one; otherwise the
+  // Dockerfile's EXPOSE (or 80) first, then any port the app's own log names ("Listening at: http://0.0.0.0:8000",
+  // "listening on port 3000"), then the usual web ports. A Django app without EXPOSE listens on 8000, not 80.
+  async function waitUp(name: string, host: string, first: number, fixed: boolean, stage: Stage): Promise<number> {
+    const answers = (port: number) => fetch(`http://${host}:${port}/`, { signal: AbortSignal.timeout(800) }).then(() => true).catch(() => false);
+    let logged: number[] = [];
     for (let i = 0; i < 90; i++) {
-      const ok = await fetch(url, { signal: AbortSignal.timeout(2000) }).then(() => true).catch(() => false);
-      if (ok) return;
+      if (!fixed && i % 3 === 0) logged = portsInLog(await o.docker.logs(name, 40));
+      const candidates = fixed ? [first] : [...new Set([first, ...logged, ...COMMON_PORTS])];
+      for (const port of candidates) if (await answers(port)) return port;
       stage.detail = `waiting for it to answer (${i + 1} s)`;
       await new Promise((r) => setTimeout(r, 1000));
     }
-    throw new Error(`${name} didn't answer on ${url} within 90 s. Its last log lines: ${(await o.docker.logs(name)).slice(-600) || '(none)'}`);
+    const tried = fixed ? `port ${first}` : `ports ${[...new Set([first, ...logged, ...COMMON_PORTS])].join(', ')}`;
+    throw new Error(`${name} didn't answer on ${tried} within 90 s. Set its port under Advanced if it uses another. Its last log lines: ${(await o.docker.logs(name)).slice(-600) || '(none)'}`);
   }
 
   async function build(req: BuildRequest): Promise<void> {
@@ -331,14 +387,14 @@ export function startTryit(o: TryitOptions) {
         get!.status = 'done';
         get!.detail = undefined;
         run!.status = 'running';
-        const port = v.port || (await o.docker.exposedPort(image)) || 80;
-        slot.port = port;
+        const guess = v.port || (await o.docker.exposedPort(image)) || 80;
         const name = `turnout-try-${slot.slot}`;
         await o.docker.remove(name);
         // One version (A/A): the same container answers as try-a and try-b.
         const aliases = versions.length === 1 ? ['try-a', 'try-b'] : [`try-${slot.slot}`];
-        await o.docker.run({ name, image, network: NETWORK, aliases, env: [`PORT=${port}`, ...parseEnv(req.env)] });
-        await waitUp(name, `http://try-${slot.slot}:${port}/`, run!);
+        await o.docker.run({ name, image, network: NETWORK, aliases, env: [`PORT=${guess}`, ...parseEnv(req.env)] });
+        const port = await waitUp(name, `try-${slot.slot}`, guess, Boolean(v.port), run!);
+        slot.port = port;
         run!.status = 'done';
         run!.detail = `answering on port ${port}`;
         upstream[slot.label] = `http://try-${slot.slot}:${port}`;
@@ -452,6 +508,10 @@ export function startTryit(o: TryitOptions) {
       const url = new URL(req.url ?? '/', 'http://tryit');
       const p = url.pathname;
       if (p === '/api/try/status') return send(res, 200, { ...state, names, docker: await o.docker.ping() });
+      if (p === '/api/try/repo-files') {
+        const link = url.searchParams.get('url') ?? '';
+        return send(res, 200, { files: await repoFiles(link), html: await repoPage(link) });
+      }
       if (p === '/api/try/upload' && req.method === 'POST') {
         if (state.status === 'building') return send(res, 409, { error: 'A build is running. Wait for it to finish.' });
         return send(res, 200, await receiveUpload(req));

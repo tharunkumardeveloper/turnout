@@ -1293,6 +1293,13 @@ body.console-screen.judge-on { grid-template-rows: auto minmax(0, 1fr); }
 .cgrid .actions-card .action-notes { font-size: 12.5px; }
 .cgrid .actions-card .guard-card { padding: 6px 0 0; margin: 0; }
 .cgrid .actions-card .guard-line:empty { display: none; }
-.cgrid .results-card { overflow: hidden; }
+/* Flagsmith's results fit their card: compact rows, no empty lines (it scrolls only if a test has many metrics). */
+.cgrid .results-card { overflow: auto; gap: 6px; }
+.cgrid .results-card table { font-size: 12.5px; }
+.cgrid .results-card th, .cgrid .results-card td { padding-top: 4px; padding-bottom: 4px; }
+.cgrid .results-card .winner { padding: 6px 10px; }
+.cgrid .results-card .winner-detail { font-size: 12px; }
+.cgrid .results-card .foot-line[hidden] { display: none; }
 .cgrid .results-card .provenance { font-size: 12px; margin: 0; }
 .cgrid .site-card #site-goal { font-size: 12.5px; }
+.try-chips-label { align-self: center; font-size: 12px; color: var(--muted); margin-right: 2px; }

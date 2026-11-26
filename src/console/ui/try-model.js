@@ -63,3 +63,77 @@ export function tarParts(entries, now = Date.now()) {
   return parts;
 }
 
+
+// Goals that fit the site: its pages, from its files. Static pages (about.html), Next.js (app/contact/page.tsx,
+// pages/pricing.tsx), Astro/SvelteKit-style routes (src/pages/…, src/routes/…/+page.svelte). The pages people act on
+// (contact, pricing, sign-up, checkout…) come first; the home page is never a goal (everyone sees it).
+const ACT = ['contact', 'pricing', 'signup', 'sign-up', 'register', 'checkout', 'cart', 'subscribe', 'book', 'demo', 'hire', 'quote', 'download', 'donate', 'login', 'projects', 'portfolio', 'blog', 'about', 'services', 'resume'];
+const SKIP_DIRS = /(^|\/)(node_modules|\.git|\.next|dist|build|out|public\/(?:assets|static)|static|assets|vendor|coverage|test|tests|__tests__|docs?)\//i;
+
+/** One file path → the page it serves, or null. */
+export function routeOf(path) {
+  const p = String(path).split('\\').join('/');
+  if (SKIP_DIRS.test(p)) return null;
+  if (/(^|\/)_[^/]*\//.test(p) && !/^(src\/)?(app|pages)\//.test(p)) return null; // _includes/, _layouts/ (Jekyll): fragments, not pages
+  let m;
+  if ((m = p.match(/^(?:src\/)?app\/(.*?)\/?page\.(?:t|j)sx?$/))) return '/' + m[1];
+  if ((m = p.match(/^(?:src\/)?pages\/(.+?)\.(?:t|j)sx?$|^(?:src\/)?pages\/(.+?)\.(?:astro|md|mdx|vue|svelte)$/))) {
+    const r = m[1] ?? m[2];
+    if (/^(_|api\/)/.test(r) || /\/_/.test(r)) return null;
+    return '/' + r.replace(/(^|\/)index$/, '');
+  }
+  if ((m = p.match(/^src\/routes\/(.*?)\/?\+page\.(?:svelte|ts|js)$/))) return '/' + m[1];
+  if ((m = p.match(/^(?:templates\/|src\/)?([\w./-]*?)\.html?$/i)) && !/(^|\/)(templates|layouts?|partials|includes|components)\//i.test(p)) {
+    // about.html → /about.html; projects/index.html → /projects (its folder); index.html → / (the home page)
+    if (/(^|\/)index$/i.test(m[1])) return '/' + m[1].replace(/(^|\/)index$/i, '');
+    return '/' + m[1] + '.html';
+  }
+  return null;
+}
+
+/** Goal suggestions for a version: "GET /contact", most useful first, at most `max`. Dynamic parts become *. */
+export function goalsFrom(paths, max = 6) {
+  const routes = new Map();
+  for (const p of paths) {
+    const r = routeOf(p);
+    if (r == null) continue;
+    const clean = r.replace(/\/\([^)]*\)/g, '').replace(/\[{1,2}\.{0,3}[^\]]+\]{1,2}/g, '*').replace(/\/+$/, '') || '/';
+    if (clean === '/' || /\/(404|500|_not-found|not-found)(\.html)?$/.test(clean)) continue;
+    const rank = ACT.findIndex((w) => clean.toLowerCase().includes(w));
+    routes.set(clean, Math.min(routes.get(clean) ?? 99, rank < 0 ? 50 + clean.split('/').length : rank));
+  }
+  return [...routes].sort((a, b) => a[1] - b[1] || a[0].localeCompare(b[0])).slice(0, max).map(([r]) => `GET ${r.replace(/\.html$/, '.html')}${r.includes('*') || r.endsWith('.html') ? '' : '*'}`);
+}
+
+/**
+ * Goals from a page's own HTML: what a visitor can do there that reaches the server. A form that posts somewhere
+ * ("POST /contact"), a file to download ("GET /docs/cv.pdf"), a link to another page. Not mailto:, tel:, #anchors,
+ * javascript: forms or other sites: those never reach Turnout, so they can't be counted.
+ */
+export function goalsFromHtml(html) {
+  const out = [];
+  const add = (g, rank) => { if (!out.some((x) => x.g === g)) out.push({ g, rank }); };
+  const local = (u) => {
+    const v = String(u ?? '').trim();
+    if (!v || /^(#|mailto:|tel:|javascript:|data:|https?:|\/\/)/i.test(v)) return null;
+    const path = ('/' + v.replace(/^\.?\//, '')).replace(/[?#].*$/, '').replace(/\/{2,}/g, '/');
+    return /\.(css|js|mjs|png|jpe?g|gif|svg|webp|ico|woff2?|ttf|map|json|xml|txt)$/i.test(path) ? null : path;
+  };
+  for (const m of String(html).matchAll(/<form\b([^>]*)>/gi)) {
+    const attrs = m[1];
+    const action = (attrs.match(/\baction\s*=\s*["']?([^"'\s>]*)/i) ?? [])[1];
+    const method = ((attrs.match(/\bmethod\s*=\s*["']?(\w+)/i) ?? [])[1] ?? 'GET').toUpperCase();
+    const path = action === '' || action === undefined ? null : local(action);
+    if (path) add(`${method === 'POST' ? 'POST' : 'GET'} ${path}`, 0);
+  }
+  for (const m of String(html).matchAll(/<a\b[^>]*\bhref\s*=\s*["']([^"']+)["']/gi)) {
+    const path = local(m[1]);
+    if (!path || path === '/' || path === '/index.html') continue;
+    if (/\.(pdf|docx?|zip|pptx?|xlsx?)$/i.test(path)) add(`GET ${path}`, 1);
+    else {
+      const rank = ACT.findIndex((w) => path.toLowerCase().includes(w));
+      add(`GET ${path}${path.endsWith('.html') ? '' : '*'}`, rank < 0 ? 60 : 2 + rank);
+    }
+  }
+  return out.sort((a, b) => a.rank - b.rank).map((x) => x.g);
+}

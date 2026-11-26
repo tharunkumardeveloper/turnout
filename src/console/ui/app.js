@@ -487,6 +487,7 @@ function renderResults(s) {
   $('metrics').replaceChildren(assessed.length ? metricsTable(assessed) : h('p', { class: 'empty' }, 'This experiment has no metrics.'));
 
   $('srm').textContent = F.srmText(res);
+  $('srm').hidden = /not computed/.test($('srm').textContent); // nothing to say yet: no line
   $('events').textContent = F.eventsText(s.events);
   const delta = $('events-delta');
   delta.textContent = s.events && app.eventsDelta > 0 ? `+${F.formatInt(app.eventsDelta)} in the last poll` : '';
