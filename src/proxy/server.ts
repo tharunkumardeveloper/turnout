@@ -1,6 +1,8 @@
 import { createHmac, randomUUID, timingSafeEqual } from 'node:crypto';
 import http from 'node:http';
 import https from 'node:https';
+import dns from 'node:dns';
+import type { LookupFunction } from 'node:net';
 import { EVENT_NAME, GUARDRAILS, matchesRule, type Config } from '../config.ts';
 import type { Receipt } from '../flagsmith/receipts.ts';
 
@@ -214,7 +216,7 @@ export function createProxy(opts: Options): http.Server {
     // Only a previewing browser or a debug-token request tells the app which release it is (the app may show a
     // "Release 1.5" badge); forwardHeaders already dropped any copy a client sent, so nobody else can ask for it.
     if (previewing || debugging) upstreamHeaders[RELEASE_HEADER] = release;
-    const upstreamReq = client.request(url, { method, headers: upstreamHeaders, timeout: upstreamTimeoutMs }, (upstreamRes) => {
+    const upstreamReq = client.request(url, { method, headers: upstreamHeaders, timeout: upstreamTimeoutMs, lookup: upstreamLookup }, (upstreamRes) => {
       const status = upstreamRes.statusCode ?? 502;
       const latencyMs = elapsed(); // time to the app's response headers
       const headers = responseHeaders(upstreamRes.headers, upstream, secure);
@@ -534,3 +536,41 @@ function plain(res: http.ServerResponse, status: number, text: string): void {
   res.writeHead(status, { 'content-type': 'text/plain; charset=utf-8', 'cache-control': 'no-store' });
   res.end(text);
 }
+
+// Release hostnames, resolved once and kept. Node resolves names on a small shared thread pool (4 threads); when
+// Flagsmith is unreachable, the SDK's lookups of its hostname hang (about 5 s each in Docker) and fill that pool, so
+// a visitor's request waited seconds just to resolve "shop-1-4" (measured: 4.4 s mean with Flagsmith stopped). A
+// cached answer is re-resolved in the background after 30 s; on a failed lookup the last good address is kept.
+const LOOKUP_TTL_MS = 30_000;
+type Cached = { addresses: dns.LookupAddress[]; at: number; refreshing?: boolean };
+const lookupCache = new Map<string, Cached>();
+export const upstreamLookup: LookupFunction = (hostname, options, callback) => {
+  const opts = (typeof options === 'number' ? { family: options } : options ?? {}) as dns.LookupOptions;
+  const family = opts.family ?? 0;
+  const key = `${hostname}/${family}`;
+  const answer = (c: Cached, done: typeof callback) => {
+    if (opts.all) (done as unknown as (e: null, a: dns.LookupAddress[]) => void)(null, c.addresses);
+    else done(null, c.addresses[0]!.address, c.addresses[0]!.family);
+  };
+  const hit = lookupCache.get(key);
+  const resolve = (done?: typeof callback) =>
+    dns.lookup(hostname, { family, all: true } as dns.LookupAllOptions, (err, addresses) => {
+      if (!err && addresses.length) {
+        const c = { addresses, at: Date.now() };
+        lookupCache.set(key, c);
+        if (done) answer(c, done);
+        return;
+      }
+      if (hit) hit.refreshing = false;
+      done?.(err ?? Object.assign(new Error(`no address for ${hostname}`), { code: 'ENOTFOUND' }), '', 0);
+    });
+  if (hit) {
+    if (Date.now() - hit.at > LOOKUP_TTL_MS && !hit.refreshing) {
+      hit.refreshing = true;
+      resolve();
+    }
+    process.nextTick(() => answer(hit, callback));
+    return;
+  }
+  resolve(callback);
+};

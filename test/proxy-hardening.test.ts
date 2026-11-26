@@ -212,3 +212,13 @@ describe('cold start and slow flags', () => {
     for (const s of [p, a, b]) s.close();
   });
 });
+
+test('release hostnames are resolved once and served from the cache, in both lookup forms', async () => {
+  const { upstreamLookup } = await import('../src/proxy/server.ts');
+  const one = await new Promise<string>((r, j) => upstreamLookup('localhost', { family: 4 }, (e, a) => (e ? j(e) : r(a as string))));
+  assert.equal(one, '127.0.0.1');
+  const t = performance.now();
+  const all = await new Promise<{ address: string }[]>((r, j) => upstreamLookup('localhost', { family: 4, all: true }, (e, a) => (e ? j(e) : r(a as unknown as { address: string }[]))));
+  assert.equal(all[0]!.address, '127.0.0.1');
+  assert.ok(performance.now() - t < 5, 'answered from the cache');
+});
