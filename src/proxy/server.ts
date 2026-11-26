@@ -180,7 +180,11 @@ export function createProxy(opts: Options): http.Server {
     // Without our cookie, only a browser's page load (GET of a document, browser user agent) counts: API calls,
     // assets and cookie-less scripts never become identities in Flagsmith. Exposures come from page loads.
     // Debug-token probes without the cookie (Turnout's own checks) stay out of the data too.
-    const probe = !!debugToken && safeEqual(header(req, 'x-turnout-debug'), debugToken);
+    // A simulated visitor (x-turnout-visitor: 1) carries the token only to read which release it got: it counts like a
+    // browser from its first page, so a one-page visit is in the data (without this, a version whose pages give a
+    // visitor no link to follow was never counted: 514 visitors on A, 1 on B).
+    const tokenOk = !!debugToken && safeEqual(header(req, 'x-turnout-debug'), debugToken);
+    const probe = tokenOk && header(req, 'x-turnout-visitor') !== '1';
     const counted = !viewing && !bot && (known || (!probe && document && method === 'GET' && BROWSER_RE.test(req.headers['user-agent'] ?? '')));
 
     let assignment: Assignment | undefined;
@@ -254,7 +258,7 @@ export function createProxy(opts: Options): http.Server {
     const client = url.protocol === 'https:' ? https : http;
     let timedOut = false;
 
-    const debugging = probe;
+    const debugging = tokenOk; // the release headers: for Turnout's checks and its simulated visitors alike
     const upstreamHeaders = forwardHeaders(req, upstream, secure);
     // Only a previewing browser or a debug-token request tells the app which release it is (the app may show a
     // "Release 1.5" badge); forwardHeaders already dropped any copy a client sent, so nobody else can ask for it.

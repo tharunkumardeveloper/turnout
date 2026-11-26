@@ -119,6 +119,7 @@ export function gitBuildError(message: string): string {
   if (/locate specified Dockerfile|Dockerfile.*no such file|failed to read dockerfile/i.test(message)) {
     return 'this repository has no Dockerfile at its root (or at the folder after the colon in repo.git#branch:folder). Turnout runs any app that has a working Dockerfile: add one to the repository, or build the image yourself and paste its name instead.';
   }
+  if (/returned a non-zero code/i.test(message)) return `${message.trim()}. The app's own build failed; the build log shows why. If it needs keys while it is built (API keys, NEXT_PUBLIC_* values), add them to Settings for your app: Turnout passes them to the build as well.`;
   if (/COPY with more than one source file/i.test(message)) return `the repository's own Dockerfile has a mistake: ${message.trim()} (a COPY of several files must end its destination with /, e.g. COPY a b /app/). Fix that line in the repository; the build log shows which step.`;
   if (/couldn't find remote ref/i.test(message)) return `that branch doesn't exist in the repository (${message.trim()}). Leave the branch out to use the repository's default one.`;
   if (/repository not found|could not read Username|authentication|not found/i.test(message)) {
@@ -293,6 +294,8 @@ export function startTryit(o: TryitOptions) {
       await o.docker.ensureNetwork(NETWORK);
       await o.docker.connect(NETWORK, hostname());
       const upstream: Record<string, string> = {};
+      // Your settings go to the build too (a Dockerfile's ARG lines), not only to the running app.
+      const buildArgs = Object.fromEntries(parseEnv(req.env).map((l) => [l.slice(0, l.indexOf('=')), l.slice(l.indexOf('=') + 1)]));
       for (const [i, v] of versions.entries()) {
         const slot = state.versions[i]!;
         const [get, run] = slot.stages;
@@ -307,14 +310,14 @@ export function startTryit(o: TryitOptions) {
         if (v.kind === 'image') await o.docker.pull(image, onLog).catch(async (error) => {
           if (!(await o.docker.imageExists(image))) throw error; // a local-only image is fine
         });
-        else if (v.kind === 'folder') await o.docker.buildFolder(image, uploadPath(v.value), v.dockerfile || 'Dockerfile', onLog).catch((error: Error) => {
-          throw new Error(/locate specified Dockerfile|no such file/i.test(error.message) ? `your folder has no ${v.dockerfile || 'Dockerfile'} at its top level` : error.message);
+        else if (v.kind === 'folder') await o.docker.buildFolder(image, uploadPath(v.value), v.dockerfile || 'Dockerfile', onLog, buildArgs).catch((error: Error) => {
+          throw new Error(`${slot.name} (version ${slot.slot.toUpperCase()}): ${/locate specified Dockerfile|no such file/i.test(error.message) ? `your folder has no ${v.dockerfile || 'Dockerfile'} at its top level` : gitBuildError(error.message)}`);
         });
         else if (v.kind === 'imagefile') image = await o.docker.load(uploadPath(v.value), onLog);
-        else if (v.kind === 'git') await o.docker.build(image, { remote: defaultBranch(v.value) }, onLog).catch((error: Error) => {
+        else if (v.kind === 'git') await o.docker.build(image, { remote: defaultBranch(v.value) }, onLog, buildArgs).catch((error: Error) => {
           throw new Error(`${slot.name} (version ${slot.slot.toUpperCase()}): ${gitBuildError(error.message)}`);
         });
-        else await o.docker.build(image, { dockerfile: v.value }, onLog);
+        else await o.docker.build(image, { dockerfile: v.value }, onLog, buildArgs);
         get!.status = 'done';
         get!.detail = undefined;
         run!.status = 'running';

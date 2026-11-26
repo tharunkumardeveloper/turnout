@@ -159,7 +159,8 @@ export async function simulateAny(o: AnySimOptions): Promise<AnySimReport> {
     const jar = new Map<string, string>();
     let lastPage = '/';
     const request = async (method: string, path: string, body?: URLSearchParams) => {
-      const headers: Record<string, string> = { 'user-agent': SIM_USER_AGENT, accept: 'text/html', 'x-turnout-debug': o.debugToken, referer: new URL(lastPage, o.target).href };
+      // x-turnout-visitor: count this as a visitor from the first page (the token only reads back the release).
+      const headers: Record<string, string> = { 'user-agent': SIM_USER_AGENT, accept: 'text/html', 'x-turnout-debug': o.debugToken, 'x-turnout-visitor': '1', referer: new URL(lastPage, o.target).href };
       if (method === 'GET') headers['sec-fetch-dest'] = 'document';
       else headers['content-type'] = 'application/x-www-form-urlencoded';
       if (jar.size) headers.cookie = [...jar].map(([k, v]) => `${k}=${v}`).join('; ');

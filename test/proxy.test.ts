@@ -293,3 +293,12 @@ test('without the cookie, API calls, assets and non-browser clients never become
   assert.equal(flags.exposures.length, before);
   assert.equal(flags.tracked.length, 0);
 });
+
+test("Turnout's own check (debug token, no cookie) never counts; a simulated visitor counts from its first page", async () => {
+  const headers = { accept: 'text/html', 'sec-fetch-dest': 'document', 'user-agent': 'Mozilla/5.0 TurnoutSimulatedVisitor/1.0', 'x-turnout-debug': 'dbg' };
+  const before = flags.exposures.length;
+  await (await fetch(`${base}/`, { headers })).text();
+  assert.equal(flags.exposures.length, before, 'a probe is not a visitor');
+  await (await fetch(`${base}/`, { headers: { ...headers, 'x-turnout-visitor': '1' } })).text();
+  assert.equal(flags.exposures.length, before + 1, 'a one-page simulated visit is in the data');
+});

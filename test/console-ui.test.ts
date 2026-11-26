@@ -129,7 +129,7 @@ describe('console UI files', () => {
   test('one screen, no page scroll: three columns, history in a drop-down', () => {
     assert.match(html, /<body class="console-screen">/);
     assert.match(read('style.css'), /body\.console-screen \{ height: 100vh; overflow: hidden;/);
-    assert.match(read('style.css'), /grid-template-areas: "site map results" "run decide results";/);
+    assert.match(read('style.css'), /grid-template-areas: "site map results" "run map decide";/);
     assert.match(html, /<details class="history-drop" id="history-drop">/);
   });
 

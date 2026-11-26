@@ -21,9 +21,12 @@ test('simulated visitors go through a real proxy, follow links, and make the goa
   await new Promise<void>((r) => app.listen(0, '127.0.0.1', r));
   const appUrl = `http://127.0.0.1:${(app.address() as AddressInfo).port}`;
   let n = 0;
+  const seenIds = new Map<string, number>();
   const flags: FlagSource = {
-    async assign(): Promise<Assignment> {
-      return n++ % 2 ? { variant: 'v2', release: 'app:2', enrolled: true } : { variant: 'control', release: 'app:1', enrolled: true };
+    async assign(identity): Promise<Assignment> {
+      // Like Flagsmith: the same identity gets the same version every time; new identities take turns.
+      if (!seenIds.has(identity)) seenIds.set(identity, n++ % 2);
+      return seenIds.get(identity) ? { variant: 'v2', release: 'app:2', enrolled: true } : { variant: 'control', release: 'app:1', enrolled: true };
     },
     track: () => {},
   };
@@ -89,8 +92,9 @@ test('an A/B/C run: visitors fill in the form that posts to the goal, at each ve
   await new Promise<void>((r) => app.listen(0, '127.0.0.1', r));
   const appUrl = `http://127.0.0.1:${(app.address() as AddressInfo).port}`;
   let n = 0;
+  const seenIds = new Map<string, number>();
   const arms = [['control', 'app:1'], ['v2', 'app:2'], ['v3', 'app:3']] as const;
-  const flags: FlagSource = { async assign(): Promise<Assignment> { const [variant, release] = arms[n++ % 3]!; return { variant, release, enrolled: true }; }, track: () => {} };
+  const flags: FlagSource = { async assign(identity): Promise<Assignment> { if (!seenIds.has(identity)) seenIds.set(identity, n++ % 3); const [variant, release] = arms[seenIds.get(identity)!]!; return { variant, release, enrolled: true }; }, track: () => {} };
   const config = parseConfig({ flag: 'f', releases: { 'app:1': appUrl, 'app:2': appUrl, 'app:3': appUrl }, goal: { event: 'signup', when: { method: 'POST', path: '/signup', status: '2xx,303' } } });
   const proxy = createProxy({ config, flags, debugToken: 'dbg', log: () => {}, warn: () => {} });
   await new Promise<void>((r) => proxy.listen(0, '127.0.0.1', r));
@@ -122,7 +126,8 @@ test('a GET goal (GET /product/*): browsing never opens a goal page, only conver
   await new Promise<void>((r) => app.listen(0, '127.0.0.1', r));
   const appUrl = `http://127.0.0.1:${(app.address() as AddressInfo).port}`;
   let n = 0;
-  const flags: FlagSource = { async assign(): Promise<Assignment> { return n++ % 2 ? { variant: 'v2', release: 'b', enrolled: true } : { variant: 'control', release: 'a', enrolled: true }; }, track: () => {} };
+  const seenIds = new Map<string, number>();
+  const flags: FlagSource = { async assign(identity): Promise<Assignment> { if (!seenIds.has(identity)) seenIds.set(identity, n++ % 2); return seenIds.get(identity) ? { variant: 'v2', release: 'b', enrolled: true } : { variant: 'control', release: 'a', enrolled: true }; }, track: () => {} };
   const config = parseConfig({ flag: 'f', releases: { a: appUrl, b: appUrl }, goal: { event: 'product_view', when: { method: 'GET', path: '/product/*', status: '2xx' } } });
   const proxy = createProxy({ config, flags, debugToken: 'dbg', log: () => {}, warn: () => {} });
   await new Promise<void>((r) => proxy.listen(0, '127.0.0.1', r));

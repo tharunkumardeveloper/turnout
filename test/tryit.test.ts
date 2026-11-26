@@ -131,3 +131,8 @@ test('build output becomes clean log lines: colour codes and progress-bar rewrit
   assert.deepEqual(cleanLines('\x1b[32mStep 1/4 : FROM nginx\x1b[0m\r\n\nDownloading 10%\rDownloading 100%\n'), ['Step 1/4 : FROM nginx', 'Downloading 100%']);
   assert.match(gitBuildError('When using COPY with more than one source file, the destination must be a directory and end with a /'), /repository's own Dockerfile has a mistake/);
 });
+
+test("an app's own failed build says what to try: the log, and settings (passed to the build too)", async () => {
+  const { gitBuildError } = await import('../src/tryit/server.ts');
+  assert.match(gitBuildError("The command '/bin/sh -c npm run build' returned a non-zero code: 1"), /add them to Settings for your app: Turnout passes them to the build/);
+});

@@ -79,8 +79,10 @@ export function createDocker(o: DockerOptions = {}) {
       await request('POST', `/images/create?${q({ fromImage: name, tag })}`, undefined, { onLine: say(onLog), timeoutMs: 15 * 60_000 });
     },
     /** Builds `tag` from a Dockerfile's text (no other files: COPY needs a git repo instead) or a public git URL. */
-    async build(tag: string, from: { dockerfile: string } | { remote: string }, onLog?: (l: string) => void): Promise<void> {
-      const common = { t: tag, rm: '1', forcerm: '1', memory: String(2 * 1024 ** 3) };
+    // buildArgs: your app's settings, for a Dockerfile's ARG lines (an app that reads its keys while it is built, such as
+    // Next.js's NEXT_PUBLIC_*). Settings it doesn't declare are ignored, with Docker's warning.
+    async build(tag: string, from: { dockerfile: string } | { remote: string }, onLog?: (l: string) => void, buildArgs: Record<string, string> = {}): Promise<void> {
+      const common = { t: tag, rm: '1', forcerm: '1', memory: String(2 * 1024 ** 3), ...(Object.keys(buildArgs).length ? { buildargs: JSON.stringify(buildArgs) } : {}) };
       if ('remote' in from) {
         await request('POST', `/build?${q({ ...common, remote: from.remote })}`, Buffer.alloc(0), { onLine: say(onLog), timeoutMs: 30 * 60_000 });
       } else {
@@ -89,8 +91,8 @@ export function createDocker(o: DockerOptions = {}) {
       }
     },
     /** Builds `tag` from an uploaded project folder (a tar file), with the Dockerfile named inside it. */
-    async buildFolder(tag: string, tarFile: string, dockerfile: string, onLog?: (l: string) => void): Promise<void> {
-      await request('POST', `/build?${q({ t: tag, rm: '1', forcerm: '1', memory: String(2 * 1024 ** 3), dockerfile })}`, { file: tarFile }, { headers: { 'content-type': 'application/x-tar' }, onLine: say(onLog), timeoutMs: 30 * 60_000 });
+    async buildFolder(tag: string, tarFile: string, dockerfile: string, onLog?: (l: string) => void, buildArgs: Record<string, string> = {}): Promise<void> {
+      await request('POST', `/build?${q({ t: tag, rm: '1', forcerm: '1', memory: String(2 * 1024 ** 3), dockerfile, ...(Object.keys(buildArgs).length ? { buildargs: JSON.stringify(buildArgs) } : {}) })}`, { file: tarFile }, { headers: { 'content-type': 'application/x-tar' }, onLine: say(onLog), timeoutMs: 30 * 60_000 });
     },
     /** Loads an uploaded image file (docker save output); answers the image's name (or its ID if it has none). */
     async load(tarFile: string, onLog?: (l: string) => void): Promise<string> {
