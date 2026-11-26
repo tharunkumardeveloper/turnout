@@ -111,18 +111,19 @@ describe('console UI files', () => {
     assert.match(read('app.js'), /prefers-reduced-motion: reduce/);
   });
 
-  test('the menu: judge mode, the console, setup, the feature map, every version, and the Flagsmith login', () => {
+  test('the menu: judge mode, the console, setup, the feature map, every version, and a link to Flagsmith itself', () => {
     assert.match(html, /<link rel="stylesheet" href="\/menu\.css">/);
     assert.match(html, /<a href="\/judge" data-page="judge">Judge mode<\/a>/);
     assert.match(html, /<a href="\/" data-page="console" data-private>Console<\/a>/);
-    for (const id of ['menu', 'menu-versions', 'versions-list', 'menu-flagsmith', 'flagsmith-panel']) assert.ok(html.includes(`id="${id}"`), id);
+    for (const id of ['menu', 'menu-versions', 'versions-list', 'menu-flagsmith', 'signin-drop', 'signin-box']) assert.ok(html.includes(`id="${id}"`), id);
+    assert.match(html, /<a href="#" id="menu-flagsmith" class="menu-ext" target="_blank"/, 'the menu opens Flagsmith; its login is on the page');
     assert.match(read('app.js'), /setupMenu\('console'\)/);
   });
 
   test('one screen, no page scroll: three columns, history in a drop-down', () => {
     assert.match(html, /<body class="console-screen">/);
     assert.match(read('style.css'), /body\.console-screen \{ height: 100vh; overflow: hidden;/);
-    assert.match(read('style.css'), /grid-template-areas: "site map results" "site decide results";/);
+    assert.match(read('style.css'), /grid-template-areas: "site map results" "run decide results";/);
     assert.match(html, /<details class="history-drop" id="history-drop">/);
   });
 
@@ -434,10 +435,10 @@ describe('demo controls: send visitors, swing back and forward', () => {
   const shipped = [{ experimentId: 7, decision: 'shipped', variant: 'v2', release: 'shop:1.5', replaced: 'shop:1.4', at: '2026-11-17T10:00:00Z' }];
 
   test('the card, its controls and its live status are in index.html, hidden until the console answers', () => {
-    for (const id of ['demo', 'visitors-form', 'visitors-count', 'visitors-btn', 'visitors-note', 'swing-back-btn', 'swing-forward-btn', 'swing-note', 'demo-progress', 'demo-status']) {
+    for (const id of ['run', 'kinds', 'run-plan', 'run-start', 'run-cancel', 'visitors-form', 'visitors-count', 'visitors-btn', 'visitors-note', 'swing-back-btn', 'swing-forward-btn', 'swing-note', 'demo-progress', 'demo-status']) {
       assert.ok(html.includes(`id="${id}"`), `missing #${id}`);
     }
-    assert.match(html, /<div class="demo-card" id="demo" hidden>/);
+    assert.match(html, /<section class="card run-card" id="run" aria-labelledby="run-title" hidden>/);
     assert.match(html, /id="visitors-count"[^>]*type="number" min="50" max="5000"/);
     assert.match(html, /id="demo-status"[^>]*aria-live="polite"/);
   });

@@ -792,13 +792,16 @@ body.console-screen { height: 100vh; overflow: hidden; display: grid; grid-templ
   min-height: 0; padding: 12px 18px 14px; display: grid; gap: 12px;
   grid-template-columns: minmax(290px, 24%) minmax(0, 1fr) minmax(360px, 31%);
   grid-template-rows: minmax(220px, 1fr) auto;
-  grid-template-areas: "site map results" "site decide results";
+  grid-template-areas: "site map results" "run decide results";
 }
+.cgrid .run-card { grid-area: run; }
+.cgrid .run-card[hidden] { display: none; }
+.cgrid .run-card[hidden] ~ .actions-card { grid-column: 1 / span 2; }
 .cgrid > .card { min-height: 0; margin: 0; padding: 12px 14px; overflow: auto; display: flex; flex-direction: column; gap: 8px; }
 .cgrid .card-head { display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; margin: 0; }
 .cgrid .card-head h2 { font-size: 15px; margin: 0; }
 .cgrid .card-sub { font-size: 12.5px; margin: 0; }
-.cgrid .site-card { grid-area: site; position: relative; overflow: visible; text-align: left; align-items: stretch; }
+.cgrid .site-card { grid-area: site; position: relative; overflow: auto; text-align: left; align-items: stretch; }
 .cgrid .site-card > * { margin: 0; }
 .cgrid .site-card[hidden] { display: none; }
 .cgrid .actions-card { grid-area: decide; }
@@ -902,3 +905,59 @@ body.console-screen { height: 100vh; overflow: hidden; display: grid; grid-templ
   .cgrid > .card { padding: 10px 12px; gap: 6px; }
   .mx th, .mx td { padding: 4px 6px; }
 }
+
+/* ==== Run a test, your visits, the sign-in box, the tour button (console) ==================================== */
+.console-screen .tour-btn { flex: none; min-height: 32px; padding: 4px 12px; }
+.run-card .card-head { justify-content: space-between; }
+.run-card .kinds { display: flex; gap: 3px; padding: 3px; border: 1px solid var(--border); border-radius: 10px; background: var(--surface-2); }
+.run-card .kind { min-height: 28px; padding: 2px 10px; border: 0; border-radius: 7px; background: transparent; color: var(--muted); font: 700 13px var(--sans); cursor: pointer; position: relative; }
+.run-card .kind:hover { color: var(--text); background: var(--surface); }
+.run-card .kind[aria-pressed='true'] { background: var(--good); color: #fff; }
+.run-card .kind[data-running='true']::after { content: ""; position: absolute; top: 3px; right: 3px; width: 6px; height: 6px; border-radius: 50%; background: var(--warn); }
+.run-card .kind:disabled { opacity: .6; cursor: default; }
+.run-plan { margin: 0; font-size: 13px; color: var(--muted); }
+.run-plan strong { color: var(--text); }
+.run-plan .plan-chip { display: inline-grid; place-items: center; min-width: 18px; height: 18px; padding: 0 3px; border-radius: 5px; background: var(--c); color: #fff; font-size: 11px; font-weight: 800; margin-right: 3px; vertical-align: -3px; }
+.run-plan .plan-chip[data-copy='true'] { background: transparent; color: var(--c); border: 1.5px dashed var(--c); }
+.run-row { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; font-size: 13px; }
+.run-card #run-start { --c: var(--good); }
+.run-card .run-row .demo-row { display: grid; grid-template-columns: minmax(0, 1fr) 76px auto; align-items: center; gap: 6px; margin: 0; width: 100%; min-width: 0; border-top: 1px dashed var(--border); padding-top: 8px; }
+.run-card { overflow-x: hidden !important; }
+.run-card .run-row .demo-row[hidden] { display: none; }
+.run-card .demo-row .demo-label { width: auto !important; font-weight: 650; margin-right: auto; }
+.run-card .demo-count { width: 76px; min-height: 30px; }
+.run-card .run-row .btn { min-height: 30px; padding: 4px 12px; font-size: 13px; }
+.run-card #swing-label { font-weight: 650; margin-right: auto; }
+.run-card .action-note { display: none; }
+.run-card .action-status { margin: 0; font-size: 12.5px; }
+.run-card .action-status:empty { display: none; }
+.run-card #run-start { padding: 6px 14px; }
+.journey { display: grid; gap: 2px; font-size: 12.5px; }
+.journey[hidden] { display: none; }
+.journey h3 { margin: 0; font-size: 12.5px; color: var(--muted); font-weight: 650; }
+.journey-list { margin: 0; padding-left: 20px; display: grid; gap: 1px; color: var(--muted); }
+.journey-list strong { color: var(--text); }
+.site-signin { font-size: 13.5px; }
+.site-signin > summary { cursor: pointer; font-weight: 650; }
+.site-signin[open] > div { margin-top: 6px; }
+
+/* The traffic map: ghost dots (the path the flag sends the next visitor), and the YOU pin on your release */
+.junction .flow { fill: none; stroke: var(--c); stroke-width: 5; stroke-linecap: round; stroke-dasharray: 0.1 26; opacity: .45; animation: flow-run 2.4s linear infinite; }
+.junction .flow.entry { stroke: var(--entry); opacity: .35; }
+.junction .flow.idle { display: none; }
+@keyframes flow-run { to { stroke-dashoffset: -26.1; } }
+.junction .you-pin { pointer-events: none; }
+.junction .you-pin rect { fill: var(--text); }
+.junction .you-pin text { fill: var(--surface); font: 800 11px var(--sans); letter-spacing: .08em; }
+.junction .you-pin .you-ring { fill: none; stroke: var(--text); stroke-width: 2; opacity: .5; animation: you-ring 1.8s ease-out infinite; transform-box: fill-box; transform-origin: center; }
+@keyframes you-ring { from { transform: scale(1); opacity: .55; } to { transform: scale(1.5); opacity: 0; } }
+.legend .key-flow { width: 16px; height: 4px; border-radius: 2px; background: repeating-linear-gradient(90deg, var(--entry) 0 4px, transparent 4px 8px); opacity: .6; }
+@media (prefers-reduced-motion: reduce) { .junction .flow, .junction .you-pin .you-ring { animation: none; } }
+.you .pin-row { display: flex; align-items: center; gap: 4px; flex-wrap: wrap; }
+.you .pin-btn { padding: 2px 8px; min-height: 26px; font-size: 12px; }
+.you .pin-btn[aria-pressed='true'] { background: var(--text); color: var(--surface); border-color: var(--text); }
+/* The banner is usually hidden: pin the rows so the grid always gets the screen's remaining height. */
+.console-screen > .cbar { grid-row: 1; }
+.console-screen > .strip { grid-row: 2; }
+.console-screen > .banner { grid-row: 3; }
+.console-screen > .cgrid { grid-row: 4; }

@@ -1,5 +1,7 @@
 // The traffic map: an SVG rail junction. Visitors come in on one track, the flag's switch sends each one onto
 // its release's track, and every routed request is a dot. Counters at each platform cover the last 60 s.
+// Faint ghost dots always move along the tracks the flag routes to now (where the next visitor goes), so the map is
+// never still; they are not visitors and the legend says so. A YOU pin marks the release this browser gets.
 // Narrow containers (phones) get a compact junction with bigger type, and the counters as HTML below it.
 
 const NS = 'http://www.w3.org/2000/svg';
@@ -104,12 +106,14 @@ export class TrafficMap {
 
     const rails = el('g', { class: 'rails' }, svg);
     const labels = el('g', { class: 'labels' }, svg);
+    this.flowLayer = el('g', { class: 'flows', 'aria-hidden': 'true' }, svg);
     this.dotLayer = el('g', { class: 'dots', 'aria-hidden': 'true' }, svg);
     const stations = el('g', { class: 'stations' }, svg);
 
     // Entry track.
     const entryD = `M${ENTRY_X},${mid} L${SWITCH_X},${mid}`;
     this.drawRail(rails, entryD, 'entry');
+    el('path', { d: entryD, class: 'flow entry' }, this.flowLayer);
     text(labels, { x: ENTRY_X, y: mid - 22, class: 'map-label' }, 'Visitors');
     if (this.compact) {
       text(labels, { x: ENTRY_X, y: mid + 38, class: 'map-caption' }, flagName ? `flag ${flagName}` : 'flag');
@@ -129,6 +133,7 @@ export class TrafficMap {
       const branchD = `M${SWITCH_X},${mid} C${SWITCH_X + 80},${mid} ${CURVE_END_X - 80},${y} ${CURVE_END_X},${y} L${TRACK_END_X},${y}`;
       const g = el('g', { class: 'track', style: `--c:${v.color}` }, rails);
       this.drawRail(g, branchD, 'branch');
+      const flow = el('path', { d: branchD, class: 'flow', style: `--c:${v.color}` }, this.flowLayer);
       const motion = el('path', { d: `${entryD} ${branchD.replace(/^M[^ ]+ /, '')}`, fill: 'none', stroke: 'none' }, svg);
       const total = motion.getTotalLength();
       const points = [];
@@ -186,10 +191,13 @@ export class TrafficMap {
           text(st, { x, y: 78, class: 'station-unit' }, name);
         });
       }
-      this.tracks.set(v.key, { variant: v, points, branch: g, station: st, share, state, counters, idle: false });
+      this.tracks.set(v.key, { variant: v, points, branch: g, flow, station: st, share, state, counters, idle: false, y });
     });
 
     if (platforms) this.container.appendChild(platforms);
+    this.G = G;
+    this.youLayer = el('g', { class: 'you-layer' }, svg);
+    if (this.youKey) this.setYou(this.youKey);
     if (this.compact) {
       this.leverArm = null; // the share labels carry the weights on phones
       return;
@@ -221,6 +229,7 @@ export class TrafficMap {
       t.idle = share <= 0;
       t.share.textContent = `${Number.isInteger(share) ? share : share.toFixed(1)}%`;
       t.branch.classList.toggle('idle', t.idle);
+      t.flow?.classList.toggle('idle', t.idle);
       t.station.classList.toggle('idle', t.idle);
       t.share.classList.toggle('idle', t.idle);
       t.state.textContent = t.idle ? (this.compact ? 'idle' : 'idle: no traffic routed') : share >= 100 ? 'all traffic' : '';
@@ -230,6 +239,23 @@ export class TrafficMap {
     // Idle tracks go underneath the live ones.
     for (const t of this.tracks.values()) if (t.idle) t.branch.parentNode.prepend(t.branch);
     if (this.leverArm) this.leverArm.style.transform = `rotate(${total ? angle / total : 0}deg)`;
+  }
+
+  /** Marks the release this browser gets (its variant key), or clears the mark with null. */
+  setYou(key) {
+    this.youKey = key ?? null;
+    if (!this.youLayer) return;
+    this.youLayer.textContent = '';
+    const t = key ? this.tracks.get(key) : null;
+    if (!t || !this.G) return;
+    // On the track, just before the release's platform: where this browser's visits arrive.
+    const { STATION_X } = this.G;
+    const x = STATION_X - 50;
+    const y = t.y - 9;
+    const pin = el('g', { class: 'you-pin', transform: `translate(${x} ${y})` }, this.youLayer);
+    el('rect', { x: 0, y: 0, width: 40, height: 18, rx: 9, class: 'you-ring' }, pin);
+    el('rect', { x: 0, y: 0, width: 40, height: 18, rx: 9 }, pin);
+    text(pin, { x: 20, y: 13, 'text-anchor': 'middle' }, 'YOU');
   }
 
   setCounts(byVariant) {

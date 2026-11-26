@@ -1,5 +1,9 @@
-// The Flagsmith feature map: renders GET /api/flagsmith-map as cards grouped by status. Every string from the server
-// goes in through textContent, and only http(s) links become hrefs.
+// The Flagsmith feature map: renders GET /api/flagsmith-map. On top, the four rounds of a Flagsmith experiment (the
+// hackathon's own loop: create a flag, pick a metric, split the traffic, ship the winner), each with the Flagsmith
+// features Turnout uses for it and their live values; below, every feature, menu and integration as cards, with
+// filters by status and a search. Every string from the server goes in through textContent, and only http(s) links
+// become hrefs.
+import { setupMenu } from './menu.js';
 
 const $ = (id) => /** @type {HTMLElement} */ (document.getElementById(id));
 const TOKEN = globalThis.document?.querySelector('meta[name="turnout-console"]')?.getAttribute('content') ?? '';
@@ -17,6 +21,15 @@ export const GROUPS = [
   { status: 'not-used', title: 'Not used', chip: 'Not used', sub: 'Available here, but nothing in the demo calls for it yet.' },
 ];
 const KIND = { menu: 'Menu', integration: 'Integration', feature: 'Feature' };
+
+/** The experiment loop, round by round: what Turnout does, and the map items (by id) that do it in Flagsmith. */
+export const ROUNDS = [
+  { n: '01', title: 'Create a flag', what: 'One multivariate flag holds every version: each variant’s value names a release, and the proxy evaluates it locally.', ids: ['feature.multivariate-flag', 'feature.local-evaluation', 'feature.tags'] },
+  { n: '02', title: 'Pick a metric', what: 'Plain HTTP becomes Flagsmith events: page loads, the goal request, page speed and server errors, in Flagsmith’s own event store.', ids: ['feature.metrics', 'feature.event-store', 'feature.prometheus'] },
+  { n: '03', title: 'Split the traffic', what: 'Each test is a Flagsmith experiment: its split, its audience and Bayesian results. Segments and identity overrides keep your team and pinned browsers out of it.', ids: ['feature.experiments', 'menu.segments', 'menu.identities'] },
+  { n: '04', title: 'Ship the winner', what: 'Ship sets the flag’s environment default and drains the split: everyone moves with one flag change. Feature Health flags a losing safety check.', ids: ['menu.environments', 'feature.feature-health', 'integration.code-references'] },
+];
+const view = { status: 'all', q: '', map: null };
 
 /** Small element builder; strings become text nodes, never HTML. */
 function h(tag, props = {}, ...children) {
@@ -74,10 +87,38 @@ function card(item, chip) {
   );
 }
 
+/** The rounds, each with its items' names and live values (an item missing from the map is left out). */
+export function roundsFrom(items) {
+  const byId = new Map((items ?? []).map((i) => [i.id, i]));
+  return ROUNDS.map((r) => ({ ...r, items: r.ids.map((id) => byId.get(id)).filter(Boolean) }));
+}
+
+/** Items matching a status filter ('all' or a status) and a search over name, what and live value. */
+export function filterItems(items, status, q) {
+  const needle = String(q ?? '').trim().toLowerCase();
+  return (items ?? []).filter((i) => (status === 'all' || i.status === status) && (!needle || [i.name, i.what, i.live].some((x) => String(x ?? '').toLowerCase().includes(needle))));
+}
+
+function renderRounds(items) {
+  $('rounds').replaceChildren(...roundsFrom(items).map((r) => h('li', { class: 'round' },
+    h('p', { class: 'round-n' }, `Round ${r.n}`),
+    h('h3', { class: 'round-title' }, r.title),
+    h('p', { class: 'round-what' }, r.what),
+    h('ul', { class: 'round-items' }, r.items.map((i) => {
+      const link = safeHref(i.link);
+      return h('li', { class: 'round-item', 'data-status': i.status },
+        link ? h('a', { href: link, target: '_blank', rel: 'noopener', class: 'round-name' }, i.name, h('span', { class: 'sr-only' }, ' (opens Flagsmith)')) : h('span', { class: 'round-name' }, i.name),
+        i.live ? h('span', { class: 'round-live' }, i.live) : null);
+    })))));
+}
+
 export function render(map) {
+  view.map = map;
   const groups = $('groups');
   const counts = $('counts');
-  const items = Array.isArray(map?.items) ? map.items : [];
+  const all = Array.isArray(map?.items) ? map.items : [];
+  const items = filterItems(all, view.status, view.q);
+  renderRounds(all);
   const fs = map?.flagsmith ?? {};
   const read = map?.generatedAt ? new Date(map.generatedAt) : null;
   $('summary-line').textContent = [
@@ -94,12 +135,14 @@ export function render(map) {
   if (dash) open.href = dash;
   open.hidden = !dash;
 
+  // The filter chips: all, then each status with its count; the pressed one filters the cards below.
+  const chip = (status, label, n) => h('li', { class: 'fcount', 'data-status': status },
+    h('button', { type: 'button', 'aria-pressed': String(view.status === status), onclick: () => { view.status = status; render(view.map); } }, h('strong', {}, String(n)), ' ', label));
   counts.replaceChildren(
+    chip('all', 'All', all.length),
     ...GROUPS.map((g) => {
-      const n = items.filter((i) => i.status === g.status).length;
-      return n || g.status !== 'not-used'
-        ? h('li', { class: 'fcount', 'data-status': g.status }, h('a', { href: `#group-${g.status}` }, h('strong', {}, String(n)), ' ', g.title))
-        : null;
+      const n = all.filter((i) => i.status === g.status).length;
+      return n ? chip(g.status, g.title, n) : null;
     }).filter(Boolean),
   );
   groups.replaceChildren(
@@ -114,6 +157,7 @@ export function render(map) {
       );
     }).filter(Boolean),
   );
+  if (!items.length) groups.replaceChildren(h('p', { class: 'card-sub' }, 'Nothing matches. Clear the search or pick All.'));
   groups.setAttribute('aria-busy', 'false');
 }
 
@@ -139,6 +183,11 @@ async function load() {
 }
 
 if (globalThis.document?.getElementById('groups')) {
+  setupMenu('flagsmith');
   $('refresh').addEventListener('click', () => void load());
+  $('search').addEventListener('input', (e) => {
+    view.q = /** @type {HTMLInputElement} */ (e.target).value;
+    if (view.map) render(view.map);
+  });
   void load();
 }

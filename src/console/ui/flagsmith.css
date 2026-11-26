@@ -136,3 +136,36 @@
 @media (prefers-reduced-motion: reduce) {
   .fsmap .btn { transition: none; }
 }
+
+/* ---- the menu bar, the four rounds, the filters (What we use) ---- */
+.fsmap .fbar { display: flex; align-items: center; gap: 18px; padding: 8px 18px; background: var(--surface); border-bottom: 1px solid var(--border); }
+.fsmap .fbar .brand { display: inline-flex; align-items: center; gap: 8px; text-decoration: none; color: inherit; font-weight: 750; font-size: 18px; }
+.fsmap .fbar .brand-mark { width: 26px; height: 26px; }
+.fsmap .fbar .menu { flex: 1; }
+.fhero { display: grid; gap: 14px; }
+.fhero-head { display: flex; align-items: flex-end; justify-content: space-between; gap: 16px; flex-wrap: wrap; }
+.fhero h1 { margin: 0; font-size: 26px; letter-spacing: -.01em; }
+.fhero-sub { margin: 4px 0 0; color: var(--muted); max-width: 820px; }
+.fhero-actions { display: flex; gap: 8px; }
+.rounds { list-style: none; margin: 0; padding: 0; display: grid; gap: 12px; grid-template-columns: repeat(auto-fill, minmax(min(100%, 250px), 1fr)); counter-reset: round; }
+.round { position: relative; padding: 14px 16px; border-radius: 14px; background: var(--surface); border: 1px solid var(--border); box-shadow: var(--shadow); display: grid; gap: 6px; align-content: start; }
+.round::after { content: "→"; position: absolute; right: -11px; top: 22px; color: var(--faint); font-weight: 700; }
+.round:last-child::after { content: none; }
+.round-n { margin: 0; font-size: 12px; font-weight: 800; letter-spacing: .08em; text-transform: uppercase; color: var(--treatment); }
+.round-title { margin: 0; font-size: 17px; }
+.round-what { margin: 0; color: var(--muted); font-size: 13.5px; }
+.round-items { list-style: none; margin: 4px 0 0; padding: 0; display: grid; gap: 6px; }
+.round-item { display: grid; gap: 1px; padding: 6px 8px; border-radius: 8px; background: var(--surface-2); border-left: 3px solid var(--treatment); }
+.round-item[data-status="used-read-only"] { border-left-color: var(--control); }
+.round-name { font-weight: 700; font-size: 13.5px; color: var(--text); text-decoration: none; }
+a.round-name:hover { text-decoration: underline; }
+.round-live { font: 12px var(--mono); color: var(--muted); overflow-wrap: anywhere; }
+.fall { display: grid; gap: 12px; }
+.fall-head { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+.fall-head h2 { margin: 0; font-size: 18px; flex: 1 1 auto; }
+.fcounts .fcount button { min-height: 34px; padding: 4px 12px; border-radius: 999px; border: 1px solid var(--border); background: var(--surface); color: var(--text); font: 600 13px var(--sans); cursor: pointer; }
+.fcounts .fcount button[aria-pressed="true"] { background: var(--text); color: var(--surface); border-color: var(--text); }
+.fsearch input { min-height: 34px; padding: 4px 12px; border-radius: 999px; border: 1px solid var(--border); background: var(--surface); color: var(--text); font: 14px var(--sans); width: 230px; }
+.fall .fcounts { display: flex; flex-wrap: wrap; gap: 6px; list-style: none; margin: 0; padding: 0; }
+.fall .fcounts .fcount { margin: 0; padding: 0; border: 0; background: none; box-shadow: none; }
+.fall .fcounts .fcount button strong { font-size: 13px; margin-right: 2px; }

@@ -9,8 +9,9 @@
   <link rel="icon" href="/favicon.svg" type="image/svg+xml">
   <link rel="stylesheet" href="/demo.css">
   <link rel="stylesheet" href="/menu.css">
+  <link rel="stylesheet" href="/tour.css">
   <script type="module" src="/demo.js"></script>
-  <link rel="modulepreload" href="/demo-tour.js">
+  <link rel="modulepreload" href="/tour.js">
 </head>
 <body>
   <!-- One screen, no scrolling: the bar, then the steps on the left and the versions and Flagsmith's results on the right. -->
@@ -27,7 +28,7 @@
       <a href="/setup" data-private>Setup check</a>
       <a href="/flagsmith" data-private>What we use</a>
       <details class="menu-drop" id="menu-versions"><summary>Versions</summary><div class="menu-panel" id="versions-list"><p class="menu-note">Loading…</p></div></details>
-      <details class="menu-drop" id="menu-flagsmith" data-private><summary>Flagsmith</summary><div class="menu-panel" id="flagsmith-panel"><p class="menu-note">Loading…</p></div></details>
+      <a href="#" id="menu-flagsmith" class="menu-ext" target="_blank" rel="noopener" data-private>Flagsmith <span aria-hidden="true">↗</span></a>
     </nav>
     <div class="kinds" id="kinds" role="group" aria-label="Kind of test"></div>
     <div class="top-actions">
@@ -50,13 +51,18 @@
     </section>
 
     <section class="panel versions-panel" id="versions-panel" aria-labelledby="versions-title">
-      <h2 class="eyebrow" id="versions-title">The versions <span class="card-meta">A is live · click a preview to open it</span><span class="you-line" id="you"></span></h2>
+      <h2 class="eyebrow" id="versions-title">The versions <span class="card-meta">A is live · click a preview to open it</span><span class="you-line" id="you"></span><a class="btn btn-small btn-visit" id="be-visitor" href="#" target="_blank" rel="noopener" title="Opens the shop the way a real shopper gets it: Flagsmith picks your version, and you count like any visitor.">Be a visitor ↗</a></h2>
       <div class="versions" id="versions"></div>
     </section>
 
-    <section class="panel results-panel" id="results-panel" aria-labelledby="results-title">
-      <h2 class="eyebrow" id="results-title">What Flagsmith measured <a class="card-meta" id="results-link" href="#" target="_blank" rel="noopener" hidden>open in Flagsmith ↗</a></h2>
-      <div class="results" id="results"><p class="placeholder">Flagsmith's results appear here once shoppers have gone through and you ask for them.</p></div>
+    <section class="panel results-panel" id="results-panel" aria-label="Flagsmith">
+      <div class="tabs" role="tablist" aria-label="Flagsmith">
+        <button class="tab" id="tab-results" role="tab" type="button" aria-selected="true" aria-controls="results">What Flagsmith measured</button>
+        <button class="tab" id="tab-flagsmith" role="tab" type="button" aria-selected="false" aria-controls="flagsmith-tab">In Flagsmith</button>
+        <a class="card-meta tabs-link" id="results-link" href="#" target="_blank" rel="noopener" hidden>open in Flagsmith ↗</a>
+      </div>
+      <div class="results" id="results" role="tabpanel" aria-labelledby="tab-results"><p class="placeholder">Flagsmith's results appear here once shoppers have gone through and you ask for them.</p></div>
+      <div class="fs" id="flagsmith-tab" role="tabpanel" aria-labelledby="tab-flagsmith" hidden></div>
     </section>
   </main>
 

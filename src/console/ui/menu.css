@@ -27,3 +27,10 @@
 .menu-secret { min-width: 0; height: 30px; padding: 0 8px; border: 1px solid var(--border); border-radius: 7px; background: var(--surface-2); color: var(--text); font: 13px ui-monospace, Consolas, monospace; }
 .menu-btn { height: 30px; padding: 0 10px; border: 1px solid var(--border); border-radius: 7px; background: var(--surface); color: var(--text); font: 600 12.5px system-ui, sans-serif; cursor: pointer; }
 .menu-btn:hover { border-color: var(--muted); }
+.menu > a.menu-ext span { margin-left: 4px; font-size: 12px; }
+/* The sign-in box (menu.js signinBox): Flagsmith's address and login, on the pages that show it. */
+.signin { display: grid; gap: 6px; }
+.signin-open { justify-self: start; font-weight: 700; color: var(--text); }
+.signin .menu-row { grid-template-columns: 64px minmax(0, 1fr) auto auto; }
+.signin-compact .menu-secret { height: 28px; font-size: 12.5px; }
+.signin-compact .menu-btn { height: 28px; padding: 0 8px; }

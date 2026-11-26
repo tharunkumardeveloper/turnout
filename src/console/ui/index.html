@@ -9,6 +9,7 @@
   <link rel="icon" href="/favicon.svg" type="image/svg+xml">
   <link rel="stylesheet" href="/style.css">
   <link rel="stylesheet" href="/menu.css">
+  <link rel="stylesheet" href="/tour.css">
   <script type="module" src="/app.js"></script>
   <script type="module" src="/guard.js"></script>
 </head>
@@ -32,8 +33,9 @@
       <a href="/setup" data-private>Setup check</a>
       <a href="/flagsmith" data-private>What we use</a>
       <details class="menu-drop" id="menu-versions"><summary>Versions</summary><div class="menu-panel" id="versions-list"><p class="menu-note">Loading…</p></div></details>
-      <details class="menu-drop" id="menu-flagsmith" data-private><summary>Flagsmith</summary><div class="menu-panel" id="flagsmith-panel"><p class="menu-note">Loading…</p></div></details>
+      <a href="#" id="menu-flagsmith" class="menu-ext" target="_blank" rel="noopener" data-private>Flagsmith <span aria-hidden="true">↗</span></a>
     </nav>
+    <button class="btn btn-ghost btn-small tour-btn" id="tour-open" type="button">Tour</button>
     <ul class="connections" aria-label="Connections">
       <li id="conn-state" class="conn" data-state="pending"><span class="conn-dot" aria-hidden="true"></span><span class="conn-text">Flagsmith: connecting…</span></li>
       <li id="conn-feed" class="conn" data-state="pending"><span class="conn-dot" aria-hidden="true"></span><span class="conn-text">Live feed: connecting…</span></li>
@@ -70,8 +72,9 @@
         <h2 id="site-title">Your site</h2>
         <a class="site-link" id="site-flagsmith" href="#" target="_blank" rel="noopener">Flagsmith ↗</a>
       </div>
-      <a class="btn btn-primary btn-big" id="site-open" href="#" target="_blank" rel="noopener" title="Each new browser is a new visitor: Turnout gives it one version and keeps it there.">Open your site</a>
+      <a class="btn btn-primary btn-big" id="site-open" href="#" target="_blank" rel="noopener" title="Be a visitor: each new browser gets one version from Flagsmith and keeps it.">Open your site (be a visitor)</a>
       <div class="you" id="you" aria-live="polite"><p class="you-line">Checking where you land…</p></div>
+      <div class="journey" id="journey" hidden><h3>Your visits</h3><ol id="journey-list" class="journey-list"></ol></div>
       <div class="site-versions" id="site-versions" hidden>
         <h3>Each version on its own <span class="v-key">(never counted)</span></h3>
         <ul id="site-version-list"></ul>
@@ -103,21 +106,40 @@
           </div>
         </div>
       </details>
-      <!-- The same jobs judge mode runs (POST /api/judge/run). Hidden when the console has no judge options. -->
-      <div class="demo-card" id="demo" hidden>
+      <details class="site-signin" id="signin-drop">
+        <summary>Sign in to Flagsmith</summary>
+        <div id="signin-box"><p class="card-sub">Loading…</p></div>
+      </details>
+    </section>
+
+    <!-- Run a test: pick A/A, A/B or A/B/C (a preview first, Start runs it), send simulated shoppers on the demo, swing
+         after a ship. The same jobs judge mode runs (POST /api/judge/run). Hidden when the console has no judge API. -->
+    <section class="card run-card" id="run" aria-labelledby="run-title" hidden>
+      <div class="card-head">
+        <h2 id="run-title">Run a test</h2>
+        <div class="kinds" id="kinds" role="group" aria-label="Kind of test"></div>
+      </div>
+      <p class="run-plan" id="run-plan"></p>
+      <div class="run-row">
+        <button id="run-start" class="btn btn-primary" type="button" disabled>Start</button>
+        <button id="run-cancel" class="btn btn-ghost" type="button" hidden>Cancel</button>
+      </div>
+      <div class="run-row">
         <form id="visitors-form" class="demo-row">
           <label class="demo-label" for="visitors-count">Simulated visitors</label>
           <input id="visitors-count" class="demo-count" type="number" min="50" max="5000" step="50" value="1500" inputmode="numeric" aria-describedby="visitors-note">
           <button id="visitors-btn" class="btn btn-small" type="submit" disabled>Send</button>
-          <span id="swing-label" class="demo-label">Swing</span>
-          <button id="swing-back-btn" class="btn btn-small" type="button" disabled>Back</button>
-          <button id="swing-forward-btn" class="btn btn-small" type="button" disabled>Forward</button>
-          <progress id="demo-progress" class="demo-progress" max="1" value="0" hidden></progress>
         </form>
-        <p id="visitors-note" class="action-note"></p>
-        <p id="swing-note" class="action-note"></p>
-        <p id="demo-status" class="action-status" role="status" aria-live="polite"></p>
       </div>
+      <div class="run-row">
+        <span id="swing-label" class="demo-label">Swing</span>
+        <button id="swing-back-btn" class="btn btn-small" type="button" disabled>Back</button>
+        <button id="swing-forward-btn" class="btn btn-small" type="button" disabled>Forward</button>
+        <progress id="demo-progress" class="demo-progress" max="1" value="0" hidden></progress>
+      </div>
+      <p id="visitors-note" class="action-note"></p>
+      <p id="swing-note" class="action-note"></p>
+      <p id="demo-status" class="action-status" role="status" aria-live="polite"></p>
     </section>
 
     <section class="card actions-card" id="actions" aria-labelledby="actions-title">
@@ -166,6 +188,7 @@
         <li><span class="key key-asset" aria-hidden="true"></span>asset request</li>
         <li><span class="key key-conversion" aria-hidden="true"></span>conversion</li>
         <li><span class="key key-error" aria-hidden="true"></span>server error (5xx)</li>
+        <li><span class="key key-flow" aria-hidden="true"></span>moving ghost dots: where the flag sends the next visitor</li>
         <li class="legend-note" id="traffic-note"></li>
         <li id="sampling" class="sampling"></li>
       </ul>

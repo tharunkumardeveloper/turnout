@@ -19,14 +19,16 @@ One desktop screen, no scrolling (checked at 1366×768 and 1920×1080). Every nu
 
 ### The page
 
-- **Top bar.** The menu (Judge mode, Console, Setup check, What we use, **Versions**, **Flagsmith**), the kind of test, **Tour**, **Play it for me** and **Earlier tests**.
-- **The kind of test.** A/A (the same version on both sides: Flagsmith should find no difference, a check that the split and the counting are fair), A/B, or A/B/C (two new versions at once, each against A). Clicking one starts it; a running test stops first and everyone goes back to A.
+- **Top bar.** The menu (Judge mode, Console, Setup check, What we use, **Versions**, and **Flagsmith ↗**, which opens Flagsmith itself), the kind of test, **Tour**, **Play it for me** and **Earlier tests**.
+- **The kind of test.** A/A (the same shop on both sides: Flagsmith should find no difference, a check that the split and the counting are fair; the copy, A′, has a dashed outline), A/B, or A/B/C (two new versions at once, each against A). A click shows a **preview**: the versions it will compare, and step 1 with its Start button. Nothing changes in Flagsmith until Start; a running test stops first then, and **Keep test #…** goes back to it.
 - **Left: the test in four steps.** Start the test, Send shoppers, Ask Flagsmith, Decide. Only the current step has a button (one green button at a time), each finished step keeps a one-line result, and a running step shows its progress.
-- **Right, top: the versions.** A live preview of each version in the test (A is what everyone gets now), its share of shoppers, and once Flagsmith has counted, its order rate. Clicking a preview opens that version on its own, never counted. The line above says which version this browser gets.
-- **Right, bottom: what Flagsmith measured.** A row per metric (orders as the goal, page load time and server errors as safety checks, added to cart as a funnel step), a column per version, and Flagsmith's call for each new version against A. The verdict underneath says what to do in one sentence. A safety check Flagsmith calls slightly worse but within Turnout's margin (more than 5% worse and, for page speed, at least 20 ms) is shown as such, not as a failure.
+- **Right, top: the versions.** A live preview of each version, laid out at a width that suits its tile, its share of shoppers and, once Flagsmith has counted, its order rate. Clicking a preview opens that version on its own, never counted: its pages, styles and links all stay on that version. **Be a visitor ↗** opens the shop the way a shopper gets it.
+- **Right, bottom: two tabs.**
+  - **What Flagsmith measured**: a row per metric (orders as the goal, page load time and server errors as safety checks, added to cart as a funnel step), a column per version, and Flagsmith's call for each new version against A. The verdict underneath says what to do in one sentence. A safety check Flagsmith calls slightly worse but within Turnout's margin (more than 5% worse and, for page speed, at least 20 ms) reads "slightly worse", not as a failure.
+  - **In Flagsmith**: the route each shopper takes right now (shopper → Turnout → the flag → each version's share, with a **YOU** pin on yours), your visits (what you got before the test, in it and after the decision), **Pin my browser** (a Flagsmith identity override for your visitor id: that version on every page, outside the test), the flag with its variants, the experiment and its metrics, links to the flag and the experiment in Flagsmith, and Flagsmith's login.
 - **After a decision.** The Decide step shows what changed in Flagsmith, before → after, and then a check that 50 brand-new shoppers all get the result with no test split left on the flag.
 
-**Play it for me** clicks each green button through one whole test, in about a minute for an A/B/C test. The **Tour** (ten stops, under two minutes) opens on the first visit and from the Tour button; it points at each part of the page and says what it is.
+**Play it for me** clicks each green button through one whole test, in about a minute for an A/B/C test. The **tour** opens on the first visit and from the Tour button. It walks you through one test by clicks: each stop highlights the button to press and says what it does ("Click “Send 1,400 shoppers”"), moves on when you click it, and waits while a step runs. The console has its own tour on the same engine.
 
 ### The demo shop
 
@@ -34,7 +36,7 @@ Three releases with their own look: 1.4 **Classic** (blue, a 3-step checkout), 1
 
 ### Flagsmith's own dashboard
 
-The **Flagsmith** menu has its address and the admin login, so you can see the same flag, experiment and results there. Flagsmith's dashboard refuses to be shown in a frame, so it opens in a separate tab. The password appears only on this machine's console (port 8090, published on `127.0.0.1` only), never on the port other devices use (8091) or on the public page.
+The menu's **Flagsmith ↗** opens Flagsmith's dashboard; its login is in the **In Flagsmith** tab (and in the console's **Sign in to Flagsmith** box), so you can see the same flag, experiment and results there. Flagsmith's dashboard refuses to be shown in a frame, so it opens in a separate tab. The password appears only on this machine's console (port 8090, published on `127.0.0.1` only), never on the port other devices use (8091) or on the public page.
 
 ### The public page (server mode)
 
@@ -44,11 +46,11 @@ To open judge mode on another device, see [SETUP.md](SETUP.md#judge-mode-on-anot
 
 ## The full console
 
-- **Traffic map:** each routed request as a dot, counters for the last 60 seconds, and sidings for past experiments on the flag with their decisions.
-- **Decide:** Ship winner and Revert. The plan dialog lists the five steps with the API call each one makes. If the winner is losing a guardrail, it says so in red, and the confirm button waits until you tick the box to ship anyway.
-- **Demo controls:** send 50 to 3,000 simulated visitors (1,500 by default), and after a ship, **Swing back** to the release it replaced or **Swing forward** again. Each is one edit to the flag's environment default, the same edit as in Flagsmith's flag editor. A progress bar follows the job; Ship and Revert wait while it runs. The card also follows steps started from judge mode.
-- **Flagsmith's results:** the goal and each guardrail, as returned. Mean metrics are labelled "mean per exposed identity": Flagsmith averages over every exposed identity, and one with no event counts as 0 ([details](FLAGSMITH.md#things-we-found-on-the-pinned-image)).
-- **Decision snapshots:** the results saved before each decision, newest first.
-- **Health and guard:** what was last reported to Flagsmith's Feature Health, and the guard's switch.
+- **Run a test:** A/A, A/B or A/B/C with a preview first, then Start; simulated visitors (the demo only) and, after a ship, swing back or forward.
+- **Your site:** **Open your site: be a visitor**, where you landed, **Your visits** over time, **Pin this browser**, each version on its own, the goal, goal suggestions from the requests it sees, a new comparison command, and the Flagsmith login.
+- **Traffic map:** each routed request as a dot, counters for the last 60 seconds, ghost dots that always move along the tracks the flag routes to now, a **YOU** pin on your version.
+- **Decide:** Ship winner and Revert. The plan dialog lists the five steps with the API call each one makes. The pre-selected version is the best one that passes every safety check; one that loses a guardrail needs an explicit "ship anyway".
+- **Flagsmith's results:** the goal and each guardrail, as returned. Mean metrics are labelled "mean per exposed identity" ([details](FLAGSMITH.md#things-we-found-on-the-pinned-image)).
+- **History:** past experiments on the flag and the decision snapshots. **Health and guard:** what was last reported to Flagsmith's Feature Health, and the guard's switch.
 
-When the flag is changed in Flagsmith after a ship, the console says so: it shows the release the flag serves next to the one the ledger recorded.
+For your own app (`turnout compare`) the console has no judge page and sends no simulated shoppers: use `turnout simulate`, which keeps its visitors in a separate Flagsmith environment.

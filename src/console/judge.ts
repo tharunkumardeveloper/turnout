@@ -120,6 +120,8 @@ export type MetricSummary = {
 
 export type JudgeState = {
   simulated: true;
+  flag?: string; // the release flag's name in Flagsmith
+  simulator?: boolean; // false: a console for your own app; no simulated shoppers (turnout simulate has its own)
   dashboardUrl: string;
   links: { experiment: string | null; flag: string | null; shop: string; preview: string | null };
   releases: string[];
@@ -235,6 +237,9 @@ export type JudgeOptions = {
   // store also keeps the chance-to-win history, with or without blind rounds.
   blind?: { store: BlindStore; enabled: boolean };
   stateCacheMs?: number; // how long one read of the page's state is shared; default STATE_CACHE_MS
+  // false: a console for your own app (turnout compare). Tests still start, are scored and decided from the console,
+  // but the demo shop's simulated shoppers never run: they would land in your real experiment.
+  simulator?: boolean;
   deps?: Partial<JudgeDeps>;
 };
 
@@ -662,6 +667,8 @@ export function createJudge(opts: JudgeOptions, ctx: JudgeContext) {
       // Nothing to show until init has run; Reset explains why it can't start either.
       return {
         simulated: true,
+        flag: opts.flag,
+        simulator: opts.simulator !== false,
         dashboardUrl: dash,
         links: { experiment: null, flag: null, shop, preview: previewLink },
         releases: opts.releases,
@@ -706,6 +713,8 @@ export function createJudge(opts: JudgeOptions, ctx: JudgeContext) {
     const { steps, current } = stepsFor(s);
     return {
       simulated: true,
+      flag: opts.flag,
+      simulator: opts.simulator !== false,
       dashboardUrl: dash,
       links: {
         experiment: base && `${base}/experiments/${experiment.id}`,
@@ -770,6 +779,7 @@ export function createJudge(opts: JudgeOptions, ctx: JudgeContext) {
     const running = `Experiment ${e.id} ("${e.name}") is ${e.status}. Ship the winner or revert it first.`;
     switch (action) {
       case 'visitors':
+        if (opts.simulator === false) return "This console is for your own app, so it sends no simulated shoppers: they would count in your real experiment. Open your site to be a visitor, or run turnout simulate (it uses a separate Flagsmith environment).";
         return e.status === 'running' ? null : finished ? 'This experiment is finished. Release the next version to send visitors to a new experiment.' : `The experiment is ${e.status}, so the proxy isn't enrolling visitors.`;
       case 'score':
         return finished ? "This experiment is finished; Flagsmith's results are final." : null;

@@ -1,71 +1,171 @@
+<div align="center">
+
+<img src="src/console/ui/favicon.svg" width="72" height="72" alt="">
+
 # Turnout
 
-**Test a whole new version of your website on real visitors, and switch everyone to the better one, without changing a line of its code.** Turnout sits in front of your site and uses Flagsmith to decide, measure and roll out.
+**Test a whole new version of your website on real visitors, then move everyone to the winner with one click.<br>No changes to your app's code. Built on self-hosted Flagsmith.**
 
-**Live demo, running by itself:** <https://172-198-62-67.sslip.io/judge> (read-only; no sign-in)
+[![Flagsmith](https://img.shields.io/badge/Flagsmith-self--hosted%20%C2%B7%20Experimentation-6633ff)](https://github.com/Flagsmith/flagsmith)
+[![Node.js 24](https://img.shields.io/badge/Node.js-24-5fa04e?logo=nodedotjs&logoColor=white)](https://nodejs.org)
+[![TypeScript](https://img.shields.io/badge/TypeScript-no%20build%20step-3178c6?logo=typescript&logoColor=white)](https://www.typescriptlang.org)
+[![Docker](https://img.shields.io/badge/Docker-Compose-2496ed?logo=docker&logoColor=white)](https://docs.docker.com/compose/)
+[![PostgreSQL](https://img.shields.io/badge/PostgreSQL-event%20store-4169e1?logo=postgresql&logoColor=white)](https://www.postgresql.org)
+[![Tests](https://img.shields.io/badge/tests-600%2B%20passing-15803d)](#development)
+[![License: BSD-3-Clause](https://img.shields.io/badge/license-BSD--3--Clause-blue)](LICENSE)
 
-![Judge mode: an A/B/C test on the demo shop. Simulated shoppers go through, Flagsmith's results arrive, B ships and C is stopped by its slower pages, then 50 new shoppers all get B](docs/images/judge-ship.gif)
+[**Live demo**](https://172-198-62-67.sslip.io/judge) · [Quick start](#quick-start) · [Step-by-step setup](#step-by-step-setup) · [How Flagsmith is used](#how-flagsmith-is-used)
+
+<img src="docs/images/judge-ship.gif" width="860" alt="Judge mode: an A/B/C test on the demo shop. Shoppers go through, Flagsmith's results arrive, B ships and C is stopped by its slower pages">
+
+</div>
 
 ## In plain words
 
-Think of Turnout as a receptionist at your website's front door.
+You have the version of your website everyone uses today, and a new one you think is better. Turnout answers **"is it really better?"** with real visitors, and then switches everyone over safely.
 
-1. A visitor arrives at your one address. Turnout asks **Flagsmith**: version A or version B?
-2. Turnout sends them there, and keeps them on that version every time they come back.
-3. It watches what happens (pages loaded, how fast, sign-ups or orders) and reports it to Flagsmith as events.
+Think of Turnout as a **receptionist at your website's front door**:
+
+1. A visitor arrives. Turnout asks **Flagsmith**: *which version should this person see?*
+2. Turnout sends them there, and keeps them on the same version every time they come back.
+3. It watches what happens (pages loaded, how fast, sign-ups or orders) and tells Flagsmith.
 4. **Flagsmith** works out which version is better, with its own statistics.
-5. You press **Ship winner** (everyone gets the better version) or **Revert** (everyone goes back). One click, nobody left behind.
+5. You press **Ship winner** (everyone gets the better one) or **Revert** (everyone goes back). One flag change, no redeploy.
 
-You build the two versions; Turnout never edits your site. It works for any website in any language: a shop, a sign-up page, a dashboard.
+```mermaid
+flowchart LR
+    V([Visitors]) --> T[Turnout proxy]
+    T -- "which version?" --> F[(Flagsmith<br>flag + experiment)]
+    T --> A[Version A<br>today's site]
+    T --> B[Version B<br>the new one]
+    T -. "page views, speed, sign-ups" .-> F
+    F -- "B wins: 97% sure" --> D{You decide}
+    D -- "Ship winner" --> F
+```
 
-**Why not just Flagsmith?** Flagsmith decides who sees what and does the maths. But something has to stand at the door and actually send each visitor to a version. Normally that's code inside your app, which works for one button, not for two whole releases. Turnout is that missing piece: *Flagsmith decides who sees what; Turnout makes that decision real for whole releases, without changing your app.*
+It works for any website in any language: a shop, a sign-up page, a dashboard. You build the versions; Turnout never edits them.
 
-**Why not a canary tool?** Canary and blue/green tools (Argo Rollouts, Flagger, a load balancer's weights) shift traffic to protect uptime: they judge a release on errors and latency. Turnout keeps each visitor on one version and asks a product question, *does the new release get more sign-ups or orders?*, with Flagsmith's Bayesian results, while errors and page speed stay as safety checks.
+**Why not just Flagsmith?** Flagsmith decides who sees what and does the maths, but normally your app's code has to ask it, which works for one button, not for two whole releases. Turnout is that missing front door. **Why not a canary tool?** Tools like Argo Rollouts or Flagger shift traffic to protect uptime and judge a release on errors. Turnout asks a product question, *does the new release get more sign-ups?*, and keeps errors and speed as safety checks.
 
 ## See it in 2 minutes
 
-Open the [live demo](https://172-198-62-67.sslip.io/judge). A short tour starts on the first visit. Then the page runs real Flagsmith experiments by itself on a demo shop, with simulated shoppers (always labelled), on one screen:
+Open the **[live demo](https://172-198-62-67.sslip.io/judge)**: it runs real Flagsmith experiments by itself on a demo shop with three versions (1.4 Classic, 1.5 Express with a one-page checkout, 1.6 Bold with deliberately slower pages). Simulated shoppers are always labelled.
 
-- **Left: the test in four steps.** Start the test, send shoppers, ask Flagsmith, decide. The current step says what the autopilot does next.
-- **Right: the versions and Flagsmith's numbers.** A live preview of each version (1.4 Classic, blue, a 3-step checkout · 1.5 Express, green, a one-page checkout · 1.6 Bold, which sells a little more but has deliberately slower pages), and a table of what Flagsmith measured: orders as the goal, page speed and server errors as safety checks, each with Flagsmith's call against A.
-- **The story it plays:** 1.5 Express beats 1.4 Classic on orders and ships to everyone with one flag change. Then 1.6 Bold is tested against 1.5: it gets more orders, but its pages are slower, so the safety check stops it and everyone stays on 1.5. After each decision, 50 brand-new shoppers check that everyone really gets the result.
-- **The Versions menu** opens each version on its own (never counted), or the plain shop link, where you get a version the way a real visitor does.
+- **Watch a test happen:** start, send shoppers, ask Flagsmith, decide, in four steps on one screen.
+- **The story:** 1.5 beats 1.4 on orders and ships to everyone. Then 1.6 sells a little more than 1.5, but its pages are slower, so the safety check stops it.
+- **Look inside Flagsmith:** the *In Flagsmith* tab shows the flag, its split and the route each shopper takes.
+- **Be a visitor:** press it, and Flagsmith gives you a version like any shopper. The route marks where you landed.
 
-## Try it with your app (about 5 minutes)
+On your own machine, judge mode is interactive: a guided tour tells you what to click at each step.
 
-You need Docker (Docker Desktop on Windows and macOS) with about 4 GB of memory for it: the whole stack peaked at 1.45 GB under load. Get Turnout once (a private practice repo for now):
+## Quick start
+
+You need **Docker** ([Docker Desktop](https://www.docker.com/products/docker-desktop/) on Windows and macOS) with about 4 GB of memory for it, and **Git**.
 
 ```sh
 git clone https://github.com/tharunkumardeveloper/turnout-practice.git turnout
-sh turnout/install.sh                                                  # macOS, Linux
-powershell -ExecutionPolicy Bypass -File turnout\install.ps1           # Windows (PowerShell or CMD)
+sh turnout/install.sh                                         # macOS, Linux
+powershell -ExecutionPolicy Bypass -File turnout\install.ps1  # Windows
 ```
 
-Then run the version you have and the version (or versions) you want to test, and give Turnout all of them, from your project's folder:
+Open a **new** terminal, then either try the demo or point it at your app:
 
 ```sh
-turnout compare localhost:3001 localhost:3002
+turnout demo                                          # the demo shop and judge mode
+turnout compare localhost:3001 localhost:3002         # your two running versions
 ```
 
-That's it: no questions, no app code. Turnout starts its own Flagsmith, creates the flag and the experiment, starts the proxy, checks everything and opens one page with an **Open your site** button. Each new browser is a new visitor: half get the second version and keep it; Flagsmith compares the two, and **Ship winner** or **Revert** moves everyone to one. Two versions make an A/B test; three make an A/B/C test (a third of visitors each, every new version compared with the first), and so on.
+`compare` starts its own Flagsmith, creates the flag and the experiment, starts the proxy, checks everything and opens the console. Every new browser is a new visitor.
+
+## Step-by-step setup
+
+<details>
+<summary><b>1. Install Turnout (Windows)</b></summary>
+
+1. Install **Docker Desktop**, start it, and wait until it says *Engine running*. In *Settings → Resources* give it at least 4 GB of memory.
+2. Install **Git for Windows** if you don't have it.
+3. Open **PowerShell** and run:
+   ```powershell
+   git clone https://github.com/tharunkumardeveloper/turnout-practice.git turnout
+   powershell -ExecutionPolicy Bypass -File turnout\install.ps1
+   ```
+   This adds `turnout` to your PATH and shows what your machine has.
+4. **Close PowerShell and open a new one**, so the new PATH applies. `turnout help` shows every command.
+
+The first run builds Turnout's image from your checkout (about a minute, once).
+</details>
+
+<details>
+<summary><b>1. Install Turnout (macOS, Linux)</b></summary>
+
+1. Install Docker (Docker Desktop on macOS; Docker Engine with the Compose plugin on Linux) and start it.
+2. Run:
+   ```sh
+   git clone https://github.com/tharunkumardeveloper/turnout-practice.git turnout
+   sh turnout/install.sh
+   ```
+3. Open a new terminal. `turnout help` shows every command. On Linux, your user must be able to run `docker` (the `docker` group).
+</details>
+
+<details>
+<summary><b>2. Try the demo shop</b></summary>
+
+```sh
+turnout demo
+```
+
+Your browser opens judge mode at <http://127.0.0.1:8090/judge>. Follow the tour, or:
+
+1. Pick **A/A**, **A/B** or **A/B/C** at the top. You see a preview of the versions first; nothing starts yet.
+2. Press the green button in each step: **Start**, **Send shoppers**, **Ask Flagsmith**, then **Ship** or **Roll back**.
+3. Open the **In Flagsmith** tab to see the flag, the split and the login for Flagsmith's own dashboard (<http://127.0.0.1:8000>).
+4. Press **Be a visitor** to get a version yourself, or **Pin my browser** to always get one (a Flagsmith identity override).
+
+The full console is at <http://127.0.0.1:8090>. `turnout demo stop` stops it; `turnout demo reset` starts from scratch.
+</details>
+
+<details>
+<summary><b>3. Test your own app</b></summary>
+
+Go to your project's folder and give Turnout your versions. The first one is **A**, what everyone gets today.
 
 | You have | Run |
 |---|---|
-| Two versions running (any language, any server) | `turnout compare localhost:3001 localhost:3002` |
+| Two versions already running | `turnout compare localhost:3001 localhost:3002` |
 | Two Docker images | `turnout compare myapp:1.0 myapp:1.1 --port 3000` |
-| Three or more versions: an A/B/C test | `turnout compare myapp:1.0 myapp:1.1 myapp:1.2` (URLs, images or branches; not a mix) |
-| A git project with a Dockerfile, two branches | `turnout compare main new-checkout` (each built from its last commit; your `.env` is passed; the port comes from `EXPOSE`) |
+| Three versions: an A/B/C test | `turnout compare myapp:1.0 myapp:1.1 myapp:1.2 --port 3000` |
+| Two git branches, each with a Dockerfile | `turnout compare main new-checkout` |
 
-- **No goal needed to start:** a version is judged on page speed, with server errors as the guardrail. To measure a conversion, add `--goal "POST /signup"` (a 2xx answer or a 303 redirect counts, the usual answers to a form that worked; add a status to be exact, such as `"POST /signup 201"`). The page lists the requests it sees, with the exact `--goal` for each.
-- `--split 10` sends 10% of visitors to each new version (the rest get the first). By default every visitor is split evenly. Different versions or settings start a new experiment.
-- Ports already taken (8080, 8090, 8000) are skipped, and the next free ones are used. A version that crashes stops the run within seconds, with its last log lines.
-- **No visitors yet? `turnout simulate`** sends pretend visitors (500 by default) so results appear in minutes. They go to a separate Flagsmith environment, "Demo (simulated)", with its own console, so they can never touch your real experiment; their hidden rates are revealed at the end. They are real requests to your app, so with a goal it asks before sending them.
-- `turnout down` stops (the same `compare` resumes, data kept), `turnout reset` wipes, `turnout open` reopens the page, `turnout demo` starts the demo shop, `turnout update` gets the latest Turnout.
-- The Turnout image can't be pulled while the repository is private, so the first run builds it from your checkout (about a minute, once).
+Options:
 
-## Go live
+- `--goal "POST /signup"`: the request that counts as success. A 2xx answer or a 303 redirect counts; add a status to be exact (`"POST /signup 201"`). No goal: versions are judged on page speed. The console lists the requests it sees, with the exact `--goal` for each.
+- `--port 3000`: the port your app listens on inside its container (default: the Dockerfile's `EXPOSE`).
+- `--env-file .env.turnout`: your app's settings (database URL, keys). Without it, the `.env` in your folder is used. Passed to every version Turnout starts (images and branches).
+- `--split 10`: 10% of visitors get each new version; the rest stay on A. Default: everyone, split evenly.
 
-Run `turnout compare` on the server that will take the traffic, then `turnout deploy your-domain.com`: it prints the lines for the web server you already have, for example Nginx:
+When it's ready the console opens at <http://127.0.0.1:8090> (the next free port if that one is busy):
+
+1. **Run a test:** pick A/A, A/B or A/B/C, check the preview, press Start.
+2. **Open your site: be a visitor.** Each new browser or private window gets one version and keeps it. *Your visits* lists what you got before, during and after the test.
+3. **Decide:** when Flagsmith is sure, the best version that passes every safety check is pre-selected. Ship or Revert shows the Flagsmith calls first.
+
+`turnout down` stops (data kept), `turnout reset` wipes, `turnout open` reopens the console, `turnout status` checks everything.
+</details>
+
+<details>
+<summary><b>4. No visitors yet? Simulate them</b></summary>
+
+```sh
+turnout simulate --visitors 500
+```
+
+Pretend visitors explore your site the way a person would: they load the home page, follow a few of its links (a quarter leave after one page), and at a hidden rate per version they make your goal. When a page has a form that posts to your goal, they fill it in (a made-up email, name and so on) and submit it. They go to a separate Flagsmith environment, *Demo (simulated)*, with its own console, so they never touch your real experiment; the hidden rates are revealed at the end. They are real requests to your app, so with a goal it asks first.
+</details>
+
+<details>
+<summary><b>5. Go live</b></summary>
+
+Run `turnout compare` on the server that takes the traffic, then `turnout deploy your-domain.com` for the lines to add to your web server:
 
 ```nginx
 location / {
@@ -76,35 +176,44 @@ location / {
 }
 ```
 
-or, for Caddy, `reverse_proxy 127.0.0.1:8080`. Visitors keep using your domain and never see a second link; Turnout picks their version. Its own port and the console stay on 127.0.0.1 (open the console over `ssh -L`).
+or, for Caddy, `reverse_proxy 127.0.0.1:8080`. Visitors keep your domain; the console stays private (open it over `ssh -L`).
+</details>
+
+<details>
+<summary><b>Troubleshooting</b></summary>
+
+- **"Docker isn't running":** start Docker Desktop and wait for *Engine running*.
+- **A port is busy:** Turnout picks the next free one and says so.
+- **A version doesn't answer:** its last log lines are printed. If it needs a database, pass its settings with `--env-file`, or run the versions yourself and give their URLs.
+- **Out of memory:** Flagsmith and its database need about 1.5 GB; give Docker 4 GB.
+- **Something else:** `turnout status`, or <http://127.0.0.1:8090/setup>, compares what's expected with what's there (28 checks).
+</details>
 
 ## How Flagsmith is used
 
-Flagsmith runs self-hosted next to Turnout (its official Docker Compose file, Experimentation switched on, its own event store). Turnout never computes statistics: every number and call on its pages comes from Flagsmith's API.
+Flagsmith runs self-hosted next to Turnout (its official Docker Compose file, Experimentation switched on, its own event store). Turnout computes no statistics: every number on its pages comes from Flagsmith's API. The console's *What we use* page shows each feature live.
 
-| Flagsmith feature | What it does in Turnout |
-|---|---|
-| **Multivariate flag** | One flag per app; each variant's value names a version (`shop:1.5`). The proxy routes every visitor by it, evaluated locally with the Node SDK. |
-| **Experiments** | Each comparison is a Flagsmith experiment on that flag: A/B, A/B/C or A/A, with a hypothesis, created and started by Turnout's API calls. |
-| **Events and metrics** | Plain HTTP becomes Flagsmith events: page loads (exposures, page speed, server errors) and the goal request (`POST /checkout` → `order_placed`). |
-| **Bayesian results** | Flagsmith's chance to win and credible interval decide Ship, Keep running or Revert. A version that loses a safety check never ships. |
-| **Environment default and rollout** | Ship winner and Revert pause the experiment, set the flag's default, drain the split and complete it: everyone moves, in one flag change. |
-| **Segments** | A preview segment shows the next version to your team before the experiment, kept out of its data. |
-| **Feature Health** | A losing safety check marks the flag Unhealthy in Flagsmith's own dashboard; an opt-in guard can revert by itself. |
-| **Tags, Code References** | The flag is tagged `release` (permanent); Code References show where its name is configured. |
+| Round | Flagsmith feature | What it does in Turnout |
+|---|---|---|
+| Create a flag | **Multivariate flag**, local evaluation | One flag per app; each variant's value names a version. The proxy evaluates it in-process with the server-side key. |
+| Pick a metric | **Metrics and events**, event store | Plain HTTP becomes Flagsmith events: page loads, page speed, server errors and the goal request. |
+| Split the traffic | **Experiments**, Bayesian results | Each test is a Flagsmith experiment (A/A, A/B, A/B/C). Its chance to win and credible interval decide Ship, Keep running or Revert. |
+| | **Segments**, **identity overrides** | A preview segment shows the next version to your team; *Pin my browser* is an identity override for your visitor id. Both stay out of the test. |
+| Ship the winner | **Environment default**, rollout | Ship and Revert set the flag's default and drain the split: everyone moves with one flag change. |
+| | **Feature Health**, tags, Code References | A losing safety check marks the flag Unhealthy in Flagsmith's dashboard; an opt-in guard can revert by itself. |
 
-Every Flagsmith fact above, with its source file and line: [docs/FLAGSMITH.md](docs/FLAGSMITH.md).
+Every Flagsmith fact, with its source file and line: [docs/FLAGSMITH.md](docs/FLAGSMITH.md).
 
-## What's inside
+## Features
 
 | | |
 |---|---|
-| **For your app** | `turnout compare` (two URLs, images or git branches; no questions); a goal is optional (no goal: judged on page speed); goal suggestions from the requests it sees; `turnout deploy` (Caddy or Nginx lines); installers for Windows, macOS and Linux |
-| **Measuring** | sticky visitor IDs; events from plain HTTP (`POST /checkout` returned 2xx) or one response header; bounces counted; bots never counted; page speed and errors as guardrails; no events lost under load |
-| **Deciding** | Flagsmith's Bayesian results, shown as returned; "keep running" while the interval crosses zero; a 20 ms floor so tiny speed differences never block a release; A/A tests |
-| **Releasing** | Ship winner and Revert in an order that reaches everyone; swing back with one edit; preview links for your team; the next release on the same flag; a release ledger (and GitHub Releases) |
-| **Safety** | Flagsmith's Feature Health shows a losing guardrail on the flag; an optional guard that reverts on its own (never ships); the shop keeps working if Flagsmith is down |
-| **Tools** | `doctor` (35 checks); `check`, an Experiment Doctor for any Flagsmith experiment (also a GitHub Action); server mode with HTTPS and an autopilot |
+| **Your app** | `turnout compare` for URLs, images or git branches, any number of versions; goals optional; `--env-file`; installers for Windows, macOS and Linux; `turnout deploy` |
+| **Guided** | Judge mode with an interactive tour; a console tour; previews of each version; *Be a visitor* with a YOU pin on the route; *Pin my browser* (identity override) |
+| **Measuring** | Sticky visitor ids, bots never counted, bounces counted, goals from HTTP or one response header; 0 of 121,678 events lost under load |
+| **Deciding** | Flagsmith's results as returned; keep running while unsure; safety checks with a sensible margin (20 ms for page speed); A/A fairness checks |
+| **Releasing** | Ship and Revert that reach everyone; swing back with one edit; preview for your team; a release ledger and GitHub Releases |
+| **Tools** | `doctor` and `/setup` (28 checks); `check`, an Experiment Doctor for any Flagsmith experiment (also a GitHub Action); server mode with HTTPS and an autopilot |
 
 Everything, one line each: [FEATURES.md](FEATURES.md). How each part works: [docs/HOW_IT_WORKS.md](docs/HOW_IT_WORKS.md).
 
@@ -112,47 +221,26 @@ Everything, one line each: [FEATURES.md](FEATURES.md). How each part works: [doc
 
 | | Result |
 |---|---|
-| Your app, from an empty folder | `turnout compare`: running in 152 s (two URLs) and 167 s (two branches); 2,000 new visitors split 49.3% / 50.8% at 50% |
+| Your app, from an empty folder | `turnout compare` running in under 3.5 minutes; sign-ups counted end to end; after Ship, 100 of 100 new visitors on the winner |
 | Shipping under live traffic | 263 of 263 later visitors on the winner; 0 left behind |
 | Flagsmith down | 100 of 100 pages still served, 86 ms average |
-| Under load | 0 of 121,678 events lost at up to 200 visitors at once, counted in Flagsmith's own table |
-| Data loss found in Flagsmith's Node SDK | events tracked faster than one batch round-trip are dropped, with only a log warning (28% lost in a minimal reproduction); Turnout holds its events back to avoid it; [reproduction and draft report](spikes/sdk-buffer-repro/) |
-| A server, rebooted | back by itself in 50 s, 35 of 35 checks passing |
+| Under load | 0 of 121,678 events lost at up to 200 visitors at once |
+| A server, rebooted | back by itself in 50 s, every check passing |
 
-Raw logs and every number: [spikes/RESULTS.md](spikes/RESULTS.md). Not claimed: production users, or any simulated number as evidence about real people.
+Raw logs and numbers: [spikes/RESULTS.md](spikes/RESULTS.md). Not claimed: production users, or any simulated number as evidence about real people.
 
 ## Good to know
 
 - **Real results take real visitors:** a few hundred per version. Ten clicks prove the wiring, not the winner.
-- **Both versions share your database**, so the new one must not break the old one's data.
-- **Both versions share state**, as in blue/green: schemas must stay backward compatible.
-- **Page-level only.** SPA navigations aren't new exposures; conversions must be visible in HTTP (a request, or an `X-Turnout-Event` response header). In an SPA, set the goal on an API call or the event header.
-- **One experiment per flag per environment** (Flagsmith's rule): releases run one at a time.
-- **A new hop in the traffic path.** Teams will want to put the proxy through their own security review.
-- **The ID cookie** is an online identifier; in the EU a cookie notice or consent may apply.
-- **Routing follows a flag change** after Flagsmith's document rebuild plus up to the SDK's 5-second refresh.
-- **`ship` is refused** where change requests are enabled (`features/future/views.py:31-44`).
-- **Built on a beta.** Image and SDK versions are pinned; Flagsmith's own event store is for evaluation, not production volumes.
-- **Not built:** statistics of its own, automatic shipping (the guard only reverts), WebSocket routing, a per-visitor opt-out, experiment audiences on traits other than `preview` (the proxy sends no other traits; `doctor` warns).
-- **The guard acts on Flagsmith's results**, which refresh at most every 5 minutes; harm can run that long before a revert.
-- **Flagsmith features not used**, each with its reason, are listed on the console's `/flagsmith` page and in [docs/FLAGSMITH.md](docs/FLAGSMITH.md); for example, Flagsmith's outgoing webhooks refuse private addresses, so they can't call a console on the Compose network.
-
-## The demo on your machine
-
-A shop with three releases, simulated visitors and a guided tour. Get the code as above, then:
-
-| | Start (one command) |
-|---|---|
-| Windows | double-click `turnout.bat` (first time on this machine: `setup.bat` checks and installs what's needed) |
-| macOS, Linux | `sh turnout.sh` (first time: `sh setup.sh`) |
-| In the browser | [![Open in GitHub Codespaces](https://github.com/codespaces/badge.svg)](https://codespaces.new/tharunkumardeveloper/turnout-practice) (needs access to the repo; open the judge link the terminal prints at the end) |
-
-**When it works,** your browser opens judge mode at <http://127.0.0.1:8090/judge>: one screen with a two-minute tour. Pick the kind of test (A/A, A/B or A/B/C), then follow the green button, or choose **Play it for me**. If anything is missing, <http://127.0.0.1:8090/setup> (or `docker compose run --rm cli doctor`) says what.
+- **Both versions share your database** (as in blue/green): the new one must not break the old one's data.
+- **Page-level:** a single-page app's in-browser navigations aren't new visits; put the goal on an API call or the `X-Turnout-Event` header.
+- **One experiment per flag at a time** (Flagsmith's rule). **Built on a beta**: versions are pinned.
+- **A new hop in your traffic path**, and a first-party id cookie (a cookie notice may apply in the EU).
 
 ## Development
 
-`npm test` runs the unit and integration tests (Node's built-in runner; no build step, since Node 24 runs the TypeScript directly). `npx tsc --noEmit` typechecks. Layout, commands and conventions: [docs/DEVELOPMENT.md](docs/DEVELOPMENT.md).
+`npm test` runs the unit and integration tests (Node's built-in runner; Node 24 runs the TypeScript directly, no build step). `npx tsc --noEmit` typechecks. Layout and conventions: [docs/DEVELOPMENT.md](docs/DEVELOPMENT.md).
 
 ## License
 
-BSD-3-Clause, matching Flagsmith.
+[BSD-3-Clause](LICENSE), matching Flagsmith.

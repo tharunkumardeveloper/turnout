@@ -161,6 +161,18 @@ export async function init(opts: Options): Promise<void> {
     log(`✓ organisation "${org.name}", project "${project.name}", environment "${env.name}"`);
   }
   const envPath = `/api/v1/environments/${env.api_key}`;
+  // "Pin my browser" in the console is a Flagsmith identity override; local evaluation sees identity overrides only
+  // with this environment setting on (the default for new environments, off on older ones). Best effort: an
+  // instance or a key that can't change it simply has no pinning.
+  try {
+    const settings = await api.get<{ use_identity_overrides_in_local_eval?: boolean }>(`${envPath}/`);
+    if (settings?.use_identity_overrides_in_local_eval === false) {
+      await api.patch(`${envPath}/`, { use_identity_overrides_in_local_eval: true });
+      log('✓ identity overrides reach local evaluation (for pinning a browser to one version)');
+    }
+  } catch {
+    /* no pinning on this instance */
+  }
 
   // 3. Keys: an Organisation API key (only when we bootstrapped, since it's shown once) and a server-side key.
   if (newAdmin || !opts.adminKey) { // keys in .env from an earlier instance are stale on a fresh one

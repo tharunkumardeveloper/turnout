@@ -1,7 +1,7 @@
 #!/bin/sh
 # turnout: put Turnout in front of two or more versions of your app and watch Flagsmith compare them.
 #
-#   turnout compare <live> <new> [<new2> …] [--goal "POST /signup"] [--split 50] [--port 3000]
+#   turnout compare <live> <new> [<new2> …] [--goal "POST /signup"] [--split 50] [--port 3000] [--env-file .env]
 #       Two versions make an A/B test, three an A/B/C test, and so on: <live> is A, the others are tested against it.
 #       --split: % of visitors who get each new version (the rest get <live>); default: an even share each
 #       versions: URLs (localhost:3001, http://localhost:3002), Docker images (myapp:1.0), or branches of the git
@@ -86,6 +86,7 @@ help_screen() {
   say "      ${C_D}--goal \"POST /signup\"   count a conversion (no goal: judged on page speed)${C_0}"
   say "      ${C_D}--split 10              10% of visitors get each new version${C_0}"
   say "      ${C_D}--port 3000             the port your images listen on${C_0}"
+  say "      ${C_D}--env-file .env.turnout your app's settings for the versions Turnout starts (default: ./.env)${C_0}"
   say "  ${C_C}turnout simulate${C_0}                      pretend visitors, so results show in minutes (kept apart)"
   say "  ${C_C}turnout open${C_0}                          reopen the results page: Ship winner or Revert there"
   say "  ${C_C}turnout status${C_0}                        what's running, and a full check"
@@ -216,12 +217,13 @@ cmd_compare() {
   N=$(printf '%s\n' $VERSIONS | grep -c .)
   [ "$N" -ge 2 ] || die 'usage: turnout compare <live> <new> [<new2> …] [--goal "POST /signup"] [--split 50]'
   [ "$N" -le 26 ] || die "at most 26 versions (A to Z)"
-  GOAL=none; SPLIT=; APP_PORT=
+  GOAL=none; SPLIT=; APP_PORT=; ENV_FILE=
   while [ $# -gt 0 ]; do
     case "$1" in
       --goal) GOAL="${2:?--goal needs a request, e.g. \"POST /signup\"}"; shift 2 ;;
       --split) SPLIT="${2:?--split needs a percentage}"; shift 2 ;;
       --port) APP_PORT="${2:?--port needs the port your images listen on}"; shift 2 ;;
+      --env-file) ENV_FILE="${2:?--env-file needs a file}"; shift 2 ;;
       *) die "unknown option $1" ;;
     esac
   done
@@ -257,10 +259,18 @@ cmd_compare() {
   need_image
   mkdir -p "$STATE"
 
+  # Your app's settings: --env-file, else the .env in this folder. Passed to every version Turnout starts itself (an
+  # image or a branch); versions you run yourself (URLs) already have theirs.
+  if [ -n "$ENV_FILE" ]; then
+    [ -f "$ENV_FILE" ] || die "--env-file: no such file: $ENV_FILE"
+    APP_ENV=$(CDPATH= cd -- "$(dirname -- "$ENV_FILE")" && pwd)/$(basename -- "$ENV_FILE")
+  elif [ -f "$PWD/.env" ]; then APP_ENV="$PWD/.env"; else APP_ENV=; fi
+  case "${VERSIONS%% *}" in http://*|https://*) APP_ENV= ;; esac
   WANT="releases=$VERSIONS
 goal=$GOAL
 split=$SPLIT
-app_port=$APP_PORT"
+app_port=$APP_PORT
+env_file=$APP_ENV"
   if [ -f "$STATE/compare.args" ] && [ "$(sed -e '/^proxy_port=/d' -e '/^console_port=/d' "$STATE/compare.args")" = "$WANT" ]; then
     ports_from_state
     say "Resuming $NAME: $TITLE ($KIND test)."
@@ -276,7 +286,7 @@ app_port=$APP_PORT"
     [ "$CONSOLE_PORT" = "$PROXY_PORT" ] && CONSOLE_PORT=$(free_port $((PROXY_PORT + 1)))
     FLAGSMITH_PORT=$(free_port 8000)
     [ "$PROXY_PORT" = 8080 ] || say "Port 8080 is busy: your app will be on $PROXY_PORT."
-    APP_ENV=; [ -n "$BRANCHES" ] && [ -f "$PWD/.env" ] && APP_ENV="$PWD/.env"
+    [ -n "$APP_ENV" ] && say "Your app's settings: $APP_ENV (passed to every version)."
     docker run --rm -v "$STATE:/work" "$IMAGE" new --dir /work --yes --force \
       $(for v in $VERSIONS; do printf -- '--release %s ' "$v"; done) --success "$GOAL" --traffic "$TRAFFIC" \
       --proxy-port "$PROXY_PORT" --console-port "$CONSOLE_PORT" --flagsmith-port "$FLAGSMITH_PORT" \

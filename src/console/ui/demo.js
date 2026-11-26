@@ -3,8 +3,9 @@
 // Server mode's public page is the same page, read-only (meta turnout-readonly): the autopilot runs the tests, the
 // API lives under /judge/api/, and nothing private shows (no Flagsmith link or login, no console).
 import * as M from './demo-model.js';
-import { startTour, offerTour } from './demo-tour.js';
-import { READONLY, setupMenu, setVersions, viewLink } from './menu.js';
+import { createTour } from './tour.js';
+import { JUDGE_STOPS, stopsFor } from './tour-stops.js';
+import { READONLY, loadSignin, setupMenu, setVersions, signinBox, viewLink } from './menu.js';
 
 const STATE_POLL_MS = 4000;
 const JOB_POLL_MS = 800;
@@ -47,7 +48,12 @@ const storedKind = (() => {
 
 const ui = {
   kind: storedKind, // the kind of test the judge picked: 1 = A/A, 2 = A/B, 3 = A/B/C…; null: the current test's kind
-  pendingKind: null, // a kind just picked: its versions show at once, until the page shows the started test
+  plan: null, // a kind picked but not started: its versions show as a preview, and step 1 offers Start
+  pendingKind: null, // a kind just started: its versions show at once, until the page shows the started test
+  tab: 'results', // the bottom panel: 'results' (what Flagsmith measured) or 'flagsmith' (in Flagsmith)
+  journey: [], // where this browser landed over time: before the test, in it, after the decision
+  signin: null, // Flagsmith's address and login (this machine only)
+  pinned: undefined, // the version this browser is pinned to in Flagsmith (an identity override); null: none
   you: null, // where this browser lands (the proxy's receipt)
   state: null,
   job: null, // the job this page is following
@@ -133,7 +139,15 @@ async function jobFinished(job) {
 
 async function run(action, extra = {}) {
   const s = ui.state;
+  if (action === 'cancel-plan') {
+    ui.plan = null;
+    return render();
+  }
   if (ui.sending) return;
+  if (action === 'start') {
+    ui.pendingKind = extra.arms ?? null;
+    ui.plan = null;
+  }
   ui.sending = true;
   ui.before = signature(s); // the state before this job, to wait for its effect
   ui.error = '';
@@ -216,15 +230,15 @@ function renderKinds(s, kind) {
   const options = M.kinds(s.releases);
   const current = s.experiment?.status !== 'completed' ? M.kindOf(s) : null;
   const busy = isBusy();
-  const key = JSON.stringify([options.map((o) => o.arms), kind, current, busy, ui.pendingKind]);
+  const key = JSON.stringify([options.map((o) => o.arms), kind, current, busy, ui.pendingKind, ui.plan]);
   if (box.dataset.key === key) return;
   box.dataset.key = key;
   box.replaceChildren(
     h('span', { class: 'kinds-label' }, 'Test'),
     ...options.map((o) => h('button', {
       class: 'kind', type: 'button',
-      title: READONLY ? `${o.blurb} On this public page the autopilot picks the test.` : `${o.blurb} Click to start it now.`,
-      'aria-pressed': String(o.arms === (ui.pendingKind ?? kind)), 'data-running': o.arms === current ? 'true' : null,
+      title: READONLY ? `${o.blurb} On this public page the autopilot picks the test.` : `${o.blurb} Click to preview it; Start runs it.`,
+      'aria-pressed': String(o.arms === (ui.plan ?? ui.pendingKind ?? kind)), 'data-running': o.arms === current ? 'true' : null,
       disabled: READONLY || busy,
       on: { click: () => pickKind(o.arms) },
     }, o.label)));
@@ -232,8 +246,8 @@ function renderKinds(s, kind) {
 
 const isBusy = () => ui.job?.status === 'running' || ui.state?.job?.status === 'running' || ui.sending || Boolean(ui.settle);
 
-// One click starts the picked kind of test (a running one stops first: everyone back on A). The version tiles switch
-// to the new test at once, before Flagsmith has answered.
+// A click on a kind previews that test: its versions show, and step 1 offers Start. Nothing changes in Flagsmith
+// until Start (a running test stops first then). Clicking the running test's own kind goes back to it.
 function pickKind(k) {
   if (READONLY || isBusy()) return;
   ui.kind = k;
@@ -242,10 +256,11 @@ function pickKind(k) {
   } catch {
     /* remembered for this page only */
   }
-  ui.pendingKind = k;
-  document.dispatchEvent(new CustomEvent('turnout:kind', { detail: { kind: k, label: M.kindLabel(k) } }));
+  const s = ui.state;
+  const running = s?.experiment && s.experiment.status !== 'completed' ? M.kindOf(s) : null;
+  ui.plan = running === k ? null : k;
+  document.dispatchEvent(new CustomEvent('turnout:kind', { detail: { kind: k, label: M.kindLabel(k), planned: ui.plan !== null } }));
   render();
-  run('start', { arms: k });
 }
 
 // ---- drawing ------------------------------------------------------------------------------------------------------
@@ -263,19 +278,22 @@ function render() {
   rl.setAttribute('href', links.experiment ?? '#');
 
   const kind = chosenKind(s);
-  const m = M.model(s, { kind });
+  const m = ui.plan !== null && !isBusy() ? M.planModel(s, ui.plan) : M.model(s, { kind });
   // A test that was just picked: show its versions now, before Flagsmith confirms it. Cleared once the page shows it.
   if (ui.pendingKind !== null && !ui.sending && !isBusy() && M.kindOf(s) === ui.pendingKind && s.experiment?.status === 'running') ui.pendingKind = null;
-  if (ui.pendingKind !== null) m.versions = M.plannedVersions(s.releases, ui.pendingKind);
+  if (ui.pendingKind !== null && !m.plan) m.versions = M.plannedVersions(s.releases, ui.pendingKind);
   renderKinds(s, kind);
   if (ui.live.exp !== s.experiment?.id) ui.live = { exp: s.experiment?.id ?? null, counts: {} };
 
   setText($('now'), m.now);
-  setText($('exp-id'), s.experiment ? `· ${m.letters} test #${s.experiment.id}` : '');
+  setText($('exp-id'), m.plan ? `· preview of an ${m.letters} test` : s.experiment ? `· ${m.letters} test #${s.experiment.id}` : '');
+  const visit = $('be-visitor');
+  visit.setAttribute('href', READONLY ? '/' : String(links.shop ?? '#'));
   renderVersions(s, m);
   renderSteps(s, m);
   renderNext(s, m);
   renderResults(s, m);
+  renderFlagsmith(s);
   renderHistory(s);
   paintLive();
   scheduleAutoplay(m);
@@ -284,6 +302,8 @@ function render() {
 function renderVersions(s, m) {
   const box = $('versions');
   box.style.setProperty('--n', String(Math.max(2, m.versions.length)));
+  // An A/A test: the copy (A′) is the same shop in the same colour, with a dashed outline.
+  box.dataset.aa = String(m.versions.length === 2 && m.versions[0].release === m.versions[1].release);
   const goal = s.results?.metrics?.find((x) => x.role === 'goal');
   // The tiles are built once per set of releases and then only their words change: moving a preview frame in the
   // page reloads it, so the frames stay where they are.
@@ -303,9 +323,10 @@ function renderVersions(s, m) {
   m.versions.forEach((v, i) => {
     const tile = /** @type {HTMLElement} */ (box.children[i]);
     tile.dataset.state = v.state;
-    setText(tile.querySelector('.version-role'), v.key === 'control' ? 'current' : m.aa ? 'copy of A' : 'new');
+    const aaCopy = box.dataset.aa === 'true' && i === 1;
+    setText(tile.querySelector('.version-role'), v.key === 'control' ? 'current' : aaCopy ? 'copy of A (same shop)' : 'new');
     setText(tile.querySelector('.version-badge'), v.badge);
-    const arm = goal?.arms?.[v.key];
+    const arm = m.plan ? null : goal?.arms?.[v.key]; // a preview has no numbers yet
     setText(tile.querySelector('.version-fs'), arm ? `${(arm.mean * 100).toFixed(1)}% of ${arm.n.toLocaleString('en-GB')} shoppers ordered` : '');
     // Once Flagsmith has counted, its numbers replace the live tally (one line, so the tiles stay short).
     tile.classList.toggle('has-results', Boolean(arm));
@@ -327,9 +348,12 @@ function fitFrames() {
   for (const box of document.querySelectorAll('.version-frame')) {
     const f = box.querySelector('iframe');
     if (!f || !box.clientWidth) continue;
-    // A 1280 px wide page, scaled to the tile; tall enough to fill the tile at that scale (a fixed height left the
-    // lower part of narrow tiles blank in an A/B/C test).
-    const scale = box.clientWidth / 1280;
+    // The page is laid out at a virtual width that suits the tile's shape, then scaled to fit: a wide tile shows the
+    // desktop layout (1280 px); a tall, narrow one (A/B/C) a narrower layout, so the page fills the tile instead of
+    // leaving its lower part blank. The frame is as tall as the tile at that scale.
+    const virtual = Math.round(Math.min(1280, Math.max(460, (box.clientWidth / Math.max(1, box.clientHeight)) * 1100)));
+    if (f.style.width !== `${virtual}px`) f.style.width = `${virtual}px`;
+    const scale = box.clientWidth / virtual;
     f.style.transform = `scale(${scale.toFixed(4)})`;
     f.style.height = `${Math.ceil(Math.max(box.clientHeight, 1) / scale)}px`;
   }
@@ -366,7 +390,7 @@ function actionBox(m) {
   const mins = Math.floor(wait / 60000);
   const secs = String(Math.floor((wait % 60000) / 1000)).padStart(2, '0');
   const busy = ui.job?.status === 'running' || ui.state?.job?.status === 'running' || ui.sending || Boolean(ui.settle);
-  const main = h('button', { class: 'btn btn-go', type: 'button', id: 'go', disabled: wait > 0 || busy, on: { click: () => run(a.action, { arms: a.arms, visitors: a.shoppers }) } },
+  const main = h('button', { class: 'btn btn-go', type: 'button', id: 'go', 'data-action': a.action, disabled: wait > 0 || busy, on: { click: () => run(a.action, { arms: a.arms, visitors: a.shoppers }) } },
     ui.sending ? 'Starting…' : ui.settle ? 'Reading Flagsmith…' : wait > 0 ? `Flagsmith allows the next look in ${mins}:${secs}` : a.label);
   const alt = m.alt ? h('button', { class: 'btn btn-quiet', type: 'button', disabled: busy, on: { click: () => run(m.alt.action) } }, m.alt.label) : null;
   if (wait > 0 && !ui.tick) ui.tick = setTimeout(() => ((ui.tick = 0), render()), 1000);
@@ -487,6 +511,13 @@ function scheduleAutoplay(m) {
 // ---- you: where this browser lands -------------------------------------------------------------------------------
 // The console asks the proxy with this browser's visitor cookie (/api/you). The public page shares an origin with the
 // shop, so it asks the proxy's receipt directly.
+const JOURNEY_KEY = 'turnout-you-journey-judge';
+try {
+  ui.journey = JSON.parse(localStorage.getItem(JOURNEY_KEY) ?? '[]');
+} catch {
+  ui.journey = [];
+}
+
 async function loadYou() {
   if (!document.hidden) {
     try {
@@ -496,14 +527,138 @@ async function loadYou() {
     } catch {
       ui.you = null;
     }
-    setText($('you'), M.youText(ui.you, ui.state, READONLY));
+    if (!READONLY && ui.you?.visited) await loadPin();
+    setText($('you'), `${M.youText(ui.you, ui.state, READONLY)}${ui.pinned && ui.pinned === ui.you?.release ? ' (pinned)' : ''}`);
+    // Where this browser lands, remembered over time: what it got before the test, in it, and after the decision.
+    const next = ui.state ? M.addVisit(ui.journey, M.visitOf(ui.you, ui.state, ui.pinned)) : ui.journey;
+    if (next !== ui.journey) {
+      ui.journey = next;
+      try {
+        localStorage.setItem(JOURNEY_KEY, JSON.stringify(next));
+      } catch {
+        /* this page only */
+      }
+    }
+    renderFlagsmith(ui.state);
   }
   setTimeout(loadYou, 4000);
 }
 
+// ---- pin this browser to one version: a Flagsmith identity override for its visitor id --------------------------
+async function loadPin() {
+  try {
+    const res = await api('/api/pin', { cache: 'no-store' });
+    ui.pinned = res.ok ? (await res.json()).pinned : undefined;
+  } catch {
+    ui.pinned = undefined;
+  }
+}
+async function pin(release) {
+  ui.pinning = true;
+  renderFlagsmith(ui.state, true);
+  try {
+    const res = await api('/api/pin', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ release }) });
+    const out = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(out.error ?? `HTTP ${res.status}`);
+    ui.pinned = out.pinned;
+    ui.pinError = '';
+  } catch (error) {
+    ui.pinError = error.message;
+  }
+  ui.pinning = false;
+  renderFlagsmith(ui.state, true);
+}
+function pinRow() {
+  if (READONLY || !ui.you?.visited || ui.you.viewing) return null;
+  const releases = ui.state?.releases ?? [];
+  return h('div', { class: 'pin' },
+    h('h3', { class: 'fs-h' }, 'Pin my browser'),
+    h('div', { class: 'pin-row' },
+      ...releases.map((r, i) => h('button', {
+        class: 'btn btn-small pin-btn', type: 'button', 'data-i': String(i), 'aria-pressed': String(ui.pinned === r), disabled: Boolean(ui.pinning),
+        title: `Always give this browser ${M.label(r)}: a Flagsmith identity override for your visitor id`,
+        on: { click: () => pin(r) },
+      }, M.label(r))),
+      ui.pinned ? h('button', { class: 'btn btn-small btn-quiet', type: 'button', disabled: Boolean(ui.pinning), on: { click: () => pin(null) } }, 'Unpin') : null),
+    h('p', { class: 'fs-note' }, ui.pinError || (ui.pinned
+      ? `Pinned to ${M.label(ui.pinned)} by an identity override in Flagsmith: every page you load gets it, outside the test (not counted).`
+      : 'An identity override in Flagsmith for your visitor id: your browser gets that version on every page, outside the test.')));
+}
+
+// ---- the bottom panel's tabs: what Flagsmith measured | in Flagsmith -----------------------------------------------
+function setTab(tab) {
+  ui.tab = tab;
+  if (tab === 'flagsmith' && !READONLY && ui.you?.visited) void loadPin().then(() => renderFlagsmith(ui.state, true));
+  for (const [id, name] of [['tab-results', 'results'], ['tab-flagsmith', 'flagsmith']]) $(id).setAttribute('aria-selected', String(tab === name));
+  $('results').hidden = tab !== 'results';
+  $('flagsmith-tab').hidden = tab !== 'flagsmith';
+  renderFlagsmith(ui.state);
+}
+$('tab-results').addEventListener('click', () => setTab('results'));
+$('tab-flagsmith').addEventListener('click', () => setTab('flagsmith'));
+
+// ---- in Flagsmith: the flag, the route each shopper takes (and yours), the experiment, the login -----------------
+function renderFlagsmith(s, force = false) {
+  const box = $('flagsmith-tab');
+  if (!s || box.hidden) return;
+  const f = M.flagsmithModel(s, ui.you);
+  if (!f) return;
+  const key = JSON.stringify([f, ui.journey, Boolean(ui.signin), ui.pinned, ui.pinning, ui.pinError, ui.you?.visited]);
+  if (!force && box.dataset.key === key) return;
+  box.dataset.key = key;
+  const route = h('div', { class: 'fs-col fs-route' },
+    h('h3', { class: 'fs-h' }, 'The route, right now'),
+    h('div', { class: 'route' },
+      h('span', { class: 'route-node' }, 'Shopper'), h('span', { class: 'route-arrow', 'aria-hidden': 'true' }, '→'),
+      h('span', { class: 'route-node' }, 'Turnout'), h('span', { class: 'route-arrow', 'aria-hidden': 'true' }, '→'),
+      h('span', { class: 'route-node route-flag' }, `flag ${f.flag}`)),
+    h('ul', { class: 'route-arms' }, ...f.route.map((r) => h('li', { class: 'route-arm', 'data-i': String(Math.max(0, 'ABC'.indexOf((r.letter || 'A')[0]))), 'data-you': String(r.you) },
+      h('span', { class: 'route-letter' }, r.letter || '•'),
+      h('span', { class: 'route-name' }, r.name),
+      h('span', { class: 'route-bar', style: { '--w': `${r.pct}%` } }, h('i')),
+      h('span', { class: 'route-pct' }, `${r.pct}%`),
+      r.you ? h('span', { class: 'you-pin' }, 'YOU') : null))),
+    f.outside ? h('p', { class: 'fs-note' }, `${f.outside}% of shoppers are outside the test and get ${f.everyone}${f.youOutside ? ' (you are one of them)' : ''}.`) : null,
+    f.preview ? h('p', { class: 'fs-note' }, `Your team's preview browsers get ${f.preview} (a segment override).`) : null,
+    ui.journey.length
+      ? h('div', { class: 'journey' }, h('h3', { class: 'fs-h' }, 'Your visits'),
+          h('ol', { class: 'journey-list' }, ...ui.journey.map((v) => h('li', {}, h('strong', {}, v.name), ` ${v.where}`))))
+      : h('p', { class: 'fs-note' }, 'Press “Be a visitor” to get a version like a real shopper: the route marks it with YOU.'),
+    pinRow());
+  const e = f.experiment;
+  const facts = h('div', { class: 'fs-col' },
+    h('h3', { class: 'fs-h' }, 'The flag and the experiment'),
+    h('dl', { class: 'fs-facts' },
+      h('dt', {}, 'Flag'), h('dd', {}, h('code', {}, f.flag), ' · multivariate, tagged release'),
+      h('dt', {}, 'Variants'), h('dd', {}, f.variants.map((v) => `${v.key} → ${M.label(v.value)}`).join(' · ')),
+      h('dt', {}, 'Everyone else'), h('dd', {}, `${f.everyone} (the flag's default)`),
+      ...(e ? [
+        h('dt', {}, 'Experiment'), h('dd', {}, `#${e.id}, ${e.kind}, ${e.status}${e.counted ? `, ${e.counted.toLocaleString('en-GB')} shoppers counted` : ''}`),
+        h('dt', {}, 'Hypothesis'), h('dd', {}, e.hypothesis),
+        h('dt', {}, 'Metrics'), h('dd', {}, e.metrics.length ? e.metrics.map((m) => `${m.name} (${m.role.toLowerCase()})`).join(' · ') : 'goal and safety checks, once Flagsmith has results'),
+      ] : [])));
+  const open = h('div', { class: 'fs-col fs-open' },
+    h('h3', { class: 'fs-h' }, 'Open it in Flagsmith'),
+    READONLY
+      ? h('p', { class: 'fs-note' }, "On this public page Flagsmith's dashboard stays private. Every number here comes straight from its API.")
+      : h('div', { class: 'fs-links' },
+          f.links.flag ? h('a', { class: 'btn btn-small', href: f.links.flag, target: '_blank', rel: 'noopener' }, 'The flag ↗') : null,
+          f.links.experiment ? h('a', { class: 'btn btn-small', href: f.links.experiment, target: '_blank', rel: 'noopener' }, 'The experiment ↗') : null),
+    READONLY ? null : ui.signin ? signinBox(ui.signin, { compact: true }) : h('p', { class: 'fs-note' }, 'Loading the login…'));
+  box.replaceChildren(route, facts, open);
+}
+
 setupMenu('judge');
-if (READONLY) $('autoplay').hidden = true;
+if (READONLY) {
+  $('autoplay').hidden = true;
+} else {
+  void loadSignin().then((x) => {
+    ui.signin = x;
+    renderFlagsmith(ui.state);
+  });
+}
 void loadYou();
-$('tour-open').addEventListener('click', () => startTour());
+const tour = createTour({ stops: stopsFor(JUDGE_STOPS, READONLY), seenKey: READONLY ? 'turnout-tour-public-seen' : 'turnout-tour-judge-seen' });
+$('tour-open').addEventListener('click', () => tour.start());
 connectFeed();
-loadState().then(() => offerTour());
+loadState().then(() => tour.offer());

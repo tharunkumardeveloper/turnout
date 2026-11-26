@@ -8,6 +8,7 @@
 // Server mode adds a third port (listenForPublic) behind Caddy: a read-only judge view under /judge, GET only, with its
 // own API token, judge state with the preview link and tokens taken out, and nothing else (publicView below).
 import { createHmac, randomBytes, timingSafeEqual } from 'node:crypto';
+import { pinnable, readPin, setPin } from '../flagsmith/pins.ts';
 import { existsSync, readFileSync, readdirSync } from 'node:fs';
 import http from 'node:http';
 import net from 'node:net';
@@ -35,6 +36,7 @@ export type ConsoleOptions = {
   allowedHosts?: string[];
   judgeToken?: string; // TURNOUT_JUDGE_TOKEN: /judge?key=<it> gives a browser the judge cookie
   judge?: JudgeOptions; // judge mode's jobs; without it /api/judge/* answers 404
+  judgePage?: boolean; // the /judge page (the demo's guided page); default: on whenever judge is given
   // Flagsmith's admin login, for the tour's "sign in to Flagsmith" step. The password goes only to loopback pages.
   flagsmithLogin?: { email: string; password?: string };
   watcher?: Watcher; // the Feature Health bridge and the guard: GET/POST /api/guard
@@ -176,6 +178,7 @@ export function createConsole(opts: ConsoleOptions): http.Server {
     flagsmithMap.invalidate();
     doctor?.clear();
   };
+  const judgePage = Boolean(opts.judge) && opts.judgePage !== false;
   const judge = opts.judge
     ? createJudge(opts.judge, {
         experiments: current,
@@ -428,6 +431,17 @@ export function createConsole(opts: ConsoleOptions): http.Server {
         }
       }
 
+      // Flagsmith's dashboard and its login, for the menu's Flagsmith link and the sign-in box. Every console has it,
+      // judge mode or not. The password goes only to this machine's pages, never to another device.
+      if (req.method === 'GET' && (url.pathname === '/api/flagsmith-login' || url.pathname === '/api/judge/signin')) {
+        const login = opts.flagsmithLogin;
+        return json(res, 200, {
+          dashboardUrl: opts.judge?.dashboardUrl ?? null,
+          email: login?.email ?? null,
+          password: login?.password && thisMachine ? login.password : null,
+        });
+      }
+
       if (url.pathname.startsWith('/api/judge/')) {
         if (!judge) return json(res, 404, { error: 'Judge mode is not configured for this console.' });
         if (req.method === 'GET' && url.pathname === '/api/judge/state') {
@@ -435,20 +449,26 @@ export function createConsole(opts: ConsoleOptions): http.Server {
           return json(res, 200, { ...(await judge.state()), ...(autopilot ? { autopilot: autopilot.status() } : {}) });
         }
         if (req.method === 'GET' && url.pathname === '/api/judge/job') return json(res, 200, { job: judge.job() });
-        // The tour's sign-in step. Another device (judge link) gets the email only: the password never leaves this machine.
-        if (req.method === 'GET' && url.pathname === '/api/judge/signin') {
-          const login = opts.flagsmithLogin;
-          return json(res, 200, {
-            dashboardUrl: opts.judge?.dashboardUrl ?? null,
-            email: login?.email ?? null,
-            password: login?.password && thisMachine ? login.password : null,
-          });
-        }
         if (req.method === 'POST' && url.pathname === '/api/judge/run') {
           const ran = await judge.run(await readJson(req));
           return json(res, ran.status, ran.body);
         }
         return json(res, 404, { error: 'not found' });
+      }
+
+      // Pin this browser to one version (a Flagsmith identity override for its visitor id), or unpin it. For looking
+      // at a version as a visitor would, from the start of a visit; a pinned browser is outside the experiment.
+      if (url.pathname === '/api/pin' && (req.method === 'GET' || req.method === 'POST')) {
+        const identifier = readCookie(req.headers.cookie, 'tn_id');
+        if (!pinnable(identifier)) return json(res, 409, { error: 'Open your site in this browser first: Turnout gives it a visitor id, and that is what gets pinned.' });
+        const exps = await current();
+        const featureId = (await exps.detail()).feature.id;
+        if (req.method === 'GET') return json(res, 200, { pinned: await readPin(exps.api, exps.ref.envKey, featureId, identifier) });
+        const body = (await readJson(req)) as { release?: unknown };
+        const release = body.release === null ? null : typeof body.release === 'string' ? body.release : undefined;
+        const allowed = opts.judge?.releases ?? [];
+        if (release === undefined || (release !== null && !allowed.includes(release))) return json(res, 400, { error: `release must be null or one of: ${allowed.join(', ')}` });
+        return json(res, 200, { pinned: await setPin(exps.api, exps.ref.envKey, featureId, identifier, release) });
       }
 
       // Where this browser lands: its visitor cookie (cookies are per host, not per port, so the shop's cookie comes
@@ -481,11 +501,11 @@ export function createConsole(opts: ConsoleOptions): http.Server {
       }
 
       // Without judge mode (turnout compare: your own app, not the demo shop), /judge is the console.
-      if (req.method === 'GET' && url.pathname === '/judge' && !judge) {
+      if (req.method === 'GET' && url.pathname === '/judge' && !judgePage) {
         res.writeHead(302, { location: '/', 'cache-control': 'no-store' });
         return void res.end();
       }
-      if (req.method === 'GET') return serveStatic(opts.uiDir, url.pathname, res, token, !judge);
+      if (req.method === 'GET') return serveStatic(opts.uiDir, url.pathname, res, token, !judgePage);
       json(res, 404, { error: 'not found' });
     } catch (error) {
       if (error instanceof HttpError) return json(res, error.status, { error: error.message });

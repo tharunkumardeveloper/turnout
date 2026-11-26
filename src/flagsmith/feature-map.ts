@@ -62,6 +62,8 @@ export type MapFacts = {
   events: { accepted: number; rejected: number } | null;
   ledgerEntries: number | null;
   integrations: Record<string, number | null> | null; // configurations per integration id, read from its own endpoint
+  identities?: number | null; // identities in the environment: browsers pinned to a version (identity overrides)
+  localEvalOverrides?: boolean | null; // the environment's "Use identity overrides in local evaluation" setting
 };
 
 export const PREVIEW_SEGMENT = 'turnout-preview';
@@ -345,6 +347,35 @@ export function buildFlagsmithMap(f: MapFacts, opts: { dashboardUrl: string; now
     link: flagLink('usage'),
   });
   items.push({
+    id: 'menu.identities',
+    kind: 'menu',
+    name: 'Identities',
+    status: 'used',
+    what: "Every visitor's id (the tn_id cookie) is its identity in Flagsmith, evaluated locally. “Pin my browser” in judge mode and the console makes it a real identity with an identity override on the flag: Flagsmith serves that version before the experiment's split, so the browser sees it on every page and stays outside the test.",
+    live: f.identities == null ? null : f.identities ? `${plural(f.identities, 'identity', 'identities')} with an override (pinned browsers)` : 'no pinned browsers yet',
+    link: env('/users'),
+    source: 'features/models.py (identity override before segment override), environments/identities/views.py',
+  });
+  items.push({
+    id: 'feature.local-evaluation',
+    kind: 'feature',
+    name: 'Local evaluation',
+    status: 'used',
+    what: "The proxy holds the environment document (server-side key) and evaluates the flag in-process: no network call per visitor, refreshed every 5 seconds. Identity overrides reach it through the environment's “Use identity overrides in local evaluation” setting, which init turns on.",
+    live: f.localEvalOverrides == null ? null : `identity overrides in local evaluation: ${f.localEvalOverrides ? 'on' : 'off (pinning a browser needs it on: run init)'}`,
+    link: env('/settings'),
+    source: 'environments/sdk/views.py (environment document), util/mappers/engine.py (identity_overrides)',
+  });
+  items.push({
+    id: 'feature.server-key',
+    kind: 'feature',
+    name: 'Server-side environment key',
+    status: 'used',
+    what: "The proxy holds only a server-side key (it can read flags and send events, nothing else); the admin key stays in the console and the CLI. No client-side key is ever published.",
+    live: null,
+    link: env('/settings?tab=keys'),
+  });
+  items.push({
     id: 'feature.prometheus',
     kind: 'feature',
     name: 'Prometheus events counter',
@@ -397,13 +428,14 @@ export async function readMapFacts(o: {
   const count = (path: string | null) => (path ? maybe(async () => (await api.list<unknown>(path)).length) : null);
   // Three rounds, each read in parallel: what needs only the environment key, then what needs the project and
   // environment ids, then what needs the feature id or the organisation.
-  const [version, environment, experiments, metrics, warehouses, events, envIntegrationCounts] = await Promise.all([
+  const [version, environment, experiments, metrics, warehouses, events, identities, envIntegrationCounts] = await Promise.all([
     maybe(() => api.get<{ image_tag?: string; is_enterprise?: boolean }>('/version/')),
-    maybe(() => api.get<{ id: number; name: string; project: number }>(`/api/v1/environments/${envKey}/`)),
+    maybe(() => api.get<{ id: number; name: string; project: number; use_identity_overrides_in_local_eval?: boolean }>(`/api/v1/environments/${envKey}/`)),
     maybe(() => api.list<{ id: number; name: string; status: string; feature: { name: string } }>(`/api/v1/environments/${envKey}/experiments/`)),
     maybe(() => api.list<{ name: string }>(`/api/v1/environments/${envKey}/experiment-metrics/`)),
     maybe(() => api.list<{ status: string }>(`/api/v1/environments/${envKey}/warehouse-connections/`)),
     o.readEvents ? maybe(o.readEvents) : null,
+    maybe(async () => (await api.get<{ count?: number }>(`/api/v1/environments/${envKey}/identities/?page_size=1`)).count ?? null),
     Promise.all(ENV_INTEGRATIONS.map((id) => count(`/api/v1/environments/${envKey}/integrations/${id}/`))),
   ]);
   const p = environment?.project;
@@ -495,6 +527,8 @@ export async function readMapFacts(o: {
     events,
     ledgerEntries,
     integrations,
+    identities,
+    localEvalOverrides: typeof environment?.use_identity_overrides_in_local_eval === 'boolean' ? environment.use_identity_overrides_in_local_eval : null,
   };
 }
 

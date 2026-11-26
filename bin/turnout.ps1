@@ -1,6 +1,6 @@
 # turnout (Windows): put Turnout in front of two or more versions of your app and watch Flagsmith compare them.
 #
-#   turnout compare <live> <new> [<new2> …] [--goal "POST /signup"] [--split 50] [--port 3000]
+#   turnout compare <live> <new> [<new2> …] [--goal "POST /signup"] [--split 50] [--port 3000] [--env-file .env]
 #       Two versions make an A/B test, three an A/B/C test, and so on: <live> is A, the others are tested against it.
 #       --split: % of visitors who get each new version (the rest get <live>); default: an even share each
 #       versions: URLs (localhost:3001, http://localhost:3002), Docker images (myapp:1.0), or branches of the git
@@ -112,7 +112,9 @@ function Show-Help {
   Show-Cmd 'turnout compare myapp:1.0 myapp:1.1 myapp:1.2' 'three Docker images: an A/B/C test'
   Show-Cmd 'turnout compare main new-design' 'git branches (built from your Dockerfile)'
   Write-Host '      --goal "POST /signup"   count a conversion (no goal: judged on page speed)' -ForegroundColor DarkGray
-  Write-Host '      --split 10              10% of visitors get the new version (up to 50)' -ForegroundColor DarkGray
+  Write-Host '      --split 10              10% of visitors get each new version' -ForegroundColor DarkGray
+  Write-Host '      --port 3000             the port your images listen on' -ForegroundColor DarkGray
+  Write-Host '      --env-file .env.turnout your app''s settings for the versions Turnout starts (default: .env)' -ForegroundColor DarkGray
   Show-Cmd 'turnout simulate' 'pretend visitors, so results show in minutes (kept apart)'
   Show-Cmd 'turnout open' 'reopen the results page: Ship winner or Revert there'
   Show-Cmd 'turnout status' "what's running, and a full check"
@@ -205,17 +207,18 @@ function Invoke-Compare([string[]]$a) {
   # The versions come first: A (live), then every new one. Two make an A/B test, three an A/B/C test, and so on.
   $first = 0
   while ($first -lt $a.Count -and -not $a[$first].StartsWith('--')) { $first++ }
-  if ($first -lt 2) { Die 'usage: turnout compare <live> <new> [<new2> …] [--goal "POST /signup"] [--split 50] [--port 3000]' }
+  if ($first -lt 2) { Die 'usage: turnout compare <live> <new> [<new2> …] [--goal "POST /signup"] [--split 50] [--port 3000] [--env-file .env]' }
   if ($first -gt 26) { Die 'at most 26 versions (A to Z)' }
   $Given = @($a[0..($first - 1)])
   $Versions = @($Given | ForEach-Object { Normalise $_ })
   $N = $Versions.Count
-  $Goal = 'none'; $Split = ''; $AppPort = ''
+  $Goal = 'none'; $Split = ''; $AppPort = ''; $EnvFile = ''
   for ($i = $first; $i -lt $a.Count; $i += 2) {
     switch ($a[$i]) {
       '--goal' { $Goal = $a[$i + 1] }
       '--split' { $Split = $a[$i + 1] }
       '--port' { $AppPort = $a[$i + 1] }
+      '--env-file' { $EnvFile = $a[$i + 1] }
       default { Die "unknown option $($a[$i])" }
     }
   }
@@ -245,7 +248,13 @@ function Invoke-Compare([string[]]$a) {
   $Kind = ([char[]]'ABCDEFGHIJKLMNOPQRSTUVWXYZ')[0..($N - 1)] -join '/'
   Need-Image
   New-Item -ItemType Directory -Force $State | Out-Null
-  $want = @("releases=$($Versions -join ' ')", "goal=$Goal", "split=$Split", "app_port=$AppPort")
+  # Your app's settings: --env-file, else the .env in this folder. Passed to every version Turnout starts itself (an
+  # image or a branch); versions you run yourself (URLs) already have theirs.
+  $appEnv = if ($EnvFile) { (Resolve-Path $EnvFile -ErrorAction SilentlyContinue).Path } else { Join-Path (Get-Location) '.env' }
+  if ($EnvFile -and -not $appEnv) { Die "--env-file: no such file: $EnvFile" }
+  $isUrl = $Versions[0] -match '^https?://'
+  if ($isUrl -or -not (Test-Path $appEnv)) { $appEnv = '' }
+  $want = @("releases=$($Versions -join ' ')", "goal=$Goal", "split=$Split", "app_port=$AppPort", "env_file=$appEnv")
   $argsFile = Join-Path $State 'compare.args'
   $old = if (Test-Path $argsFile) { @(Get-Content $argsFile | Where-Object { $_ -notlike '*_port=*' -or $_ -like 'app_port=*' }) } else { $null }
   if ($old -and (($old -join "`n") -eq ($want -join "`n"))) {
@@ -268,8 +277,7 @@ function Invoke-Compare([string[]]$a) {
       '--proxy-port', $ProxyPort, '--console-port', $ConsolePort, '--flagsmith-port', $fsPort, '--image', $Image)
     foreach ($v in $Versions) { $newArgs += @('--release', $v) }
     if ($AppPort) { $newArgs += @('--port', $AppPort) }
-    $appEnv = Join-Path (Get-Location) '.env'
-    if ($script:Branches -and (Test-Path $appEnv)) { $newArgs += @('--app-env-file', $appEnv) }
+    if ($appEnv) { $newArgs += @('--app-env-file', $appEnv); Say "Your app's settings: $appEnv (passed to every version)." }
     docker @newArgs *> (Join-Path $State 'new.log')
     if ($LASTEXITCODE -ne 0) { Get-Content (Join-Path $State 'new.log'); Die "couldn't write the setup for $Title." }
     Say "$Kind test: A is $($Versions[0]), what everyone gets now; $(if ($Traffic -eq '100') { 'every visitor is split evenly between the versions' } else { "each new version gets $Split% of visitors" })."

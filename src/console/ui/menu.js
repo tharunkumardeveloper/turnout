@@ -1,5 +1,5 @@
 // The menu the console and judge mode share: the views, every version of the site on its own (never counted), and
-// how to sign in to Flagsmith on this machine. Server mode's public page keeps only what the public may see: judge
+// a link to Flagsmith itself (its login is on the pages: signinBox). Server mode's public page keeps only what the public may see: judge
 // mode and the versions; no console, no setup check, no Flagsmith link or login. Every string goes in through
 // textContent.
 //
@@ -76,35 +76,44 @@ async function copy(text, button) {
   setTimeout(() => (button.textContent = 'Copy'), 1500);
 }
 
-let signin = null;
-async function loadSignin() {
-  const box = document.getElementById('flagsmith-panel');
-  if (!box || signin) return;
-  try {
-    const r = await api('/api/judge/signin');
-    signin = r.ok ? await r.json() : { error: true };
-  } catch {
-    signin = { error: true };
-  }
-  if (signin.error || !signin.dashboardUrl) {
-    box.replaceChildren(el('p', { class: 'menu-note' }, "Flagsmith's address isn't known to this console."));
-    return;
-  }
+let signinRead = null;
+/** Flagsmith's dashboard and login (GET /api/flagsmith-login), read once per page. */
+export function loadSignin() {
+  signinRead ??= api('/api/flagsmith-login')
+    .then((r) => (r.ok ? r.json() : null))
+    .catch(() => null);
+  return signinRead;
+}
+
+/**
+ * The sign-in box: Flagsmith's address and its login, each with Copy (the password with Show). The password is only
+ * there on the machine running Turnout; another device gets the email alone.
+ */
+export function signinBox(signin, { compact = false } = {}) {
+  if (!signin?.dashboardUrl) return el('p', { class: 'menu-note' }, "Flagsmith's address isn't known to this console.");
   const row = (name, value, secret = false) => {
-    const input = el('input', { class: 'menu-secret', type: secret ? 'password' : 'text', readonly: true, value: value ?? '', 'aria-label': name, spellcheck: 'false' });
+    const input = el('input', { class: 'menu-secret', type: secret ? 'password' : 'text', readonly: true, value: value ?? '', 'aria-label': `Flagsmith ${name.toLowerCase()}`, spellcheck: 'false' });
     const copyBtn = el('button', { class: 'menu-btn', type: 'button', on: { click: (e) => copy(value ?? '', e.currentTarget) } }, 'Copy');
     const show = secret
       ? el('button', { class: 'menu-btn', type: 'button', on: { click: (e) => { input.type = input.type === 'password' ? 'text' : 'password'; e.currentTarget.textContent = input.type === 'password' ? 'Show' : 'Hide'; } } }, 'Show')
-      : null;
+      : el('span');
     return el('div', { class: 'menu-row' }, el('span', { class: 'menu-key' }, name), input, show, copyBtn);
   };
-  box.replaceChildren(
-    el('p', { class: 'menu-note' }, 'Everything Turnout does happens in Flagsmith. Sign in to see the same flag, experiment and results there.'),
-    el('a', { class: 'menu-open', href: signin.dashboardUrl, target: '_blank', rel: 'noopener' }, `Open Flagsmith ↗`),
+  return el('div', { class: `signin${compact ? ' signin-compact' : ''}` },
+    el('a', { class: 'signin-open', href: signin.dashboardUrl, target: '_blank', rel: 'noopener' }, 'Open Flagsmith ↗'),
     signin.email ? row('Email', signin.email) : null,
-    signin.password ? row('Password', signin.password, true) : el('p', { class: 'menu-note' }, signin.email ? 'The password is shown only on the machine running Turnout.' : 'Sign in with your own Flagsmith account.'),
-    el('p', { class: 'menu-note' }, 'Then: Experimentation → the running experiment, or Features → the release flag.'),
-  );
+    signin.password ? row('Password', signin.password, true) : el('p', { class: 'menu-note' }, signin.email ? 'The password is shown only on the machine running Turnout.' : 'Sign in with your own Flagsmith account.'));
+}
+
+// The menu's Flagsmith entry opens Flagsmith itself (a new tab); the login lives on the pages, in signinBox().
+async function wireFlagsmithLink() {
+  const link = document.getElementById('menu-flagsmith');
+  if (!link) return;
+  const signin = await loadSignin();
+  if (signin?.dashboardUrl) {
+    link.setAttribute('href', signin.dashboardUrl);
+    link.title = signin.email ? `Flagsmith's dashboard. Sign in as ${signin.email} (the login is on this page).` : "Flagsmith's dashboard";
+  } else link.remove();
 }
 
 /** Wires the menu: marks the current page, fills the drop-downs when opened, closes them on a click outside. */
@@ -115,7 +124,7 @@ export function setupMenu(current) {
   if (READONLY) for (const node of document.querySelectorAll('[data-private]')) node.remove(); // the console, setup, Flagsmith: private
   if (NO_JUDGE) for (const a of document.querySelectorAll('a[href="/judge"]')) a.remove();
   document.getElementById('menu-versions')?.addEventListener('toggle', (e) => e.currentTarget.open && loadVersions());
-  document.getElementById('menu-flagsmith')?.addEventListener('toggle', (e) => e.currentTarget.open && loadSignin());
+  if (!READONLY) void wireFlagsmithLink();
   document.addEventListener('click', (e) => {
     for (const d of document.querySelectorAll('details.menu-drop[open], details.history[open]')) if (!d.contains(/** @type {Node} */ (e.target))) d.open = false;
   });

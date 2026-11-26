@@ -293,57 +293,96 @@ describe('demo-model.js: the picker, you, and the autopilot', () => {
   });
 });
 
-const TOUR: any = await import(pathToFileURL(join(UI, 'demo-tour.js')).href);
+const STOPS: any = await import(pathToFileURL(join(UI, 'tour-stops.js')).href);
+const consoleHtml = read('index.html');
 
-describe('demo-tour.js: the two-minute tour', () => {
-  test('ten stops, each pointing at something on the page, short enough to read in about ten seconds', () => {
-    assert.equal(TOUR.STOPS.length, 10);
-    const words = TOUR.STOPS.map((s: any) => s.text.split(/\s+/).length);
-    assert.ok(Math.max(...words) <= 50, `longest stop: ${Math.max(...words)} words`);
-    // ~200 words a minute, plus a couple of seconds a stop to look: under two minutes in all.
-    const seconds = words.reduce((a: number, b: number) => a + b, 0) / (200 / 60) + 2 * TOUR.STOPS.length;
-    assert.ok(seconds < 120, `about ${Math.round(seconds)} s`);
-    for (const s of TOUR.STOPS) {
-      for (const sel of [s.target].flat().filter(Boolean)) {
-        const id = sel.match(/^#([\w-]+)/)![1];
-        const attr = sel.match(/\[([\w-]+="[^"]+")\]/)?.[1];
-        assert.ok(id === 'go' || html.includes(`id="${id}"`), `the tour points at ${sel}, which demo.html lacks`);
-        if (attr) assert.ok(html.includes(attr), `the tour points at ${sel}, which demo.html lacks`);
+describe('the tour: one engine (tour.js), a list of stops per page (tour-stops.js)', () => {
+  test('every stop points at something its page has, and reads in a few seconds', () => {
+    for (const [stops, page, name] of [[STOPS.JUDGE_STOPS, html, 'demo.html'], [STOPS.CONSOLE_STOPS, consoleHtml, 'index.html']] as const) {
+      for (const s of stops) {
+        for (const sel of [s.target].flat().filter(Boolean)) {
+          const id = sel.match(/^#([\w-]+)/)![1];
+          const attr = sel.match(/\[([\w-]+="[^"]+")\]/)?.[1];
+          assert.ok(id === 'go' || page.includes(`id="${id}"`), `the tour points at ${sel}, which ${name} lacks`);
+          if (attr) assert.ok(page.includes(attr), `the tour points at ${sel}, which ${name} lacks`);
+        }
+        const text = typeof s.text === 'function' ? s.text() : s.text;
+        assert.ok(text.split(/\s+/).length <= 60, `${s.title}: ${text.split(/\s+/).length} words`);
       }
     }
-    assert.match(TOUR.STOPS.map((s: any) => s.title).join(' | '), /Pick a test.*versions.*console, for your own app.*Sign in to Flagsmith/i);
   });
 
-  test('the picker stop: click a test right there, and the card says what started', () => {
-    const pick = TOUR.STOPS.find((s: any) => s.target === '#kinds');
-    assert.equal(pick.interactive, true);
-    assert.match(pick.text, /Click any of them: it starts straight away/);
-    assert.match(pick.done('A/A'), /both sides are A \(A and A′, the same shop\)\. Flagsmith should find no difference/);
-    assert.match(pick.done('A/B/C'), /^A\/B\/C started: the versions on the right changed at once/);
-    const tour = read('demo-tour.js');
-    assert.match(tour, /tour\.block\.style\.pointerEvents = stop\.interactive \? 'none' : '';/);
-    assert.match(tour, /document\.addEventListener\('turnout:kind', onKind\)/);
-    assert.match(js, /new CustomEvent\('turnout:kind'/);
+  test("judge mode's tour walks one test by clicks: pick a kind, start, send shoppers, ask Flagsmith, decide, then Flagsmith and you", () => {
+    const clicks = STOPS.JUDGE_STOPS.filter((s: any) => s.click).map((s: any) => s.title);
+    assert.deepEqual(clicks, ['Pick the kind of test', 'Start the test', 'Send shoppers', 'Ask Flagsmith', 'Decide', 'Look inside Flagsmith', 'Be a visitor yourself']);
+    const actions = STOPS.JUDGE_STOPS.filter((s: any) => s.action).map((s: any) => [s.action].flat().join('|'));
+    assert.deepEqual(actions, ['start', 'visitors', 'score', 'ship|revert|keep-running'], 'each follows the green button of its step');
+    const pick = STOPS.JUDGE_STOPS.find((s: any) => s.target === '#kinds');
+    assert.match(pick.text, /Nothing starts yet: first you see what it will compare/);
+    assert.match(js, /data-action': a\.action/, 'the green button names its action for the tour');
   });
 
-  test('server mode: no button, console or Flagsmith-login stops; the picker stop only explains', () => {
-    const pub = TOUR.stopsFor(true);
-    assert.equal(pub.length, 8);
-    assert.ok(!pub.some((s: any) => s.target === '#autoplay' || s.target === '#menu-flagsmith' || String(s.target).includes('console')));
-    assert.equal(pub.find((s: any) => s.target === '#kinds').interactive, false);
-    assert.match(pub.at(-1).text, /Flagsmith's dashboard stays private/);
-    assert.equal(TOUR.stopsFor(false).length, 10);
+  test('server mode: no buttons it lacks (test picker, steps, Play it for me, console); the tabs and Be a visitor stay clickable', () => {
+    const pub = STOPS.stopsFor(STOPS.JUDGE_STOPS, true);
+    assert.ok(!pub.some((s: any) => s.action || (s.click && !['#tab-flagsmith', '#be-visitor'].includes(s.click))), 'only what the public page has');
+    assert.ok(!pub.some((s: any) => s.target === '#autoplay' || String(s.target).includes('console')));
+    assert.equal(STOPS.stopsFor(STOPS.JUDGE_STOPS, false).length, STOPS.JUDGE_STOPS.length);
+    assert.match(pub.find((s: any) => s.target === '#tab-flagsmith').text, /dashboard stays private/);
   });
 
-  test('opens by itself once, from the Tour button any time; keys: → / Enter next, ← back, Esc closes', () => {
-    const tour = read('demo-tour.js');
-    assert.match(tour, /const SEEN_KEY = 'turnout-demo-tour-seen';/);
-    assert.match(tour, /e\.key === 'ArrowRight' \|\| e\.key === 'Enter'/);
+  test('the engine: opens once per page, from the Tour button any time; → next, ← back, Esc closes; a click stop moves on when you click', () => {
+    const tour = read('tour.js');
+    assert.match(tour, /e\.key === 'ArrowRight'/);
     assert.match(tour, /e\.key === 'ArrowLeft'/);
     assert.match(tour, /e\.key === 'Escape'/);
-    assert.match(js, /\$\('tour-open'\)\.addEventListener\('click', \(\) => startTour\(\)\)/);
-    assert.match(js, /loadState\(\)\.then\(\(\) => offerTour\(\)\)/);
+    assert.match(tour, /if \(e\.target\.closest\(stop\.click\)\) setTimeout/);
+    assert.match(tour, /Click the highlighted button/);
     assert.doesNotMatch(tour, /innerHTML|outerHTML|insertAdjacentHTML/);
+    assert.match(js, /createTour\(\{ stops: stopsFor\(JUDGE_STOPS, READONLY\), seenKey:/);
+    assert.match(read('app.js'), /createTour\(\{ stops: CONSOLE_STOPS, seenKey: 'turnout-tour-console-seen' \}\)/);
+    assert.match(html, /<link rel="stylesheet" href="\/tour\.css">/);
+    assert.match(consoleHtml, /<link rel="stylesheet" href="\/tour\.css">/);
+  });
+});
+
+describe('a picked test, in Flagsmith, and your visits (demo-model.js)', () => {
+  test('picking a kind previews it: its versions, step 1 with Start, and the running test kept until then', () => {
+    const p = M.planModel(base(), 2);
+    assert.equal(p.plan, true);
+    assert.deepEqual(p.versions.map((v: any) => [v.letter, v.release, v.badge]), [['A', 'shop:1.4', 'Preview'], ['B', 'shop:1.5', 'Preview']]);
+    assert.deepEqual(p.steps.map((x: any) => x.status), ['current', 'todo', 'todo', 'todo']);
+    assert.equal(p.action.action, 'start');
+    assert.equal(p.action.arms, 2);
+    assert.match(p.action.explain, /The running A\/B\/C test #7 stops first\./);
+    assert.deepEqual(p.alt, { action: 'cancel-plan', label: 'Keep test #7' });
+    assert.match(p.now, /^Preview of an A\/B test: B · 1\.5 Express against A · 1\.4 Classic\. Nothing has changed yet\.$/);
+    const aa = M.planModel(base(), 1);
+    assert.deepEqual(aa.versions.map((v: any) => v.letter), ['A', 'A′']);
+    assert.equal(aa.letters, 'A/A');
+  });
+
+  test('in Flagsmith: the route with your arm marked, the flag, the variants and the experiment', () => {
+    const s = base({ flag: 'shop_release', variants: [{ key: 'v2', release: 'shop:1.5' }, { key: 'v3', release: 'shop:1.6' }], results: abcResults });
+    const f = M.flagsmithModel(s, { visited: true, variant: 'v3', release: 'shop:1.6', enrolled: true });
+    assert.equal(f.flag, 'shop_release');
+    assert.deepEqual(f.route.map((r: any) => [r.letter, r.pct, r.you]), [['A', 34, false], ['B', 33, false], ['C', 33, true]]);
+    assert.deepEqual(f.variants.map((v: any) => `${v.key}=${v.value}`), ['control=shop:1.4', 'v2=shop:1.5', 'v3=shop:1.6']);
+    assert.equal(f.experiment.kind, 'A/B/C');
+    assert.deepEqual(f.experiment.metrics.map((m: any) => m.role), ['Goal', 'Safety check', 'Safety check']);
+    const done = M.flagsmithModel(base({ experiment: { id: 7, status: 'completed', control: 'shop:1.4', v2: 'shop:1.5', arms: ARMS }, live: 'shop:1.5' }), { visited: true, release: 'shop:1.5' });
+    assert.deepEqual(done.route.map((r: any) => [r.name, r.pct, r.you]), [['1.5 Express', 100, true]], 'after the test: everyone, you included');
+  });
+
+  test('your visits: what this browser got before the test, in it, and after the decision; a repeat adds nothing', () => {
+    const before = M.visitOf({ visited: true, release: 'shop:1.4', enrolled: false }, base({ experiment: null }));
+    assert.match(before.where, /everyone's version/);
+    const during = M.visitOf({ visited: true, variant: 'v2', release: 'shop:1.5', enrolled: true }, base());
+    assert.equal(during.where, 'in A/B/C test #7 as B');
+    let j = M.addVisit([], before, 't1');
+    j = M.addVisit(j, during, 't2');
+    assert.equal(M.addVisit(j, during, 't3'), j, 'the same place twice is one entry');
+    assert.deepEqual(j.map((x: any) => x.name), ['1.4 Classic', '1.5 Express']);
+    assert.equal(M.visitOf({ viewing: true, release: 'shop:1.6' }, base()), null, 'looking at a version on its own is not a visit');
   });
 });
 
@@ -351,7 +390,7 @@ describe('demo.html and demo.js', () => {
   test('one desktop screen with no page scroll: the bar, the steps, the versions and the results', () => {
     assert.match(css, /body \{[^}]*overflow: hidden;/);
     assert.match(css, /grid-template-areas: "steps versions" "steps results";/);
-    for (const id of ['steps', 'versions', 'results', 'autoplay', 'history', 'kinds', 'tour-open']) assert.ok(html.includes(`id="${id}"`), id);
+    for (const id of ['steps', 'versions', 'results', 'autoplay', 'history', 'kinds', 'tour-open', 'tab-results', 'tab-flagsmith', 'flagsmith-tab', 'be-visitor']) assert.ok(html.includes(`id="${id}"`), id);
   });
 
   test('one stylesheet and one module script; a page in the console look, light and dark', () => {

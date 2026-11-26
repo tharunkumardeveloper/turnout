@@ -6,7 +6,7 @@ import { parseArgs } from 'node:util';
 import { check } from './commands/check.ts';
 import { formatReport, runDoctor, type DoctorOptions } from './commands/doctor.ts';
 import { init, judgeLinks, localHost, writeEnv } from './commands/init.ts';
-import { simulateAny } from './commands/simulate-any.ts';
+import { ratesText, simulateAny } from './commands/simulate-any.ts';
 import { truthText } from './console/blind.ts';
 const SIM_ENVIRONMENT = 'Demo (simulated)';
 import { DEFAULT_RELEASES, DEFAULT_SUCCESS, readFileIfExists, writeNew, type NewAnswers } from './commands/new.ts';
@@ -509,8 +509,9 @@ const commands: Record<string, () => Promise<void>> = {
       });
       watcher.start();
     }
-    // Judge mode runs the demo shop's simulated shoppers. A console for your own app (turnout new/compare write
-    // TURNOUT_JUDGE=off) has none: its simulated shoppers would land in your real experiment.
+    // Judge mode is the demo shop's guided page, with its simulated shoppers. A console for your own app (turnout
+    // new/compare write TURNOUT_JUDGE=off) has no judge page and no simulated shoppers (they would land in your real
+    // experiment), but keeps the test controls: start an A/A, A/B or A/B/C test, ask Flagsmith, decide.
     const judgeOn = (process.env.TURNOUT_JUDGE ?? 'on').trim().toLowerCase() !== 'off';
     const autopilot = process.env.CONSOLE_PUBLIC_PORT ? autopilotFromEnv(process.env) : null;
     if (autopilot) console.log('autopilot on: the judge story runs by itself (TURNOUT_AUTOPILOT=on)');
@@ -525,7 +526,8 @@ const commands: Record<string, () => Promise<void>> = {
       ...(github() ? { github: github()! } : {}),
       ...(hosts?.length ? { allowedHosts: hosts } : {}),
       ...(judgeToken ? { judgeToken } : {}),
-      ...(judgeOn ? { judge } : {}),
+      judge: judgeOn ? judge : { ...judge, simulator: false },
+      judgePage: judgeOn,
       ...(process.env.FLAGSMITH_ADMIN_EMAIL
         ? { flagsmithLogin: { email: process.env.FLAGSMITH_ADMIN_EMAIL, ...(process.env.FLAGSMITH_ADMIN_PASSWORD ? { password: process.env.FLAGSMITH_ADMIN_PASSWORD } : {}) } }
         : {}),
@@ -616,25 +618,30 @@ const commands: Record<string, () => Promise<void>> = {
   // turnout simulate, step 2: pretend visitors through the simulation proxy; hidden rates revealed at the end.
   simulate: async () => {
     const config = loadConfig(configPath());
-    const [control, v2] = [...config.releases.keys()];
-    if (!control || !v2) throw new Error('turnout.config.yml needs two releases');
+    const releases = [...config.releases.keys()];
+    if (releases.length < 2) throw new Error('turnout.config.yml needs two releases');
     const token = process.env.TURNOUT_PREVIEW_TOKEN;
     if (!token) throw new Error('no TURNOUT_PREVIEW_TOKEN in the simulation env file: run sim-setup first');
     const visitors = wholeNumber('visitors', 500, 10, 20000);
-    console.log(`Sending ${visitors} simulated visitors (labelled TurnoutSimulatedVisitor) through the simulation proxy…`);
+    console.log(`Sending ${visitors} simulated visitors (labelled TurnoutSimulatedVisitor) through the simulation proxy.`);
+    console.log('Each one explores your site like a person: the home page, a few of its links (some leave after one page), and, at the hidden rate of its version, your goal: a form on your pages that posts to it is filled in and sent.');
     const report = await simulateAny({
       target: process.env.TURNOUT_SIM_TARGET || 'http://turnout-sim:8080',
       visitors,
       concurrency: wholeNumber('concurrency', 10, 1, 200),
-      releases: [control, v2],
+      releases,
       goal: config.goal.when,
       debugToken: token,
       log: (l) => console.log(l),
     });
     for (const [release, r] of Object.entries(report.byRelease)) {
-      console.log(`  ${release}: ${r.visitors} visitors${config.goal.when ? `, ${r.goals} made the goal request` : ''}${r.errors ? `, ${r.errors} server errors` : ''}`);
+      const bits = [`${r.visitors} visitors`, `${r.pages} pages`, `${r.bounces} left after one page`];
+      if (config.goal.when) bits.push(`${r.goals} made the goal${r.forms ? ` (${r.forms} by filling in your form)` : ''}`);
+      if (r.errors) bits.push(`${r.errors} server errors`);
+      console.log(`  ${release}: ${bits.join(', ')}`);
     }
-    if (config.goal.when) console.log(`Hidden truth for this run (now revealed): ${truthText(report.truth)}.`);
+    if (report.spa) console.log('  Your home page has no links in its HTML (a single-page app?): visitors saw one page and sent the goal request directly.');
+    if (config.goal.when) console.log(`Hidden goal rates for this run, now revealed (the share of visitors who make "${describeGoal(config.goal)}"): ${ratesText(report.rates)}.`);
     else console.log('No goal: these visitors only browse, so the comparison is on page speed and errors.');
     console.log('Flagsmith recomputes results at most every 5 minutes: see them in the simulation console.');
   },

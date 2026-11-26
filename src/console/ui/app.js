@@ -3,7 +3,10 @@
 // from the server goes in through textContent.
 import * as F from './format.js';
 import { TrafficMap } from './map.js';
-import { setupMenu, setVersions, viewLink } from './menu.js';
+import { loadSignin, setupMenu, setVersions, signinBox, viewLink } from './menu.js';
+import * as M from './demo-model.js';
+import { createTour } from './tour.js';
+import { CONSOLE_STOPS } from './tour-stops.js';
 
 const POLL_MS = 5000;
 const $ = (id) => /** @type {HTMLElement} */ (document.getElementById(id));
@@ -205,7 +208,7 @@ function renderSite(s) {
     return;
   }
   $('site-open').href = s.site.url;
-  $('site-open').textContent = `Open your site (${s.site.url.replace(/^https?:\/\//, '')})`;
+  $('site-open').textContent = `Open your site: be a visitor (${s.site.url.replace(/^https?:\/\//, '')})`;
   $('site-flagsmith').href = s.site.dashboardUrl;
   const goal = $('site-goal');
   goal.textContent = '';
@@ -913,6 +916,7 @@ function trackDemoJob(job) {
     if (!demo.timer) demo.timer = setTimeout(pollDemoJob, DEMO_POLL_MS);
   } else if (was?.status === 'running' && job?.id === was.id) {
     void refreshNow(); // the job changed Flagsmith: read the new state
+    void loadRunState();
   }
   renderDemo();
   if (app.state) renderActions(app.state);
@@ -954,9 +958,10 @@ async function runDemo(action, payload) {
 }
 
 function renderDemo() {
-  const card = $('demo');
+  const card = $('run');
   card.hidden = demo.available !== true;
   if (card.hidden) return;
+  renderRun();
   const s = app.state;
   const e = s?.experiment;
   const blocked = demoRunning() || app.busy;
@@ -1033,6 +1038,12 @@ function renderSnapshots(s) {
 // without counting anything. Polled every few seconds while the page is visible.
 const YOU_POLL_MS = 4000;
 const LETTERS = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
+const JOURNEY_KEY = 'turnout-you-journey-console';
+try {
+  app.journey = JSON.parse(localStorage.getItem(JOURNEY_KEY) ?? '[]');
+} catch {
+  app.journey = [];
+}
 const RECEIPT_WORDS = {
   accepted: 'Flagsmith accepted it',
   rejected: 'Flagsmith rejected it',
@@ -1048,6 +1059,7 @@ async function loadYou() {
     } catch {
       app.you = null;
     }
+    if (app.you?.visited && run.judge?.releases?.length) await loadPin();
     renderYou();
   }
   setTimeout(loadYou, YOU_POLL_MS);
@@ -1070,7 +1082,35 @@ function renderYou() {
       h('a', { href: viewLink(site?.url, v.label), target: '_blank', rel: 'noopener', title: `Open ${v.label} on its own` }, `${v.label} ↗`),
       h('span', { class: 'v-key' }, v.isControl ? 'control' : v.key))));
   }
-  const key = JSON.stringify([y, e?.id, e?.status]);
+  // The YOU pin on the map, and where this browser landed over time (before a test, in it, after the decision).
+  const running = e?.status === 'running';
+  const seen = Boolean(y?.visited && !y.viewing && y.release);
+  map.setYou(seen ? (running && y.enrolled ? y.variant : variants.find((v) => v.label === y.release)?.key ?? null) : null);
+  if (seen && app.state) { // only once the experiment is known: before that every visit would read "what everyone gets"
+    const at = variants.findIndex((v) => v.key === y.variant);
+    const where = app.pinned && app.pinned === y.release
+      ? 'pinned by an identity override (not counted)'
+      : running && y.enrolled
+      ? `in test #${e.id} as ${LETTERS[at] ?? y.variant}`
+      : running ? `outside test #${e.id}` : e?.status === 'completed' ? `after test #${e.id}: everyone gets it` : 'what everyone gets';
+    const next = M.addVisit(app.journey, { release: y.release, name: y.release, where, key: `${y.release}|${where}` });
+    if (next !== app.journey) {
+      app.journey = next;
+      try {
+        localStorage.setItem(JOURNEY_KEY, JSON.stringify(next));
+      } catch {
+        /* this page only */
+      }
+    }
+  }
+  const jl = $('journey-list');
+  const jkey = JSON.stringify(app.journey);
+  if (jl.dataset.key !== jkey) {
+    jl.dataset.key = jkey;
+    $('journey').hidden = !app.journey.length;
+    jl.replaceChildren(...app.journey.map((v) => h('li', {}, h('strong', {}, v.name), ` ${v.where}`)));
+  }
+  const key = JSON.stringify([y, e?.id, e?.status, app.pinned, app.pinError, run.judge?.releases]);
   if (box.dataset.key === key) return;
   box.dataset.key = key;
   if (!y) return box.replaceChildren(h('p', { class: 'you-line' }, "Can't tell where you land right now."));
@@ -1101,13 +1141,127 @@ function renderYou() {
   if (y.receipt) {
     lines.push(h('p', { class: 'you-sub' }, `Your last event: ${y.receipt.event}; ${RECEIPT_WORDS[y.receipt.status] ?? y.receipt.status}.`));
   }
+  // Pin this browser to one version: an identity override in Flagsmith for its visitor id.
+  if (run.judge?.releases?.length) {
+    lines.push(h('div', { class: 'pin-row', title: 'An identity override in Flagsmith for your visitor id: this browser gets that version on every page, outside the test.' },
+      h('span', { class: 'you-sub' }, app.pinned ? `Pinned to ${app.pinned} (identity override):` : 'Pin this browser to:'),
+      ...run.judge.releases.map((r) => h('button', { class: 'btn btn-small pin-btn', type: 'button', 'aria-pressed': String(app.pinned === r), onclick: () => pinTo(r) }, r)),
+      app.pinned ? h('button', { class: 'btn btn-small', type: 'button', onclick: () => pinTo(null) }, 'Unpin') : null));
+    if (app.pinError) lines.push(h('p', { class: 'you-sub' }, app.pinError));
+  }
   if (y.error) lines.push(h('p', { class: 'you-sub' }, y.error));
   box.replaceChildren(...lines);
 }
 
+// ---- pin this browser to one version (a Flagsmith identity override for its visitor id) -------------------------
+async function loadPin() {
+  try {
+    const res = await api('/api/pin', { cache: 'no-store' });
+    const pinned = res.ok ? (await res.json()).pinned : null;
+    if (pinned !== app.pinned) {
+      app.pinned = pinned;
+      $('you').dataset.key = '';
+      renderYou();
+    }
+  } catch {
+    /* tried again with the next visit check */
+  }
+}
+async function pinTo(release) {
+  try {
+    const res = await api('/api/pin', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ release }) });
+    const out = await res.json().catch(() => ({}));
+    app.pinned = res.ok ? out.pinned : app.pinned;
+    app.pinError = res.ok ? '' : (out.error ?? `Pinning failed (HTTP ${res.status}).`);
+  } catch {
+    app.pinError = "Couldn't reach the console server.";
+  }
+  $('you').dataset.key = '';
+  renderYou();
+}
+
+// ---- run a test: A/A, A/B, A/B/C… a preview first, then Start ---------------------------------------------------
+// The same start job judge mode runs (POST /api/judge/run, action start). The releases and the running test's kind
+// come from judge mode's state (/api/judge/state), read every few seconds while the card is on screen.
+const RUN_COLORS = ['#2563eb', '#16a34a', '#d97706', '#7c3aed', '#db2777', '#0891b2'];
+const run = { judge: null, plan: null, timer: 0 };
+async function loadRunState() {
+  clearTimeout(run.timer);
+  if (demo.available !== false) {
+    try {
+      const res = await api('/api/judge/state', { cache: 'no-store', signal: AbortSignal.timeout(8000) });
+      if (res.ok) run.judge = await res.json();
+    } catch {
+      /* the next read tries again */
+    }
+    renderRun();
+  }
+  run.timer = setTimeout(loadRunState, 6000);
+}
+
+function renderRun() {
+  const card = $('run');
+  const s = run.judge;
+  if (card.hidden || !s) return;
+  const current = s.experiment && s.experiment.status !== 'completed' ? M.kindOf(s) : null;
+  const blocked = demoRunning() || app.busy;
+  const options = M.kinds(s.releases);
+  const box = $('kinds');
+  const key = JSON.stringify([options.map((o) => o.arms), run.plan, current, blocked]);
+  if (box.dataset.key !== key) {
+    box.dataset.key = key;
+    box.replaceChildren(...options.map((o) => h('button', {
+      class: 'kind', type: 'button', title: `${o.blurb} Click to preview it; Start runs it.`,
+      'aria-pressed': String(o.arms === (run.plan ?? current)), 'data-running': o.arms === current ? 'true' : null, disabled: blocked,
+      onclick: () => { run.plan = o.arms === current ? null : o.arms; renderRun(); },
+    }, o.label)));
+  }
+  const chips = (versions) => versions.flatMap((v, i) => [
+    i ? (i === versions.length - 1 ? ' against ' : ' and ') : '',
+    h('span', { class: 'plan-chip', 'data-copy': String(v.letter === 'A′'), vars: { '--c': RUN_COLORS[Math.max(0, 'ABCDEF'.indexOf(v.letter[0]))] } }, v.letter),
+    h('strong', {}, M.label(v.release)),
+  ]).filter((x) => x !== '');
+  const plan = $('run-plan');
+  if (run.plan !== null) {
+    const versions = M.plannedVersions(s.releases, run.plan);
+    // The new versions first ("B and C against A"), A last.
+    plan.replaceChildren('Preview: ', ...chips([...versions.slice(1), versions[0]]), `. Nothing changes until Start${current ? `; the running test #${s.experiment.id} stops first` : ''}.`);
+  } else if (current) {
+    const list = M.arms(s);
+    plan.replaceChildren(`Running: ${M.kindLabel(current)} test #${s.experiment.id}, `, ...chips([...list.slice(1), list[0]]), '. Pick another kind to preview it.');
+  } else {
+    plan.textContent = 'No test is running. Pick A/A, A/B or A/B/C to preview it, then Start.';
+  }
+  const start = /** @type {HTMLButtonElement} */ ($('run-start'));
+  start.disabled = run.plan === null || blocked;
+  start.textContent = run.plan === null ? 'Start' : `Start ${/^A/.test(M.kindLabel(run.plan)) ? 'an' : 'a'} ${M.kindLabel(run.plan)} test`;
+  $('run-cancel').hidden = run.plan === null;
+  // Simulated shoppers only on the demo: a console for your own app sends none (turnout simulate has its own).
+  $('visitors-form').hidden = s.simulator === false;
+}
+$('run-start').addEventListener('click', () => {
+  if (run.plan === null) return;
+  const arms = run.plan;
+  run.plan = null;
+  void runDemo('start', { arms });
+});
+$('run-cancel').addEventListener('click', () => {
+  run.plan = null;
+  renderRun();
+});
+
 // ---- start ---------------------------------------------------------------------------------------------------
 setupMenu('console');
 void loadYou();
+void loadRunState();
+void loadSignin().then((x) => {
+  const drop = $('signin-drop');
+  if (!x?.dashboardUrl) return void (drop.hidden = true);
+  $('signin-box').replaceChildren(signinBox(x, { compact: true }));
+});
+const tour = createTour({ stops: CONSOLE_STOPS, seenKey: 'turnout-tour-console-seen' });
+$('tour-open').addEventListener('click', () => tour.start());
+setTimeout(() => tour.offer(), 1500);
 
 setInterval(renderConnection, 1000);
 refreshNow();

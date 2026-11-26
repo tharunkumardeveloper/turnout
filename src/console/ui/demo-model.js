@@ -502,3 +502,102 @@ export function youText(you, s, live = false) {
   if (mine && you.enrolled && running) return seen ? `You got ${mine.name}: Flagsmith counts you in this test.` : `You'll get ${mine.name} when you open the shop, and count in this test.`;
   return `You got ${label(you.release)}${running ? ', outside the test (not counted)' : ''}.`;
 }
+
+// ---- a picked test, before it starts: its versions and its Start button (nothing changes in Flagsmith yet) ----------
+/**
+ * The page while a kind of test is picked but not started: the versions it will compare, step 1 with its Start
+ * button, and, when a test is running, a way back to it. `kind`: 1 = A/A, 2 = A/B, 3 = A/B/C…
+ */
+export function planModel(s, kind) {
+  const running = s?.experiment && s.experiment.status !== 'completed' ? s.experiment : null;
+  const versions = plannedVersions(s?.releases, kind).map((v) => ({ ...v, badge: 'Preview', state: 'planned' }));
+  const n = versions.length;
+  const aa = kind === 1;
+  const letters = aa ? 'A/A' : versions.map((v) => v.letter).join('/');
+  const start = startAction(s, 'Start', kind);
+  return {
+    plan: true,
+    aa,
+    letters,
+    now: aa
+      ? `Preview of an A/A test: both sides get ${versions[0]?.name}. Nothing has changed yet.`
+      : `Preview of ${n === 2 ? 'an A/B' : `an ${letters}`} test: ${versions.slice(1).map((v) => v.name).join(' and ')} against ${versions[0]?.name}. Nothing has changed yet.`,
+    versions,
+    steps: STEPS.map((st, i) => ({ ...st, n: i + 1, status: i === 0 ? 'current' : 'todo', result: '' })),
+    action: { ...start, explain: `${start.explain}${running ? ` The running ${kindLabel(kindOf(s) ?? 2)} test #${running.id} stops first.` : ''}` },
+    alt: running ? { action: 'cancel-plan', label: `Keep test #${running.id}` } : { action: 'cancel-plan', label: 'Cancel' },
+    verdict: null,
+    findings: [],
+    outcome: null,
+    finished: false,
+  };
+}
+
+// ---- in Flagsmith: the flag, its route for each shopper, the experiment, as Flagsmith holds them now -------------
+/**
+ * What the "In Flagsmith" tab shows. `you`: the proxy's receipt for this browser ({ variant, release, enrolled }).
+ *   route  who gets which version right now: the experiment's split (with your arm marked), everyone else, preview
+ */
+export function flagsmithModel(s, you) {
+  if (!s) return null;
+  const e = s.experiment;
+  const list = arms(s);
+  const r = s.routing;
+  // A drained split (Ship or Revert half way, or a finished test) routes nobody: everyone gets the flag's default.
+  const running = e && e.status !== 'completed' && r?.experiment && r.experiment.enrolledPct > 0;
+  const mine = you && !you.viewing && (you.visited || you.release) ? you : null;
+  const route = running
+    ? list.map((a) => {
+        const pct = r.experiment.arms.find((x) => x.key === a.key)?.pct ?? 0;
+        return { key: a.key, letter: a.letter, name: label(a.release), pct, you: Boolean(mine && mine.enrolled && mine.variant === a.key) };
+      })
+    : [{ key: 'default', letter: list.find((a) => a.release === s.live)?.letter ?? '', name: label(s.live), pct: 100, you: Boolean(mine) }];
+  const outside = running && r.experiment.enrolledPct < 100 ? 100 - r.experiment.enrolledPct : 0;
+  const goal = s.results?.metrics?.find((m) => m.role === 'goal');
+  return {
+    flag: s.flag ?? 'the release flag',
+    everyone: label(s.live ?? r?.defaultRelease),
+    route,
+    outside, // % of shoppers outside the experiment (they get the flag's default)
+    youOutside: Boolean(mine && running && !mine.enrolled),
+    preview: s.preview?.active ? label(s.preview.release) : null,
+    variants: [{ key: 'control', value: e?.control ?? s.live }, ...[...(s.variants ?? [])].sort((x, y) => Number(x.key.slice(1)) - Number(y.key.slice(1)))].map((v) => ({ key: v.key, value: v.value ?? v.release })),
+    experiment: e
+      ? {
+          id: e.id,
+          kind: isAA(s) ? 'A/A' : list.map((a) => a.letter).join('/'),
+          status: e.status,
+          hypothesis: e.hypothesis,
+          started: e.startedAt,
+          metrics: (s.results?.metrics ?? []).map((m) => ({ name: metricName(m.name), event: m.name, role: ROLES[m.role] ?? m.role })),
+          counted: goal ? list.reduce((n, a) => n + (goal.arms?.[a.key]?.n ?? 0), 0) : 0,
+        }
+      : null,
+    links: { flag: s.links?.flag ?? null, experiment: s.links?.experiment ?? null, dashboard: s.dashboardUrl ?? null },
+  };
+}
+
+// ---- your visits: where this browser landed, before a test, during it and after the decision -------------------
+/** One line for where this browser lands now, from the proxy's receipt and the page's state; null if it never visited. */
+export function visitOf(you, s, pinned = null) {
+  if (!you || you.viewing || !(you.visited || you.release) || !you.release) return null;
+  if (pinned && pinned === you.release) return { release: you.release, name: label(you.release), where: 'pinned by an identity override (not counted)', key: `${you.release}|pinned` };
+  const e = s?.experiment;
+  const running = e && e.status === 'running';
+  const mine = running ? arms(s).find((a) => a.key === you.variant) : null;
+  const where = running && you.enrolled && mine
+    ? `in ${isAA(s) ? 'A/A' : arms(s).map((a) => a.letter).join('/')} test #${e.id} as ${mine.letter}`
+    : running
+      ? `outside test #${e.id}`
+      : e && e.status === 'completed'
+        ? `after test #${e.id}: everyone's version`
+        : "everyone's version";
+  return { release: you.release, name: label(you.release), where, key: `${you.release}|${where}` };
+}
+
+/** Adds `visit` to `journey` (oldest first) when it differs from the last entry; keeps the latest `max`. */
+export function addVisit(journey, visit, at = new Date().toISOString(), max = 4) {
+  const list = Array.isArray(journey) ? journey : [];
+  if (!visit || list.at(-1)?.key === visit.key) return list;
+  return [...list, { ...visit, at }].slice(-max);
+}

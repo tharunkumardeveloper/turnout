@@ -12,7 +12,7 @@ import { Experiments } from '../src/flagsmith/experiments.ts';
 import { buildFlagsmithMap, createMapReader, MAP_CACHE_MS, readMapFacts, type FlagsmithMap, type MapFacts } from '../src/flagsmith/feature-map.ts';
 import { flagKey, SEED, seededState, startFakeAdmin, type FakeAdminState } from './fake-admin.ts';
 
-const MENUS = ['Environments', 'Segments', 'Lifecycle', 'Audit Log', 'Segment Change Requests', 'Integrations', 'Compare', 'Project Settings'];
+const MENUS = ['Environments', 'Segments', 'Lifecycle', 'Audit Log', 'Segment Change Requests', 'Integrations', 'Compare', 'Project Settings', 'Identities'];
 const INTEGRATIONS = [
   'Amplitude', 'Backstage', 'Code References', 'Datadog', 'Dynatrace', 'Flagsmith MCP Server', 'GitHub', 'GitLab', 'Grafana',
   'Heap', 'Jira', 'Mixpanel', 'New Relic', 'Rudderstack', 'Segment', 'Sentry', 'Slack', 'Webhook',
