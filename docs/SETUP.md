@@ -97,6 +97,28 @@ The console and the CLI write `.switchyard/` (snapshots and the release ledger) 
 
 macOS and Windows don't need this.
 
+## Bring your own Flagsmith
+
+Switchyard works against any self-hosted Flagsmith that has Experimentation on (`EXPERIMENTATION_ENABLED=true` on the API). You need its API URL and an Organisation API key for the organisation that owns your project.
+
+```sh
+docker run --rm -it -v "$PWD:/work" -w /work ghcr.io/tharunkumardeveloper/switchyard new \
+  --flagsmith https://flagsmith.example.com/api/v1/ --project "Web" --environment Production
+# put the Organisation API key in .env as SWITCHYARD_ADMIN_KEY (or pass --admin-key to new)
+docker compose -f switchyard.compose.yml run --rm cli init     # reads SWITCHYARD_PROJECT / SWITCHYARD_ENVIRONMENT from .env
+docker compose -f switchyard.compose.yml up -d
+```
+
+What `init --project` creates and what it leaves alone: [CLI.md](CLI.md#init---project-bring-your-own-flagsmith). In short, nothing at the organisation, project or environment level, and no other flag is touched; a flag of the same name with values that aren't your releases is refused.
+
+On this repo's own stack: `init --project` with no flag reuses `.env`'s key, so point `SWITCHYARD_ADMIN_KEY` at the organisation that owns the project. A free-plan organisation holds one project (`MAX_PROJECTS_IN_FREE_PLAN = 1` in Flagsmith's `app/settings/common.py:69`, checked in `projects/permissions.py:31-38` of the pinned image), and the demo's organisation already has one, so a second app goes in its own organisation. That's how the landing example ran (see [spikes/RESULTS.md](../spikes/RESULTS.md)).
+
+The image isn't published yet: until `.github/workflows/publish.yml` has run on a version tag, build it from this checkout (`docker build -t ghcr.io/tharunkumardeveloper/switchyard .`).
+
+## Another config on this stack
+
+The proxy, the console and the CLI read `switchyard.config.yml` from a mount, never from the image. `SWITCHYARD_CONFIG_FILE` picks another file, and the releases needn't be the shops: `compose.demo.yml` holds the three shops, and the proxy doesn't depend on them. The landing example: [examples/landing/README.md](../examples/landing/README.md).
+
 ## What runs where
 
 | Service | Published port | Networks | Keys it gets |
@@ -105,7 +127,7 @@ macOS and Windows don't need this.
 | `flagsmith-task-processor`, `postgres`, `migrate-db` | none | default | |
 | `switchyard` (the proxy) | 8080 | sdk, feed, apps | server key, preview token |
 | `console` (console and judge mode) | 8090 on `127.0.0.1`; 8091 for other devices | default, feed | admin key and login, server key, preview and judge tokens, Feature Health URL, GitHub token |
-| `shop-1-4`, `shop-1-5`, `shop-1-6` | none | apps | none; the shop has no Flagsmith code |
+| `shop-1-4`, `shop-1-5`, `shop-1-6` (`compose.demo.yml`) | none | apps | none; the shop has no Flagsmith code |
 | `cli` (profile `tools`, one-off commands) | none | default, feed | reads the mounted `.env` |
 
 - **default:** Flagsmith, its Postgres, the console and the CLI (the admin side).

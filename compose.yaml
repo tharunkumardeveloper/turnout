@@ -5,3 +5,4 @@
 include:
   - compose.flagsmith.yml   # Flagsmith's official docker-compose.yml with five edits, listed in its header
   - compose.switchyard.yml
+  - compose.demo.yml        # the demo shop's three releases (your own app: see "switchyard new" in the README)

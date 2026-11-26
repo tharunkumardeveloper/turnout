@@ -365,3 +365,113 @@ test('writeEnv writes $ in values literally, both when replacing and when append
   writeEnv(envFile, { PASS: "p$&w$1$$x$'$`", OTHER: '$&$$' });
   assert.equal(readFileSync(envFile, 'utf8'), "PASS=p$&w$1$$x$'$`\nOTHER=$&$$\n");
 });
+
+// Bring your own Flagsmith: an existing organisation with its own project, environments and flags.
+function existingFlagsmith(): FakeAdminState {
+  const state = emptyState({ hasUsers: true, adminKeys: ['org.given'] });
+  state.organisations.push({ id: 900, name: 'Acme' });
+  state.projects.push({ id: 901, name: 'Web', organisation: 900 }, { id: 902, name: 'Other', organisation: 900 });
+  state.environments.push(
+    { id: 903, name: 'Development', api_key: 'envDev', project: 901 },
+    { id: 904, name: 'Production', api_key: 'envProd', project: 901 },
+  );
+  state.features.push({ id: 905, name: 'dark_mode', initial_value: null, default_enabled: false, multivariate_options: [], tags: [], project: 901 });
+  return state;
+}
+const landing = parseConfig({
+  flag: 'landing_release',
+  releases: { 'landing:1': 'http://landing-1:8080', 'landing:2': 'http://landing-2:8080' },
+  goal: { event: 'signup', when: { method: 'POST', path: '/signup' } },
+  guardrails: ['doc_latency_ms', 'server_error'],
+  traffic: 40,
+});
+async function runByo(state: FakeAdminState, project: string, environment?: string, serverKey?: string): Promise<string[]> {
+  fake ??= await startFakeAdmin(state);
+  const lines: string[] = [];
+  await init({ apiUrl: fake.apiUrl, dashboardUrl: 'http://x', config: landing, adminKey: 'org.given', serverKey, envFile, project, environment, log: (l) => lines.push(l) });
+  return lines;
+}
+
+test('--project reuses your project and environment: no organisation, project, environment, admin key or health provider created', async () => {
+  const state = existingFlagsmith();
+  await runByo(state, 'Web', 'Production');
+  assert.equal(calls(state, 'POST', /^\/api\/v1\/(organisations|projects|environments)\/$/).length, 0);
+  assert.equal(calls(state, 'POST', /master-api-keys|feature-health/).length, 0);
+  assert.equal(state.organisations.length, 1);
+  assert.equal(state.projects.length, 2);
+  assert.equal(state.environments.length, 2);
+  // Only Switchyard's own things, in that environment.
+  assert.deepEqual(state.features.map((f) => [f.name, f.project]), [['dark_mode', 901], ['landing_release', 901]]);
+  assert.equal(state.serverKeys[0]!.envKey, 'envProd');
+  assert.equal(state.experiments[0]!.envKey, 'envProd');
+  assert.equal(state.experiments[0]!.experiment_rollout!.rollout_percentage, 40, 'traffic from the config');
+  assert.equal(readEnv().SWITCHYARD_EXPERIMENT, `envProd/${state.experiments[0]!.id}`);
+  // The other flag is never touched.
+  assert.equal(state.requests.filter((r) => r.method !== 'GET' && r.path.includes('/features/905/')).length, 0);
+});
+
+test('--project takes ids and keys too, and picks the only environment or Production when none is named', async () => {
+  const state = existingFlagsmith();
+  await runByo(state, '901', 'envDev');
+  assert.equal(state.experiments[0]!.envKey, 'envDev');
+  await fake!.close();
+  fake = undefined;
+  const again = existingFlagsmith();
+  await runByo(again, 'Web');
+  assert.equal(again.experiments[0]!.envKey, 'envProd');
+});
+
+test('--project refuses a project or environment that does not exist, and a fresh instance, creating nothing', async () => {
+  const state = existingFlagsmith();
+  await assert.rejects(runByo(state, 'Nope'), /No Flagsmith project "Nope".*"Web" \(901\).*never creates/);
+  await assert.rejects(runByo(state, 'Web', 'Staging'), /no environment "Staging".*"Development", "Production"/);
+  assert.equal(calls(state, 'POST', /.*/).length, 0);
+  await fake!.close();
+  fake = undefined;
+  const fresh = emptyState();
+  await assert.rejects(runByo(fresh, 'Web'), /no users yet/);
+  assert.equal(fresh.users.length, 0);
+});
+
+test('--project with several environments and none named or called Production asks for one', async () => {
+  const state = existingFlagsmith();
+  state.environments[1]!.name = 'Live';
+  await assert.rejects(runByo(state, 'Web'), /several environments.*--environment/);
+});
+
+test('a flag that exists with values that are not releases is refused and left alone', async () => {
+  const state = existingFlagsmith();
+  state.features.push({
+    id: 906,
+    name: 'landing_release',
+    initial_value: 'landing:1',
+    default_enabled: true,
+    multivariate_options: [{ id: 907, key: 'blue', string_value: 'blue-button', default_percentage_allocation: 0 }],
+    tags: [],
+    project: 901,
+  });
+  await assert.rejects(runByo(state, 'Web', 'Production'), /Flag "landing_release" already exists.*variant blue = "blue-button"/);
+  assert.equal(state.requests.filter((r) => r.method !== 'GET' && /features|experiments|metrics/.test(r.path)).length, 0);
+});
+
+test('a flag that already routes these releases is reused', async () => {
+  const state = existingFlagsmith();
+  fake = await startFakeAdmin(state);
+  const res = await fetch(new URL('/api/v1/projects/901/features/', fake.apiUrl), {
+    method: 'POST',
+    headers: { authorization: 'Api-Key org.given', 'content-type': 'application/json' },
+    body: JSON.stringify({ name: 'landing_release', initial_value: 'landing:1', default_enabled: true }),
+  });
+  const { id } = (await res.json()) as { id: number };
+  await runByo(state, 'Web', 'Production');
+  assert.equal(state.features.filter((f) => f.name === 'landing_release').length, 1);
+  assert.equal(state.experiments[0]!.feature.id, id);
+});
+
+test('--project mints a server key unless the one given reads that environment', async () => {
+  const state = existingFlagsmith();
+  state.serverKeys.push({ envKey: 'envDev', key: 'ser.dev', name: 'other' });
+  await runByo(state, 'Web', 'Production', 'ser.dev');
+  assert.equal(readEnv().SWITCHYARD_SERVER_KEY, state.serverKeys[1]!.key);
+  assert.equal(state.serverKeys[1]!.envKey, 'envProd');
+});

@@ -41,3 +41,16 @@ test('supports wildcard paths and exact status codes', () => {
   assert.equal(matchesRule(rule, 'GET', '/fix/srm', 204), false);
   assert.equal(matchesRule(rule, 'GET', '/fixes', 200), false);
 });
+
+test('traffic: the % of visitors in the experiment, 100 by default', async () => {
+  const { parseConfig: parse } = await import('../src/config.ts');
+  const raw = { flag: 'f', releases: { a: 'http://a:1', b: 'http://host.docker.internal:3000' }, goal: { event: 'signup', when: { method: 'POST', path: '/signup' } } };
+  assert.equal(parse(raw).traffic, 100);
+  assert.equal(parse({ ...raw, traffic: 25 }).traffic, 25);
+  for (const bad of [0, 101, 'lots']) assert.throws(() => parse({ ...raw, traffic: bad }), /traffic/);
+});
+
+test('a missing config file says how to get one', async () => {
+  const { loadConfig } = await import('../src/config.ts');
+  assert.throws(() => loadConfig('no-such-switchyard.config.yml'), /not found.*switchyard new/);
+});

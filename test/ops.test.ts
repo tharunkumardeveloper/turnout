@@ -23,7 +23,8 @@ type ComposeFile = { services: Record<string, Service>; networks?: Record<string
 const compose = (path: string) => YAML.parse(read(path), { merge: true }) as ComposeFile;
 const flagsmith = compose('compose.flagsmith.yml');
 const switchyard = compose('compose.switchyard.yml');
-const services = { ...flagsmith.services, ...switchyard.services };
+const demo = compose('compose.demo.yml');
+const services = { ...flagsmith.services, ...switchyard.services, ...demo.services };
 
 describe('compose: published ports', () => {
   test('only the proxy and the console\'s other-devices port follow SWITCHYARD_PUBLISH_HOST; the rest stay on 127.0.0.1', () => {
@@ -69,6 +70,27 @@ describe('compose: networks', () => {
   test('each network is declared once, in the file that owns it', () => {
     assert.deepEqual(Object.keys(flagsmith.networks ?? {}), ['sdk']);
     assert.deepEqual(Object.keys(switchyard.networks ?? {}).sort(), ['apps', 'feed']);
+    assert.deepEqual(Object.keys(demo.networks ?? {}), ['apps'], 'the demo file names the network its shops join');
+  });
+});
+
+describe('compose: any app', () => {
+  test('the shops live in compose.demo.yml, which compose.yaml includes, and the proxy does not depend on them', () => {
+    assert.deepEqual(Object.keys(switchyard.services).filter((n) => n.startsWith('shop')), []);
+    assert.deepEqual(Object.keys(demo.services).sort(), ['shop-1-4', 'shop-1-5', 'shop-1-6']);
+    assert.match(read('compose.yaml'), /- compose\.demo\.yml/);
+    assert.deepEqual(Object.keys((services.switchyard as { depends_on?: Record<string, unknown> }).depends_on ?? {}), ['flagsmith']);
+  });
+
+  test('the routing config is mounted read-only into the proxy, the console and the CLI, never baked into the image', () => {
+    for (const name of ['switchyard', 'console', 'cli']) {
+      assert.ok(
+        (services[name] as { volumes?: string[] }).volumes?.includes('${SWITCHYARD_CONFIG_FILE:-./switchyard.config.yml}:/app/switchyard.config.yml:ro'),
+        name,
+      );
+      assert.deepEqual((services[name] as { extra_hosts?: string[] }).extra_hosts, ['host.docker.internal:host-gateway'], name);
+    }
+    assert.doesNotMatch(read('Dockerfile'), /COPY[^\n]*switchyard\.config\.yml/);
   });
 });
 

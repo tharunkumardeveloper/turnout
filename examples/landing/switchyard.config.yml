@@ -1,0 +1,18 @@
+# The landing example (demo/landing), written by: switchyard new --release landing:1 --release landing:2 --success "POST /signup 2xx"
+flag: landing_release
+
+# Allowlist: release label (the flag's value in Flagsmith) → where that release answers.
+# The first release is served whenever Flagsmith can't answer or the flag is off.
+releases:
+  "landing:1": http://landing-1:8080
+  "landing:2": http://landing-2:8080
+
+# Success: the request that counts as a conversion, sent to Flagsmith as an event.
+goal:
+  event: signup
+  when: { method: POST, path: "/signup", status: 2xx }
+
+guardrails: [doc_latency_ms, server_error]   # sent on every page load
+
+# % of visitors in the experiment; the rest stay on the first release.
+traffic: 100

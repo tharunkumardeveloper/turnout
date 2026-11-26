@@ -1,0 +1,44 @@
+# The demo: three releases of the Ridgeline shop (demo/shop), which knows nothing about Flagsmith. compose.yaml includes
+# this file; the proxy doesn't depend on these services, so a config that lists other releases needs none of them.
+
+x-shop: &shop
+  build:
+    context: .
+    dockerfile: demo/shop/Dockerfile
+  image: ridgeline-shop:local
+  restart: unless-stopped
+  networks: [apps]
+  healthcheck:
+    test: ['CMD', 'node', '-e', "fetch('http://127.0.0.1:8080/').then(r=>process.exit(r.ok?0:1),()=>process.exit(1))"]
+    interval: 10s
+    timeout: 3s
+    retries: 3
+
+# Judge mode shows the shop in a frame of the console. The shop allows that from this machine's console and from the
+# hosts in SWITCHYARD_CONSOLE_HOSTS (port 8090); SHOP_FRAME_ANCESTORS replaces the whole list.
+x-shop-env: &shop-env
+  SHOP_FRAME_HOSTS: ${SWITCHYARD_CONSOLE_HOSTS:-}
+  SHOP_FRAME_ANCESTORS: ${SHOP_FRAME_ANCESTORS:-}
+
+services:
+  shop-1-4:
+    <<: *shop
+    environment:
+      <<: *shop-env
+      SHOP_VERSION: '1.4'
+
+  shop-1-5:
+    <<: *shop
+    environment:
+      <<: *shop-env
+      SHOP_VERSION: '1.5'
+
+  shop-1-6:
+    <<: *shop
+    environment:
+      <<: *shop-env
+      SHOP_VERSION: '1.6'
+      SEEDED_DELAY_MS: '60' # labelled, seeded slowdown: the release the latency guardrail catches
+
+networks:
+  apps: {}

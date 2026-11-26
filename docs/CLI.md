@@ -18,7 +18,8 @@ An unknown option or a missing value prints what was wrong and exits 1, before a
 
 | Command | What it does |
 |---|---|
-| `init` | Bootstraps Flagsmith: the first admin on a fresh instance, the event store, the flag (tagged `release`, permanent), the Feature Health provider, the metrics and the first experiment. Writes the keys to `.env`. Submits Code References when it can name the repository. Prints the judge-mode links |
+| `new` | Sets Switchyard up for your app: four questions, then writes `switchyard.config.yml` and `switchyard.compose.yml` (see below) |
+| `init [--project <name\|id>] [--environment <name\|key>]` | Bootstraps Flagsmith: the first admin on a fresh instance, the event store, the flag (tagged `release`, permanent), the Feature Health provider, the metrics and the first experiment. Writes the keys to `.env`. Submits Code References when it can name the repository. Prints the judge-mode links. With `--project`, it uses your existing project and environment instead (see below) |
 | `doctor [--json]` | Checks that everything is set up as expected; exits 1 when something fails. See [SETUP.md](SETUP.md#checking-the-setup) |
 | `demo` | Sends labelled simulated visitors through the proxy (see below) |
 | `status [--refresh]` | Flagsmith's results for an experiment. `--refresh` asks Flagsmith to recompute; it allows one refresh every 5 minutes per experiment |
@@ -32,6 +33,24 @@ An unknown option or a missing value prints what was wrong and exits 1, before a
 | `proxy` | Runs the reverse proxy (port 8080). Compose runs it for you |
 | `console` | Runs the console and judge mode (port 8090). Compose runs it for you |
 
+### `new`
+
+Asks four questions in a terminal; each has a default and a flag, and with `--yes` (or without a terminal) it asks nothing.
+
+| Question | Flag | Default |
+|---|---|---|
+| 1. Flagsmith | `--flagsmith bundled\|<api url>` | `bundled`: a fresh Flagsmith next to your app (`flagsmith.compose.yml`) |
+| | `--project <name\|id>`, `--environment <name\|key>`, `--admin-key <key>` | with your own Flagsmith: saved to `.env` as `SWITCHYARD_PROJECT`, `SWITCHYARD_ENVIRONMENT`, `SWITCHYARD_ADMIN_KEY` (never in the compose file) |
+| 2. The releases, live first | `--release <entry>`, repeated | `v1=http://host.docker.internal:3000`, `v2=http://host.docker.internal:3001` |
+| 3. Success | `--success "<METHOD> <path> [status]"` | `POST /signup 2xx`; the event is named after the path (`signup`), or `--event <name>` |
+| 4. Traffic | `--traffic <1-100>` | 100: the % of visitors in the experiment; the rest stay on the first release |
+
+A release entry is `label=url`, a bare `http(s)` URL (labelled `v1`, `v2`…), or a Docker image (`acme/web:2`, labelled `web:2`, served as a `web-2` service on `--port`, default 8080). `localhost` becomes `host.docker.internal`, since inside the proxy's container localhost is the proxy. Other flags: `--flag <name>` (default `<first label's name>_release`), `--image` (the Switchyard image, default `ghcr.io/tharunkumardeveloper/switchyard:latest`, not published yet), `--proxy-port` (8080), `--dir` (the current folder), `--force` (overwrite).
+
+### `init --project`: bring your own Flagsmith
+
+`init --project <name|id> [--environment <name|key>]` (or `SWITCHYARD_PROJECT` / `SWITCHYARD_ENVIRONMENT` in `.env`) needs an Organisation API key that can see the project. It creates no organisation, project, environment or Organisation API key, and no Feature Health provider (an existing `Webhook` one is reused). It adds only what Switchyard needs in that environment: a server-side key (unless the one in `.env` reads that environment), the event store if none is connected, the release flag with its `release` tag and `v2` variant, the metrics and the experiment, with `traffic` from the config as its rollout. It never edits another flag. If the flag already exists with a value or variant that isn't a release in the config, it stops and says which, changing nothing. Without `--environment`, it takes the project's only environment, or `Production`.
+
 ### `demo`
 
 | Option | Default | Allowed |
@@ -41,6 +60,7 @@ An unknown option or a missing value prints what was wrong and exits 1, before a
 | `--concurrency` | 20 | 1 to 1,000 |
 | `--seed` | 42 | 0 to 2³²−1 |
 | `--target` | `SWITCHYARD_PROXY_URL`, else `http://switchyard:8080` | an `http` or `https` URL |
+| `--flow` | `shop` when every release is `shop:…`, else `goal` | `shop`: the demo shop's browse, cart and checkout. `goal`: land on `/`, then send the config's goal request (any app) |
 
 Every option is checked before any traffic is sent. The rates are the simulator's inputs, not evidence.
 

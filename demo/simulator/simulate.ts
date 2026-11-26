@@ -11,6 +11,9 @@ export type SimOptions = {
   rates: Record<string, number>; // true conversion rate per variant key
   concurrency: number;
   seed: number;
+  // Any app: land on /, then (with the variant's rate) send this request; a conversion is a status the rule accepts.
+  // Without it, the demo shop's browse-cart-checkout flow.
+  goal?: { method: string; path: string; status: string };
   debugToken?: string; // the proxy's debug token (SWITCHYARD_PREVIEW_TOKEN): it reveals each visitor's variant and release
   log?: (line: string) => void;
 };
@@ -56,7 +59,7 @@ class Visitor {
     this.target = target;
   }
 
-  async request(method: 'GET' | 'POST', path: string, form?: Record<string, string>): Promise<Response> {
+  async request(method: string, path: string, form?: Record<string, string>): Promise<Response> {
     const headers: Record<string, string> = {
       'user-agent': USER_AGENT,
       'x-switchyard-debug': this.debugToken,
@@ -137,6 +140,38 @@ async function visit(
   return { variant, release, ordered: order.status === 200, ok: order.status === 200, pageErrors };
 }
 
+// The goal path with any trailing wildcard filled in: "/fix/*" → "/fix/simulated".
+export function goalPath(path: string): string {
+  return path.endsWith('/*') ? `${path.slice(0, -1)}simulated` : path;
+}
+
+export function statusMatches(rule: string, status: number): boolean {
+  return rule.endsWith('xx') ? String(status)[0] === rule[0] : String(status) === rule;
+}
+
+async function visitGoal(
+  target: string,
+  goal: NonNullable<SimOptions['goal']>,
+  rates: Record<string, number>,
+  random: () => number,
+  debugToken?: string,
+): Promise<{ variant: string; release: string; ordered: boolean; ok: boolean; pageErrors: number }> {
+  const v = new Visitor(target, debugToken);
+  // Two page views: the proxy records an exposure only for a visitor who sends its cookie back (a returning page
+  // load), and Flagsmith counts a conversion only after the exposure. A visitor who signs up on the very first
+  // request is never counted.
+  const first = await v.request('GET', '/');
+  const landing = await v.request('GET', '/');
+  const pageErrors = (first.status >= 500 ? 1 : 0) + (landing.status >= 500 ? 1 : 0);
+  const variant = landing.headers.get('x-switchyard-variant') ?? 'control';
+  const release = landing.headers.get('x-switchyard-release') ?? 'unknown';
+  if (random() >= (rates[variant] ?? 0)) return { variant, release, ordered: false, ok: true, pageErrors };
+  const write = goal.method !== 'GET' && goal.method !== 'HEAD';
+  const res = await v.request(goal.method, goalPath(goal.path), write ? { email: 'simulated.visitor@example.com' } : undefined);
+  const ok = statusMatches(goal.status, res.status);
+  return { variant, release, ordered: ok, ok, pageErrors };
+}
+
 const newTally = (): Tally => ({ visitors: 0, orders: 0, pageErrors: 0 });
 
 export async function simulate(opts: SimOptions): Promise<SimReport> {
@@ -151,7 +186,10 @@ export async function simulate(opts: SimOptions): Promise<SimReport> {
       const index = next++;
       // Each visitor has its own stream. One generator shared by concurrent visitors hands out draws in
       // response-time order, which correlated the order decision with the release and washed out the true rates.
-      const r = await visit(opts.target, opts.rates, visitorRandom(opts.seed, index), opts.debugToken);
+      const random = visitorRandom(opts.seed, index);
+      const r = opts.goal
+        ? await visitGoal(opts.target, opts.goal, opts.rates, random, opts.debugToken)
+        : await visit(opts.target, opts.rates, random, opts.debugToken);
       for (const t of [(report.byVariant[r.variant] ??= newTally()), (report.byRelease[r.release] ??= newTally())]) {
         t.visitors++;
         t.pageErrors += r.pageErrors;

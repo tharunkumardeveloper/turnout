@@ -143,3 +143,34 @@ test('after a release, control on shop 1.5 checks out on one page and v2 on shop
   assert.equal(nextTraffic.filter((e) => e.path.startsWith('/checkout/')).length, 0);
   assert.ok(nextTraffic.some((e) => e.method === 'POST' && e.path === '/checkout'));
 });
+
+test('the goal flow: any app, land on / and send the goal request; a conversion is a status the rule accepts', async () => {
+  const { createServer } = await import('node:http');
+  const { simulate: run, goalPath } = await import('../demo/simulator/simulate.ts');
+  const seen: string[] = [];
+  let n = 0;
+  const app = createServer((req, res) => {
+    seen.push(`${req.method} ${req.url}`);
+    if (req.method === 'GET') {
+      const variant = Math.floor(n++ / 2) % 2 ? 'v2' : 'control'; // two page views per visitor
+      res.writeHead(200, { 'x-switchyard-variant': variant, 'x-switchyard-release': variant === 'v2' ? 'landing:2' : 'landing:1' });
+      return res.end('ok');
+    }
+    res.writeHead(req.url === '/signup' ? 201 : 404).end();
+  });
+  await new Promise<void>((r) => app.listen(0, '127.0.0.1', r));
+  const port = (app.address() as { port: number }).port;
+  try {
+    const report = await run({ target: `http://127.0.0.1:${port}`, visitors: 40, rates: { control: 0, v2: 1 }, concurrency: 1, seed: 1, goal: { method: 'POST', path: '/signup', status: '2xx' }, log: () => {} });
+    assert.equal(report.byVariant.control!.orders, 0);
+    assert.equal(report.byVariant.v2!.orders, 20);
+    assert.equal(report.byRelease['landing:2']!.orders, 20);
+    assert.equal(report.failedOrders, 0);
+    assert.equal(seen.filter((s) => s === 'POST /signup').length, 20);
+    assert.equal(seen.filter((s) => s === 'GET /').length, 80, 'each visitor comes back once, so the proxy records the exposure');
+    assert.ok(!seen.some((s) => s.includes('/product') || s.includes('/checkout')), 'no shop pages');
+  } finally {
+    app.close();
+  }
+  assert.equal(goalPath('/fix/*'), '/fix/simulated');
+});

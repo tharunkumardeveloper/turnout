@@ -6,6 +6,8 @@ import { parseArgs } from 'node:util';
 import { check } from './commands/check.ts';
 import { formatReport, runDoctor, type DoctorOptions } from './commands/doctor.ts';
 import { init, judgeLinks, localHost, writeEnv } from './commands/init.ts';
+import { DEFAULT_RELEASES, DEFAULT_SUCCESS, readFileIfExists, writeNew, type NewAnswers } from './commands/new.ts';
+import { createInterface } from 'node:readline/promises';
 import { preview } from './commands/preview.ts';
 import { release } from './commands/release.ts';
 import { revert, ship, status } from './commands/ship.ts';
@@ -27,7 +29,13 @@ const USAGE = `Usage: switchyard <command> [options]
 Commands:
   proxy      Route visitors by the Flagsmith flag and send events (port 8080)
   console    Traffic map, results, Ship winner and Revert (127.0.0.1:8090); judge mode on /judge
+  new        Set Switchyard up for your app: four questions → switchyard.config.yml and switchyard.compose.yml
+             [--flagsmith bundled|<api url>] [--release <label=url | url | image> …] [--success "POST /signup 2xx"]
+             [--traffic <1-100>] [--flag <name>] [--event <name>] [--port <app port>] [--image <switchyard image>]
+             [--project <name|id>] [--environment <name|key>] [--admin-key <key>] [--dir <path>] [--force] [--yes]
   init       Bootstrap Flagsmith: event store, tagged flag, metrics, experiment
+             [--project <name|id> --environment <name|key>]  reuse your existing project and environment
+             (env SWITCHYARD_PROJECT, SWITCHYARD_ENVIRONMENT); creates no organisation, project or environment
   preview    Serve a new release to your team only: preview <label>
   release    Start the next experiment on the same flag: release <label> [--hypothesis "…"]
              [--split <1-99>]  % of visitors in the experiment who get the new release (default 50)
@@ -42,6 +50,7 @@ Commands:
   doctor     Check that everything is set up as expected: Flagsmith, keys, flag, metrics, proxy, shops [--json]
   demo       Drive labelled simulated visitors through the proxy [--visitors 2000] [--rate v2=0.13]
              [--concurrency 20] [--seed 42] [--target http://switchyard:8080]
+             [--flow shop|goal]  goal: land on /, then send the config's goal request (default for non-shop apps)
   code-refs  Find the flag's name in this checkout and submit it to Flagsmith's Code References [--project <id>]
              (repository: GitHub Actions' variables, an https GitHub "origin" remote, or SWITCHYARD_REPOSITORY_URL)
 
@@ -88,6 +97,19 @@ const parseCommandLine = () =>
       mde: { type: 'string' },
       'daily-visitors': { type: 'string' },
       project: { type: 'string' },
+      environment: { type: 'string' },
+      flagsmith: { type: 'string' },
+      release: { type: 'string', multiple: true },
+      success: { type: 'string' },
+      traffic: { type: 'string' },
+      flag: { type: 'string' },
+      event: { type: 'string' },
+      port: { type: 'string' },
+      image: { type: 'string' },
+      'proxy-port': { type: 'string' },
+      dir: { type: 'string' },
+      force: { type: 'boolean' },
+      flow: { type: 'string' },
       help: { type: 'boolean', short: 'h' },
     },
   });
@@ -259,19 +281,24 @@ async function demo(): Promise<void> {
   const concurrency = wholeNumber('concurrency', 20, 1, 1000);
   const seed = wholeNumber('seed', 42, 0, 2 ** 32 - 1);
   console.log(`Simulating ${visitors} labelled visitors through ${target}`);
-  console.log(`True conversion rates (inputs, not evidence): ${Object.entries(rates).map(([k, v]) => `${k} ${v * 100}%`).join(', ')}`);
+  console.log(`True conversion rates (inputs, not evidence): ${Object.entries(rates).map(([k, v]) => `${k} ${+(v * 100).toFixed(2)}%`).join(', ')}`);
   const debugToken = process.env.SWITCHYARD_PREVIEW_TOKEN;
+  const config = loadConfig(configPath());
+  const flow = cliFlags.flow ?? ([...config.releases.keys()].every((l) => l.startsWith('shop:')) ? 'shop' : 'goal');
+  if (flow !== 'shop' && flow !== 'goal') throw new Error(`--flow expects shop or goal, got "${flow}"`);
+  console.log(`Flow: ${flow === 'shop' ? 'the demo shop (browse, cart, checkout)' : `land on /, then ${config.goal.when.method} ${config.goal.when.path}`}`);
   const report = await simulate({
     target,
     visitors,
     rates,
     concurrency,
     seed,
+    ...(flow === 'goal' ? { goal: config.goal.when } : {}),
     ...(debugToken ? { debugToken } : {}),
   });
   console.log(`\nDone in ${(report.durationMs / 1000).toFixed(1)} s`);
   for (const [variant, v] of Object.entries(report.byVariant)) {
-    console.log(`  ${variant}: ${v.visitors} visitors, ${v.orders} orders (${((v.orders / v.visitors) * 100).toFixed(1)}%), ${v.pageErrors} page errors`);
+    console.log(`  ${variant}: ${v.visitors} visitors, ${v.orders} conversions (${((v.orders / v.visitors) * 100).toFixed(1)}%), ${v.pageErrors} page errors`);
   }
   console.log(`  by release: ${Object.entries(report.byRelease).map(([r, v]) => `${r} ${v.visitors}`).join(', ')}`);
   if (report.failedOrders) console.log(`  ${report.failedOrders} orders failed`);
@@ -468,17 +495,75 @@ const commands: Record<string, () => Promise<void>> = {
       });
     }
   },
-  init: () =>
-    init({
+  init: () => {
+    const project = cliFlags.project ?? (process.env.SWITCHYARD_PROJECT || undefined);
+    const environment = cliFlags.environment ?? (process.env.SWITCHYARD_ENVIRONMENT || undefined);
+    if (environment && !project) throw new Error('--environment needs --project: the project it belongs to');
+    return init({
       apiUrl: apiUrl(),
       dashboardUrl: process.env.FLAGSMITH_DASHBOARD_URL || 'http://127.0.0.1:8000',
       config: loadConfig(configPath()),
       adminKey: cliFlags['admin-key'] ?? (process.env.SWITCHYARD_ADMIN_KEY || undefined),
       serverKey: process.env.SWITCHYARD_SERVER_KEY || undefined,
       envFile: ENV_FILE,
-      codeReferences: { root: process.cwd() },
-    }),
+      project,
+      environment,
+      // Code References scan this checkout: the demo's, not yours.
+      ...(project ? {} : { codeReferences: { root: process.cwd() } }),
+    });
+  },
+  new: newCommand,
 };
+
+// switchyard new: each question has a default and a flag; in a terminal (without --yes) it asks, otherwise it doesn't.
+async function newCommand(): Promise<void> {
+  const ask = process.stdin.isTTY && !cliFlags.yes ? createInterface({ input: process.stdin, output: process.stdout }) : undefined;
+  const q = async (question: string, fallback: string, given?: string): Promise<string> => {
+    if (given !== undefined || !ask) return given ?? fallback;
+    return (await ask.question(`${question} [${fallback}] `)).trim() || fallback;
+  };
+  try {
+    const flagsmith = await q('1/4 Flagsmith: "bundled" (a fresh one next to your app) or your API URL (…/api/v1/)?', 'bundled', cliFlags.flagsmith);
+    let project = cliFlags.project;
+    let environment = cliFlags.environment;
+    if (flagsmith !== 'bundled') {
+      project = await q('    Your Flagsmith project (name or id)?', '', project);
+      environment = (await q('    Environment (name or key; blank: Production or the only one)?', '', environment)) || undefined;
+      if (!project) throw new Error('an existing Flagsmith needs --project: the project Switchyard may add its flag to');
+    }
+    const releases = cliFlags.release ?? (await q('2/4 Releases, live first (label=url, url or image; space-separated)?', DEFAULT_RELEASES.join(' '))).split(/\s+/).filter(Boolean);
+    const success = await q('3/4 Success: which request counts as a conversion?', DEFAULT_SUCCESS, cliFlags.success);
+    const traffic = Number(await q('4/4 Traffic: % of visitors in the experiment?', '100', cliFlags.traffic));
+    const num = (raw: string | undefined, what: string) => {
+      if (raw === undefined) return undefined;
+      const n = Number(raw);
+      if (!Number.isInteger(n) || n < 1 || n > 65535) throw new Error(`--${what} expects a port number, got "${raw}"`);
+      return n;
+    };
+    const answers: NewAnswers = {
+      flagsmith,
+      releases,
+      success,
+      traffic,
+      flag: cliFlags.flag,
+      event: cliFlags.event,
+      appPort: num(cliFlags.port, 'port'),
+      proxyPort: num(cliFlags['proxy-port'], 'proxy-port'),
+      image: cliFlags.image,
+      project: project || undefined,
+      environment,
+    };
+    writeNew({
+      answers,
+      dir: cliFlags.dir ?? process.cwd(),
+      force: cliFlags.force ?? false,
+      adminKey: flagsmith === 'bundled' ? undefined : cliFlags['admin-key'],
+      flagsmithCompose: readFileIfExists(fileURLToPath(new URL('../compose.flagsmith.yml', import.meta.url))),
+    });
+  } finally {
+    ask?.close();
+  }
+}
 
 const command = name ? commands[name] : undefined;
 if (!command || cliFlags.help) {

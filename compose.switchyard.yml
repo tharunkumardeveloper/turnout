@@ -5,7 +5,7 @@
 #   default  Flagsmith, its Postgres, the console and the one-off CLI (the admin side)
 #   sdk      Flagsmith and the proxy: flag reads and events (declared in compose.flagsmith.yml)
 #   feed     the proxy and the console: the traffic feed (:8081) and judge mode's simulated visitors (:8080)
-#   apps     the proxy and the shops: the shops can't reach Flagsmith or the console
+#   apps     the proxy and the releases (the demo shops, compose.demo.yml): the shops can't reach Flagsmith or the console
 # So the public proxy can't reach Postgres or the console's Flagsmith-admin traffic, and each service gets only the
 # keys it needs: the proxy never sees the admin key or the admin login.
 #
@@ -15,30 +15,16 @@
 x-switchyard-image: &switchyard-image
   build: .
   image: switchyard:local
+  # host.docker.internal is this machine, on Linux too: releases can run outside Docker.
+  extra_hosts: ['host.docker.internal:host-gateway']
+
+# The routing config is mounted, never baked into the image: SWITCHYARD_CONFIG_FILE picks another one.
+x-config: &config ${SWITCHYARD_CONFIG_FILE:-./switchyard.config.yml}:/app/switchyard.config.yml:ro
 
 # The console and the CLI write .switchyard/ (and the CLI .env) through bind mounts, so they run as the host user that
 # owns them. switchyard.sh sets SWITCHYARD_UID and SWITCHYARD_GID on Linux; 1000 is the image's `node` user.
 x-host-user: &host-user
   user: '${SWITCHYARD_UID:-1000}:${SWITCHYARD_GID:-1000}'
-
-x-shop: &shop
-  build:
-    context: .
-    dockerfile: demo/shop/Dockerfile
-  image: ridgeline-shop:local
-  restart: unless-stopped
-  networks: [apps]
-  healthcheck:
-    test: ['CMD', 'node', '-e', "fetch('http://127.0.0.1:8080/').then(r=>process.exit(r.ok?0:1),()=>process.exit(1))"]
-    interval: 10s
-    timeout: 3s
-    retries: 3
-
-# Judge mode shows the shop in a frame of the console. The shop allows that from this machine's console and from the
-# hosts in SWITCHYARD_CONSOLE_HOSTS (port 8090); SHOP_FRAME_ANCESTORS replaces the whole list.
-x-shop-env: &shop-env
-  SHOP_FRAME_HOSTS: ${SWITCHYARD_CONSOLE_HOSTS:-}
-  SHOP_FRAME_ANCESTORS: ${SHOP_FRAME_ANCESTORS:-}
 
 services:
   switchyard:
@@ -56,6 +42,7 @@ services:
       # network reach the shop and the console; that requires SWITCHYARD_JUDGE_TOKEN and SWITCHYARD_CONSOLE_HOSTS.
       - ${SWITCHYARD_PUBLISH_HOST:-127.0.0.1}:8080:8080
     volumes:
+      - *config
       - switchyard-state:/app/.switchyard # the last known live release, for cold starts
     networks: [sdk, feed, apps]
     healthcheck:
@@ -63,15 +50,10 @@ services:
       interval: 10s
       timeout: 3s
       retries: 3
+    # Not on the releases: they're whatever the config lists (the demo shops are in compose.demo.yml).
     depends_on:
       flagsmith:
         condition: service_healthy
-      shop-1-4:
-        condition: service_started
-      shop-1-5:
-        condition: service_started
-      shop-1-6:
-        condition: service_started
 
   console:
     <<: [*switchyard-image, *host-user]
@@ -110,6 +92,7 @@ services:
       - 127.0.0.1:8090:8090
       - ${SWITCHYARD_PUBLISH_HOST:-127.0.0.1}:8091:8091
     volumes:
+      - *config
       - ./.switchyard:/app/.switchyard # snapshots and the release ledger land on the host
     networks: [default, feed]
     healthcheck:
@@ -130,28 +113,10 @@ services:
       FLAGSMITH_API_URL: http://flagsmith:8000/api/v1/
       SWITCHYARD_PROXY_URL: http://switchyard:8080
     volumes:
+      - *config
       - ./.env:/app/.env
       - ./.switchyard:/app/.switchyard
     networks: [default, feed] # Flagsmith's admin API; the proxy and the console (demo, doctor)
-
-  shop-1-4:
-    <<: *shop
-    environment:
-      <<: *shop-env
-      SHOP_VERSION: '1.4'
-
-  shop-1-5:
-    <<: *shop
-    environment:
-      <<: *shop-env
-      SHOP_VERSION: '1.5'
-
-  shop-1-6:
-    <<: *shop
-    environment:
-      <<: *shop-env
-      SHOP_VERSION: '1.6'
-      SEEDED_DELAY_MS: '60' # labelled, seeded slowdown: the release the latency guardrail catches
 
 networks:
   feed: {}

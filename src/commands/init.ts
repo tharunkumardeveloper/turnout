@@ -31,7 +31,65 @@ type Options = {
   // Scan this checkout for the flag's name and submit it to Flagsmith's Code References. Best effort: never fails init.
   codeReferences?: { root: string; env?: NodeJS.ProcessEnv; git?: Git };
   env?: NodeJS.ProcessEnv; // the settings the judge links are built from; default process.env (with .env loaded)
+  // Bring your own Flagsmith: reuse this project (name or id) and environment (name or key). Nothing is created at
+  // the organisation, project or environment level: only the release flag, its tag, metrics and the experiment.
+  project?: string | undefined;
+  environment?: string | undefined;
 };
+
+/** Finds an existing project (by id or name) and environment (by key or name); never creates either. */
+export async function findProjectAndEnvironment(
+  api: AdminClient,
+  projectRef: string,
+  environmentRef: string | undefined,
+): Promise<{ org: Organisation; project: Project; env: Environment }> {
+  const orgs = await api.list<Organisation>('/api/v1/organisations/');
+  const projects: Project[] = [];
+  for (const o of orgs) projects.push(...(await api.list<Project>(`/api/v1/projects/?organisation=${o.id}`)));
+  const byId = /^\d+$/.test(projectRef) ? projects.filter((p) => p.id === Number(projectRef)) : [];
+  const matches = byId.length ? byId : projects.filter((p) => p.name === projectRef);
+  if (matches.length === 0) {
+    const names = projects.map((p) => `"${p.name}" (${p.id})`).join(', ') || 'none';
+    throw new Error(`No Flagsmith project "${projectRef}" that this key can see (projects: ${names}). init --project never creates one.`);
+  }
+  if (matches.length > 1) throw new Error(`More than one project is called "${projectRef}": pass its id instead (${matches.map((p) => p.id).join(', ')}).`);
+  const project = matches[0]!;
+  const org = orgs.find((o) => o.id === project.organisation) ?? { id: project.organisation, name: String(project.organisation) };
+  const envs = await api.list<Environment>(`/api/v1/environments/?project=${project.id}`);
+  const env = environmentRef
+    ? (envs.find((e) => e.api_key === environmentRef) ?? envs.find((e) => e.name === environmentRef))
+    : envs.length === 1
+      ? envs[0]
+      : envs.find((e) => e.name === ENVIRONMENT);
+  if (!env) {
+    const names = envs.map((e) => `"${e.name}"`).join(', ') || 'none';
+    throw new Error(
+      environmentRef
+        ? `Project "${project.name}" has no environment "${environmentRef}" (environments: ${names}). init --project never creates one.`
+        : `Project "${project.name}" has several environments (${names}): pick one with --environment <name|key>.`,
+    );
+  }
+  return { org, project, env };
+}
+
+/**
+ * An existing release flag must already look like one: its value and every variant's value a release label from the
+ * config. Anything else is someone else's flag, and init refuses rather than reshape it.
+ */
+export function incompatibleFlag(feature: Feature, releases: Iterable<string>): string | undefined {
+  const labels = new Set(releases);
+  const values = [
+    ...(feature.initial_value !== null && feature.initial_value !== '' ? [{ what: 'its value', value: feature.initial_value }] : []),
+    ...feature.multivariate_options.map((o) => ({ what: `variant ${o.key ?? o.id}`, value: o.string_value ?? '' })),
+  ];
+  const bad = values.filter((v) => !labels.has(String(v.value)));
+  if (bad.length === 0) return undefined;
+  return (
+    `Flag "${feature.name}" already exists with values that aren't releases in your config ` +
+    `(${bad.map((b) => `${b.what} = "${b.value}"`).join(', ')}; releases: ${[...labels].join(', ')}). ` +
+    'Nothing was changed on it: pick another flag name in switchyard.config.yml, or list those releases.'
+  );
+}
 
 export async function init(opts: Options): Promise<void> {
   const log = opts.log ?? console.log;
@@ -61,6 +119,9 @@ export async function init(opts: Options): Promise<void> {
     }
   }
   let newAdmin: { email: string; password: string } | undefined;
+  if (version.self_hosted_data?.has_users === false && opts.project) {
+    throw new Error(`This Flagsmith has no users yet, so it has no project "${opts.project}". Run init without --project to set it up from scratch.`);
+  }
   if (version.self_hosted_data?.has_users === false) {
     newAdmin = { email: 'admin@switchyard.local', password: randomBytes(18).toString('base64url') };
     const res = await api.post<{ key: string }>('/api/v1/auth/users/', {
@@ -79,17 +140,26 @@ export async function init(opts: Options): Promise<void> {
     throw new Error('This Flagsmith already has users. Put an Organisation API key in .env as SWITCHYARD_ADMIN_KEY.');
   }
 
-  // 2. Organisation, project, environment (reused if they exist).
-  const org =
-    (await api.list<Organisation>('/api/v1/organisations/')).find((o) => o.name === ORG) ??
-    (await api.post<Organisation>('/api/v1/organisations/', { name: ORG }));
-  const project =
-    (await api.list<Project>(`/api/v1/projects/?organisation=${org.id}`)).find((p) => p.name === PROJECT) ??
-    (await api.post<Project>('/api/v1/projects/', { name: PROJECT, organisation: org.id }));
-  const env =
-    (await api.list<Environment>(`/api/v1/environments/?project=${project.id}`)).find((e) => e.name === ENVIRONMENT) ??
-    (await api.post<Environment>('/api/v1/environments/', { name: ENVIRONMENT, project: project.id }));
-  log(`✓ organisation "${org.name}", project "${project.name}", environment "${env.name}"`);
+  // 2. Organisation, project, environment: with --project, existing ones (never created); otherwise the demo's,
+  // reused if they exist.
+  let org: Organisation;
+  let project: Project;
+  let env: Environment;
+  if (opts.project) {
+    ({ org, project, env } = await findProjectAndEnvironment(api, opts.project, opts.environment));
+    log(`✓ your project "${project.name}", environment "${env.name}" (organisation "${org.name}"): nothing created at that level`);
+  } else {
+    org =
+      (await api.list<Organisation>('/api/v1/organisations/')).find((o) => o.name === ORG) ??
+      (await api.post<Organisation>('/api/v1/organisations/', { name: ORG }));
+    project =
+      (await api.list<Project>(`/api/v1/projects/?organisation=${org.id}`)).find((p) => p.name === PROJECT) ??
+      (await api.post<Project>('/api/v1/projects/', { name: PROJECT, organisation: org.id }));
+    env =
+      (await api.list<Environment>(`/api/v1/environments/?project=${project.id}`)).find((e) => e.name === ENVIRONMENT) ??
+      (await api.post<Environment>('/api/v1/environments/', { name: ENVIRONMENT, project: project.id }));
+    log(`✓ organisation "${org.name}", project "${project.name}", environment "${env.name}"`);
+  }
   const envPath = `/api/v1/environments/${env.api_key}`;
 
   // 3. Keys: an Organisation API key (only when we bootstrapped, since it's shown once) and a server-side key.
@@ -100,7 +170,17 @@ export async function init(opts: Options): Promise<void> {
     });
     save({ SWITCHYARD_ADMIN_KEY: key.key });
   }
-  if (opts.serverKey && !newAdmin) {
+  // With --project, a key in .env may belong to another environment (the demo's): reuse it only if it reads this one.
+  const keyFitsEnvironment = async (key: string) => {
+    if (!opts.project) return true;
+    try {
+      const res = await fetch(`${api.root}/api/v1/environment-document/`, { headers: { 'x-environment-key': key } });
+      return res.ok && ((await res.json()) as { api_key?: string }).api_key === env.api_key;
+    } catch {
+      return false;
+    }
+  };
+  if (opts.serverKey && !newAdmin && (await keyFitsEnvironment(opts.serverKey))) {
     log('✓ server-side key already in .env');
   } else {
     const serverKey = await api.post<{ key: string }>(`${envPath}/api-keys/`, { name: 'Switchyard proxy' });
@@ -126,6 +206,8 @@ export async function init(opts: Options): Promise<void> {
   if (!controlRelease || !v2Release) throw new Error('switchyard.config.yml must list at least two releases to start an experiment.');
   const features = await api.list<Feature>(`/api/v1/projects/${project.id}/features/?search=${opts.config.flag}`);
   let feature = features.find((f) => f.name === opts.config.flag);
+  const conflict = feature && incompatibleFlag(feature, opts.config.releases.keys());
+  if (conflict) throw new Error(conflict);
   if (!feature) {
     feature = await api.post<Feature>(`/api/v1/projects/${project.id}/features/`, {
       name: opts.config.flag,
@@ -164,10 +246,11 @@ export async function init(opts: Options): Promise<void> {
   // point it at the API address Switchyard uses.
   type HealthProvider = { name: string; webhook_url: string | null };
   const providersPath = `/api/v1/projects/${project.id}/feature-health/providers/`;
-  const provider =
-    (await api.list<HealthProvider>(providersPath)).find((p) => p.name === 'Webhook') ??
-    (await api.post<HealthProvider>(providersPath, { name: 'Webhook' }));
-  if (provider.webhook_url) {
+  // In your own project an existing provider is reused, never added: a provider is a project-wide setting.
+  const existingProvider = (await api.list<HealthProvider>(providersPath)).find((p) => p.name === 'Webhook');
+  const provider = existingProvider ?? (opts.project ? undefined : await api.post<HealthProvider>(providersPath, { name: 'Webhook' }));
+  if (!provider) log('· Feature Health: this project has no "Webhook" provider, so guardrail health is not shown on the flag (add one in Flagsmith to get it)');
+  if (provider?.webhook_url) {
     const path = new URL(provider.webhook_url).pathname;
     save({ SWITCHYARD_HEALTH_WEBHOOK: new URL(path, new URL(opts.apiUrl).origin).href });
     log('✓ Feature Health provider (Webhook): Switchyard reports guardrail health on the flag');
@@ -221,7 +304,7 @@ export async function init(opts: Options): Promise<void> {
       metrics,
       experiment_rollout: {
         enabled: true,
-        rollout_percentage: 100,
+        rollout_percentage: opts.config.traffic,
         feature_state_value: { type: 'string', value: controlRelease },
         multivariate_feature_state_values: [{ multivariate_feature_option: v2.id, percentage_allocation: 50 }],
       },

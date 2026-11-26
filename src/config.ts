@@ -17,6 +17,7 @@ export type Config = {
   fallback: string; // the first release: served when Flagsmith can't answer or the flag is off
   goal: { event: string; when: HttpRule };
   guardrails: Guardrail[];
+  traffic: number; // % of visitors in the experiment (its rollout); the rest stay on the live release. Default 100.
 };
 
 export class ConfigError extends Error {}
@@ -24,7 +25,21 @@ export class ConfigError extends Error {}
 const EVENT_NAME = /^[A-Za-z][A-Za-z0-9_.-]{0,99}$/;
 
 export function loadConfig(path: string): Config {
-  return parseConfig(parse(readFileSync(path, 'utf8')));
+  let text: string;
+  try {
+    text = readFileSync(path, 'utf8');
+  } catch (error) {
+    const code = (error as NodeJS.ErrnoException).code;
+    // Docker creates a missing bind-mounted file as a directory.
+    if (code === 'ENOENT' || code === 'EISDIR') {
+      throw new ConfigError(
+        `${path} ${code === 'EISDIR' ? 'is a directory (Docker creates one when the mounted file is missing)' : 'not found'}: ` +
+          'mount your switchyard.config.yml there (run "switchyard new" to write one)',
+      );
+    }
+    throw error;
+  }
+  return parseConfig(parse(text));
 }
 
 export function parseConfig(raw: unknown): Config {
@@ -65,12 +80,18 @@ export function parseConfig(raw: unknown): Config {
   }
   if ((GUARDRAILS as readonly string[]).includes(event)) throw new ConfigError(`goal.event "${event}" is a guardrail name`);
 
+  const traffic = doc.traffic === undefined ? 100 : Number(doc.traffic);
+  if (!Number.isFinite(traffic) || traffic <= 0 || traffic > 100) {
+    throw new ConfigError(`traffic must be a percentage above 0 and up to 100, got "${String(doc.traffic)}"`);
+  }
+
   return {
     flag,
     releases,
     fallback,
     goal: { event, when: rule },
     guardrails: guardrails as Guardrail[],
+    traffic,
   };
 }
 

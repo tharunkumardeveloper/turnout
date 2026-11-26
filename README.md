@@ -16,6 +16,25 @@ You need Docker with Compose 2.20+ and about 8 GB of RAM for Docker. Get the cod
 
 **When it works,** your browser opens judge mode at <http://127.0.0.1:8090/judge> showing **Step 1 of 7**. Follow the steps, or choose **Play it for me**. If anything is missing, <http://127.0.0.1:8090/setup> (or `docker compose run --rm cli doctor`) says what.
 
+## Use it with your app
+
+The shop is one example. Any web app with two or more releases you can reach over HTTP works: containers, or apps on your machine (`http://host.docker.internal:3000`, on Linux too). In your project's folder:
+
+```sh
+# 1. Four questions (Flagsmith: bundled or yours; the releases; success, e.g. "POST /signup 2xx"; % of traffic)
+docker run --rm -it -v "$PWD:/work" -w /work ghcr.io/tharunkumardeveloper/switchyard new
+# 2. Set up Flagsmith: the release flag, metrics, the experiment (yours: add --project <name|id> --environment <name|key>)
+docker compose -f switchyard.compose.yml run --rm cli init
+# 3. Start the proxy (your app on :8080) and the console (:8090)
+docker compose -f switchyard.compose.yml up -d
+```
+
+`new` writes `switchyard.config.yml`, `switchyard.compose.yml` (the proxy, the console and the CLI, plus your release images if you gave images) and, for a bundled Flagsmith, `flagsmith.compose.yml`. Every answer is also a flag, for scripts: `new --yes --release v1=http://host.docker.internal:3000 --release v2=http://host.docker.internal:3001 --success "POST /signup 2xx" --traffic 50`. With your own Flagsmith, `init --project` reuses your project and environment and creates nothing else; it never touches other flags ([docs/SETUP.md](docs/SETUP.md#bring-your-own-flagsmith)).
+
+> **The image isn't published yet.** `.github/workflows/publish.yml` pushes `ghcr.io/<owner>/switchyard` on a version tag, and hasn't run. Until then, build it from this checkout (`docker build -t ghcr.io/tharunkumardeveloper/switchyard .`) or run `node src/cli.ts new` here and pass `--image switchyard:local`.
+
+A second, different example lives in [`examples/landing/`](examples/landing/README.md): a static landing page with a Sign up button, two releases as two containers, success = `POST /signup` 2xx.
+
 ## Why it can't make the four wiring mistakes
 
 Hand-wiring an experiment into an app commonly goes wrong in four ways. Switchyard's design rules each one out:

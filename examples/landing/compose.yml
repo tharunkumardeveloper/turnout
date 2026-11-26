@@ -1,0 +1,27 @@
+# The second example: a landing page with a "Sign up" button (demo/landing), two releases as two images.
+# It goes on top of the main stack, which brings Flagsmith, the proxy and the console:
+#
+#   docker compose -f compose.yaml -f examples/landing/compose.yml build landing-1 landing-2
+#   SWITCHYARD_CONFIG_FILE=./examples/landing/switchyard.config.yml \
+#     docker compose -f compose.yaml -f examples/landing/compose.yml up -d --wait
+#
+# Paths here are relative to the repo root (the first -f file's folder). See examples/landing/README.md.
+x-landing: &landing
+  restart: unless-stopped
+  networks: [apps] # with the proxy; never Flagsmith
+  healthcheck:
+    test: ['CMD', 'node', '-e', "fetch('http://127.0.0.1:8080/').then(r=>process.exit(r.ok?0:1),()=>process.exit(1))"]
+    interval: 10s
+    timeout: 3s
+    retries: 3
+
+services:
+  landing-1:
+    <<: *landing
+    build: { context: ., dockerfile: demo/landing/Dockerfile, args: { VERSION: '1' } }
+    image: landing:1
+
+  landing-2:
+    <<: *landing
+    build: { context: ., dockerfile: demo/landing/Dockerfile, args: { VERSION: '2' } }
+    image: landing:2
