@@ -161,6 +161,10 @@ export async function homeStatus(base: string, fetcher: typeof fetch = fetch): P
   }
 }
 
+/** A project with no Dockerfile that Turnout can't recognise: what it looked for, and what to do. */
+export const UNKNOWN_PROJECT =
+  "couldn't tell how to run it: there's no Dockerfile, and nothing at its top level that it recognises (package.json with a start script or an entry file, requirements.txt, go.mod, pom.xml, build.gradle, Gemfile, PHP files or HTML pages). Add a Dockerfile, or point at the app's own folder: repo.git#branch:folder.";
+
 /** Docker's answer when a repository can't be built, said so a person knows what to add. */
 export function gitBuildError(message: string): string {
   if (/locate specified Dockerfile|Dockerfile.*no such file|failed to read dockerfile/i.test(message)) {
@@ -564,13 +568,16 @@ export function startTryit(o: TryitOptions) {
               if (!files.includes('Dockerfile.turnout')) tarAppend(tar, 'Dockerfile.turnout', made);
               dockerfile = 'Dockerfile.turnout';
               note(`${slot.name} has no Dockerfile: Turnout wrote one (${made.split('\n')[0]})`, slot.slot.toUpperCase());
+            } else {
+              // Nothing Turnout recognises: say what it looked for, not Docker's "no Dockerfile".
+              throw new Error(UNKNOWN_PROJECT);
             }
           }
           return o.docker.buildFolder(image, tar, dockerfile, onLog, buildArgs);
         };
         const where = v.kind === 'git' ? 'the repository' : 'your folder';
         const folderError = (error: Error) => {
-          throw new Error(`${slot.name} (version ${slot.slot.toUpperCase()}): ${/locate specified Dockerfile|no such file/i.test(error.message) ? `${where} has no ${v.dockerfile || 'Dockerfile'} at its top level` : gitBuildError(error.message)}`);
+          throw new Error(`${slot.name} (version ${slot.slot.toUpperCase()}): ${error.message === UNKNOWN_PROJECT ? `Turnout ${UNKNOWN_PROJECT}` : /locate specified Dockerfile|no such file/i.test(error.message) ? `${where} has no ${v.dockerfile || 'Dockerfile'} at its top level` : gitBuildError(error.message)}`);
         };
         if (v.kind === 'folder') await fromFolder(uploadPath(v.value)).catch(folderError);
         else if (v.kind === 'imagefile') image = await o.docker.load(uploadPath(v.value), onLog);

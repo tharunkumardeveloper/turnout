@@ -130,3 +130,15 @@ test('SvelteKit on Node, a static build in any folder, Java with Maven, and the 
   assert.match(py, /libpq-dev/);
   assert.match(generatedDockerfile(['requirements.txt', 'app.py'], () => 'flask')!, /FROM python:3\.12-slim/);
 });
+
+test('a gallery of HTML pages is served with a folder listing; a library package.json is not started as an app', () => {
+  // RayVelez27/instalanding.ai: pages/<name>/index.html, no index.html at the top.
+  const gallery = generatedDockerfile(['README.md', 'pages/a/index.html', 'motion/b/index.html'], none)!;
+  assert.match(gallery, /autoindex on/);
+  // knadh/oat: package.json with no start script and no entry file, docs as HTML templates.
+  const lib = generatedDockerfile(['package.json', 'src/oat.css', 'docs/templates/index.html'], () => JSON.stringify({ name: '@knadh/oat', files: ['css'] }))!;
+  assert.doesNotMatch(lib, /node:22/);
+  assert.match(lib, /nginx/);
+  // Nothing recognisable at all: null, and Try it says what it looked for.
+  assert.equal(generatedDockerfile(['README.md', 'notes.txt'], none), null);
+});

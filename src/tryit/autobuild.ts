@@ -30,7 +30,9 @@ export function generatedDockerfile(files: string[], read: Read): string | null 
     if (!s.start && s.build && !pkg.main) {
       return `FROM node:22-alpine AS build\nWORKDIR /app\nCOPY . .\nRUN npm install --no-audit --no-fund\n${build}RUN for d in dist build out public; do if [ -f "$d/index.html" ]; then cp -r "$d" /site; break; fi; done; test -d /site\nFROM nginx:1.27-alpine\nCOPY --from=build /site /usr/share/nginx/html\n`;
     }
-    return `FROM node:22-alpine\nWORKDIR /app\nCOPY . .\nRUN npm install --no-audit --no-fund\n${build}ENV PORT=3000\nEXPOSE 3000\nCMD ${start}\n`;
+    // Something to run: a start script or an entry file that is there. A package.json with neither (a library, like
+    // knadh/oat) isn't an app: look at it as a static site below instead of starting a container that crashes.
+    if (s.start || has(entry)) return `FROM node:22-alpine\nWORKDIR /app\nCOPY . .\nRUN npm install --no-audit --no-fund\n${build}ENV PORT=3000\nEXPOSE 3000\nCMD ${start}\n`;
   }
   if (has('requirements.txt') || has('pyproject.toml')) {
     const reqs = (read('requirements.txt') ?? '').toLowerCase();
@@ -87,6 +89,11 @@ export function generatedDockerfile(files: string[], read: Read): string | null 
     return `${lines.join('\n')}\n`;
   }
   if (has('index.html')) return 'FROM nginx:1.27-alpine\nCOPY . /usr/share/nginx/html\n';
+  // HTML pages in folders with none at the top (a gallery of pages, like RayVelez27/instalanding.ai): served as they
+  // are, the top level as a folder listing so every page can be reached.
+  if (files.some((f) => /\.html?$/i.test(f) && !/(^|\/)node_modules\//.test(f))) {
+    return "FROM nginx:1.27-alpine\nCOPY . /usr/share/nginx/html\nRUN printf 'server {\\n  listen 80;\\n  root /usr/share/nginx/html;\\n  index index.html index.htm;\\n  autoindex on;\\n}\\n' > /etc/nginx/conf.d/default.conf\n";
+  }
   return null;
 }
 

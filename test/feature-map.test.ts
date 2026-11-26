@@ -222,7 +222,8 @@ describe('reading the facts from Flagsmith', () => {
     assert.equal(reads() - before, 1);
     t += 2;
     assert.equal(await reader.read(), a, 'expired: the last map at once, a new read behind it');
-    await new Promise((r) => setTimeout(r, 300));
+    // The new read runs in the background: wait for it (up to 5 s), never a fixed pause (300 ms failed under load).
+    for (const end = Date.now() + 5000; reads() - before < 2 && Date.now() < end; ) await new Promise((r) => setTimeout(r, 20));
     assert.equal(reads() - before, 2);
     assert.equal(byName(a, 'Experiments').live, `experiment ${SEED.experimentId} is completed; 1 experiment on shop_release so far`);
   });

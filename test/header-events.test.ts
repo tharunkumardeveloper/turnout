@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import { settle } from './settle.ts';
 import http from 'node:http';
 import type { AddressInfo } from 'node:net';
 import { after, before, test } from 'node:test';
@@ -52,7 +53,7 @@ const get = async (base: string, value: string, headers: Record<string, string> 
   flags.tracked = [];
   const res = await fetch(`${base}/api?e=${encodeURIComponent(value)}`, { headers });
   await res.text();
-  await new Promise((r) => setTimeout(r, 20));
+  await settle(flags);
   return res;
 };
 

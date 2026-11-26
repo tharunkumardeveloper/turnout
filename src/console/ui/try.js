@@ -183,7 +183,7 @@ function filled() {
 function kindLine() {
   const n = filled().length;
   const bad = filled().some((r) => !usable(r));
-  const left = ready && step !== 3 ? "Your last test is still running: Open your app's console to see it." : ready;
+  const left = ready && step !== 3 ? "Your last test is still running: Run a test, on the console, opens it." : ready;
   $('try-kind').textContent = left || (bad ? 'Fix the version marked in red first.' : n ? `${n} version${n > 1 ? 's' : ''}: ${KIND[n]}.` : 'Give version A to start.');
   /** @type {HTMLButtonElement} */ ($('try-build')).disabled = !n || bad || Boolean(polling) || offline;
   /** @type {HTMLButtonElement} */ ($('try-next')).disabled = !n || bad;
@@ -466,7 +466,6 @@ async function poll() {
     done.hidden = st.status !== 'ready';
     if (st.status === 'ready') {
       if (!$('try-previews').childElementCount) $('try-previews').replaceChildren(...previews(st));
-      $('try-open-page').hidden = false;
       $('try-done-title').textContent = `Your ${st.kind} test is live`;
       ready = `Ready: the ${st.kind} test is running in Flagsmith.`;
       // A build you just started: once it is ready, go straight to its test page (the bar counts down).
@@ -476,12 +475,11 @@ async function poll() {
         $('try-done-text').textContent = "Opening your app's console: traffic, Flagsmith's results and one-button runs…";
         setTimeout(() => location.assign('/app'), 2600);
       } else if (done.dataset.leaving !== 'true') {
-        $('try-done-text').textContent = "Open your app's console: one button sends visitors and Flagsmith picks the winner.";
+        $('try-done-text').textContent = "It's running: Run a test, on the console, opens your app's console, where one button sends visitors and Flagsmith picks the winner.";
       }
     } else {
       ready = '';
       $('try-previews').replaceChildren();
-      $('try-open-page').hidden = true;
     }
     go(step);
     if (st.status === 'building') polling = setTimeout(poll, 1500);
@@ -512,7 +510,6 @@ async function build() {
   built = true;
   go(3);
   $('try-previews').replaceChildren();
-  $('try-open-page').hidden = true;
   const res = await api('/api/try/build', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ versions, goal: /** @type {HTMLInputElement} */ ($('try-goal')).value, rates, env: /** @type {HTMLTextAreaElement} */ ($('try-env')).value, secondary: /** @type {HTMLTextAreaElement} */ ($('try-secondary')).value.split(/\r?\n/).map((x) => x.trim()).filter(Boolean).slice(0, 5).map((action) => ({ action })), ...(useDatabase ? { database: useDatabase } : {}) }) });
   const body = await res.json().catch(() => ({}));
   if (!res.ok) {

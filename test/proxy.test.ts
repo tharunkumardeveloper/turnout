@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import { settle } from './settle.ts';
 import http from 'node:http';
 import type { AddressInfo } from 'node:net';
 import { after, before, test } from 'node:test';
@@ -115,7 +116,7 @@ test('records conversions, latency and errors for the right identity', async () 
   await page(`${ID_COOKIE}=${id}`);
   await fetch(`${base}/checkout`, { method: 'POST', headers: { cookie: `${ID_COOKIE}=${id}` } });
   await fetch(`${base}/boom`, { headers: { accept: 'text/html', cookie: `${ID_COOKIE}=${id}` } });
-  await new Promise((r) => setTimeout(r, 20));
+  await settle(flags);
 
   const names = flags.tracked.map((t) => `${t.event}:${t.value ?? ''}`);
   assert.ok(names.includes('order_placed:'));
@@ -135,7 +136,7 @@ test('bots get control and are never tracked', async () => {
   flags.tracked = [];
   const res = await fetch(`${base}/`, { headers: { accept: 'text/html', 'user-agent': 'Googlebot/2.1' } });
   assert.equal(await res.text(), 'shop 1.4');
-  await new Promise((r) => setTimeout(r, 20));
+  await settle(flags);
   assert.equal(flags.tracked.length, 0);
 });
 
@@ -209,7 +210,7 @@ test('a secondary metric (add_to_cart) is tracked from its HTTP rule, and is not
   flags.tracked = [];
   await page(`${ID_COOKIE}=${id}`);
   await fetch(`${base}/cart/add`, { method: 'POST', headers: { cookie: `${ID_COOKIE}=${id}` } });
-  await new Promise((r) => setTimeout(r, 20));
+  await settle(flags);
   assert.ok(flags.tracked.some((t) => t.event === 'add_to_cart' && t.identity === id));
   assert.ok(!flags.tracked.some((t) => t.event === 'order_placed'));
 });
@@ -275,7 +276,7 @@ test("a browser's first page load is routed and counted, so a one-page visit (a 
   flags.tracked = [];
   const res = await fetch(`${base}/`, { headers: { accept: 'text/html', 'user-agent': BROWSER_UA } });
   await res.text();
-  await new Promise((r) => setTimeout(r, 20));
+  await settle(flags);
   const id = (res.headers.get('set-cookie') ?? '').match(new RegExp(`${ID_COOKIE}=([0-9a-f-]{36})`))?.[1];
   assert.ok(id, 'the first response sets the ID cookie');
   assert.ok(flags.exposures.includes(id), 'exposure recorded on the first page load');
@@ -291,7 +292,7 @@ test('without the cookie, API calls, assets and non-browser clients never become
   await (await fetch(`${base}/checkout`, { method: 'POST', headers: { 'user-agent': BROWSER_UA } })).text();
   await (await fetch(`${base}/app.js`, { headers: { 'user-agent': BROWSER_UA } })).text();
   await (await fetch(`${base}/`, { headers: { accept: 'text/html', 'user-agent': 'node' } })).text();
-  await new Promise((r) => setTimeout(r, 20));
+  await settle(flags);
   assert.equal(flags.exposures.length, before);
   assert.equal(flags.tracked.length, 0);
 });

@@ -1,5 +1,5 @@
 {
-  "at": "2026-11-26T11:23:30.457Z",
+  "at": "2026-11-26T12:54:01.111Z",
   "rows": [
     {
       "app": "bradtraversy/nodekb",
@@ -470,6 +470,42 @@
       "at": "2026-11-26T11:23:30.457Z"
     },
     {
+      "app": "knadh/oat",
+      "stages": {
+        "build": {
+          "pass": true,
+          "note": ""
+        },
+        "start": {
+          "pass": true,
+          "note": "port 80"
+        },
+        "goals": {
+          "pass": false,
+          "note": "none found on the running app"
+        },
+        "visitors": {
+          "pass": true,
+          "note": "try:a 150 (0 goals), try:b 150 (0 goals)"
+        },
+        "results": {
+          "pass": true,
+          "note": "v2 15%"
+        },
+        "counts": {
+          "pass": true,
+          "note": "try:a 150 vs 150, try:b 150 vs 150"
+        },
+        "ship": {
+          "pass": true,
+          "note": ""
+        }
+      },
+      "seconds": 62,
+      "url": "https://github.com/knadh/oat",
+      "at": "2026-11-26T12:54:01.111Z"
+    },
+    {
       "app": "miguelgrinberg/microblog",
       "stages": {
         "build": {
@@ -480,6 +516,42 @@
       "seconds": 33,
       "url": "https://github.com/miguelgrinberg/microblog",
       "at": "2026-11-26T11:23:30.457Z"
+    },
+    {
+      "app": "RayVelez27/instalanding.ai",
+      "stages": {
+        "build": {
+          "pass": true,
+          "note": ""
+        },
+        "start": {
+          "pass": true,
+          "note": "port 80"
+        },
+        "goals": {
+          "pass": false,
+          "note": "none found on the running app"
+        },
+        "visitors": {
+          "pass": true,
+          "note": "try:a 145 (0 goals), try:b 155 (0 goals)"
+        },
+        "results": {
+          "pass": true,
+          "note": "v2 58%"
+        },
+        "counts": {
+          "pass": true,
+          "note": "try:a 145 vs 145, try:b 155 vs 155"
+        },
+        "ship": {
+          "pass": true,
+          "note": ""
+        }
+      },
+      "seconds": 195,
+      "url": "https://github.com/RayVelez27/instalanding.ai",
+      "at": "2026-11-26T12:21:32.021Z"
     },
     {
       "app": "render-examples/create-react-app",

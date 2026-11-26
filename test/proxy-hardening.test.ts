@@ -1,5 +1,6 @@
 // The proxy's edges: request targets, data quality, headers, timeouts, upgrades, cold starts.
 import assert from 'node:assert/strict';
+import { settle } from './settle.ts';
 import http from 'node:http';
 import net, { type AddressInfo } from 'node:net';
 import { after, before, describe, test } from 'node:test';
@@ -96,11 +97,11 @@ test('a first request records no exposure and no events; the cookie round-trip d
   const first = await page();
   const cookie = (first.headers.get('set-cookie') ?? '').split(';')[0]!;
   await first.text();
-  await new Promise((r) => setTimeout(r, 20));
+  await settle(flags);
   assert.equal(flags.exposures.length, before.exposures);
   assert.equal(flags.tracked.length, before.tracked);
   await (await page(cookie)).text();
-  await new Promise((r) => setTimeout(r, 20));
+  await settle(flags);
   assert.equal(flags.exposures.length, before.exposures + 1);
   assert.ok(flags.tracked.length > before.tracked);
 });
