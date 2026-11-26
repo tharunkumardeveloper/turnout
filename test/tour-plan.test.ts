@@ -317,7 +317,9 @@ describe('the public page tours: Quick and Full, narration only, never waiting f
         assert.ok(!b.watchJob && !b.watchIdle, `${b.id} waits for the autopilot`);
         assert.ok(!b.flagsmith, `${b.id} links to Flagsmith (private on the server)`);
         const id = b.target.replace(/^#/, '');
-        assert.ok(html.includes(`id="${id}"`), `${b.id}: ${b.target} is on the page`);
+        // The stage card's step rail is drawn from the state: its dots are #rail-<step id>.
+        if (id.startsWith('rail-')) assert.ok(['visitors', 'score', 'decide', 'verify', 'swing', 'preview', 'release'].includes(id.slice(5)), `${b.id}: ${b.target} is a step`);
+        else assert.ok(html.includes(`id="${id}"`), `${b.id}: ${b.target} is on the page`);
         assert.equal(typeof b.details, 'boolean', `${b.id} says whether it needs the full view`);
         assert.ok(b.body.length > 40, `${b.id} says something`);
       }
@@ -334,5 +336,7 @@ describe('the public page tours: Quick and Full, narration only, never waiting f
     assert.deepEqual(full.filter((b: any) => b.details).map((b: any) => b.target), ['#steps-panel', '#fs-panel', '#history']);
     assert.ok(full.some((b: any) => b.id === 'pub:step:reset'));
     assert.match(quick[0].body, /Right now it's on step 2\. Flagsmith scores both/);
+    const stepTargets = quick.filter((b: any) => b.id.startsWith('pub:step:')).map((b: any) => b.target);
+    assert.deepEqual(stepTargets, ['#rail-visitors', '#rail-score', '#rail-decide', '#rail-verify'], 'the spotlight moves along the rail');
   });
 });

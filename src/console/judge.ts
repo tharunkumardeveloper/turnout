@@ -881,7 +881,7 @@ export function createJudge(opts: JudgeOptions, ctx: JudgeContext) {
       target: opts.proxyUrl,
       visitors: n,
       rates,
-      concurrency: opts.concurrency ?? 20,
+      concurrency: opts.concurrency ?? 50, // 50 in flight: the hold-back queue keeps every event (spikes/RESULTS.md)
       seed: deps.now() >>> 0,
       debugToken: opts.previewToken,
       log: (line) => {

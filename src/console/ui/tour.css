@@ -272,3 +272,7 @@
   .tour-bubble { transform: none; }
   .tour-hover { transform: none; }
 }
+
+/* The → keycap on Next: the keyboard key that does the same */
+.tour .tour-next { display: inline-flex; align-items: center; gap: 8px; }
+.tour .tour-key { display: inline-grid; place-items: center; min-width: 24px; height: 22px; padding: 0 5px; border-radius: 5px; font: 700 13px var(--sans, system-ui); color: var(--tour-accent, #2f9e6b); background: #fff; border: 1px solid color-mix(in srgb, #000 18%, transparent); border-bottom-width: 3px; box-shadow: 0 1px 0 rgba(0,0,0,.08); line-height: 1; }

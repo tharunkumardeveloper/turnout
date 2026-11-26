@@ -43,7 +43,7 @@ export function phaseOf(current) {
 /** How long autoplay leaves a beat's explanation on screen: enough to read it at a brisk pace. */
 export function readingMs(beat, flavor = 'full') {
   const words = `${beat?.title ?? ''} ${beat?.body ?? ''}`.split(/\s+/).filter(Boolean).length;
-  if (flavor === 'quick') return Math.max(3000, Math.min(8000, 1200 + words * 130));
+  if (flavor === 'quick') return Math.max(2600, Math.min(6000, 900 + words * 95));
   return Math.max(4500, Math.min(13000, 2000 + words * 180));
 }
 
@@ -701,6 +701,7 @@ export function watchIdleBeat(s) {
 // The same two lengths as the console's tours, but narration only (nobody can click on the public page) and never
 // waiting for the autopilot: each beat explains a part of the page or a step, using what the page shows right now,
 // and the tour moves on by itself. `details: true` opens the full view for beats about its columns; `false` closes it.
+const RAIL_IDS = ['visitors', 'score', 'decide', 'verify', 'swing', 'preview', 'release']; // judge.ts StepId
 const STEP_ORDER = ['visitors', 'score', 'decide', 'verify', 'preview', 'release', 'reset'];
 const STEP_TITLES = {
   visitors: '1. Visitors arrive', score: "2. Flagsmith scores both", decide: '3. Ship, revert or keep running', verify: '4. Check everyone got it',
@@ -726,7 +727,9 @@ export function publicTour(s, flavor = 'quick') {
   const steps = flavor === 'full' ? STEP_ORDER : ['visitors', 'score', 'decide', 'verify'];
   for (const id of steps) {
     const body = id === 'decide' ? DECIDE_TEXT : (WATCH_JOB_TEXT[id] ?? '');
-    beats.push({ id: `pub:step:${id}`, tab: 'story', details: false, target: '#stage', title: STEP_TITLES[id], body });
+    // Each step points at its own dot on the stage card's step rail, so the spotlight moves along as the story does.
+    const target = RAIL_IDS.includes(id) ? `#rail-${id}` : '#stage-rail';
+    beats.push({ id: `pub:step:${id}`, tab: 'story', details: false, target, title: STEP_TITLES[id], body });
   }
   if (flavor === 'full') {
     beats.push(

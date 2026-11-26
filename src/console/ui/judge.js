@@ -363,7 +363,7 @@ function renderRail(s) {
   const running = s.job?.status === 'running';
   setSlot(rail, JSON.stringify([steps.map((st) => [st.id, st.status]), running]), () =>
     steps.map((st, i) =>
-      h('li', { class: 'srail-step', 'data-status': st.status, 'data-running': String(running && st.status === 'current'), 'aria-current': st.status === 'current' ? 'step' : null },
+      h('li', { id: `rail-${st.id}`, class: 'srail-step', 'data-status': st.status, 'data-running': String(running && st.status === 'current'), 'aria-current': st.status === 'current' ? 'step' : null },
         h('span', { class: 'srail-dot', 'aria-hidden': 'true' }, st.status === 'done' ? '✓' : String(i + 1)),
         h('span', { class: 'srail-label' }, st.title))),
   );

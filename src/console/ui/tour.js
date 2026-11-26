@@ -446,7 +446,10 @@ export function createTour(app) {
     const p = t.phase;
     const auto = t.mode !== 'guide';
     nextBtn.hidden = !(p === 'read' || (p === 'armed' && auto) || p === 'failed');
-    nextBtn.textContent = p === 'failed' ? 'Try again' : p === 'armed' ? 'Click it now' : b?.last ? 'Finish' : 'Next';
+    const label = p === 'failed' ? 'Try again' : p === 'armed' ? 'Click it now' : b?.last ? 'Finish' : 'Next';
+    // Next and Finish show the key that does the same: → on the keyboard.
+    nextBtn.replaceChildren(label, ...(label === 'Next' || label === 'Finish' ? [h('kbd', { class: 'tour-key', 'aria-hidden': 'true' }, '→')] : []));
+    nextBtn.setAttribute('aria-keyshortcuts', 'ArrowRight Enter');
     timer.hidden = !(auto && ((p === 'read' && !b?.last) || p === 'armed'));
     quitBtn.hidden = p !== 'failed';
     keys.textContent = p === 'failed' ? '' : auto ? (t.paused ? 'Paused · Space resumes' : 'Space pauses · → skips') : p === 'read' ? '→ or Enter for next' : '';
