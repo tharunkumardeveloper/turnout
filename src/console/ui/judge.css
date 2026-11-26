@@ -937,3 +937,5 @@ body.welcome-open { overflow: hidden; }
 .focus-view .col-main > #round-card { order: 3; }
 .focus-view .col-main > #track-card { order: 4; }
 .focus-view .col-main > #visitor-card { order: 5; }
+
+.sd-last { display: block; margin-top: 4px; font-size: 13px; font-weight: 600; color: #2f9e6b; }

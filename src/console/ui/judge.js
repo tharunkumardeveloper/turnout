@@ -389,7 +389,10 @@ function renderShowdown(s) {
   card.hidden = !v;
   if (!v) return;
   if (sd.exp !== s.experiment.id) { sd.exp = s.experiment.id; sd.counts = {}; }
-  setText($('showdown-head'), v.headline);
+  setSlot($('showdown-head'), JSON.stringify([v.headline, v.last, v.phase]), () => [
+    v.headline,
+    v.last && v.phase === 'testing' ? h('span', { class: 'sd-last' }, v.last) : null,
+  ]);
   setSlot($('sd-vs'), JSON.stringify(v.chance), () => [
     'VS',
     v.chance === null ? null : h('small', {}, `${Math.round(v.chance * 100)}% that ${v.sides[1].release} is better`),

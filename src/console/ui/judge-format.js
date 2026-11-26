@@ -870,8 +870,16 @@ export function showdown(s) {
     flagsmith: arm(key),
     state: phase === 'testing' ? 'testing' : (phase === 'shipped') === (key === 'v2') ? 'winner' : 'retired',
   });
+  // The round before this one, from the release history: shown under the headline once the next round has started.
+  const prev = (s.ledger ?? []).filter((x) => x.experimentId !== e.id && (x.decision === 'shipped' || x.decision === 'reverted')).at(-1);
+  const last = prev
+    ? prev.decision === 'shipped'
+      ? `Last round: ${prev.release} won and was shipped to everyone (replacing ${prev.replaced}).`
+      : `Last round: ${prev.release} was kept; the new version was rolled back.`
+    : null;
   return {
     phase,
+    last,
     chance: goal?.v2?.chanceToWin ?? null,
     sides: [side('control', e.control), side('v2', e.v2)],
     headline:

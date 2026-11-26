@@ -683,3 +683,10 @@ test('showdown: the two versions under test, then the winner shipped or the curr
   assert.deepEqual([kept.phase, ...kept.sides.map((x: any) => x.state)], ['kept', 'winner', 'retired']);
   assert.equal(J.showdown({ experiment: null }), null);
 });
+
+test('showdown: the last round stays readable once the next one starts', () => {
+  const s = { experiment: { id: 2, status: 'running', control: 'shop:1.5', v2: 'shop:1.6' }, live: 'shop:1.5', results: null,
+    ledger: [{ experimentId: 1, decision: 'shipped', release: 'shop:1.5', replaced: 'shop:1.4' }, { experimentId: 1, decision: 'kept-running', release: null }] };
+  assert.equal(J.showdown(s).last, 'Last round: shop:1.5 won and was shipped to everyone (replacing shop:1.4).');
+  assert.equal(J.showdown({ ...s, ledger: [] }).last, null);
+});
