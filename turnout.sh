@@ -280,6 +280,9 @@ start() {
   fi
 
   echo
+  # Caddy reads its Caddyfile only at start (and its admin API is off, so no hot reload): restart it, so a pulled
+  # change to the Caddyfile is never ignored by a running Caddy. It takes a second.
+  if [ "$MODE" = server ]; then dc restart caddy >/dev/null 2>&1; fi
   echo " [4/5] Checking that everything is in place (turnout doctor)..."
   doctor
 
