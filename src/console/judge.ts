@@ -27,7 +27,7 @@ import {
 } from '../flagsmith/experiments.ts';
 import { readLedger, type LedgerEntry } from '../ledger.ts';
 
-export const JUDGE_ACTIONS = ['visitors', 'score', 'ship', 'revert', 'keep-running', 'verify', 'swing-back', 'swing-forward', 'preview', 'release', 'reset'] as const;
+export const JUDGE_ACTIONS = ['visitors', 'score', 'ship', 'revert', 'keep-running', 'verify', 'swing-back', 'swing-forward', 'preview', 'release', 'reset', 'abc'] as const;
 export type JudgeAction = (typeof JUDGE_ACTIONS)[number];
 export type StepId = 'visitors' | 'score' | 'decide' | 'verify' | 'swing' | 'preview' | 'release';
 export type StepStatus = 'done' | 'current' | 'todo' | 'optional';
@@ -75,6 +75,7 @@ export const JOB_STAGES: Record<JudgeAction, string[]> = {
   preview: ['Point v2 at the next release', 'Give it to the preview segment only', 'Make the preview link'],
   release: ['Point v2 at the next release', 'Start the experiment in Flagsmith'],
   reset: ['Revert the running experiment', "Set the flag's default back to the first release", 'Start a fresh experiment'],
+  abc: ['Revert the running experiment', "Set the flag's default back to the first release", 'Start the A/B/C experiment'],
 };
 
 /** The routing the page draws, from the experiment, the release everyone else gets and the preview override. */
@@ -112,6 +113,8 @@ export type MetricSummary = {
   arms: Record<string, { n: number; mean: number }>;
   v2: { lift: number; chanceToWin: number; ciLow: number; ciHigh: number } | null;
   verdict: Verdict;
+  // Every new version against control (an A/B/C test has v2 and v3), as Flagsmith returned it.
+  byArm?: Record<string, { lift: number; chanceToWin: number; ciLow: number; ciHigh: number; verdict: Verdict }>;
 };
 
 export type JudgeState = {
@@ -128,6 +131,7 @@ export type JudgeState = {
     status: ExperimentDetail['status'];
     control: string | null;
     v2: string | null;
+    arms?: { key: string; release: string | null }[]; // control first, then every new version tested (v2, v3…)
     startedAt: string | null;
     endedAt: string | null;
   } | null;
@@ -137,6 +141,7 @@ export type JudgeState = {
     metrics: MetricSummary[];
     winner: { key: string; release: string | null; chanceToWin: number } | null;
     losingGuardrails: GuardrailWarning[];
+    losingByArm?: Record<string, GuardrailWarning[]>; // each new version's losing guardrails
     recommendation: Recommendation; // ship / keep running / revert, read off Flagsmith's interval and chance to win
   } | null;
   ledger: LedgerEntry[];
@@ -203,7 +208,7 @@ export async function readLiveVisitors(exps: Experiments, now: () => number = Da
 export type JudgeDeps = {
   simulate: (opts: SimOptions) => Promise<SimReport>;
   preview: (release: string, envKey: string, log: (line: string) => void) => Promise<void>;
-  release: (release: string, hypothesis: string, envKey: string, log: (line: string) => void) => Promise<{ experimentId: number }>;
+  release: (release: string, hypothesis: string, envKey: string, log: (line: string) => void, also?: string[]) => Promise<{ experimentId: number }>;
   check: ((log: (line: string) => void) => Promise<number>) | null; // leftover splits; null without a server key
   visit: () => Promise<string | null>; // one fresh visitor loads / twice; the release the second load got
   probe: () => Promise<boolean>; // one cookie-less request (never counted): is the proxy enrolling visitors yet?
@@ -274,10 +279,10 @@ export function shared<T>(load: () => Promise<T>, ttlMs: number, now: () => numb
 
 // shop:1.6 converts better but carries a deliberate test fault, a seeded 60 ms delay: it wins on orders and loses
 // the latency guardrail.
-// The demo's true order rates (inputs, not evidence). 1.5 converts 60% better than 1.4, so 3,000 visitors give Flagsmith a
-// clear answer on its first look: a closer pair often meant "keep running", and Flagsmith allows its next look only
-// 5 minutes later, which stalled the tour.
-export const DEFAULT_RATES = 'shop:1.4=0.10,shop:1.5=0.16,shop:1.6=0.20';
+// The demo's true order rates (inputs, not evidence). 1.5 converts twice as often as 1.4, so even an A/B/C test's 700
+// shoppers per version give Flagsmith a clear answer on its first look: a closer pair often meant "keep running", and
+// Flagsmith allows its next look only 5 minutes later, which stalled the demo.
+export const DEFAULT_RATES = 'shop:1.4=0.10,shop:1.5=0.20,shop:1.6=0.22';
 export const REFRESH_EVERY_MS = 5 * 60_000; // Flagsmith accepts one results refresh per experiment every 5 minutes
 const DEFAULT_VISITORS = 1500;
 const VERIFY_VISITORS = 50;
@@ -305,6 +310,23 @@ export function testedReleases(experiment: ExperimentDetail, releases: readonly 
   return { control, v2: releaseOf(experiment, 'v2') };
 }
 
+/**
+ * Every arm the experiment tests: control first, then v2, v3… From the experiment's name as Turnout writes it
+ * ("flag: shop:1.5 vs shop:1.6 vs shop:1.4", the last is control), else from the flag's options in the rollout.
+ */
+export function testedArms(experiment: ExperimentDetail, releases: readonly string[]): { key: string; release: string | null }[] {
+  const parts = experiment.name.replace(/^[^:]*:\s*/, '').split(/\s+vs\s+/).map((x) => x.trim());
+  if (parts.length >= 2 && parts.every((x) => releases.includes(x))) {
+    const control = parts.pop()!;
+    return [{ key: CONTROL, release: control }, ...parts.map((release, i) => ({ key: `v${i + 2}`, release }))];
+  }
+  const allocated = new Set(
+    (experiment.experiment_rollout?.multivariate_feature_state_values ?? []).filter((v) => v.percentage_allocation > 0).map((v) => v.multivariate_feature_option),
+  );
+  const treatments = experiment.feature.multivariate_options.filter((o) => o.key && (o.key === 'v2' || allocated.has(o.id)));
+  return [{ key: CONTROL, release: releaseOf(experiment, CONTROL) }, ...treatments.map((o) => ({ key: o.key!, release: o.string_value }))];
+}
+
 export function nextRelease(releases: readonly string[], v2: string | null): string | null {
   const i = v2 ? releases.indexOf(v2) : -1;
   return i >= 0 ? (releases[i + 1] ?? null) : null;
@@ -330,6 +352,12 @@ export function summarizeResults(experiment: ExperimentDetail, results: Results 
       arms,
       v2: inference ? { lift: inference.lift, chanceToWin: inference.chance_to_win, ciLow: inference.ci_low, ciHigh: inference.ci_high } : null,
       verdict: verdictOf(inference, r ? Object.values(r.variants) : null),
+      byArm: Object.fromEntries(
+        Object.entries(r?.inference ?? {}).flatMap(([key, x]) => (x ? [[
+          key,
+          { lift: x.lift, chanceToWin: x.chance_to_win, ciLow: x.ci_low, ciHigh: x.ci_high, verdict: verdictOf(x, null) },
+        ]] : [])),
+      ),
     };
   });
 }
@@ -473,8 +501,8 @@ export function createJudge(opts: JudgeOptions, ctx: JudgeContext) {
     simulate: runSimulation,
     preview: (label, envKey, log) =>
       runPreview({ apiUrl: opts.apiUrl, adminKey: opts.adminKey, envKey, flag: opts.flag, releases: new Set(opts.releases), newRelease: label, log }),
-    release: (label, hypothesis, envKey, log) =>
-      runRelease({ apiUrl: opts.apiUrl, adminKey: opts.adminKey, envKey, flag: opts.flag, releases: new Set(opts.releases), newRelease: label, hypothesis, log }),
+    release: (label, hypothesis, envKey, log, also) =>
+      runRelease({ apiUrl: opts.apiUrl, adminKey: opts.adminKey, envKey, flag: opts.flag, releases: new Set(opts.releases), newRelease: label, hypothesis, log, ...(also?.length ? { also } : {}) }),
     check: opts.serverKey ? (log) => runCheck({ apiUrl: opts.apiUrl, serverKey: opts.serverKey!, log }) : null,
     visit: () => freshVisitor(opts.proxyUrl, opts.previewToken),
     // Tests that fake visits are taken as already enrolled unless they fake the probe too.
@@ -561,6 +589,7 @@ export function createJudge(opts: JudgeOptions, ctx: JudgeContext) {
     ]);
     const options = experiment.feature.multivariate_options.map((o) => ({ ...o, default_percentage_allocation: 0 }));
     const tested = testedReleases(experiment, opts.releases);
+    const arms = testedArms(experiment, opts.releases);
     const winner = pickWinner(experiment, results);
     const losing = winner ? losingGuardrails(experiment, results, winner.key) : [];
     const entry = shippedEntry(experiment.id, experiment.feature.name);
@@ -574,6 +603,7 @@ export function createJudge(opts: JudgeOptions, ctx: JudgeContext) {
       flag,
       pid,
       tested,
+      arms,
       winner,
       losing,
       entry,
@@ -687,6 +717,7 @@ export function createJudge(opts: JudgeOptions, ctx: JudgeContext) {
         status: experiment.status,
         control: tested.control,
         v2: tested.v2,
+        arms: s.arms,
         startedAt: experiment.started_at,
         endedAt: experiment.ended_at,
       },
@@ -697,6 +728,7 @@ export function createJudge(opts: JudgeOptions, ctx: JudgeContext) {
             metrics: summarizeResults(experiment, results),
             winner: winner ? { key: winner.key, release: winner.key === CONTROL ? tested.control : tested.v2, chanceToWin: winner.chanceToWin } : null,
             losingGuardrails: losing,
+            losingByArm: Object.fromEntries(s.arms.slice(1).map((a) => [a.key, losingGuardrails(experiment, results, a.key)])),
             recommendation: s.recommendation,
           }
         : null,
@@ -759,6 +791,7 @@ export function createJudge(opts: JudgeOptions, ctx: JudgeContext) {
         if (!finished) return running;
         return s.next ? null : `${s.tested.v2 ?? 'This release'} is the last release in turnout.config.yml. Reset to start the story again.`;
       case 'reset':
+      case 'abc':
         return null;
     }
   }
@@ -862,7 +895,9 @@ export function createJudge(opts: JudgeOptions, ctx: JudgeContext) {
     const { control, v2 } = s.tested;
     const rateOf = (release: string | null) => (release ? (opts.rates[release] ?? 0.1) : 0.1);
     const truth = opts.blind?.enabled && control && v2 ? opts.blind.store.truthFor(s.experiment.id, control, v2) : null;
-    const rates = truth ? { [CONTROL]: truth.rates.control, v2: truth.rates.v2 } : { [CONTROL]: rateOf(control), v2: rateOf(v2) };
+    const rates: Record<string, number> = truth
+      ? { [CONTROL]: truth.rates.control, v2: truth.rates.v2 }
+      : Object.fromEntries(s.arms.map((a) => [a.key, rateOf(a.key === 'v2' ? v2 : a.key === CONTROL ? control : a.release)]));
     // Right after a release or reset the proxy may still hold the previous flag state for a few seconds; visitors
     // sent then would land outside the experiment and never be counted.
     for (let i = 0; i <= 20; i++) {
@@ -877,7 +912,7 @@ export function createJudge(opts: JudgeOptions, ctx: JudgeContext) {
     log(
       truth
         ? 'Blind round: the true order rates were drawn at random and stay hidden until the round is decided. Flagsmith has to find the difference, if there is one.'
-        : `True order rates, set as inputs (not evidence): ${control} ${pct(rates[CONTROL]!)}, ${v2} ${pct(rates.v2!)}. Add-to-cart: 30% on both, so the difference is at checkout.`,
+        : `True order rates, set as inputs (not evidence): ${s.arms.map((a) => `${a.key === 'v2' ? v2 : a.key === CONTROL ? control : a.release} ${pct(rates[a.key] ?? 0)}`).join(', ')}. Add-to-cart: 30% on each, so the difference is at checkout.`,
     );
     let bucket = 0;
     const report = await deps.simulate({
@@ -978,12 +1013,15 @@ export function createJudge(opts: JudgeOptions, ctx: JudgeContext) {
 
   const decideAction = (action: 'ship' | 'revert'): Action => async (s, body, { log, stage }) => {
     let done = 0;
-    const winner = action === 'ship' ? s.winner?.key : CONTROL;
+    // Ship the version Turnout recommends (in an A/B/C test, the best one that is safe), else Flagsmith's leader.
+    const rec = s.recommendation;
+    const winner = action === 'ship' ? (rec.call === 'ship' && rec.variant ? rec.variant : s.winner?.key) : CONTROL;
     if (!winner) throw new Error('Flagsmith has no winner yet. Send visitors, then get the results.');
-    const release = winner === CONTROL ? s.tested.control : s.tested.v2;
+    const release = winner === CONTROL ? s.tested.control : winner === 'v2' ? s.tested.v2 : (s.arms.find((a) => a.key === winner)?.release ?? null);
+    const chance = s.results?.payload?.metrics.find((m) => m.metric_id === s.experiment.metrics[0]?.metric)?.inference[winner]?.chance_to_win;
     log(
       action === 'ship'
-        ? `Shipping ${winner} (${release}), the variation Flagsmith's results page shows winning (${pct(s.winner!.chanceToWin)}).`
+        ? `Shipping ${winner} (${release})${chance !== undefined ? `, ${pct(chance)} chance to beat control on the goal` : ''}.`
         : `Reverting everyone to control (${s.tested.control}).`,
     );
     const decision = await decide({
@@ -1031,6 +1069,15 @@ export function createJudge(opts: JudgeOptions, ctx: JudgeContext) {
   };
 
   const verify: Action = async (s, _body, { log, stage }) => {
+    // The proxy re-reads the flag every few seconds: right after a decision it may still split visitors the old way.
+    // Wait until a fresh visitor gets what Flagsmith now serves, then count (up to 20 s, then count anyway).
+    for (let i = 0; i <= 20; i++) {
+      const served = await deps.visit().catch(() => null);
+      if (served === s.live) break;
+      if (i === 0) log(`Waiting for Turnout to pick up the flag change (a new visitor still gets ${served ?? 'no answer'})…`);
+      if (i === 20) log("Turnout still hasn't picked up the change after 20 s; counting anyway.");
+      else await deps.sleep(1000);
+    }
     log(`Flagsmith's environment default serves ${s.live}. Sending ${VERIFY_VISITORS} new visitors (no cookies), each loading the shop twice…`);
     const byRelease = await visitBatch(VERIFY_VISITORS);
     stage(1);
@@ -1108,10 +1155,14 @@ export function createJudge(opts: JudgeOptions, ctx: JudgeContext) {
     return { experimentId, release: next };
   };
 
-  const reset: Action = async (s, _body, { log, stage }) => {
-    const [first, second] = opts.releases;
+  // Reset: everyone back on the first release, then a fresh second-vs-first experiment. A/B/C: the same, testing
+  // every other release at once against the first, split evenly.
+  const startOver = (abc: boolean): Action => async (s, _body, { log, stage }) => {
+    const [first, second, ...rest] = opts.releases;
     if (!first || !second) throw new Error('turnout.config.yml must list at least two releases.');
-    log(`Resetting the story: everyone back on ${first}, then a fresh ${second} vs ${first} experiment.`);
+    if (abc && !rest.length) throw new Error('An A/B/C test needs at least three releases in turnout.config.yml.');
+    const also = abc ? rest : [];
+    log(`Starting over: everyone back on ${first}, then a fresh ${[second, ...also].join(' vs ')} vs ${first} experiment.`);
     if (s.experiment.status !== 'completed') {
       log(`Experiment ${s.experiment.id} is ${s.experiment.status}; reverting it first.`);
       await decide({
@@ -1134,12 +1185,15 @@ export function createJudge(opts: JudgeOptions, ctx: JudgeContext) {
     });
     log(`✓ The flag's environment default serves ${first} to everyone.`);
     stage(2);
-    const { experimentId } = await deps.release(second, defaultHypothesis(second, opts.goal), s.exps.ref.envKey, log);
+    const hypothesis = defaultHypothesis(also.length ? [second, ...also].join(' or ') : second, opts.goal);
+    const { experimentId } = also.length
+      ? await deps.release(second, hypothesis, s.exps.ref.envKey, log, also)
+      : await deps.release(second, hypothesis, s.exps.ref.envKey, log);
     visitorsSent.clear();
     lastVisitorsAt.clear();
     verified.clear();
     swung.clear();
-    log(`✓ Back at the start: experiment ${experimentId} (${second} vs ${first}) is running.`);
+    log(`✓ Back at the start: experiment ${experimentId} (${[second, ...also].join(' vs ')} vs ${first}) is running.`);
     return { experimentId };
   };
 
@@ -1154,7 +1208,8 @@ export function createJudge(opts: JudgeOptions, ctx: JudgeContext) {
     'swing-forward': swing('forward'),
     preview: previewAction,
     release: releaseAction,
-    reset,
+    reset: startOver(false),
+    abc: startOver(true),
   };
 
   return {

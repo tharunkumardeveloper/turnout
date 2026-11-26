@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
   <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="color-scheme" content="light dark">
   <meta name="turnout-console" content="">
   <title>Turnout demo</title>
@@ -11,58 +11,49 @@
   <script type="module" src="/demo.js"></script>
 </head>
 <body>
+  <!-- One screen, no scrolling: the bar, then the steps on the left and the versions and Flagsmith's results on the right. -->
   <header class="top">
-    <div class="top-in">
-      <a class="brand" href="/judge" aria-label="Turnout demo">
-        <svg class="brand-mark" viewBox="0 0 32 32" aria-hidden="true" focusable="false">
-          <path d="M3 16h10c5 0 6-8 13-8" /><path d="M13 16c5 0 6 8 13 8" /><circle cx="13" cy="16" r="3" />
-        </svg>
-        Turnout
-      </a>
+    <a class="brand" href="/judge" aria-label="Turnout demo">
+      <svg class="brand-mark" viewBox="0 0 32 32" aria-hidden="true" focusable="false">
+        <path d="M3 16h10c5 0 6-8 13-8" /><path d="M13 16c5 0 6 8 13 8" /><circle cx="13" cy="16" r="3" />
+      </svg>
+      Turnout
+    </a>
+    <p class="tagline">Every release becomes a Flagsmith experiment. The shop has no Flagsmith code.</p>
+    <div class="top-actions">
+      <button class="btn btn-ghost" id="autoplay" type="button" aria-pressed="false">▶ Play it for me</button>
+      <details class="history" id="history-box">
+        <summary>Earlier tests <span id="history-count"></span></summary>
+        <ul class="history-list" id="history"></ul>
+      </details>
       <nav class="top-links" aria-label="Other views">
-        <a id="link-shop" href="#" target="_blank" rel="noopener">Open the shop ↗</a>
+        <a id="link-shop" href="#" target="_blank" rel="noopener">Shop ↗</a>
         <a id="link-flagsmith" href="#" target="_blank" rel="noopener">Flagsmith ↗</a>
         <a href="/">Full console</a>
       </nav>
     </div>
   </header>
 
-  <main class="page" id="main">
-    <section class="intro">
-      <h1>Every release becomes a Flagsmith experiment</h1>
-      <p>Turnout sits in front of a web shop. When a new version comes out, Flagsmith shows it to half the shoppers and the current version to the other half, then says which one did better. You ship it or roll it back with one flag change. The shop has no Flagsmith code.</p>
-      <div class="intro-actions">
-        <button class="btn btn-ghost" id="autoplay" type="button" aria-pressed="false">▶ Play it for me</button>
-        <span class="intro-note">or click the green button in each step yourself</span>
-      </div>
+  <main class="screen" id="main">
+    <section class="panel steps-panel" aria-labelledby="steps-title">
+      <h2 class="eyebrow" id="steps-title">The test, step by step <span class="card-meta" id="exp-id"></span></h2>
+      <p class="now" id="now" aria-live="polite">Reading Flagsmith…</p>
+      <ol class="steps" id="steps"></ol>
+      <div class="next" id="next" hidden></div>
+      <p class="error" id="error" role="alert" hidden></p>
     </section>
 
-    <section class="card" aria-labelledby="now-title">
-      <h2 class="eyebrow" id="now-title">Right now</h2>
-      <p class="now" id="now" aria-live="polite">Reading Flagsmith…</p>
+    <section class="panel versions-panel" aria-labelledby="versions-title">
+      <h2 class="eyebrow" id="versions-title">The versions <span class="card-meta">A is what everyone gets now</span></h2>
       <div class="versions" id="versions"></div>
     </section>
 
-    <section class="card" aria-labelledby="steps-title">
-      <div class="card-head">
-        <h2 class="eyebrow" id="steps-title">The test, step by step</h2>
-        <span class="card-meta" id="exp-id"></span>
-      </div>
-      <ol class="steps" id="steps"></ol>
-      <div class="next" id="next" hidden></div>
+    <section class="panel results-panel" aria-labelledby="results-title">
+      <h2 class="eyebrow" id="results-title">What Flagsmith measured <a class="card-meta" id="results-link" href="#" target="_blank" rel="noopener" hidden>open in Flagsmith ↗</a></h2>
+      <div class="results" id="results"><p class="placeholder">Flagsmith's results appear here once shoppers have gone through and you ask for them.</p></div>
     </section>
-
-    <details class="card history" id="history-box">
-      <summary>Earlier tests <span id="history-count"></span></summary>
-      <ul class="history-list" id="history"></ul>
-    </details>
-
-    <p class="error" id="error" role="alert" hidden></p>
   </main>
 
-  <footer class="foot">
-    <p>Flagsmith decides; Turnout does no statistics of its own. Every shopper on this page is simulated.</p>
-    <p><a href="/setup">Setup check</a> · <a href="/flagsmith">What Turnout uses in Flagsmith</a></p>
-  </footer>
+  <footer class="foot">Flagsmith decides; Turnout does no statistics of its own. Every shopper here is simulated. <a href="/setup">Setup check</a> · <a href="/flagsmith">What Turnout uses in Flagsmith</a></footer>
 </body>
 </html>

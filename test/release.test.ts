@@ -196,3 +196,43 @@ test('the launch estimate says unknown without a baseline', async () => {
   const { lines } = await run(state, 'shop:1.6');
   assert.match(lines.at(-1)!, /unknown \(no baseline goal rate from a previous experiment\)/);
 });
+
+test('release with also: an A/B/C test, every new release on its own variation (v3 created once), split evenly', async () => {
+  const state = seededState();
+  fake ??= await startFakeAdmin(state);
+  const lines: string[] = [];
+  const { experimentId } = await release({
+    apiUrl: fake.apiUrl,
+    adminKey: SEED.adminKey,
+    envKey: SEED.envKey,
+    flag: 'shop_release',
+    releases: RELEASES,
+    newRelease: 'shop:1.5',
+    also: ['shop:1.6'],
+    hypothesis: 'shop:1.5 or shop:1.6 raises order_placed',
+    log: (l) => lines.push(l),
+  });
+  const options = state.features[0]!.multivariate_options;
+  assert.deepEqual(options.map((o) => [o.key, o.string_value]), [['v2', 'shop:1.5'], ['v3', 'shop:1.6']]);
+  assert.equal(calls(state, 'POST', /mv-options\/$/).length, 1, 'v3 is created on the flag');
+  // Nobody outside the experiment gets a new release: every variation at 0% on the environment default.
+  assert.ok(flagOf(state).environment_default.variants.every((v) => v.weight === 0));
+  const e = newest(state);
+  assert.equal(e.id, experimentId);
+  assert.equal(e.name, 'shop_release: shop:1.5 vs shop:1.6 vs shop:1.4');
+  assert.deepEqual(
+    e.experiment_rollout!.multivariate_feature_state_values.map((v) => v.percentage_allocation),
+    [33, 33],
+    'control keeps the remaining 34%',
+  );
+  assert.match(lines.join('\n'), /33% of visitors each get shop:1\.5 and shop:1\.6, the rest shop:1\.4 \(control\)/);
+});
+
+test('release with also refuses a split, and a release that repeats', async () => {
+  const state = seededState();
+  fake ??= await startFakeAdmin(state);
+  const base = { apiUrl: fake.apiUrl, adminKey: SEED.adminKey, envKey: SEED.envKey, flag: 'shop_release', releases: RELEASES, newRelease: 'shop:1.5', hypothesis: 'h' };
+  await assert.rejects(release({ ...base, also: ['shop:1.6'], split: 20, log: () => {} }), /splits visitors evenly/);
+  await assert.rejects(release({ ...base, also: ['shop:1.5'], log: () => {} }), /must be different/);
+  assert.deepEqual(writes(state), []);
+});

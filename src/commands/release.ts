@@ -14,6 +14,7 @@ type Options = {
   hypothesis: string;
   split?: number; // % of the rollout that gets the new release
   aa?: boolean; // A/A: v2 serves the live release too (newRelease is then ignored unless it names the live one)
+  also?: string[]; // more new releases in the same experiment (an A/B/C test): variants v3, v4…, split evenly
   mde?: number; // relative lift the launch estimate sizes for, % (default 10)
   dailyVisitors?: number; // visitors a day through the experiment, for the estimate in days
   log?: (line: string) => void;
@@ -97,15 +98,19 @@ export async function release(opts: Options): Promise<{ experimentId: number }> 
     throw new Error(`${opts.newRelease} is already what everyone gets. To test the setup itself, run an A/A: turnout release --aa.`);
   }
   const next = opts.aa ? live : opts.newRelease;
-  for (const label of new Set([live, next])) {
+  const also = opts.aa ? [] : (opts.also ?? []);
+  if (opts.split !== undefined && also.length) throw new Error('An A/B/C test splits visitors evenly; leave out the split.');
+  if (also.length && new Set([live, next, ...also]).size !== 2 + also.length) {
+    throw new Error(`Every release in an A/B/C test must be different, and none can be ${live}, which everyone gets now.`);
+  }
+  for (const label of new Set([live, next, ...also])) {
     if (!opts.releases.has(label)) throw new Error(`"${label}" isn't in turnout.config.yml's releases, so the proxy couldn't route to it.`);
   }
-  log(opts.aa ? `Live today: ${live}. A/A run: ${live} on both arms.` : `Live today: ${live}. New: ${opts.newRelease}.`);
+  log(opts.aa ? `Live today: ${live}. A/A run: ${live} on both arms.` : `Live today: ${live}. New: ${[opts.newRelease, ...also].join(', ')}.`);
 
   // 1. Everyone keeps getting the live release, now as control (the flag's own value), with v2 at 0%.
-  await api.patch(flagPath, {
-    environment_default: { enabled: true, value: { type: 'string', value: live }, variants: [{ id: v2.id, weight: 0 }] },
-  });
+  const allAtZero = (ids: number[]) => ({ enabled: true, value: { type: 'string', value: live }, variants: ids.map((id) => ({ id, weight: 0 })) });
+  await api.patch(flagPath, { environment_default: allAtZero(feature.multivariate_options.map((o) => o.id)) });
   log(`✓ ${live} is control (served to everyone outside the experiment)`);
 
   // 2. v2 now serves the new release. Allowed while no experiment is running on the flag.
@@ -120,22 +125,43 @@ export async function release(opts: Options): Promise<{ experimentId: number }> 
   });
   log(`✓ v2 → ${next}`);
 
+  // 2b. An A/B/C test: v3, v4… serve the other new releases. Each is created on the flag the first time.
+  const extra: { id: number; key: string; label: string }[] = [];
+  for (const [i, label] of also.entries()) {
+    const key = `v${i + 3}`;
+    const body = { feature: feature.id, type: 'unicode', string_value: label, default_percentage_allocation: 0, key };
+    const existing = feature.multivariate_options.find((o) => o.key === key);
+    const option = existing
+      ? (await api.put<{ id: number }>(`/api/v1/projects/${env.project}/features/${feature.id}/mv-options/${existing.id}/`, body), existing)
+      : await api.post<{ id: number }>(`/api/v1/projects/${env.project}/features/${feature.id}/mv-options/`, body);
+    extra.push({ id: option.id, key, label });
+    log(`✓ ${key} → ${label}${existing ? '' : ' (a new variation on the flag)'}`);
+  }
+  if (extra.some((x) => !feature.multivariate_options.some((o) => o.id === x.id))) {
+    await api.patch(flagPath, { environment_default: allAtZero([...feature.multivariate_options.map((o) => o.id), ...extra.map((x) => x.id)]) });
+  }
+
   // 3. The next experiment, same flag, same metrics.
-  const split = opts.split ?? 50;
+  // Two arms: the split (default 50%). More: an even share each, control keeps the remainder (34/33/33).
+  const split = also.length ? Math.floor(100 / (2 + also.length)) : (opts.split ?? 50);
   const created = await api.post<Experiment>(`${envPath}/experiments/`, {
     feature: feature.id,
-    name: opts.aa ? `${opts.flag}: A/A ${live}` : `${opts.flag}: ${opts.newRelease} vs ${live}`,
+    name: opts.aa ? `${opts.flag}: A/A ${live}` : `${opts.flag}: ${[opts.newRelease, ...also].join(' vs ')} vs ${live}`,
     hypothesis: opts.aa ? AA_HYPOTHESIS : opts.hypothesis,
     metrics,
     experiment_rollout: {
       enabled: true,
       rollout_percentage: 100,
       feature_state_value: { type: 'string', value: live },
-      multivariate_feature_state_values: [{ multivariate_feature_option: v2.id, percentage_allocation: split }],
+      multivariate_feature_state_values: [v2.id, ...extra.map((x) => x.id)].map((id) => ({ multivariate_feature_option: id, percentage_allocation: split })),
     },
   });
   const started = await api.post<Experiment>(`${envPath}/experiments/${created.id}/start/`);
-  log(`✓ experiment ${started.id} "${started.name}" is ${started.status}: ${split}% of visitors get ${next}${opts.aa ? ' (v2)' : ''}, the rest ${live} (${CONTROL})`);
+  log(
+    also.length
+      ? `✓ experiment ${started.id} "${started.name}" is ${started.status}: ${split}% of visitors each get ${[next, ...also].join(' and ')}, the rest ${live} (${CONTROL})`
+      : `✓ experiment ${started.id} "${started.name}" is ${started.status}: ${split}% of visitors get ${next}${opts.aa ? ' (v2)' : ''}, the rest ${live} (${CONTROL})`,
+  );
 
   // The baseline: control's goal rate in the previous experiment. Any failure just makes it unknown.
   let baseline: number | null = null;

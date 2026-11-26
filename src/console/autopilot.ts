@@ -56,6 +56,7 @@ const TITLES: Record<JudgeAction, string> = {
   preview: 'Preview the next release',
   release: 'Release the next release',
   reset: 'Start the next round',
+  abc: 'Start an A/B/C test',
 };
 
 /**

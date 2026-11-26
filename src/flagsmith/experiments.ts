@@ -128,7 +128,8 @@ export function losingGuardrails(
   });
 }
 
-// What Turnout recommends, read off Flagsmith's own inference (it computes everything; this only reads it):
+// What Turnout recommends, read off Flagsmith's own inference (it computes everything; this only reads it), for each
+// treatment against control:
 // - a treatment losing a guardrail → revert;
 // - the goal's credible interval for the best treatment crossing zero, or its chance to win under 95% → keep running;
 // - the interval wholly on the losing side (chance to win at or under 5%) → revert: control is better;
@@ -143,15 +144,24 @@ export const formatInterval = (i: { low: number; high: number }) => `${signedPct
 
 export function recommend(experiment: ExperimentDetail, results: Results | null): Recommendation {
   const goal = results?.payload?.metrics.find((m) => m.metric_id === experiment.metrics[0]?.metric);
-  let best: { key: string; inference: Inference } | null = null;
-  for (const key of treatmentKeys(experiment)) {
-    const inference = goal?.inference[key];
-    if (inference && (!best || inference.chance_to_win > best.inference.chance_to_win)) best = { key, inference };
-  }
-  if (!best) {
+  // Each treatment on its own, against control (Flagsmith compares each one with control: experimentation/stats.py
+  // compare_to_control), best chance to win first.
+  const calls = treatmentKeys(experiment)
+    .flatMap((key) => (goal?.inference[key] ? [callFor(experiment, results, key, goal.inference[key]!)] : []))
+    .sort((a, b) => (b.chanceToWin ?? 0) - (a.chanceToWin ?? 0));
+  if (!calls.length) {
     return { call: 'keep-running', variant: null, reason: 'Flagsmith has no result on the goal yet', interval: null, chanceToWin: null };
   }
-  const { key, inference } = best;
+  // With several treatments (an A/B/C test): ship the best one that is safe and clearly better; else keep running
+  // while any is still undecided; else revert. One that loses a guardrail never stops a safe one from shipping.
+  const ship = calls.find((c) => c.call === 'ship');
+  if (ship) return ship;
+  const undecided = calls.find((c) => c.call === 'keep-running');
+  if (undecided) return undecided;
+  return { ...calls[0]!, reason: calls.map((c) => c.reason).join('; ') };
+}
+
+function callFor(experiment: ExperimentDetail, results: Results | null, key: string, inference: Inference): Recommendation {
   const interval = { low: inference.ci_low, high: inference.ci_high };
   const base = { variant: key, interval, chanceToWin: inference.chance_to_win };
   const losing = losingGuardrails(experiment, results, key);

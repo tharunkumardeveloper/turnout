@@ -126,6 +126,22 @@ describe('the guard', () => {
     assert.match(posts[0]!.reason.text_blocks[0]!.text, /guard reverted experiment 7/);
   });
 
+  test('an A/B/C test: one new version failing a guardrail is not reverted while another is fine; all failing is', async () => {
+    const s = losingState();
+    s.experiment.feature.multivariate_options.push({ id: 12, key: 'v3', string_value: 'shop:1.6' });
+    const [goal, latency] = s.results!.payload!.metrics;
+    goal!.variants.v3 = { n: 1000, sum: 150, sum_squares: 150 };
+    goal!.inference.v3 = { lift: 0.5, ci_low: 0.2, ci_high: 0.8, chance_to_win: 0.999 };
+    latency!.variants.v3 = { n: 1000, sum: 13_100, sum_squares: 0 };
+    latency!.inference.v3 = { lift: 0.01, ci_low: -0.05, ci_high: 0.07, chance_to_win: 0.4 };
+    const oneFailing = await run(s, { guard: { enabled: true } });
+    assert.deepEqual(oneFailing.reverts, [], 'v3 is fine, so the test goes on');
+    assert.deepEqual(oneFailing.posts.map((p) => p.status), ['unhealthy'], 'Feature Health still says v2 is losing');
+    latency!.inference.v3 = { lift: 4, ci_low: 3.8, ci_high: 4.2, chance_to_win: 0.0001 };
+    latency!.variants.v3 = { n: 1000, sum: 70_000, sum_squares: 0 };
+    assert.equal((await run(s, { guard: { enabled: true } })).reverts.length, 1, 'both losing: revert');
+  });
+
   test('never acts on thin data, above its threshold, or while another action holds the lock', async () => {
     const thin = losingState();
     for (const m of thin.results!.payload!.metrics) for (const v of Object.values(m.variants)) v.n = 40;

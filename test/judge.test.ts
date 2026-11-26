@@ -169,6 +169,7 @@ describe('results summary', () => {
       arms: { control: { n: 1000, mean: 0.1 }, v2: { n: 1000, mean: 0.135 } },
       v2: { lift: 0.35, chanceToWin: 0.99, ciLow: 0.1, ciHigh: 0.6 },
       verdict: 'winning',
+      byArm: { v2: { lift: 0.35, chanceToWin: 0.99, ciLow: 0.1, ciHigh: 0.6, verdict: 'winning' } },
     });
     assert.equal(summary[1]!.role, 'guardrail');
     assert.equal(summary[1]!.arms.v2!.mean, 97);
@@ -448,6 +449,7 @@ describe('judge mode API', () => {
       status: 'running',
       control: 'shop:1.4',
       v2: 'shop:1.5',
+      arms: [{ key: 'control', release: 'shop:1.4' }, { key: 'v2', release: 'shop:1.5' }],
       startedAt: '2026-11-17T00:00:00Z',
       endedAt: null,
     });

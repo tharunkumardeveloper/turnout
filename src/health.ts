@@ -197,8 +197,12 @@ export class Watcher {
       const threshold = this.state.guard.threshold;
       const minIdentities = this.opts.guard.minIdentities ?? DEFAULT_MIN_IDENTITIES;
       const clearlyLosing = losing.filter((l) => l.chanceToWin <= threshold);
+      // In an A/B/C test one new version failing a guardrail doesn't condemn another that is fine: the guard reverts
+      // only when every new version in the results is clearly losing one.
+      const tested = Object.keys(results?.payload?.metrics[0]?.inference ?? {});
+      const everyArmLosing = clearlyLosing.length > 0 && (tested.length === 0 || tested.every((k) => clearlyLosing.some((l) => l.variant === k)));
 
-      if (live && this.state.guard.enabled && clearlyLosing.length && identitiesIn(results) >= minIdentities && !this.opts.lock.busy) {
+      if (live && this.state.guard.enabled && everyArmLosing && identitiesIn(results) >= minIdentities && !this.opts.lock.busy) {
         const reason = clearlyLosing.map((l) => `${l.release ?? l.variant} losing ${l.metric}, ${pct(l.chanceToWin)} chance to win`).join('; ');
         this.opts.lock.busy = true;
         try {

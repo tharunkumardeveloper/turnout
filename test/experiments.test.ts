@@ -402,6 +402,50 @@ describe('recommend: read the credible interval, not just the chance to win', ()
     assert.equal(recommend(s.experiment, s.results).call, 'ship');
   });
 
+  // An A/B/C test: v2 and v3 against control, each scored on its own (Flagsmith's compare_to_control).
+  const abc = (v3goal: object, v3latency: object | null) => {
+    const s = initialState();
+    s.experiment.feature.multivariate_options.push({ id: 12, key: 'v3', string_value: 'shop:1.6' });
+    goal(s).ci_low = 0.05; // v2: a clear win on the goal
+    s.results!.payload!.metrics[0]!.variants.v3 = { n: 1000, sum: 150, sum_squares: 150 };
+    s.results!.payload!.metrics[0]!.inference.v3 = { lift: 0.5, ci_low: 0.2, ci_high: 0.8, chance_to_win: 0.999, ...v3goal };
+    s.results!.payload!.metrics.push({
+      metric_id: 2,
+      variants: { control: { n: 1000, sum: 60_000, sum_squares: 0 }, v2: { n: 1000, sum: 61_000, sum_squares: 0 }, v3: { n: 1000, sum: 160_000, sum_squares: 0 } },
+      inference: { v2: { lift: 0.016, ci_low: -0.05, ci_high: 0.08, chance_to_win: 0.4 }, ...(v3latency ? { v3: v3latency as any } : {}) },
+    });
+    return s;
+  };
+
+  test('A/B/C: the best treatment fails a guardrail, the other is safe and clearly better: ship the safe one', () => {
+    const s = abc({}, { lift: 1.6, ci_low: 1.5, ci_high: 1.7, chance_to_win: 0.0001 });
+    const r = recommend(s.experiment, s.results);
+    assert.equal(r.call, 'ship');
+    assert.equal(r.variant, 'v2');
+  });
+
+  test('A/B/C: both safe and clearly better: ship the one Flagsmith is surest of', () => {
+    const s = abc({}, { lift: 0, ci_low: -0.05, ci_high: 0.05, chance_to_win: 0.5 });
+    assert.equal(recommend(s.experiment, s.results).variant, 'v3');
+  });
+
+  test('A/B/C: one still undecided and the other failing: keep running for the undecided one', () => {
+    const s = abc({}, { lift: 1.6, ci_low: 1.5, ci_high: 1.7, chance_to_win: 0.0001 });
+    goal(s).ci_low = -0.02; // v2's interval crosses zero again
+    const r = recommend(s.experiment, s.results);
+    assert.equal(r.call, 'keep-running');
+    assert.equal(r.variant, 'v2');
+  });
+
+  test('A/B/C: every treatment failing: revert, naming each reason', () => {
+    const s = abc({}, { lift: 1.6, ci_low: 1.5, ci_high: 1.7, chance_to_win: 0.0001 });
+    Object.assign(goal(s), { lift: -0.2, ci_low: -0.3, ci_high: -0.1, chance_to_win: 0.01 });
+    const r = recommend(s.experiment, s.results);
+    assert.equal(r.call, 'revert');
+    assert.match(r.reason, /v3 is losing doc_latency_ms/);
+    assert.match(r.reason, /control is better: v2's interval/);
+  });
+
   test('no inference yet: keep running, no interval', () => {
     const s = initialState();
     s.results!.payload!.metrics[0]!.inference.v2 = null;

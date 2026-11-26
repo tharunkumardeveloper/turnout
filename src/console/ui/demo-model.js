@@ -1,13 +1,13 @@
 // The simple judge page's wording and rules: what the page says and which one button it offers, read off the judge
 // state (/api/judge/state). Pure functions, no DOM, so the tests can check every sentence. demo.js draws them.
 //
-// The page tells one story over and over, in four fixed steps per test:
-//   1 Start a test   2 Send shoppers   3 Ask Flagsmith   4 Decide
-// then one button for the next test. Step titles never change; only the button and the result lines do.
+// The page runs an A/B/C test: A is what everyone gets now, B and C are new versions, each shown to a third of the
+// shoppers. Four fixed steps per test (Start the test, Send shoppers, Ask Flagsmith, Decide), one button at a time.
 
-export const SHOPPERS = 1500; // per "Send shoppers": enough for Flagsmith to call the demo's releases on its first look
+export const SHOPPERS = 2100; // per "Send shoppers": 700 per version, enough for Flagsmith to call the demo on its first look
 
 const NAMES = { 'shop:1.4': 'Classic', 'shop:1.5': 'Express', 'shop:1.6': 'Bold' };
+const LETTERS = 'ABCDEFGH';
 
 /** "shop:1.5" → "1.5 Express"; an unknown label is shown as it is. */
 export function label(release) {
@@ -21,8 +21,8 @@ const pct = (x, digits = 1) => `${(x * 100).toFixed(digits)}%`;
 
 // Flagsmith's metric names, in words a judge reads without a glossary.
 const METRICS = {
-  order_placed: { name: 'Orders', hint: 'share of shoppers who placed an order' },
-  add_to_cart: { name: 'Added to cart', hint: 'share of shoppers who added something' },
+  order_placed: { name: 'Orders', hint: 'shoppers who placed an order' },
+  add_to_cart: { name: 'Added to cart', hint: 'shoppers who added something' },
   doc_latency_ms: { name: 'Page load time', hint: 'average time to serve a page' },
   server_error: { name: 'Server errors', hint: 'pages that failed' },
 };
@@ -30,6 +30,17 @@ export function metricName(name) {
   return METRICS[name]?.name ?? String(name).replace(/_/g, ' ').replace(/^./, (c) => c.toUpperCase());
 }
 const ROLES = { goal: 'Goal', guardrail: 'Safety check', secondary: 'Also watched' };
+
+/**
+ * The versions in the test, lettered: A is control (what everyone gets now), then B, C… for the new versions.
+ * From the state's arms (an A/B/C test), else control and v2.
+ */
+export function arms(s) {
+  const e = s?.experiment;
+  if (!e) return [];
+  const list = e.arms?.length ? e.arms : [{ key: 'control', release: e.control }, { key: 'v2', release: e.v2 }];
+  return list.map((a, i) => ({ key: a.key, release: a.release, letter: LETTERS[i] ?? '?', name: `${LETTERS[i] ?? '?'} · ${label(a.release)}` }));
+}
 
 function valueText(metric, arm) {
   if (!arm) return '—';
@@ -39,64 +50,61 @@ function valueText(metric, arm) {
   return arm.mean.toFixed(2);
 }
 
-const lowerIsBetter = (m) => m.direction === 'down';
-
-/** How much worse or better the new version is, in plain words: "2.4× slower", "+19% more". */
-function changeText(m) {
+/** How a new version compares with A on one metric, in plain words: "2.4× slower", "+19%". */
+function changeText(m, key) {
   const a = m.arms?.control?.mean;
-  const b = m.arms?.v2?.mean;
+  const b = m.arms?.[key]?.mean;
   if (typeof a !== 'number' || typeof b !== 'number' || a === 0) return '';
   if (/_ms$/.test(m.name)) {
     const r = b / a;
     if (r >= 1.15) return `${r.toFixed(1)}× slower`;
     if (r <= 1 / 1.15) return `${(1 / r).toFixed(1)}× faster`;
-    return 'about the same';
+    return '';
   }
   const lift = b / a - 1;
-  if (Math.abs(lift) < 0.02) return 'about the same';
+  if (Math.abs(lift) < 0.02) return '';
   return `${lift > 0 ? '+' : '−'}${Math.round(Math.abs(lift) * 100)}%`;
 }
 
+const inferenceOf = (m, key) => m.byArm?.[key] ?? (key === 'v2' && m.v2 ? { ...m.v2, verdict: m.verdict } : null);
+
 /**
- * Flagsmith's results as rows: the metric in plain words, its value for each version, and Flagsmith's call on the
- * new version. Only Flagsmith's own numbers; nothing is computed here but the ratio shown next to them.
+ * Flagsmith's results as rows: the metric in plain words, then a cell per version. A's cell is the baseline; each
+ * new version's cell carries Flagsmith's call against A. Only Flagsmith's numbers; the ratio is the only arithmetic.
  */
 export function findings(s) {
-  const metrics = s?.results?.metrics ?? [];
-  const v2 = s?.experiment?.v2;
-  return metrics.map((m) => {
-    const name = metricName(m.name);
-    let word = 'No clear difference';
-    let tone = 'neutral';
-    if (m.verdict === 'winning') [word, tone] = ['Better', 'good'];
-    else if (m.verdict === 'losing') [word, tone] = ['Worse', 'bad'];
-    else if (m.verdict === 'collecting') word = 'Not enough data yet';
-    else if (m.verdict === 'no-events') word = m.name === 'server_error' ? 'None on either' : 'No events yet';
-    let note = '';
-    if (m.v2 && m.verdict !== 'no-events') {
-      const sure = m.v2.chanceToWin;
-      note =
-        m.role === 'goal'
-          ? `Flagsmith: ${pct(sure, 0)} chance ${label(v2)} is better`
-          : m.verdict === 'losing'
-            ? `${changeText(m)} on ${label(v2)}`
-            : changeText(m);
-      if (m.role !== 'goal' && note === 'about the same') note = '';
-    }
-    return {
-      key: m.name,
-      name,
-      technical: m.name,
-      hint: METRICS[m.name]?.hint ?? '',
-      role: m.role,
-      roleText: ROLES[m.role] ?? m.role,
-      current: valueText(m, m.arms?.control),
-      next: valueText(m, m.arms?.v2),
-      word,
-      tone,
-      note,
-      lowerIsBetter: lowerIsBetter(m),
-    };
+  const list = arms(s);
+  return (s?.results?.metrics ?? []).map((m) => ({
+    key: m.name,
+    name: metricName(m.name),
+    hint: METRICS[m.name]?.hint ?? '',
+    role: m.role,
+    roleText: ROLES[m.role] ?? m.role,
+    cells: list.map((a) => {
+      const value = valueText(m, m.arms?.[a.key]);
+      if (a.key === 'control') return { key: a.key, value, word: '', tone: 'base', note: '' };
+      const x = inferenceOf(m, a.key);
+      const verdict = x?.verdict ?? (m.verdict === 'no-events' ? 'no-events' : 'collecting');
+      let word = 'No clear difference';
+      let tone = 'neutral';
+      if (verdict === 'winning') [word, tone] = ['Better', 'good'];
+      else if (verdict === 'losing') [word, tone] = ['Worse', 'bad'];
+      else if (verdict === 'collecting') word = m.verdict === 'no-events' ? 'None' : 'Not enough data';
+      else if (verdict === 'no-events') word = 'None';
+      if (m.verdict === 'no-events') [word, tone] = ['None', 'neutral'];
+      const note = m.verdict === 'no-events' ? '' : m.role === 'goal' && x ? `${pct(x.chanceToWin, 0)} sure it beats A` : changeText(m, a.key);
+      return { key: a.key, value, word, tone, note };
+    }),
+  }));
+}
+
+/** Why a new version can't ship, in plain words: its losing safety checks. */
+function failedChecks(s, key) {
+  const losing = s.results?.losingByArm?.[key] ?? (key === 'v2' ? s.results?.losingGuardrails : []) ?? [];
+  return losing.map((g) => {
+    const m = s.results.metrics.find((x) => x.name === g.metric);
+    if (m && /_ms$/.test(m.name)) return `its pages load ${changeText(m, key) || 'slower'} (${valueText(m, m.arms[key])} vs ${valueText(m, m.arms.control)})`;
+    return `${metricName(g.metric).toLowerCase()} got worse`;
   });
 }
 
@@ -105,47 +113,51 @@ export function verdict(s) {
   const r = s?.results;
   const e = s?.experiment;
   if (!r || !e) return null;
+  const list = arms(s);
+  const a = list[0];
   const rec = r.recommendation;
-  const now = label(e.control);
-  const next = label(e.v2);
   const goal = r.metrics.find((m) => m.role === 'goal');
-  const orders = goal?.arms?.v2 && goal?.arms?.control ? ` (${pct(goal.arms.v2.mean)} vs ${pct(goal.arms.control.mean)})` : '';
-  const sure = rec?.chanceToWin != null ? pct(rec.chanceToWin, 0) : null;
+  const orders = (key) => (goal?.arms?.[key] && goal?.arms?.control ? ` (${pct(goal.arms[key].mean)} vs ${pct(goal.arms.control.mean)})` : '');
+  const others = (except) =>
+    list.slice(1).filter((x) => x.key !== except).map((x) => {
+      const failed = failedChecks(s, x.key);
+      const g = goal && inferenceOf(goal, x.key);
+      if (failed.length) return `${x.name}${g?.verdict === 'winning' ? ' sold more too, but' : ':'} ${failed.join(' and ')}, so it's out.`;
+      if (g?.verdict === 'losing') return `${x.name} got fewer orders.`;
+      return `${x.name} wasn't clearly better.`;
+    });
   if (!rec || rec.call === 'keep-running') {
-    const why = sure ? `Flagsmith is only ${sure} sure ${next} is better; it calls a winner at 95%.` : 'Flagsmith has no result on orders yet.';
-    return { call: 'keep-running', tone: 'wait', title: 'Not sure yet', text: `${why} Send more shoppers, then ask again.` };
+    const best = list.find((x) => x.key === rec?.variant);
+    const c = rec?.chanceToWin;
+    const sure = c == null || !best
+      ? 'Flagsmith has no result on orders yet.'
+      : c >= 0.95
+        ? `Flagsmith is ${pct(c, 0)} sure ${best.name} beats A, but its likely range still includes no gain at all, so it won't call it yet.`
+        : `Flagsmith is only ${pct(c, 0)} sure ${best.name} beats A; it calls a winner at 95%.`;
+    return { call: 'keep-running', tone: 'wait', title: 'Not sure yet', text: `${sure} Send more shoppers, then ask again.` };
   }
   if (rec.call === 'ship') {
+    const w = list.find((x) => x.key === rec.variant) ?? list[1];
     return {
       call: 'ship',
+      variant: w.key,
       tone: 'good',
-      title: `${next} wins`,
-      text: `${next} gets more orders${orders} and every safety check is fine. Flagsmith is ${sure} sure it's better.`,
+      title: `${w.name} wins`,
+      text: [`${w.name} gets more orders than A${orders(w.key)}, Flagsmith is ${pct(rec.chanceToWin, 0)} sure, and every safety check is fine.`, ...others(w.key)].join(' '),
     };
   }
-  const losing = r.losingGuardrails ?? [];
-  if (losing.length) {
-    const parts = losing.map((g) => {
-      const m = r.metrics.find((x) => x.name === g.metric);
-      if (m && /_ms$/.test(m.name)) {
-        return `its pages load ${changeText(m)} (${valueText(m, m.arms.v2)} vs ${valueText(m, m.arms.control)})`;
-      }
-      return `${metricName(g.metric).toLowerCase()} got worse`;
-    });
-    const sells = goal?.verdict === 'winning' ? `${next} gets more orders${orders}, but ` : `On ${next}, `;
-    return {
-      call: 'revert',
-      tone: 'bad',
-      title: 'A safety check failed',
-      text: `${sells}${parts.join(' and ')}. Flagsmith marks the release unhealthy, so the safe call is to keep everyone on ${now}.`,
-    };
-  }
-  return { call: 'revert', tone: 'bad', title: `${now} stays`, text: `${next} gets fewer orders${orders}. Keep everyone on ${now}.` };
+  const failing = list.slice(1).filter((x) => failedChecks(s, x.key).length);
+  return {
+    call: 'revert',
+    tone: 'bad',
+    title: failing.length ? 'A safety check failed' : `${a.name} stays`,
+    text: [...others(null), `Keep everyone on ${a.name}.`].join(' '),
+  };
 }
 
 // The four steps. Titles are fixed; the server's own step list (deriveSteps) says which are done.
 export const STEPS = [
-  { id: 'start', title: 'Start a test' },
+  { id: 'start', title: 'Start the test' },
   { id: 'visitors', title: 'Send shoppers' },
   { id: 'score', title: 'Ask Flagsmith' },
   { id: 'decide', title: 'Decide' },
@@ -154,15 +166,27 @@ export const STEPS = [
 /** The ledger entry that decided this experiment, if any (the ledger is oldest first). */
 function decisionOf(s) {
   const id = s?.experiment?.id;
-  return [...(s?.ledger ?? [])].reverse().find((e) => e.experimentId === id && e.decision !== 'kept-running') ?? null;
+  return [...(s?.ledger ?? [])].reverse().find((x) => x.experimentId === id && x.decision !== 'kept-running') ?? null;
 }
 
 const serverStatus = (s, id) => s?.steps?.find((x) => x.id === id)?.status ?? 'todo';
 
+/** The button that starts a test: A/B/C with three or more releases, else A/B. */
+function startAction(s, verb) {
+  const [a, ...rest] = s?.releases ?? [];
+  const abc = rest.length >= 2;
+  const names = rest.map((r, i) => `${LETTERS[i + 1]} · ${label(r)}`);
+  return {
+    action: abc ? 'abc' : 'reset',
+    label: `${verb}: ${abc ? 'A/B/C' : 'A/B'} test`,
+    explain: `Everyone goes back to A · ${label(a)}, then Flagsmith shows ${names.join(' and ')} to ${abc ? 'a third' : 'half'} of the shoppers each.`,
+  };
+}
+
 /**
  * The whole page in one model.
  *   now       one sentence: who gets what right now
- *   versions  the two versions in this test, with their role and badge
+ *   versions  the versions in this test (A, B, C), each with its role and badge
  *   steps     the four steps with status 'done' | 'current' | 'todo', and a one-line result once done
  *   action    the one button for the current step (or the next test), with a sentence on what it does
  *   alt       a quieter second choice, when there is a sensible one
@@ -170,43 +194,42 @@ const serverStatus = (s, id) => s?.steps?.find((x) => x.id === id)?.status ?? 't
 export function model(s, opts = {}) {
   const shoppers = opts.shoppers ?? SHOPPERS;
   const e = s?.experiment ?? null;
-  const out = { now: '', versions: [], steps: [], action: null, alt: null, verdict: null, findings: [], outcome: null, finished: false };
-
-  const firstTest = (verb = 'Start a test') => {
-    const [a, b] = s?.releases ?? [];
-    return {
-      action: 'reset',
-      label: a && b ? `${verb}: ${label(b)} against ${label(a)}` : verb,
-      explain: `Everyone goes back to ${label(a)}, then Flagsmith starts an experiment showing ${label(b)} to half the shoppers. No app code changes; it's all one flag in Flagsmith.`,
-    };
-  };
+  const out = { now: '', versions: [], steps: [], action: null, alt: null, verdict: null, findings: [], outcome: null, finished: false, letters: '' };
 
   if (!e) {
     out.now = 'No test has run yet.';
     out.steps = STEPS.map((st, i) => ({ ...st, n: i + 1, status: i === 0 ? 'current' : 'todo', result: '' }));
-    out.action = firstTest();
+    out.action = startAction(s, 'Start');
     return out;
   }
 
+  const list = arms(s);
+  out.letters = list.map((x) => x.letter).join('/');
   const done = e.status === 'completed';
   const decision = done ? decisionOf(s) : null;
-  const shipped = done && s.live === e.v2;
-  const armPct = (key) => s.routing?.experiment?.arms?.find((a) => a.key === key)?.pct;
+  const shippedArm = done ? list.slice(1).find((x) => x.release === s.live) ?? null : null;
+  const armPct = (key) => s.routing?.experiment?.arms?.find((x) => x.key === key)?.pct;
 
   out.now = done
-    ? `Everyone gets ${label(s.live)}. No test is running.`
-    : `Flagsmith is testing ${label(e.v2)} against ${label(e.control)}. Each new shopper gets one of them.`;
+    ? `Everyone gets ${list.find((x) => x.release === s.live)?.name ?? label(s.live)}. No test is running.`
+    : `Flagsmith is testing ${list.slice(1).map((x) => x.name).join(' and ')} against ${list[0].name}. Each new shopper gets one of them.`;
 
-  out.versions = [
-    { key: 'control', release: e.control, role: 'Current version', badge: done ? (shipped ? 'Replaced' : 'Kept · everyone gets it') : `${armPct('control') ?? 50}% of shoppers`, state: done ? (shipped ? 'out' : 'winner') : 'testing' },
-    { key: 'v2', release: e.v2, role: 'New version', badge: done ? (shipped ? 'Shipped · everyone gets it' : 'Rolled back') : `${armPct('v2') ?? 50}% of shoppers`, state: done ? (shipped ? 'winner' : 'out') : 'testing' },
-  ];
+  out.versions = list.map((x) => {
+    const isA = x.key === 'control';
+    let badge = `${armPct(x.key) ?? Math.round(100 / list.length)}% of shoppers`;
+    let state = 'testing';
+    if (done) {
+      if (shippedArm) [badge, state] = x === shippedArm ? ['Shipped', 'winner'] : [isA ? 'Replaced' : 'Not shipped', 'out'];
+      else [badge, state] = isA ? ['Kept', 'winner'] : ['Rolled back', 'out'];
+    }
+    return { ...x, role: isA ? 'Now' : 'New', badge, state };
+  });
 
   out.findings = findings(s);
   out.verdict = verdict(s);
 
   const goal = s.results?.metrics?.find((m) => m.role === 'goal');
-  const counted = goal ? (goal.arms?.control?.n ?? 0) + (goal.arms?.v2?.n ?? 0) : 0;
+  const counted = goal ? list.reduce((n, x) => n + (goal.arms?.[x.key]?.n ?? 0), 0) : 0;
   const status = {
     start: 'done',
     visitors: done ? 'done' : serverStatus(s, 'visitors') === 'done' ? 'done' : 'current',
@@ -216,13 +239,13 @@ export function model(s, opts = {}) {
   if (status.score === 'optional') status.score = 'todo';
   if (status.decide === 'optional') status.decide = 'todo';
   const results = {
-    start: `Experiment #${e.id} in Flagsmith: ${label(e.v2)} against ${label(e.control)}.`,
+    start: `${out.letters} test, experiment #${e.id} in Flagsmith.`,
     visitors: counted ? `Flagsmith counted ${int(counted)} shoppers.` : s.totals?.visitorsSent ? `${int(s.totals.visitorsSent)} shoppers went through Turnout.` : '',
     score: out.verdict ? out.verdict.title : '',
     decide: decision
       ? decision.decision === 'shipped'
-        ? `Shipped: everyone gets ${label(decision.release)}.`
-        : `Rolled back: everyone stays on ${label(decision.release)}${decision.by === 'guard' ? ' (the guard did it automatically)' : ''}.`
+        ? `Shipped ${shippedArm?.name ?? label(decision.release)} to everyone.`
+        : `Rolled back: everyone stays on ${list[0].name}${decision.by === 'guard' ? ' (the guard did it)' : ''}.`
       : done
         ? `Finished: everyone gets ${label(s.live)}.`
         : '',
@@ -232,20 +255,12 @@ export function model(s, opts = {}) {
   if (done) {
     out.finished = true;
     out.outcome = {
-      shipped,
-      title: shipped ? `${label(e.v2)} shipped to everyone` : `${label(e.v2)} rolled back`,
-      text: shipped
-        ? `One flag change: Flagsmith's default is now ${label(e.v2)}, so every shopper gets it. No deploy.`
-        : `One flag change: Flagsmith's default stays ${label(e.control)}, so every shopper gets it. No deploy.`,
+      shipped: Boolean(shippedArm),
+      title: shippedArm ? `${shippedArm.name} shipped to everyone` : `Everyone stays on ${list[0].name}`,
+      text: 'One flag change in Flagsmith, no deploy.',
       verified: serverStatus(s, 'verify') === 'done',
     };
-    out.action = s.next
-      ? {
-          action: 'release',
-          label: `Test the next version: ${label(s.next)}`,
-          explain: `Flagsmith starts a new experiment on the same flag: ${label(s.next)} against ${label(s.live)}. Still no app code.`,
-        }
-      : firstTest('Start over');
+    out.action = startAction(s, 'Run a new');
     return out;
   }
 
@@ -255,26 +270,27 @@ export function model(s, opts = {}) {
     out.action = {
       action: 'visitors',
       label: `Send ${int(shoppers)} ${again ? 'more ' : ''}shoppers`,
-      explain: `Simulated shoppers browse the shop through Turnout. Flagsmith picks a version for each one, and their page views and orders go to Flagsmith. About ${Math.round(shoppers / 60)} seconds.`,
+      explain: `Simulated shoppers browse the shop through Turnout. Flagsmith picks ${list.map((x) => x.letter).join(', ').replace(/, (?=[^,]*$)/, ' or ')} for each one; their page views and orders go to Flagsmith. About ${Math.round(shoppers / 70)} seconds.`,
     };
   } else if (current === 'score') {
     const wait = s.results?.refreshAllowedAt ? Date.parse(s.results.refreshAllowedAt) - (opts.now ?? Date.now()) : 0;
     out.action = {
       action: 'score',
       label: 'Ask Flagsmith for the results',
-      explain: 'Flagsmith compares the two versions with its own statistics. Turnout does no maths of its own.',
+      explain: 'Flagsmith compares each new version with A using its own statistics. Turnout does no maths of its own.',
       ...(wait > 0 ? { waitUntil: s.results.refreshAllowedAt } : {}),
     };
   } else {
     const v = out.verdict;
     if (v?.call === 'ship') {
-      out.action = { action: 'ship', label: `Ship ${label(e.v2)} to everyone`, explain: `Flagsmith's flag default becomes ${label(e.v2)} and the experiment ends. Every shopper gets it from the next page.` };
-      out.alt = { action: 'revert', label: `Keep ${label(e.control)} instead` };
+      const w = list.find((x) => x.key === v.variant) ?? list[1];
+      out.action = { action: 'ship', label: `Ship ${w.name} to everyone`, explain: `Flagsmith's flag default becomes ${w.name} and the test ends. Every shopper gets it from the next page.` };
+      out.alt = { action: 'revert', label: `Keep ${list[0].name} instead` };
     } else if (v?.call === 'revert') {
-      out.action = { action: 'revert', label: `Roll back to ${label(e.control)}`, explain: `The experiment ends and Flagsmith's flag default stays ${label(e.control)}. Every shopper gets it from the next page.` };
+      out.action = { action: 'revert', label: `Roll back to ${list[0].name}`, explain: `The test ends and Flagsmith's flag default stays ${list[0].name}. Every shopper gets it from the next page.` };
     } else {
       out.action = { action: 'keep-running', label: 'Keep testing', explain: 'Nothing changes in Flagsmith: the test keeps running, and you send more shoppers.' };
-      out.alt = { action: 'revert', label: `Stop and keep ${label(e.control)}` };
+      out.alt = { action: 'revert', label: `Stop and keep ${list[0].name}` };
     }
   }
   return out;
@@ -289,6 +305,7 @@ const JOB_TITLES = {
   verify: 'Checking new shoppers',
   release: 'Starting the test',
   reset: 'Starting the test',
+  abc: 'Starting the A/B/C test',
   preview: 'Turning on the preview',
   'swing-back': 'Changing the flag',
   'swing-forward': 'Changing the flag',
@@ -309,20 +326,20 @@ export function jobView(job) {
   };
 }
 
-/** Who gets what, from a routing snapshot: "half 1.5 Express, half 1.6 Bold" or "everyone: 1.5 Express". */
+/** Who gets what, from a routing snapshot: "34% 1.4 Classic, 33% 1.5 Express…" or "everyone: 1.5 Express". */
 export function routingText(r) {
   if (!r) return '—';
   const x = r.experiment;
   if (x && x.enrolledPct > 0) {
-    const arms = x.arms.filter((a) => a.pct > 0);
-    return `${arms.map((a) => `${a.pct}% ${label(a.release)}`).join(', ')} (experiment #${x.id})`;
+    const split = x.arms.filter((a) => a.pct > 0);
+    return `${split.map((a) => `${a.pct}% ${label(a.release)}`).join(', ')} (experiment #${x.id})`;
   }
   return `everyone: ${label(r.defaultRelease)}`;
 }
 
 /** What a decision changed in Flagsmith, before → after, from the job that made it. */
 export function changes(job) {
-  if (!job?.changes?.after || !['ship', 'revert', 'release', 'reset'].includes(job.action)) return null;
+  if (!job?.changes?.after || !['ship', 'revert', 'release', 'reset', 'abc'].includes(job.action)) return null;
   return { before: routingText(job.changes.before), after: routingText(job.changes.after) };
 }
 
@@ -334,23 +351,26 @@ export function verifyText(job) {
   const right = r.byRelease[r.expected] ?? 0;
   return {
     ok: right === total && (r.leftovers === null || r.leftovers === 0),
-    text: `${right} of ${total} brand-new shoppers got ${label(r.expected)}${r.leftovers === 0 ? ', and no experiment split is left on the flag' : ''}.`,
+    text: `${right} of ${total} brand-new shoppers got ${label(r.expected)}${r.leftovers === 0 ? '; no test split is left on the flag' : ''}.`,
   };
 }
 
 /** Earlier decisions, newest first, one line each. */
-export function history(ledger, limit = 6) {
+export function history(ledger, limit = 8) {
   return [...(ledger ?? [])]
     .reverse()
-    .filter((e) => e.decision !== 'kept-running')
+    .filter((x) => x.decision !== 'kept-running')
     .slice(0, limit)
-    .map((e) => {
-      const tested = /: (\S+) vs (\S+)$/.exec(e.experiment ?? '');
-      const v2 = tested?.[1] ?? e.release;
+    .map((x) => {
+      const parts = String(x.experiment ?? '').replace(/^[^:]*:\s*/, '').split(/\s+vs\s+/);
+      const tested = parts.length >= 2 ? parts.slice(0, -1) : [x.release];
       return {
-        at: e.at,
-        tone: e.decision === 'shipped' ? 'good' : 'bad',
-        text: e.decision === 'shipped' ? `${label(e.release)} shipped (replaced ${label(e.replaced)})` : `${label(v2)} rolled back, ${label(e.release)} kept`,
+        at: x.at,
+        tone: x.decision === 'shipped' ? 'good' : 'bad',
+        text:
+          x.decision === 'shipped'
+            ? `${label(x.release)} shipped (replaced ${label(x.replaced)})`
+            : `${tested.map(label).join(' and ')} rolled back, ${label(x.release)} kept`,
       };
     });
 }

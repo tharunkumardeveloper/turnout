@@ -609,6 +609,7 @@ export const STAGES = {
   preview: ['Point v2 at the next release', 'Give it to the preview segment only', 'Make the preview link'],
   release: ['Point v2 at the next release', 'Start the experiment in Flagsmith'],
   reset: ['Revert the running experiment', "Set the flag's default back to the first release", 'Start a fresh experiment'],
+  abc: ['Revert the running experiment', "Set the flag's default back to the first release", 'Start the A/B/C experiment'],
 };
 
 /**

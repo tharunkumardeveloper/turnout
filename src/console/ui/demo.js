@@ -117,7 +117,7 @@ async function run(action) {
   ui.error = '';
   render();
   const body = { action, ...(s?.experiment ? { experimentId: s.experiment.id } : {}), ...(action === 'visitors' ? { visitors: M.SHOPPERS } : {}) };
-  if (action === 'release' || action === 'reset') delete body.experimentId;
+  if (action === 'release' || action === 'reset' || action === 'abc') delete body.experimentId;
   try {
     const res = await api('/api/judge/run', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body) });
     const out = await res.json().catch(() => ({}));
@@ -187,15 +187,19 @@ function render() {
   const fs = $('link-flagsmith');
   fs.hidden = !(links.experiment ?? s.dashboardUrl);
   fs.setAttribute('href', links.experiment ?? s.dashboardUrl ?? '#');
+  const rl = $('results-link');
+  rl.hidden = !(links.experiment && s.results);
+  rl.setAttribute('href', links.experiment ?? '#');
 
   const m = M.model(s);
   if (ui.live.exp !== s.experiment?.id) ui.live = { exp: s.experiment?.id ?? null, counts: {} };
 
   setText($('now'), m.now);
-  setText($('exp-id'), s.experiment ? `Flagsmith experiment #${s.experiment.id}` : '');
+  setText($('exp-id'), s.experiment ? `· ${m.letters} test #${s.experiment.id}` : '');
   renderVersions(s, m);
   renderSteps(s, m);
   renderNext(s, m);
+  renderResults(s, m);
   renderHistory(s);
   paintLive();
   scheduleAutoplay(m);
@@ -203,28 +207,32 @@ function render() {
 
 function renderVersions(s, m) {
   const box = $('versions');
-  box.hidden = !m.versions.length;
+  box.style.setProperty('--n', String(Math.max(2, m.versions.length)));
   const goal = s.results?.metrics?.find((x) => x.role === 'goal');
-  // The tiles are built once per pair of releases and then only their words change: moving a preview frame in the
+  // The tiles are built once per set of releases and then only their words change: moving a preview frame in the
   // page reloads it, so the frames stay where they are.
-  const pair = JSON.stringify(m.versions.map((v) => [v.key, v.release]));
-  if (box.dataset.pair !== pair) {
-    box.dataset.pair = pair;
+  const set = JSON.stringify(m.versions.map((v) => [v.key, v.release]));
+  if (box.dataset.set !== set) {
+    box.dataset.set = set;
     box.replaceChildren(...m.versions.map((v) => h('article', { class: 'version', 'data-key': v.key },
-      h('div', { class: 'version-head' }, h('span', { class: 'version-role' }), h('span', { class: 'version-badge' })),
-      h('h3', { class: 'version-name' }, M.label(v.release)),
+      h('div', { class: 'version-head' },
+        h('span', { class: 'version-letter', 'aria-hidden': 'true' }, v.letter),
+        h('div', { class: 'version-title' }, h('h3', { class: 'version-name' }, M.label(v.release)), h('span', { class: 'version-role' })),
+        h('span', { class: 'version-badge' })),
       frameFor(s, v.release),
-      h('p', { class: 'version-line', 'data-live': v.release }),
-      h('p', { class: 'version-line version-fs' }))));
+      h('p', { class: 'version-line version-fs' }),
+      h('p', { class: 'version-line', 'data-live': v.release }))));
     fitFrames();
   }
   m.versions.forEach((v, i) => {
     const tile = /** @type {HTMLElement} */ (box.children[i]);
     tile.dataset.state = v.state;
-    setText(tile.querySelector('.version-role'), v.role);
+    setText(tile.querySelector('.version-role'), v.key === 'control' ? 'current' : 'new');
     setText(tile.querySelector('.version-badge'), v.badge);
     const arm = goal?.arms?.[v.key];
-    setText(tile.querySelector('.version-fs'), arm ? `Flagsmith: ${(arm.mean * 100).toFixed(1)}% of ${arm.n.toLocaleString('en-GB')} shoppers ordered` : '');
+    setText(tile.querySelector('.version-fs'), arm ? `${(arm.mean * 100).toFixed(1)}% of ${arm.n.toLocaleString('en-GB')} shoppers ordered` : '');
+    // Once Flagsmith has counted, its numbers replace the live tally (one line, so the tiles stay short).
+    tile.classList.toggle('has-results', Boolean(arm));
   });
 }
 
@@ -245,7 +253,7 @@ function fitFrames() {
 }
 new ResizeObserver(fitFrames).observe(document.documentElement);
 
-const JOB_STEP = { visitors: 'visitors', score: 'score', ship: 'decide', revert: 'decide', 'keep-running': 'decide', release: 'start', reset: 'start' };
+const JOB_STEP = { visitors: 'visitors', score: 'score', ship: 'decide', revert: 'decide', 'keep-running': 'decide', release: 'start', reset: 'start', abc: 'start' };
 
 function renderSteps(s, m) {
   const job = ui.job?.status === 'running' ? ui.job : null;
@@ -255,8 +263,7 @@ function renderSteps(s, m) {
     const showJob = jobStep === st.id;
     const isCurrent = st.status === 'current' && !m.finished;
     const body = [];
-    if (st.result) body.push(h('p', { class: 'step-result' }, st.result));
-    if (st.id === 'score' && m.findings.length && (st.status === 'done' || m.finished)) body.push(findingsTable(s, m));
+    if (st.result && !(st.id === 'decide' && m.finished)) body.push(h('p', { class: 'step-result', 'data-tone': st.id === 'score' ? (m.verdict?.tone ?? '') : '' }, st.result));
     if (st.id === 'decide' && m.finished) body.push(outcomeBox(m));
     if (showJob) body.push(jobBox(job));
     else if (isCurrent && m.action && !job) body.push(actionBox(m));
@@ -278,7 +285,6 @@ function actionBox(m) {
   const alt = m.alt ? h('button', { class: 'btn btn-quiet', type: 'button', disabled: busy, on: { click: () => run(m.alt.action) } }, m.alt.label) : null;
   if (wait > 0 && !ui.tick) ui.tick = setTimeout(() => ((ui.tick = 0), render()), 1000);
   return h('div', { class: 'action' },
-    m.verdict && a.action !== 'visitors' && a.action !== 'score' ? h('p', { class: 'verdict', 'data-tone': m.verdict.tone }, h('strong', {}, `${m.verdict.title}. `), m.verdict.text) : null,
     h('p', { class: 'action-explain' }, a.explain),
     h('div', { class: 'action-row' }, main, alt));
 }
@@ -286,26 +292,38 @@ function actionBox(m) {
 function jobBox(job) {
   const v = M.jobView(job);
   return h('div', { class: 'job', role: 'status' },
-    h('p', { class: 'job-title' }, h('span', { class: 'spinner', 'aria-hidden': 'true' }), `${v.title}…`, h('span', { class: 'job-detail' }, v.detail)),
+    h('p', { class: 'job-title' }, h('span', { class: 'spinner', 'aria-hidden': 'true' }), `${v.title}…`),
+    h('p', { class: 'job-detail' }, v.detail),
     v.fraction !== null ? h('div', { class: 'bar' }, h('i', { style: { width: `${Math.round(v.fraction * 100)}%` } })) : null);
 }
 
-function findingsTable(s, m) {
-  const e = s.experiment;
-  return h('div', { class: 'findings' },
-    h('table', {},
+// Flagsmith's results: a row per metric, a column per version; each new version's cell says how it did against A.
+function renderResults(s, m) {
+  const box = $('results');
+  if (!m.findings.length) {
+    const text = s.experiment?.status === 'running' ? "Flagsmith's results appear here once shoppers have gone through and you ask for them." : 'No results yet.';
+    if (box.dataset.empty !== text) {
+      box.dataset.empty = text;
+      box.replaceChildren(h('p', { class: 'placeholder' }, text));
+    }
+    return;
+  }
+  delete box.dataset.empty;
+  const key = JSON.stringify([m.findings, m.verdict]);
+  if (box.dataset.key === key) return;
+  box.dataset.key = key;
+  box.replaceChildren(
+    h('table', { class: 'findings', style: { '--n': String(m.versions.length) } },
       h('thead', {}, h('tr', {},
-        h('th', { scope: 'col' }, 'What Flagsmith measured'),
-        h('th', { scope: 'col', class: 'num' }, M.label(e.control)),
-        h('th', { scope: 'col', class: 'num' }, M.label(e.v2)),
-        h('th', { scope: 'col' }, `${M.label(e.v2)} is…`))),
-      h('tbody', {}, ...m.findings.map((f) => h('tr', { 'data-tone': f.tone, 'data-role': f.role },
-        h('th', { scope: 'row' }, h('span', { class: 'f-name' }, f.name), h('span', { class: 'f-role', 'data-role': f.role }, f.roleText), f.hint ? h('span', { class: 'f-hint' }, f.hint) : null),
-        h('td', { class: 'num', 'data-label': M.label(e.control) }, f.current),
-        h('td', { class: 'num', 'data-label': M.label(e.v2) }, f.next),
-        h('td', { class: 'f-call' }, h('span', { class: 'f-word' }, f.word), f.note ? h('span', { class: 'f-note' }, f.note) : null))))),
-    h('p', { class: 'findings-src' }, 'Numbers and calls exactly as Flagsmith returned them.',
-      s.links?.experiment ? [' ', h('a', { href: s.links.experiment, target: '_blank', rel: 'noopener' }, 'See them in Flagsmith ↗')] : null));
+        h('th', { scope: 'col' }, h('span', { class: 'sr-only' }, 'Metric')),
+        ...m.versions.map((v) => h('th', { scope: 'col', 'data-key': v.key }, h('span', { class: 'th-letter' }, v.letter), ` ${M.label(v.release)}`)))),
+      h('tbody', {}, ...m.findings.map((f) => h('tr', { 'data-role': f.role },
+        h('th', { scope: 'row' }, h('span', { class: 'f-name' }, f.name), ' ', h('span', { class: 'f-role', 'data-role': f.role }, f.roleText)),
+        ...f.cells.map((c) => h('td', { 'data-tone': c.tone },
+          h('span', { class: 'f-value' }, c.value),
+          c.word ? h('span', { class: 'f-word' }, c.word) : null,
+          c.note ? h('span', { class: 'f-note' }, c.note) : null)))))),
+    m.verdict ? h('p', { class: 'verdict', 'data-tone': m.verdict.tone }, h('strong', {}, `${m.verdict.title}. `), m.verdict.text) : null);
 }
 
 function outcomeBox(m) {
@@ -316,8 +334,7 @@ function outcomeBox(m) {
   const changed = M.changes(decisionJob);
   const check = M.verifyText(lastJobs.find((j) => j.action === 'verify'));
   return h('div', { class: 'outcome', 'data-shipped': String(o.shipped) },
-    h('p', { class: 'outcome-title' }, o.title),
-    h('p', {}, o.text),
+    h('p', { class: 'outcome-title' }, o.title, h('span', { class: 'outcome-sub' }, ` ${o.text}`)),
     changed ? h('dl', { class: 'change' },
       h('div', {}, h('dt', {}, 'Before'), h('dd', {}, changed.before)),
       h('div', {}, h('dt', {}, 'After'), h('dd', {}, changed.after))) : null,
@@ -329,9 +346,12 @@ function renderNext(s, m) {
   const job = ui.job?.status === 'running' ? ui.job : null;
   box.hidden = !m.finished;
   if (box.hidden) return box.replaceChildren();
-  if (job) return box.replaceChildren(...(['release', 'reset', 'verify'].includes(job.action) ? [jobBox(job)] : []));
+  if (job) return box.replaceChildren(...(['release', 'reset', 'abc', 'verify'].includes(job.action) ? [jobBox(job)] : []));
   if (!m.action) return box.replaceChildren();
-  box.replaceChildren(h('p', { class: 'next-lead' }, 'This test is finished. Run the next one:'), actionBox({ ...m, verdict: null, alt: null }));
+  const a = actionBox({ ...m, alt: null });
+  a.querySelector('.action-explain')?.remove();
+  a.querySelector('#go')?.setAttribute('title', m.action.explain);
+  box.replaceChildren(a);
 }
 
 function renderHistory(s) {
