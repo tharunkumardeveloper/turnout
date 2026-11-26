@@ -114,6 +114,13 @@ export function createProxy(opts: Options): http.Server {
   // Flagsmith outages get it. Starts from memory, else the first release in the config.
   let live = opts.memory?.load();
   if (live && !config.releases.has(live)) live = undefined;
+  // The release each recent visitor was served, so a click is recorded against its version (bounded).
+  const servedTo = new Map<string, string>();
+  const noteServed = (identity: string, release: string) => {
+    servedTo.delete(identity);
+    servedTo.set(identity, release);
+    if (servedTo.size > 20_000) servedTo.delete(servedTo.keys().next().value!);
+  };
   const remember = (release: string) => {
     if (release === live) return;
     live = release;
@@ -244,6 +251,7 @@ export function createProxy(opts: Options): http.Server {
     const enrolled = !!assignment?.enrolled && !fallback;
     const tracked = counted && !fallback;
     const upstream = config.releases.get(release)!;
+    if (tracked && opts.onClick) noteServed(id, release);
 
     let appEvents: AppEvent[] = [];
     let done = false;
@@ -386,7 +394,7 @@ export function createProxy(opts: Options): http.Server {
       try {
         const b = JSON.parse(text) as { kind?: unknown; label?: unknown; target?: unknown };
         const kind = b.kind === 'submit' || b.kind === 'link' || b.kind === 'button' ? b.kind : null;
-        if (kind) opts.onClick({ kind, label: String(b.label ?? '').slice(0, 80), target: String(b.target ?? '').slice(0, 200), identity, release: readCookie(o.req.headers.cookie, VIEW_COOKIE) ?? null });
+        if (kind) opts.onClick({ kind, label: String(b.label ?? '').slice(0, 80), target: String(b.target ?? '').slice(0, 200), identity, release: o.viewing ?? (identity ? servedTo.get(identity) : undefined) ?? null });
       } catch {}
       return void res.writeHead(204, { 'cache-control': 'no-store' }).end();
     }

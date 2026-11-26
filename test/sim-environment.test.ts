@@ -32,6 +32,20 @@ test('simulated visitors get their own environment, made once, its key kept', as
   assert.equal(calls.length, 2); // one environment, one key
 });
 
+test('a lost key file replaces Try it’s old key instead of adding another', async () => {
+  const keys = [{ id: 1, name: 'Turnout Try it' }, { id: 2, name: 'Something else' }];
+  const deleted: string[] = [];
+  const api = {
+    get: async () => ({ api_key: 'main', name: 'Production', project: 7 }),
+    list: async (path: string) => (path.includes('api-keys') ? keys : [{ api_key: 'main', name: 'Production', project: 7 }, { api_key: 'sim', name: SIM_ENVIRONMENT, project: 7 }]),
+    post: async () => ({ key: 'ser.new' }),
+    request: async (method: string, path: string) => void deleted.push(`${method} ${path}`),
+  };
+  const file = join(mkdtempSync(join(tmpdir(), 'tn-sim-')), 'sim.json');
+  assert.equal((await simEnvironment(api as never, 'main', file)).serverKey, 'ser.new');
+  assert.deepEqual(deleted, ['DELETE /api/v1/environments/sim/api-keys/1/']);
+});
+
 test('the settings check names every difference', () => {
   const doc = (enabled: boolean, b: number) => ({ feature_states: [{ feature: { name: 'f' }, enabled, feature_state_value: 'try:a', multivariate_feature_state_values: [{ multivariate_feature_option: { value: 'try:b' }, percentage_allocation: b }] }] });
   assert.deepEqual(compareSnapshots(remoteSnapshot(doc(true, 50), 'f'), remoteSnapshot(doc(true, 50), 'f')), []);

@@ -280,6 +280,11 @@
               <p class="try-small">A request your visitors make when they convert: a page (<code>GET /pricing</code>) or a form (<code>POST /signup</code>). <code>*</code> matches anything.</p>
             </div>
             <div class="try-opt-card">
+              <label class="try-field-label" for="try-secondary">Also count <small>optional, one per line</small></label>
+              <textarea id="try-secondary" class="try-env" spellcheck="false" placeholder="GET /pricing&#10;POST /contact"></textarea>
+              <p class="try-small">Other actions Flagsmith measures alongside the goal (up to 5). They never pick the winner.</p>
+            </div>
+            <div class="try-opt-card">
               <label class="try-field-label" for="try-env">Settings for your app <small>KEY=value, one per line</small></label>
               <textarea id="try-env" class="try-env" spellcheck="false" placeholder="DATABASE_URL=postgresql://user:pass@host.docker.internal:5432/app&#10;API_KEY=…"></textarea>
               <p class="try-small">Passed to every version. <code>host.docker.internal</code> is your machine, for a database or service you run there.</p>

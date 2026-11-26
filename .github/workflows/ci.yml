@@ -113,6 +113,48 @@ jobs:
         if: always()
         run: docker compose down -v
 
+  # The UI check: every page and dialog in headless Chrome at 390, 820, 1280 and 1440 px, light and dark. Fails on a
+  # script error, a failed console API call or sideways scrolling. Screenshots are kept as a build artifact.
+  ui:
+    needs: test
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
+      - name: Prepare .env and state directory
+        run: |
+          cp .env.example .env
+          mkdir -p .turnout
+          echo "TURNOUT_UID=$(id -u)" >> "$GITHUB_ENV"
+          echo "TURNOUT_GID=$(id -g)" >> "$GITHUB_ENV"
+      - name: Start Flagsmith
+        run: docker compose up -d --wait flagsmith
+      - name: turnout init
+        run: docker compose run --build --rm cli init
+      - name: Start Turnout, Try it and the console
+        run: docker compose --profile tryit up -d --build --wait
+      - name: An app through Try it (so /app has a test to show)
+        run: npm run scoreboard plain-html
+      - name: npm run ui-check
+        run: npm run ui-check
+      - name: Screenshots
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ui-shots
+          path: scoreboard/ui-shots/
+      - name: Logs
+        if: failure()
+        run: docker compose --profile tryit logs --no-color
+      - name: Tear down
+        if: always()
+        run: docker compose --profile tryit down -v
+
   # Server mode end to end, with Caddy's internal (self-signed) certificate on hostname localhost: the start-up script,
   # HTTPS, Secure cookies, the read-only judge view, and nothing private reachable from outside 127.0.0.1.
   server:

@@ -324,6 +324,12 @@ test('the click script: added to pages only when asked for, and clicks reported 
     assert.equal(sent.status, 204);
     assert.equal((clicks[0] as { label: string }).label, 'Sign up');
     assert.doesNotMatch(CLICK_SCRIPT, /\.value\b(?!\s*\|\|)/); // a button's own value as its label, never a field's
+    // A counted visitor's click carries the version they were served.
+    const visit = await fetch(`${base}/`, { headers: { accept: 'text/html', 'user-agent': 'Mozilla/5.0 Chrome/120' } });
+    const cookie = (visit.headers.getSetCookie?.() ?? []).map((c) => c.split(';')[0]).join('; ');
+    assert.ok(cookie);
+    await fetch(`${base}/__turnout/click`, { method: 'POST', headers: { cookie }, body: JSON.stringify({ kind: 'link', label: 'Pricing', target: '/pricing' }) });
+    assert.equal((clicks[1] as { release: string }).release, 'v1');
   } finally {
     proxy.close();
     app.close();

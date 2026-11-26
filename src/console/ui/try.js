@@ -506,7 +506,7 @@ async function build() {
   go(3);
   $('try-previews').replaceChildren();
   $('try-open-page').hidden = true;
-  const res = await api('/api/try/build', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ versions, goal: /** @type {HTMLInputElement} */ ($('try-goal')).value, rates, env: /** @type {HTMLTextAreaElement} */ ($('try-env')).value, ...(useDatabase ? { database: useDatabase } : {}) }) });
+  const res = await api('/api/try/build', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ versions, goal: /** @type {HTMLInputElement} */ ($('try-goal')).value, rates, env: /** @type {HTMLTextAreaElement} */ ($('try-env')).value, secondary: /** @type {HTMLTextAreaElement} */ ($('try-secondary')).value.split(/\r?\n/).map((x) => x.trim()).filter(Boolean).slice(0, 5).map((action) => ({ action })), ...(useDatabase ? { database: useDatabase } : {}) }) });
   const body = await res.json().catch(() => ({}));
   if (!res.ok) {
     renderError({ status: 'failed', error: body.error ?? `HTTP ${res.status}` });

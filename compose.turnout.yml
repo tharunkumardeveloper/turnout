@@ -127,12 +127,13 @@ services:
       TURNOUT_EXPERIMENT: ${TURNOUT_EXPERIMENT:-}
       FLAGSMITH_DASHBOARD_URL: ${FLAGSMITH_DASHBOARD_URL:-http://127.0.0.1:8000}
       TURNOUT_TRYIT_SHOP_URL: http://127.0.0.1:8085
-      TURNOUT_STATE_DIR: /tmp/turnout-tryit
+      TURNOUT_STATE_DIR: /var/lib/turnout-tryit # a volume: the simulated-visitor key survives a rebuild
     ports:
       - 127.0.0.1:8085:8085 # your versions, through Turnout ("be a visitor")
       - 127.0.0.1:8086-8088:8086-8088 # each version on its own (previews, never counted): A, B, C
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
+      - tryit-state:/var/lib/turnout-tryit
     networks: [default]
     depends_on:
       turnout:
@@ -158,3 +159,4 @@ networks:
 
 volumes:
   turnout-state: {}
+  tryit-state: {}
