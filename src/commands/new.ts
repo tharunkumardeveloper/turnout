@@ -189,7 +189,7 @@ services:
       TURNOUT_FEED_URL: http://turnout:8081
       TURNOUT_PROXY_URL: http://turnout:8080
       TURNOUT_PUBLIC_SHOP_URL: http://127.0.0.1:${port}${bundled ? `\n      FLAGSMITH_DASHBOARD_URL: http://127.0.0.1:${a.flagsmithPort ?? 8000}` : ''}
-      TURNOUT_JUDGE: 'off' # judge mode is the demo shop's: its simulated shoppers must never reach your experiment
+      TURNOUT_JUDGE: 'off' # guided demo is the demo shop's: its simulated shoppers must never reach your experiment
       CONSOLE_HOST: 0.0.0.0
     ports:
       - 127.0.0.1:${consolePort}:8090 # holds the admin key: this machine only

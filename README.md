@@ -18,7 +18,7 @@
 
 [**Live demo**](https://172-198-62-67.sslip.io/judge) · [Quick start](#quick-start) · [Step-by-step setup](#step-by-step-setup) · [How Flagsmith is used](#how-flagsmith-is-used)
 
-<img src="docs/images/judge-ship.gif" width="860" alt="Judge mode: an A/B/C test on the demo shop. Shoppers go through, Flagsmith's results arrive, B ships and C is stopped by its slower pages">
+<img src="docs/images/judge-ship.gif" width="860" alt="Guided demo: an A/B/C test on the demo shop. Shoppers go through, Flagsmith's results arrive, B ships and C is stopped by its slower pages">
 
 </div>
 
@@ -96,11 +96,13 @@ Open the **[live demo](https://172-198-62-67.sslip.io/judge)**: it runs real Fla
 - **Be a visitor:** press it, and Flagsmith gives you a version like any shopper. The route marks where you landed.
 - **The console, read-only:** [/judge/console](https://172-198-62-67.sslip.io/judge/console?mode=console) shows the live traffic map, Flagsmith's results and the decisions the autopilot makes.
 
-On your own machine, judge mode is interactive: a guided tour tells you what to click at each step.
+On your own machine, guided demo is interactive: a guided tour tells you what to click at each step.
 
 ## Quick start
 
 You need **Docker** ([Docker Desktop](https://www.docker.com/products/docker-desktop/) on Windows and macOS) with about 4 GB of memory for it, and **Git**.
+
+Not sure what you have? After cloning, `sh turnout/setup.sh` (macOS, Linux) or `turnout\setup.bat` (Windows) checks Docker, Compose, memory and ports, and offers to install what's missing.
 
 ```sh
 git clone https://github.com/tharunkumardeveloper/turnout.git turnout
@@ -111,7 +113,7 @@ powershell -ExecutionPolicy Bypass -File turnout\install.ps1  # Windows
 Open a **new** terminal, then either try the demo or point it at your app:
 
 ```sh
-turnout demo                                          # the demo shop and judge mode
+turnout demo                                          # the demo shop and guided demo
 turnout compare localhost:3001 localhost:3002         # your two running versions
 ```
 
@@ -137,7 +139,7 @@ Every Flagsmith fact, with its source file and line: [docs/FLAGSMITH.md](docs/FL
 | | |
 |---|---|
 | **Your app** | `turnout compare` for URLs, images or git branches, any number of versions; goals optional; `--env-file`; installers for Windows, macOS and Linux; `turnout deploy` |
-| **Guided** | Judge mode with an interactive tour; a console tour; one button runs a whole test; *Try it with your app* (Dockerfiles, git repos or images); *Be a visitor* with a YOU pin; *Pin my browser* (identity override) |
+| **Guided** | Guided demo with an interactive tour; a console tour; one button runs a whole test; *Try it with your app* (Dockerfiles, git repos or images); *Be a visitor* with a YOU pin; *Pin my browser* (identity override) |
 | **Measuring** | Sticky visitor ids, bots never counted, bounces counted, goals from HTTP or one response header; 0 of 121,678 events lost under load |
 | **Deciding** | Flagsmith's results as returned; keep running while unsure; safety checks with a sensible margin (20 ms for page speed); A/A fairness checks |
 | **Releasing** | Ship and Revert that reach everyone; swing back with one edit; preview for your team; a release ledger and GitHub Releases |
@@ -182,7 +184,7 @@ The first run builds Turnout's image from your checkout (about a minute, once).
 turnout demo
 ```
 
-Your browser opens the console at <http://127.0.0.1:8090>. Turn on the **Judge mode** switch (next to **Tour**) for the step-by-step view, then follow the tour, or:
+Your browser opens the console at <http://127.0.0.1:8090>. Turn on the **Guided demo** switch (next to **Tour**) for the step-by-step view, then follow the tour, or:
 
 1. Pick **A/A**, **A/B** or **A/B/C** at the top. You see a preview of the versions first; nothing starts yet.
 2. Press the green button in each step: **Start**, **Send shoppers**, **Ask Flagsmith**, then **Ship** or **Roll back**.

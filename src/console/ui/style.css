@@ -1410,3 +1410,8 @@ a.btn { text-decoration: none; display: inline-flex; align-items: center; justif
 .tp-inline { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; }
 .tp-fail { color: var(--bad); }
 @media (max-width: 760px) { .tp-bar-row { grid-template-columns: minmax(0, 1fr) auto; } .tp-bar { grid-column: 1 / -1; grid-row: 2; } .tp-banner { margin: 8px 12px 0; } }
+
+/* Simple view (the default): the advanced parts wait behind "Show details" in the bar. */
+body.simple .detail { display: none !important; }
+/* Try it with your app is the main next step on a local console: bigger, bolder, a soft glow. */
+.console-screen .try-btn { min-height: 36px; padding: 6px 16px; font-weight: 700; font-size: 14px; box-shadow: 0 0 0 3px color-mix(in srgb, var(--good) 30%, transparent), 0 4px 14px -4px color-mix(in srgb, var(--good) 70%, transparent); }

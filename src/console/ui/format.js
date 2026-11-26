@@ -473,7 +473,7 @@ export function swingView(experiment, ledger, serving) {
 }
 
 /**
- * Judge mode: the optional swing step, offered beside the stage's one button once this experiment shipped a new
+ * Guided demo: the optional swing step, offered beside the stage's one button once this experiment shipped a new
  * release: back to the release it replaced, then forward again. null when it doesn't apply: not decided, reverted,
  * both swings done, or a preview has since re-pointed the shipped variant (the console refuses to swing then).
  * `s` is GET /api/judge/state.

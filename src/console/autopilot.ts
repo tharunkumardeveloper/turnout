@@ -26,7 +26,7 @@ export type AutopilotOptions = {
   log?: (line: string) => void;
 };
 
-/** What the autopilot needs from judge mode: the same three calls the console's routes use. */
+/** What the autopilot needs from guided demo: the same three calls the console's routes use. */
 export type JudgeLike = {
   state: () => Promise<JudgeState>;
   run: (body: unknown) => Promise<RunResponse>;
@@ -61,7 +61,7 @@ const TITLES: Record<JudgeAction, string> = {
 };
 
 /**
- * The next step from judge mode's state: the step it says is current, and for the decision, Turnout's
+ * The next step from guided demo's state: the step it says is current, and for the decision, Turnout's
  * recommendation (a losing guardrail always reverts). Pure. `keptRunning`: how often this experiment was kept running.
  */
 export function planNext(s: JudgeState, o: { keptRunning?: number; maxKeepRunning?: number; visitors?: number } = {}): Plan {

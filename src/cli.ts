@@ -40,7 +40,7 @@ Commands:
   history    Every decided test, with its decision and Flagsmith's numbers
   results    Flagsmith's verdict in one sentence and the split check [--full: every metric] [--report: Markdown]
   proxy      Route visitors by the Flagsmith flag and send events (port 8080)
-  console    Traffic map, results, Ship winner and Revert (127.0.0.1:8090); judge mode on /judge
+  console    Traffic map, results, Ship winner and Revert (127.0.0.1:8090); guided demo on /judge
   new        Set Turnout up for your app: four questions → turnout.config.yml and turnout.compose.yml
              [--flagsmith bundled|<api url>] [--release <label=url | url | image> …] [--success "POST /signup 2xx" | "header signup"]
              [--traffic <1-100>] [--flag <name>] [--event <name>] [--port <app port>] [--image <turnout image>]
@@ -267,6 +267,7 @@ async function proxy(): Promise<void> {
     onTraffic: (e) => feed.publish(e),
     memory: fileMemory(STATE_DIR),
     secureCookies: process.env.TURNOUT_SECURE_COOKIES === '1',
+    ...(process.env.TURNOUT_COOKIE_DOMAIN ? { cookieDomain: process.env.TURNOUT_COOKIE_DOMAIN } : {}),
     viewSwitch: process.env.TURNOUT_VIEW_SWITCH === '1',
     log: process.env.TURNOUT_ACCESS_LOG === '0' ? () => {} : undefined,
     ...(previewToken ? { previewToken, debugToken: previewToken } : {}),
@@ -427,7 +428,7 @@ const commands: Record<string, () => Promise<void>> = {
     if (problems.length) throw new Error(`server mode refuses to start: ${problems.length} setting${problems.length === 1 ? '' : 's'} above (values are never shown)`);
     console.log('Server mode: no placeholder secrets or tokens.');
   },
-  // "Try it with your app" (local only): builds or pulls your versions over the Docker socket and runs judge mode on
+  // "Try it with your app" (local only): builds or pulls your versions over the Docker socket and runs guided demo on
   // them behind a proxy of its own (src/tryit/server.ts). Started by compose.turnout.yml's tryit service.
   tryit: async () => {
     const { createDocker } = await import('./tryit/docker.ts');
@@ -595,13 +596,13 @@ const commands: Record<string, () => Promise<void>> = {
         },
         links: (e) => [
           { title: "Flagsmith's results page", url: `${dashboard}/project/${environment.project}/environment/${envKey()}/experiments/${e.id}` },
-          { title: judgeOn ? 'Turnout judge mode' : 'Turnout console', url: `http://${localHost(process.env)}:${port}${judgeOn ? '/judge' : '/'}` },
+          { title: judgeOn ? 'Turnout guided demo' : 'Turnout console', url: `http://${localHost(process.env)}:${port}${judgeOn ? '/judge' : '/'}` },
         ],
         log: (line) => console.log(line),
       });
       watcher.start();
     }
-    // Judge mode is the demo shop's guided page, with its simulated shoppers. A console for your own app (turnout
+    // Guided demo is the demo shop's guided page, with its simulated shoppers. A console for your own app (turnout
     // new/compare write TURNOUT_JUDGE=off) has no judge page and no simulated shoppers (they would land in your real
     // experiment), but keeps the test controls: start an A/A, A/B or A/B/C test, ask Flagsmith, decide.
     const judgeOn = (process.env.TURNOUT_JUDGE ?? 'on').trim().toLowerCase() !== 'off';
@@ -620,6 +621,7 @@ const commands: Record<string, () => Promise<void>> = {
       ...(judgeToken ? { judgeToken } : {}),
       judge: judgeOn ? judge : { ...judge, simulator: false },
       judgePage: judgeOn,
+      publicPlay: process.env.TURNOUT_PUBLIC_PLAY === '1',
       ...(process.env.TURNOUT_TRYIT_URL ? { tryitUrl: process.env.TURNOUT_TRYIT_URL } : {}),
       ...(process.env.TURNOUT_TRYIT_URL && process.env.TURNOUT_TRYIT_CONSOLE_URL !== '' ? { tryitConsoleUrl: process.env.TURNOUT_TRYIT_CONSOLE_URL || process.env.TURNOUT_TRYIT_URL.replace(/:\d+\/?$/, ':8099') } : {}),
       ...(process.env.FLAGSMITH_ADMIN_EMAIL

@@ -351,7 +351,7 @@ export function buildFlagsmithMap(f: MapFacts, opts: { dashboardUrl: string; now
     kind: 'menu',
     name: 'Identities',
     status: 'used',
-    what: "Every visitor's id (the tn_id cookie) is its identity in Flagsmith, evaluated locally. “Pin my browser” in judge mode and the console makes it a real identity with an identity override on the flag: Flagsmith serves that version before the experiment's split, so the browser sees it on every page and stays outside the test.",
+    what: "Every visitor's id (the tn_id cookie) is its identity in Flagsmith, evaluated locally. “Pin my browser” in guided demo and the console makes it a real identity with an identity override on the flag: Flagsmith serves that version before the experiment's split, so the browser sees it on every page and stays outside the test.",
     live: f.identities == null ? null : f.identities ? `${plural(f.identities, 'identity', 'identities')} with an override (pinned browsers)` : 'no pinned browsers yet',
     link: env('/users'),
     source: 'features/models.py (identity override before segment override), environments/identities/views.py',

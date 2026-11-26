@@ -111,7 +111,7 @@ describe('console UI files', () => {
     assert.match(read('app.js'), /prefers-reduced-motion: reduce/);
   });
 
-  test('one page: Judge mode is a switch beside Tour, not a page; the menu has setup, the feature map, every version, Flagsmith', () => {
+  test('one page: Guided demo is a switch beside Tour, not a page; the menu has setup, the feature map, every version, Flagsmith', () => {
     assert.match(html, /<link rel="stylesheet" href="\/menu\.css">/);
     assert.doesNotMatch(html, /data-page="judge"/);
     // The same menu on every page: Console, Setup check, What we use, Versions, Flagsmith (with its logo).
@@ -130,7 +130,7 @@ describe('console UI files', () => {
     assert.match(html, /<body class="console-screen">/);
     assert.match(read('style.css'), /body\.console-screen \{ height: 100vh; overflow: hidden;/);
     assert.match(read('style.css'), /grid-template-areas: "site map results" "run map decide";/);
-    assert.match(html, /<details class="history-drop" id="history-drop">/);
+    assert.match(html, /<details class="history-drop detail" id="history-drop">/);
   });
 
   test('where you land: /api/you, polled, and each version openable on its own', () => {
@@ -543,9 +543,9 @@ test('new comparison: the exact turnout compare command, quoted, or what is miss
 });
 
 const MODE: any = await import(pathToFileURL(join(UI, 'mode.js')).href);
-describe('mode.js: Judge mode, a switch on the one console page', () => {
+describe('mode.js: Guided demo, a switch on the one console page', () => {
   const M = MODE;
-  test('the judge view comes from judge mode, Try it (your app), or the public judge page', () => {
+  test('the judge view comes from guided demo, Try it (your app), or the public judge page', () => {
     const p = (q: string) => new URLSearchParams(q);
     assert.equal(M.frameSrc('', p('mode=judge')), '/judge?embed=1');
     assert.equal(M.frameSrc('', p('mode=judge&app=try&play=1')), '/judge?embed=1&play=1', 'your app is never in the judge view: it has /app');

@@ -35,13 +35,14 @@
       <details class="menu-drop" id="menu-versions"><summary>Versions</summary><div class="menu-panel" id="versions-list"><p class="menu-note">Loading…</p></div></details>
       <a href="#" id="menu-flagsmith" class="menu-ext fs-mark" target="_blank" rel="noopener" data-private>Flagsmith <span aria-hidden="true">↗</span></a>
     </nav>
-    <button class="btn btn-small try-btn" id="try-open" type="button" hidden>Try it with your app</button>
-    <button class="mode-switch" id="mode-judge" type="button" role="switch" aria-checked="false" title="Judge mode: the test step by step, one button at a time, with Play it for me" hidden>
+    <button class="btn btn-small try-btn" id="try-open" type="button" hidden>Try it with your app →</button>
+    <button class="mode-switch" id="mode-judge" type="button" role="switch" aria-checked="false" title="Guided demo: the test step by step, one button at a time, with Play it for me" hidden>
       <span class="mode-track" aria-hidden="true"><span class="mode-knob"></span></span>
-      <span class="mode-label">Judge mode</span>
+      <span class="mode-label">Guided demo</span>
     </button>
+    <button class="btn btn-ghost btn-small" id="details-toggle" type="button" aria-pressed="false" title="Show every control: history, routing, the guard, pinning, goals, connections">Show details</button>
     <button class="btn btn-ghost btn-small tour-btn" id="tour-open" type="button">Tour</button>
-    <ul class="connections" aria-label="Connections">
+    <ul class="connections detail" aria-label="Connections">
       <li id="conn-state" class="conn" data-state="pending"><span class="conn-dot" aria-hidden="true"></span><span class="conn-text">Flagsmith: connecting…</span></li>
       <li id="conn-feed" class="conn" data-state="pending"><span class="conn-dot" aria-hidden="true"></span><span class="conn-text">Live feed: connecting…</span></li>
     </ul>
@@ -55,10 +56,10 @@
     <dl class="meta">
       <div><dt>Started</dt><dd id="exp-started">—</dd></div>
       <div><dt>Flag</dt><dd id="flag-name" class="mono">—</dd></div>
-      <div class="meta-routing"><dt>Routing</dt><dd id="flag-routing">—</dd></div>
+      <div class="meta-routing detail"><dt>Routing</dt><dd id="flag-routing">—</dd></div>
     </dl>
     <p class="hypothesis" title="The experiment's hypothesis"><span class="hypothesis-label">Hypothesis</span> <span id="exp-hypothesis">—</span></p>
-    <details class="history-drop" id="history-drop">
+    <details class="history-drop detail" id="history-drop">
       <summary>History</summary>
       <div class="history-panel">
         <h3 id="sidings-title" class="sidings-title">Past experiments on this flag</h3>
@@ -71,9 +72,9 @@
 
   <div id="banner" class="banner" role="alert" hidden></div>
 
-  <!-- Judge mode (the switch above): the same test, step by step, in place of the console's cards. -->
+  <!-- Guided demo (the switch above): the same test, step by step, in place of the console's cards. -->
   <div id="judge-view" class="judge-view" hidden>
-    <iframe id="judge-frame" title="Judge mode" loading="eager"></iframe>
+    <iframe id="judge-frame" title="Guided demo" loading="eager"></iframe>
   </div>
 
   <main id="main" class="cgrid">
@@ -89,7 +90,7 @@
         <ul id="site-version-list"></ul>
       </div>
       <p class="site-goal" id="site-goal"></p>
-      <details class="site-more" id="site-more">
+      <details class="site-more detail" id="site-more">
         <summary>More: your visits, pin this browser, goals, new comparison, sign in</summary>
         <div class="site-more-body">
           <div class="journey" id="journey" hidden><h3>Your visits</h3><ol id="journey-list" class="journey-list"></ol></div>
@@ -129,7 +130,7 @@
     </section>
 
     <!-- Run a test: pick A/A, A/B or A/B/C (a preview first, Start runs it), send simulated shoppers on the demo, swing
-         after a ship. The same jobs judge mode runs (POST /api/judge/run). Hidden when the console has no judge API. -->
+         after a ship. The same jobs guided demo runs (POST /api/judge/run). Hidden when the console has no judge API. -->
     <section class="card run-card" id="run" aria-labelledby="run-title" hidden>
       <div class="card-head">
         <h2 id="run-title">Run a test</h2>
@@ -142,7 +143,7 @@
       </div>
       <ol class="run-steps" id="run-steps" hidden></ol>
       <p id="demo-status" class="action-status" role="status" aria-live="polite"></p>
-      <details class="run-more" id="run-more">
+      <details class="run-more detail" id="run-more">
         <summary>More: send shoppers yourself, swing after a ship</summary>
         <div class="run-row">
           <form id="visitors-form" class="demo-row">
@@ -185,7 +186,7 @@
         </div>
       </form>
       <p id="action-status" class="action-status" role="status" aria-live="polite"></p>
-      <div id="guard" class="guard-card" hidden>
+      <div id="guard" class="guard-card detail" hidden>
         <p id="health-line" class="guard-line" aria-live="polite"></p>
         <div class="guard-toggle">
           <button id="guard-button" class="btn btn-small btn-secondary" type="button" aria-pressed="false" title="With the guard on, Turnout asks Flagsmith for fresh results every 5 minutes and reverts on its own when a guardrail's chance to win drops to 1% or below. It never ships on its own.">Turn the guard on</button>
@@ -232,7 +233,7 @@
       <div id="metrics" class="metrics"></div>
       <div class="results-foot">
         <p id="srm" class="foot-line">Sample-ratio check: —</p>
-        <p class="foot-line"><span class="foot-label">Flagsmith events</span> <span id="events">—</span> <span id="events-delta" class="delta"></span></p>
+        <p class="foot-line detail"><span class="foot-label">Flagsmith events</span> <span id="events">—</span> <span id="events-delta" class="delta"></span></p>
       </div>
       <p id="refresh-status" class="refresh-status" role="status" aria-live="polite"></p>
     </section>

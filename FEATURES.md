@@ -71,16 +71,16 @@ Turnout is a reverse proxy in front of your web app. It turns every release into
 | `ship "<experiment link>"` | Ship or revert any Flagsmith experiment from its link, with a plan shown first |
 | `preview`, `release`, `demo`, `code-refs` | Preview a release, start an experiment, run the demo, submit Code References to Flagsmith |
 
-## Console and judge mode
+## Console and guided demo
 - **Console** (`:8090`), the page `turnout compare` opens.
   - **Run a test, one button**: pick A/A, A/B or A/B/C and check the preview; one button starts the test in Flagsmith, sends simulated shoppers and asks Flagsmith for its results, waiting out Flagsmith's 5-minute refresh limit when it must. For your own app it only starts the test (no simulated shoppers).
-  - **Try it with your app** (starts with `turnout.bat` / `sh turnout.sh`, local only): one, two or three versions given as Dockerfiles, public git repos or images; Turnout builds and runs them locally behind a proxy of its own (flag `tryit_release`), shows previews, and opens judge mode for them at `/try`. One version is an A/A test, two an A/B, three an A/B/C. Local only (Docker socket); never on a server.
+  - **Try it with your app** (starts with `turnout.bat` / `sh turnout.sh`, local only): one, two or three versions given as Dockerfiles, public git repos or images; Turnout builds and runs them locally behind a proxy of its own (flag `tryit_release`), shows previews, and opens guided demo for them at `/try`. One version is an A/A test, two an A/B, three an A/B/C. Local only (Docker socket); never on a server.
   - **Refresh guard**: Flagsmith recomputes results at most once every 5 minutes, so the console holds a refresh back while no new visit has arrived since the start or the last results.
   - **Open your site: be a visitor.** Your browser gets a version like any visitor; **Your visits** lists where it landed before the test, in it and after the decision. **Pin this browser** to one version: a Flagsmith identity override for your visitor id (outside the test).
   - **Traffic map**: every routed request rides to its version; ghost dots always move along the tracks the flag routes to now; a **YOU** pin marks your version.
   - Decide (Ship, Revert, Keep running, with the Flagsmith calls shown first), Flagsmith's results, the release history, and a **Sign in to Flagsmith** box. The menu's **Flagsmith ↗** opens Flagsmith itself.
-  - A **tour** of its own (the same engine as judge mode's).
-- **Judge mode** (`/judge`), the demo shop's guided page.
+  - A **tour** of its own (the same engine as guided demo's).
+- **Guided demo** (`/judge`), the demo shop's guided page.
   - One desktop screen, no scrolling: four steps with one green button on the left; the versions (live previews) and two tabs on the right: **What Flagsmith measured** (a column per version, Flagsmith's call against A, the verdict in one sentence) and **In Flagsmith** (the route each shopper takes with your YOU pin, the flag and its variants, the experiment, links into Flagsmith and its login).
   - **Pick the kind of test**: A/A (the same shop twice; the copy, A′, has a dashed outline), A/B, A/B/C. A click previews it; **Start** runs it.
   - **Be a visitor** and **Pin my browser**, as in the console.
@@ -91,7 +91,7 @@ Turnout is a reverse proxy in front of your web app. It turns every release into
   - 1.4 Classic (blue)
   - 1.5 Express (green, one-page checkout)
   - 1.6 Bold (charcoal and orange, with a labelled 60 ms test fault that trips the guardrail)
-- **Simulated visitors.** Always labelled. Judge mode's shoppers are the demo's; for your own app, `turnout simulate` sends visitors that explore your site like people (links page by page, bounces, your forms filled in and submitted when they post to your goal), in a separate Flagsmith environment, for any number of versions.
+- **Simulated visitors.** Always labelled. Guided demo's shoppers are the demo's; for your own app, `turnout simulate` sends visitors that explore your site like people (links page by page, bounces, your forms filled in and submitted when they post to your goal), in a separate Flagsmith environment, for any number of versions.
 
 ## Server mode (public deployment)
 - **One command.** `sh turnout.sh server <hostname>` deploys with Caddy and automatic Let's Encrypt HTTPS.

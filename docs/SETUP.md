@@ -1,11 +1,11 @@
 # Setting up Turnout
 
-The [README](../README.md#quick-start) has the short version. This page has the details: what the scripts do, the commands they run, judge mode on another device, Linux user ids, and what runs where.
+The [README](../README.md#quick-start) has the short version. This page has the details: what the scripts do, the commands they run, guided demo on another device, Linux user ids, and what runs where.
 
 ## What you need
 
 - Docker with Compose 2.20 or later (Docker Desktop on Windows and macOS, Docker Engine on Linux), with about 8 GB of RAM for Docker.
-- Free ports 8000 (Flagsmith), 8080 (the proxy and the shop), 8090 (the console and judge mode) and 8091 (judge mode for other devices).
+- Free ports 8000 (Flagsmith), 8080 (the proxy and the shop), 8090 (the console and guided demo) and 8091 (guided demo for other devices).
 - For development only: Node.js 24 or later, npm and Git.
 
 ## The scripts
@@ -13,13 +13,13 @@ The [README](../README.md#quick-start) has the short version. This page has the 
 | Script | What it does |
 |---|---|
 | `setup.bat`, `setup.sh` | Checks Docker (and starts it), Compose 2.20+, memory, the three ports and `.env`, and for development Node.js 24+, npm and Git; on Windows also WSL 2. Offers to install anything missing: `winget` on Windows, Homebrew on macOS; on Linux it prints the `apt`/`dnf` or Docker install command and asks before running it with `sudo`. On Linux it also writes your user and group id to `.env` (see [Linux](#linux-user-ids)). `/check` (`--check`) changes nothing; `/yes` (`--yes`) installs without asking |
-| `turnout.bat`, `turnout.sh` | Starts Flagsmith, sets it up on the first run, starts Turnout, the console and the shop, runs `doctor`, and opens judge mode (`TURNOUT_NO_BROWSER=1` skips the browser) |
+| `turnout.bat`, `turnout.sh` | Starts Flagsmith, sets it up on the first run, starts Turnout, the console and the shop, runs `doctor`, and opens guided demo (`TURNOUT_NO_BROWSER=1` skips the browser) |
 
 `turnout.bat` and `sh turnout.sh` take one action:
 
 | Action | What it does |
 |---|---|
-| (none) or `start` | Start everything, check the setup and open judge mode |
+| (none) or `start` | Start everything, check the setup and open guided demo |
 | `demo` | The same, then send 1,500 simulated visitors through the proxy |
 | `status` | Show what's running, run `doctor`, and print the links |
 | `stop` | Stop every container; Flagsmith's data and the keys are kept |
@@ -65,11 +65,11 @@ Right after a restart, the proxy can warn once that its last flag refresh timed 
 
 Compose publishes every port on `127.0.0.1`, and the links use `127.0.0.1`: on Windows, a client that tries `localhost`'s IPv6 address (`::1`) first waits for that attempt to be refused before it falls back.
 
-Open the console and the shop on the **same hostname**. Judge mode shows the shop in a frame, and browsers drop the shop's `SameSite=Lax` cookies (the cart and the visitor id) in a frame from another site; `localhost` and `127.0.0.1` count as different sites. The start scripts and `init` follow the hostname in `TURNOUT_PUBLIC_SHOP_URL`, so an older `.env` that still uses `localhost` keeps working.
+Open the console and the shop on the **same hostname**. Guided demo shows the shop in a frame, and browsers drop the shop's `SameSite=Lax` cookies (the cart and the visitor id) in a frame from another site; `localhost` and `127.0.0.1` count as different sites. The start scripts and `init` follow the hostname in `TURNOUT_PUBLIC_SHOP_URL`, so an older `.env` that still uses `localhost` keeps working.
 
-## Judge mode on another device
+## Guided demo on another device
 
-The console holds the admin key, so by default only this machine can reach it. To let a phone, tablet or another computer on your network open judge mode:
+The console holds the admin key, so by default only this machine can reach it. To let a phone, tablet or another computer on your network open guided demo:
 
 1. In `.env`, set:
    - `TURNOUT_CONSOLE_HOSTS` to this machine's address on the network, for example `192.168.1.20` (a comma-separated list is allowed);
@@ -99,7 +99,7 @@ What changes in server mode (`compose.server.yml`, `deploy/Caddyfile`):
 
 - Caddy (pinned image) on ports 80 and 443 gets a certificate for the hostname and redirects HTTP to HTTPS. `TURNOUT_CADDY_TLS=tls internal` uses Caddy's own CA instead (CI, or a trial on `localhost`).
 - `https://<hostname>/` goes to the proxy; its cookies are marked `Secure`, and the shop URL is `https://<hostname>`.
-- `https://<hostname>/judge` is judge mode, read-only: GET and HEAD only, to a console port that is never published. Every action is refused there, and the setup check and feature map are left out.
+- `https://<hostname>/judge` is guided demo, read-only: GET and HEAD only, to a console port that is never published. Every action is refused there, and the setup check and feature map are left out.
 - Flagsmith (8000), the console (8090, 8091) and the proxy's own port (8080) are published on `127.0.0.1` only. Reach them with an SSH tunnel: `ssh -L 8000:127.0.0.1:8000 -L 8090:127.0.0.1:8090 you@<hostname>`.
 - Every service has `restart: unless-stopped`.
 - The console's autopilot runs the judge story by itself, round and round, so the public `/judge` always shows something happening: labelled simulated visitors, Flagsmith's results (at most one refresh per 5 minutes), Turnout's recommendation followed (ship, revert or keep running), verify, preview, the next release, then a reset. It uses the same jobs as the console's buttons, never while another one runs, and steps aside for 10 minutes after any action from the private console. `TURNOUT_AUTOPILOT=off` in `.env` turns it off; `TURNOUT_AUTOPILOT_VISITORS` and `TURNOUT_AUTOPILOT_PAUSE` (seconds between steps) tune it.
@@ -148,20 +148,20 @@ The proxy, the console and the CLI read `turnout.config.yml` from a mount, never
 | `flagsmith` (API and dashboard) | 8000, always on `127.0.0.1` | default, sdk | |
 | `flagsmith-task-processor`, `postgres`, `migrate-db` | none | default | |
 | `turnout` (the proxy) | 8080 | sdk, feed, apps | server key, preview token |
-| `console` (console and judge mode) | 8090 on `127.0.0.1`; 8091 for other devices | default, feed | admin key and login, server key, preview and judge tokens, Feature Health URL, GitHub token |
+| `console` (console and guided demo) | 8090 on `127.0.0.1`; 8091 for other devices | default, feed | admin key and login, server key, preview and judge tokens, Feature Health URL, GitHub token |
 | `shop-1-4`, `shop-1-5`, `shop-1-6` (`compose.demo.yml`) | none | apps | none; the shop has no Flagsmith code |
 | `cli` (profile `tools`, one-off commands) | none | default, feed | reads the mounted `.env` |
 
 - **default:** Flagsmith, its Postgres, the console and the CLI (the admin side).
 - **sdk:** Flagsmith and the proxy: flag reads and events.
-- **feed:** the proxy and the console: the traffic feed (internal port 8081) and judge mode's simulated visitors.
+- **feed:** the proxy and the console: the traffic feed (internal port 8081) and guided demo's simulated visitors.
 - **apps:** the proxy and the shops. The shops can't reach Flagsmith or the console.
 
 So the proxy can't reach Postgres or the console's Flagsmith-admin traffic. The proxy's port and the console's port for other devices are bound to `TURNOUT_PUBLISH_HOST` (default `127.0.0.1`); Flagsmith's and the console's own port 8090 are always bound to `127.0.0.1`.
 
 ## Settings
 
-`.env.example` documents every variable the code reads and every `${…}` value Compose uses, in sections: Flagsmith and keys, judge mode and other devices, Feature Health and the guard, the proxy, Linux, CLI-only, and the ones Compose sets for you. A few worth knowing:
+`.env.example` documents every variable the code reads and every `${…}` value Compose uses, in sections: Flagsmith and keys, guided demo and other devices, Feature Health and the guard, the proxy, Linux, CLI-only, and the ones Compose sets for you. A few worth knowing:
 
 - `TURNOUT_GUARD=revert` switches on the guard (see the README); `TURNOUT_GUARD_THRESHOLD` sets its threshold.
 - `TURNOUT_SECURE_COOKIES=1` marks the proxy's cookies `Secure`; set it when a TLS proxy serves the shop over HTTPS.

@@ -1,5 +1,5 @@
 // Turnout console: polls /api/state, streams /api/traffic onto the map, and runs the two human-confirmed
-// actions, plus the demo controls (simulated visitors, swing back / forward) that judge mode also runs. Every string
+// actions, plus the demo controls (simulated visitors, swing back / forward) that guided demo also runs. Every string
 // from the server goes in through textContent.
 import * as F from './format.js';
 import { TrafficMap } from './map.js';
@@ -188,7 +188,7 @@ async function loadState() {
 function schedule() {
   clearTimeout(app.timer);
   app.timer = setTimeout(async () => {
-    await Promise.all([loadState(), demo.timer ? null : loadDemoJob()]); // a job started in judge mode shows here too
+    await Promise.all([loadState(), demo.timer ? null : loadDemoJob()]); // a job started in guided demo shows here too
     schedule();
   }, POLL_MS);
 }
@@ -326,7 +326,7 @@ function render() {
 }
 
 // ---- the traffic card: previews before traffic, the map once shoppers flow -------------------------------------
-// Before a test has traffic the card shows each version, live (as judge mode does); once requests flow it shows the
+// Before a test has traffic the card shows each version, live (as guided demo does); once requests flow it shows the
 // traffic map. The switch overrides that until the page reloads.
 const mapView = { choice: null, framesKey: '' };
 /** One version on its own: its own address (Try it), or the proxy's view link. Never counted either way. */
@@ -571,7 +571,7 @@ $('refresh-btn').addEventListener('click', async () => {
 
 // The release Turnout suggests shipping: its recommendation when that is to ship (in an A/B/C test, the best release
 // that is clearly better AND passes every safety check), else Flagsmith's best on the goal. Before this, the console
-// pre-selected the best on the goal even when it failed a safety check, while judge mode shipped the safe one.
+// pre-selected the best on the goal even when it failed a safety check, while guided demo shipped the safe one.
 function suggestedKey(s) {
   if (!s || s.experiment?.status === 'completed') return null;
   const rec = s.recommendation;
@@ -960,7 +960,7 @@ function renderSwingBack(s) {
 }
 
 // ---- demo controls: simulated visitors and the swing ---------------------------------------------------------
-// The same background jobs judge mode runs (POST /api/judge/run, polled on GET /api/judge/job). The console holds
+// The same background jobs guided demo runs (POST /api/judge/run, polled on GET /api/judge/job). The console holds
 // one lock for them and for Ship / Revert, so only one runs at a time, whichever page started it.
 
 const DEMO_POLL_MS = 1000;
@@ -1075,7 +1075,7 @@ function renderDemo() {
   }
   let text = '';
   let tone = 'neutral';
-  if (job?.status === 'running') text = demo.mine.has(job.id) ? F.demoJobText(job) : `Judge mode is running a step: ${F.demoJobText(job)}`;
+  if (job?.status === 'running') text = demo.mine.has(job.id) ? F.demoJobText(job) : `Guided demo is running a step: ${F.demoJobText(job)}`;
   else if (job && demo.mine.has(job.id)) {
     text = F.demoJobText(job);
     tone = job.status === 'failed' ? 'bad' : 'good';
@@ -1285,8 +1285,8 @@ async function pinTo(release) {
 }
 
 // ---- run a test: A/A, A/B, A/B/C… a preview first, then Start ---------------------------------------------------
-// The same start job judge mode runs (POST /api/judge/run, action start). The releases and the running test's kind
-// come from judge mode's state (/api/judge/state), read every few seconds while the card is on screen.
+// The same start job guided demo runs (POST /api/judge/run, action start). The releases and the running test's kind
+// come from guided demo's state (/api/judge/state), read every few seconds while the card is on screen.
 const RUN_COLORS = ['#2563eb', '#16a34a', '#d97706', '#7c3aed', '#db2777', '#0891b2'];
 const run = { judge: null, plan: null, timer: 0 };
 async function loadRunState() {
@@ -1483,6 +1483,32 @@ $('run-cancel').addEventListener('click', () => {
 
 // ---- start ---------------------------------------------------------------------------------------------------
 setupMenu('console');
+// Simple view by default: the advanced parts (history, routing, guard, pinning, goals, connections) behind one switch.
+{
+  const toggle = $('details-toggle');
+  const KEY = 'turnout-details';
+  const apply = (on) => {
+    document.body.classList.toggle('simple', !on);
+    toggle.setAttribute('aria-pressed', String(on));
+    toggle.textContent = on ? 'Hide details' : 'Show details';
+  };
+  let on = false;
+  try {
+    on = localStorage.getItem(KEY) === '1';
+  } catch {
+    /* this page only */
+  }
+  apply(on);
+  toggle.addEventListener('click', () => {
+    on = !on;
+    apply(on);
+    try {
+      localStorage.setItem(KEY, on ? '1' : '0');
+    } catch {
+      /* this page only */
+    }
+  });
+}
 void loadYou();
 void loadRunState();
 if (!READONLY) void loadSignin().then((x) => {
@@ -1514,7 +1540,7 @@ if (document.querySelector('meta[name="turnout-app"]')) {
   document.querySelector('.brand')?.setAttribute('href', '/app');
   document.getElementById('try-open')?.after(h('a', { class: 'btn btn-ghost btn-small app-back', href: '/' }, '← Demo shop'));
 }
-// One page: Judge mode is the switch beside Tour; while it is on, Tour shows the judge view's tour.
+// One page: Guided demo is the switch beside Tour; while it is on, Tour shows the judge view's tour.
 const mode = setupMode();
 $('tour-open').addEventListener('click', () => mode.tour() || tour.start());
 // Your app's console (/app) opens straight after a build: no tour on top of it (Tour is one click away).

@@ -1,9 +1,12 @@
 # Server mode's front door (compose.server.yml mounts it). Caddy fills {$…} from the environment Compose gives it, so
-# the site below is built from TURNOUT_HOSTNAME: turnout.sh server <hostname> writes it into .env.
+# the sites below are built from TURNOUT_HOSTNAME: turnout.sh server <hostname> writes it into .env.
 #
-#   https://<hostname>/judge, /judge/*   GET and HEAD only, to the console's read-only port (8092, never published)
-#   anything else on the hostname        to the live proxy (real visitors, flag shop_release_live), which routes it
-#                                        to a release. Simulated visitors use the other proxy, inside the network.
+#   https://<hostname>/                  the console's public page (redirect to /judge)
+#   https://<hostname>/judge, /judge/*   the console's public port (8092, never published): GET and HEAD, plus the
+#                                        guided demo's own steps (POST /judge/api/judge/run, simulated shoppers only)
+#   https://<hostname>/__turnout/receipt where this browser lands (the visitor cookie is set for <hostname> and below)
+#   https://shop.<hostname>              the live proxy (real visitors, flag shop_release_live), which routes each
+#                                        visitor to a release. Simulated visitors use the other proxy, inside the network.
 # Flagsmith and the console's own ports are not here at all: they stay on 127.0.0.1 (SSH tunnel).
 {
 	admin off
@@ -19,9 +22,31 @@
 		handle @read {
 			reverse_proxy console:8092
 		}
+		@play {
+			method POST
+			path /judge/api/judge/run
+		}
+		handle @play {
+			request_body {
+				max_size 4KB
+			}
+			reverse_proxy console:8092
+		}
 		header Allow "GET, HEAD"
-		respond "Read-only view: actions run only from the console on the server." 405
+		respond "Read-only view: this step runs only from the console on the server." 405
 	}
+
+	handle /__turnout/receipt {
+		reverse_proxy turnout-live:8080
+	}
+
+	handle {
+		redir * /judge 302
+	}
+}
+
+shop.{$TURNOUT_HOSTNAME} {
+	{$TURNOUT_CADDY_TLS}
 
 	handle {
 		reverse_proxy turnout-live:8080

@@ -7,7 +7,7 @@
 #       versions: URLs (localhost:3001, http://localhost:3002), Docker images (myapp:1.0), or branches of the git
 #       project you're in (main new-checkout: each built from its Dockerfile; your .env is passed); not a mix
 #       --port: the port your app listens on in its container (default: the Dockerfile's EXPOSE, else 8080)
-#   turnout demo: the demo shop and judge mode (stop: turnout demo stop)    turnout update: get the latest Turnout
+#   turnout demo: the demo shop and guided demo (stop: turnout demo stop)    turnout update: get the latest Turnout
 #   turnout simulate [--visitors 500] [--yes]: pretend visitors, in a separate Flagsmith environment, results in minutes
 #   turnout deploy [domain]: the Caddy or Nginx lines to put your web server in front of Turnout
 #   turnout open | status | down | reset [--yes]
@@ -91,7 +91,7 @@ help_screen() {
   say "    ${C_D}About 4 GB of memory for Docker. Flagsmith comes with Turnout: nothing else to install.${C_0}"
   say ""
   section 'START HERE'
-  cmd 'turnout demo' 'the demo shop: console, Judge mode, Try it, the tours'
+  cmd 'turnout demo' 'the demo shop: console, Guided demo, Try it, the tours'
   cmd 'turnout demo stop' 'stop it (data kept)'
   say ""
   section 'TEST YOUR APP   (in your project folder)'
@@ -419,7 +419,7 @@ case "$cmd" in
   compare) cmd_compare "$@" ;;
   deploy) cmd_deploy "$@" ;;
   simulate) cmd_simulate "$@" ;;
-  demo) need_docker; cd "$HOME_DIR" && exec sh turnout.sh "${1:-start}" ;;   # start (opens judge mode), or: stop, status, reset
+  demo) need_docker; cd "$HOME_DIR" && exec sh turnout.sh "${1:-start}" ;;   # start (opens guided demo), or: stop, status, reset
   update) cd "$HOME_DIR" && git pull --ff-only && say "Up to date. The next turnout compare or turnout demo uses it." ;;
   results) need_state; need_docker; compose --progress quiet run --rm cli status ;;
   ship) need_state; need_docker; compose --progress quiet run --rm -it cli ship ${1:+--winner "$1"} ;;

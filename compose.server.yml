@@ -69,6 +69,7 @@ services:
     environment:
       TURNOUT_SECURE_COOKIES: '1'
       TURNOUT_STATE_DIR: /app/.turnout/live
+      TURNOUT_COOKIE_DOMAIN: ${TURNOUT_HOSTNAME} # the shop is shop.<host>; the console on <host> reads the same visitor cookie
       TURNOUT_VIEW_SWITCH: '1' # judges can look at any version (/__turnout/view?release=…), uncounted
     ports: !reset []
     volumes: !override
@@ -96,7 +97,8 @@ services:
       TURNOUT_TRYIT_URL: '' # no Try it box on a server (it builds and runs code)
       TURNOUT_TRYIT_CONSOLE_URL: '' # nor your app's console
       FLAGSMITH_TOUR_PORT: '' # Flagsmith's dashboard stays private (SSH tunnel)
-      TURNOUT_PUBLIC_SHOP_URL: https://${TURNOUT_HOSTNAME}
+      TURNOUT_PUBLIC_SHOP_URL: https://shop.${TURNOUT_HOSTNAME}
+      TURNOUT_PUBLIC_PLAY: '1' # visitors run the guided demo's steps (simulated shoppers only, rate-limited)
       TURNOUT_CONSOLE_HOSTS: '' # other devices use the public, read-only view
       # The public view is read-only, so the story runs by itself: the console's autopilot presses the judge buttons
       # (visitors, Flagsmith's results, Turnout's recommendation, verify, preview, release, reset, again), waits out

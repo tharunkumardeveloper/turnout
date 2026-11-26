@@ -1,10 +1,10 @@
 #!/bin/sh
 # ===========================================================================================================
-#  Turnout (macOS and Linux): start everything and open judge mode. (Set TURNOUT_NO_BROWSER=1 to skip opening
+#  Turnout (macOS and Linux): start everything and open guided demo. (Set TURNOUT_NO_BROWSER=1 to skip opening
 #  the browser.)
 #
 #    sh turnout.sh            start Flagsmith, set it up (first run), start Turnout and the shop, check the
-#                                setup, open judge mode
+#                                setup, open guided demo
 #    sh turnout.sh demo       the same, then send 1,500 simulated visitors through the proxy
 #    sh turnout.sh status     show what's running, check the setup, and the links
 #    sh turnout.sh stop       stop every container (Flagsmith's data and the keys are kept)
@@ -23,7 +23,7 @@ ACTION=${1:-start}
 OPTION=${2:-}
 usage() {
   echo "Usage: sh turnout.sh [start | demo | status | stop | reset [--yes] | server <hostname>]"
-  echo "  start   (default) start everything, check the setup and open judge mode"
+  echo "  start   (default) start everything, check the setup and open guided demo"
   echo "  demo    start, then send 1,500 simulated visitors"
   echo "  status  show what's running, check the setup, and the links"
   echo "  stop    stop every container; data and keys are kept"
@@ -96,7 +96,7 @@ cli() {
 }
 
 # The hostname for links on this machine: 127.0.0.1 (Compose publishes there; "localhost" can try IPv6 first), or
-# localhost when .env's shop URL uses it, so judge mode and its Shop tab share a hostname and the shop keeps its cookies.
+# localhost when .env's shop URL uses it, so guided demo and its Shop tab share a hostname and the shop keeps its cookies.
 HOST=127.0.0.1
 pick_host() {
   case "$(sed -n 's/^TURNOUT_PUBLIC_SHOP_URL=//p' .env 2>/dev/null | head -n 1)" in
@@ -115,7 +115,7 @@ links() {
     echo "  Server mode on $SH"
     echo "  Shop         https://$SH/          (through Turnout)"
     echo "  Judge view   https://$SH/judge     (read-only, for anyone)"
-    echo "  Console, Flagsmith and the full judge mode stay on this server's 127.0.0.1. From your machine:"
+    echo "  Console, Flagsmith and the full guided demo stay on this server's 127.0.0.1. From your machine:"
     echo "    ssh -L 8090:127.0.0.1:8090 -L 8000:127.0.0.1:8000 <you>@$SH"
     echo "    then http://127.0.0.1:8090/judge and http://127.0.0.1:8000"
     [ -n "$ADMIN_EMAIL" ] && echo "  Flagsmith login $ADMIN_EMAIL, password in .env (FLAGSMITH_ADMIN_PASSWORD)"
@@ -127,7 +127,7 @@ links() {
   fi
   echo
   echo " ------------------------------------------------------------"
-  echo "  Judge mode   http://$HOST:8090/judge   (the whole story, with buttons)"
+  echo "  Guided demo   http://$HOST:8090/judge   (the whole story, with buttons)"
   echo "  Setup check  http://$HOST:8090/setup   (is everything in place?)"
   echo "  Console      http://$HOST:8090"
   echo "  Shop         http://$HOST:8080          (through Turnout)"
@@ -157,7 +157,7 @@ doctor() {
 open_browser() {
   [ -n "${TURNOUT_NO_BROWSER:-}" ] && return 0
   [ "$MODE" = server ] && return 0 # a server has no one at its screen
-  echo " Opening judge mode in your browser..."
+  echo " Opening guided demo in your browser..."
   if [ "$(uname -s)" = Darwin ]; then
     open "$1" >/dev/null 2>&1 || true
   elif command -v xdg-open >/dev/null 2>&1; then

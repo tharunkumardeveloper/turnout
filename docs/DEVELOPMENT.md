@@ -32,10 +32,10 @@ src/
   commands/                init, doctor, check, preview, release, and status/ship/revert (ship.ts)
   console/server.ts        console API (per-boot token; holds the admin key); :8090 for this machine, :8091 for
                            other devices (judge cookie always required there)
-  console/judge.ts         judge mode's API: /api/judge/state and the jobs behind each step
+  console/judge.ts         guided demo's API: /api/judge/state and the jobs behind each step
   console/ui/              front end, no build step:
                              index.html, app.js, map.js, guard.js                    the full console (/)
-                             demo.html, demo.js, demo-model.js, demo.css             judge mode (/judge), also the
+                             demo.html, demo.js, demo-model.js, demo.css             guided demo (/judge), also the
                                                                                      server's public read-only page
                              demo-tour.js                                            the two-minute tour
                              menu.js, menu.css                                       the menu every page shares
@@ -49,7 +49,7 @@ spikes/                    checks against a real Flagsmith; answers and live mea
 test/                      node:test suites (below)
 docs/
   SETUP.md                 the scripts, by-hand commands, doctor, other devices, Linux, ports and networks
-  JUDGE_MODE.md            judge mode, the tour and the full console
+  JUDGE_MODE.md            guided demo, the tour and the full console
   CLI.md                   every command and option
   FLAGSMITH.md             every Flagsmith feature used, with file:line, and what I found on the pinned image
   images/                  README screenshots and the Ship GIF, captured from the live stack
@@ -106,7 +106,7 @@ The console keeps some Flagsmith reads briefly and shares a read already in flig
 
 | What | Kept for |
 |---|---|
-| `/api/state` and judge mode's `/api/judge/state` | 1.5 s |
+| `/api/state` and guided demo's `/api/judge/state` | 1.5 s |
 | Which experiment is the latest | 10 s, so a `turnout release` run in a terminal shows up within about 10 s |
 | Flagsmith's event counter | 1 s |
 | `/api/doctor` | 15 s; `?fresh=1` skips it (the setup page's **Check again** uses it) |

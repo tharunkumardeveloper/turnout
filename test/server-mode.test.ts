@@ -175,13 +175,16 @@ describe('server mode: compose.server.yml and the Caddyfile', () => {
     assert.match(services.postgres!.environment.POSTGRES_PASSWORD, /^\$\{POSTGRES_PASSWORD:\?/);
   });
 
-  test('Caddyfile: the hostname from the environment; only GET/HEAD /judge* to the console; the rest to the proxy', () => {
+  test('Caddyfile: the console on the hostname (GET/HEAD, plus the guided demo steps); the shop on shop.<hostname>', () => {
     const caddy = read('deploy/Caddyfile');
     assert.match(caddy, /^\{\$TURNOUT_HOSTNAME\} \{/m);
+    assert.match(caddy, /^shop\.\{\$TURNOUT_HOSTNAME\} \{/m);
     assert.match(caddy, /@judge path \/judge \/judge\/\*/);
     assert.match(caddy, /@read method GET HEAD/);
-    const proxied = [...caddy.matchAll(/reverse_proxy (\S+)/g)].map((m) => m[1]);
-    assert.deepEqual(proxied, ['console:8092', 'turnout-live:8080'], 'never console:8090, never flagsmith, never the simulated proxy');
+    assert.match(caddy, /method POST\s+path \/judge\/api\/judge\/run/, 'the only POST: the guided demo steps');
+    assert.match(caddy, /redir \* \/judge 302/);
+    const proxied = new Set([...caddy.matchAll(/reverse_proxy (\S+)/g)].map((m) => m[1]));
+    assert.deepEqual([...proxied].sort(), ['console:8092', 'turnout-live:8080'], 'never console:8090, never flagsmith, never the simulated proxy');
     assert.match(caddy, /respond "[^"]+" 405/);
   });
 });

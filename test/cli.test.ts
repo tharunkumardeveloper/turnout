@@ -240,7 +240,7 @@ function consoleBanner(extra: Record<string, string>): Promise<string> {
     const timer = setTimeout(() => child.kill(), 20_000);
     const take = (d: Buffer) => {
       out += d;
-      if (/other devices \(judge link only\) on/.test(out) && /Judge mode/.test(out)) child.kill();
+      if (/other devices \(judge link only\) on/.test(out) && /Guided demo/.test(out)) child.kill();
     };
     child.stdout.on('data', take);
     child.stderr.on('data', take);
@@ -254,7 +254,7 @@ function consoleBanner(extra: Record<string, string>): Promise<string> {
 
 test('the console logs no judge key link while no other device is set up', async () => {
   const out = await consoleBanner({ TURNOUT_JUDGE_TOKEN: 'judge-token-in-logs' });
-  assert.match(out, /Judge mode: http:\/\/127\.0\.0\.1:8090\/judge/);
+  assert.match(out, /Guided demo: http:\/\/127\.0\.0\.1:8090\/judge/);
   assert.match(out, /other devices \(judge link only\) on/);
   assert.doesNotMatch(out, /key=/);
   assert.doesNotMatch(out, /judge-token-in-logs/);

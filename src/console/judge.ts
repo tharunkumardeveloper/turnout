@@ -1,4 +1,4 @@
-// Judge mode: the whole Turnout story from one page with buttons, no terminal. A small state machine over the
+// Guided demo: the whole Turnout story from one page with buttons, no terminal. A small state machine over the
 // flag's latest experiment (deriveSteps) plus background jobs that drive the real stack: labelled simulated visitors
 // through the proxy, Flagsmith's results, Ship winner / Revert, swing-back, preview, release, verify and reset.
 // Every job reuses the commands the CLI runs; Flagsmith, the simulator and the proxy are injectable for tests.

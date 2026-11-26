@@ -6,7 +6,7 @@
 #       versions: URLs (localhost:3001, http://localhost:3002), Docker images (myapp:1.0), or branches of the git
 #       project you're in (main new-checkout: each built from its Dockerfile; your .env is passed); not a mix
 #       --port: the port your app listens on in its container (default: the Dockerfile's EXPOSE, else 8080)
-#   turnout demo: the demo shop and judge mode (stop: turnout demo stop)    turnout update: get the latest Turnout
+#   turnout demo: the demo shop and guided demo (stop: turnout demo stop)    turnout update: get the latest Turnout
 #   turnout simulate [--visitors 500] [--yes]: pretend visitors, in a separate Flagsmith environment, results in minutes
 #   turnout deploy [domain]: the Caddy or Nginx lines to put your web server in front of Turnout
 #   turnout open | status | down | reset [--yes]
@@ -114,7 +114,7 @@ function Show-Help {
   Write-Host '    About 4 GB of memory for Docker. Flagsmith comes with Turnout: nothing else to install.' -ForegroundColor DarkGray
   Write-Host ''
   Show-Section 'START HERE'
-  Show-Cmd 'turnout demo' 'the demo shop: console, Judge mode, Try it, the tours'
+  Show-Cmd 'turnout demo' 'the demo shop: console, Guided demo, Try it, the tours'
   Show-Cmd 'turnout demo stop' 'stop it (data kept)'
   Write-Host ''
   Show-Section 'TEST YOUR APP   (in your project folder)'
@@ -393,7 +393,7 @@ switch ($cmd) {
   'simulate' { Invoke-Simulate $rest }
   'demo' {
     Need-Docker
-    $what = if ($rest.Count) { $rest[0] } else { 'start' }   # start (opens judge mode), or: stop, status, reset
+    $what = if ($rest.Count) { $rest[0] } else { 'start' }   # start (opens guided demo), or: stop, status, reset
     Push-Location $HomeDir; try { & cmd /c "turnout.bat $what" } finally { Pop-Location }
   }
   'update' { Push-Location $HomeDir; try { git pull --ff-only; if ($LASTEXITCODE -eq 0) { Say 'Up to date. The next turnout compare or turnout demo uses it.' } } finally { Pop-Location } }

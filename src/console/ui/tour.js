@@ -1,4 +1,4 @@
-// The guided tour judge mode and the console share: each stop highlights one part of the screen and says what it
+// The guided tour guided demo and the console share: each stop highlights one part of the screen and says what it
 // is. A "click" stop asks you to click the highlighted thing and moves on when you do (the page stays usable under
 // it); a plain stop has a Next button. The stops live in tour-stops.js, one list per page. Every string goes in
 // through textContent.

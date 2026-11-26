@@ -57,7 +57,7 @@ Hand-wiring an experiment into an app commonly goes wrong in four ways. Turnout'
 
 Decisions read Flagsmith's own credible interval: when it crosses zero, Turnout recommends **Keep running** rather than a ship. `turnout release --aa` runs an A/A test (the same release on both sides), and `turnout check` is an Experiment Doctor for any Flagsmith team, proxy or not.
 
-![Judge mode after an A/B/C test: the four steps on the left, the versions and Flagsmith's results on the right; B shipped, C stopped by its slower pages](images/judge-dashboard.png)
+![Guided demo after an A/B/C test: the four steps on the left, the versions and Flagsmith's results on the right; B shipped, C stopped by its slower pages](images/judge-dashboard.png)
 
 Turnout runs as an overlay on Flagsmith's official self-hosted Docker Compose. Built for Toggle Wars: The Flagsmith Experimentation Hackathon (Nov 26–29, 2026), Track 03: Build on Open Source Flagsmith. Licence: BSD-3-Clause.
 
@@ -81,7 +81,7 @@ Turnout runs as an overlay on Flagsmith's official self-hosted Docker Compose. B
 3. `turnout preview shop:1.6`: only your team's browsers see it. `turnout release shop:1.6` starts the next experiment on the same flag.
 4. `shop:1.6` carries a **deliberate test fault**: a labelled 60 ms delay on every page (`SEEDED_DELAY_MS`), there to show a guardrail catching a release that wins on orders. It wins on orders, but Flagsmith shows it losing on `doc_latency_ms`; the Ship dialog says so in red and asks you to accept that. You **Revert** instead, and the release notes record why.
 
-![Judge mode playing an A/B/C test: shoppers go through, Flagsmith's results arrive, B ships to everyone and 50 new shoppers all get it](images/judge-ship.gif)
+![Guided demo playing an A/B/C test: shoppers go through, Flagsmith's results arrive, B ships to everyone and 50 new shoppers all get it](images/judge-ship.gif)
 
 ## How it works
 
@@ -123,9 +123,9 @@ Each step shows its API call first, is read back from Flagsmith afterwards (the 
 
 While an experiment runs, the console reports the release flag's health to **Flagsmith's Feature Health** (its generic Webhook provider, which `init` sets up). When the new release loses a guardrail, Flagsmith tags the flag **Unhealthy** in its own dashboard, with Flagsmith's numbers as the reason, for example "83 on shop:1.6 vs 15 on control; chance to win 0.0%" (means per exposed identity; an identity with no event counts as 0). The tag clears when the experiment ends.
 
-**The guard** is opt-in (`TURNOUT_GUARD=revert`, or the switch in judge mode). It asks Flagsmith for fresh results every 5 minutes, Flagsmith's own limit, and reverts when a guardrail's chance to win drops to 1% or below with at least 100 identities. **It never ships on its own.** The ledger says who decided: "Reverted to control (shop:1.5) automatically by Turnout's guard".
+**The guard** is opt-in (`TURNOUT_GUARD=revert`, or the switch in guided demo). It asks Flagsmith for fresh results every 5 minutes, Flagsmith's own limit, and reverts when a guardrail's chance to win drops to 1% or below with at least 100 identities. **It never ships on its own.** The ledger says who decided: "Reverted to control (shop:1.5) automatically by Turnout's guard".
 
-![Flagsmith's results in judge mode: 1.6 Bold wins on orders but loses on page load time (2.8× slower), so it is out; 1.5 Express ships](images/judge-results.png)
+![Flagsmith's results in guided demo: 1.6 Bold wins on orders but loses on page load time (2.8× slower), so it is out; 1.5 Express ships](images/judge-results.png)
 
 ### Releases on one flag
 
@@ -149,9 +149,9 @@ docker compose up -d --build            # proxy :8080, console :8090, three shop
 docker compose run --rm cli doctor      # is everything in place?
 ```
 
-Links use `127.0.0.1` rather than `localhost`: on Windows, a browser that tries `localhost`'s IPv6 address first waits for that attempt to fail. In Codespaces, [`.devcontainer/start.sh`](../.devcontainer/start.sh) runs these steps and adds the forwarded `*.app.github.dev` hostnames to `.env`. More in [docs/SETUP.md](SETUP.md): what the scripts check and install, judge mode on a phone or another computer, Linux user ids, ports and networks, and using an existing Flagsmith instance.
+Links use `127.0.0.1` rather than `localhost`: on Windows, a browser that tries `localhost`'s IPv6 address first waits for that attempt to fail. In Codespaces, [`.devcontainer/start.sh`](../.devcontainer/start.sh) runs these steps and adds the forwarded `*.app.github.dev` hostnames to `.env`. More in [docs/SETUP.md](SETUP.md): what the scripts check and install, guided demo on a phone or another computer, Linux user ids, ports and networks, and using an existing Flagsmith instance.
 
-## Judge mode
+## Guided demo
 
 <http://127.0.0.1:8090/judge> runs a whole test from one desktop screen. Pick the kind of test (A/A, A/B or A/B/C), then follow the four steps (start the test, send shoppers, ask Flagsmith, decide), one green button at a time, or press **Play it for me**. The right side shows a live preview of each version and Flagsmith's results, a column per version with Flagsmith's call against A. A ten-stop tour (under two minutes) opens on the first visit. Flagsmith's dashboard refuses to be framed, so the Flagsmith menu opens it in a separate tab, with the login.
 
@@ -177,7 +177,7 @@ These work without the proxy, on experiments your app runs through the SDK. `che
 
 ## Security model
 
-- **Keys are split by container.** The public proxy gets only the server key and the preview token. The admin key lives in the console and the one-off CLI. The console also holds Flagsmith's admin login for judge mode's sign-in step, which shows the password only on this machine.
+- **Keys are split by container.** The public proxy gets only the server key and the preview token. The admin key lives in the console and the one-off CLI. The console also holds Flagsmith's admin login for guided demo's sign-in step, which shows the password only on this machine.
 - **Networks are split too.** The proxy shares a network with Flagsmith's API (flag reads and events), one with the console (the traffic feed) and one with the shops, but can't reach Postgres or the console's admin traffic. The shops reach only the proxy.
 - **The proxy can only reach allowlisted releases.** It accepts only `/path` request targets (`//host/…`, absolute URLs and backslashes get a 400), builds every upstream URL from the allowlist, and answers WebSocket upgrades with a 501.
 - **The console** is published on `127.0.0.1:8090` only, accepts only loopback Host headers (against DNS rebinding), needs a per-boot token on every API call, and refuses an action if the experiment changed since the page loaded. Other devices use a second port, `8091`, where every request needs the judge cookie whatever Host header it sends, and the admin password is never sent. The judge link that sets the cookie carries `TURNOUT_JUDGE_TOKEN`; rotate the token to revoke it.

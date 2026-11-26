@@ -1,9 +1,9 @@
 @echo off
 rem ===========================================================================================================
-rem  Turnout: start everything and open judge mode. (Set TURNOUT_NO_BROWSER=1 to skip opening the browser.)
+rem  Turnout: start everything and open guided demo. (Set TURNOUT_NO_BROWSER=1 to skip opening the browser.)
 rem
 rem    turnout.bat            start Flagsmith, set it up (first run), start Turnout and the shop, check the setup,
-rem                              open judge mode
+rem                              open guided demo
 rem    turnout.bat demo       the same, then send 1,500 simulated visitors through the proxy
 rem    turnout.bat status     show what's running, check the setup, and the links
 rem    turnout.bat stop       stop every container (Flagsmith's data and the keys are kept)
@@ -152,7 +152,7 @@ echo  [5/5] Ready.
 call :links
 rem Never a browser in server mode: a server has no one at its screen.
 if defined SY_SERVER endlocal & exit /b 0
-if not defined TURNOUT_NO_BROWSER echo  Opening judge mode in your browser...
+if not defined TURNOUT_NO_BROWSER echo  Opening guided demo in your browser...
 if not defined TURNOUT_NO_BROWSER start "" "http://!SY_HOST!:8090/judge"
 endlocal & exit /b 0
 
@@ -289,7 +289,7 @@ if defined SY_SERVER (
   echo   Server mode on !SY_VALUE!
   echo   Shop         https://!SY_VALUE!/          ^(through Turnout^)
   echo   Judge view   https://!SY_VALUE!/judge     ^(read-only, for anyone^)
-  echo   Console, Flagsmith and the full judge mode stay on the server's 127.0.0.1. From your machine:
+  echo   Console, Flagsmith and the full guided demo stay on the server's 127.0.0.1. From your machine:
   echo     ssh -L 8090:127.0.0.1:8090 -L 8000:127.0.0.1:8000 ^<you^>@!SY_VALUE!
   echo     then http://127.0.0.1:8090/judge and http://127.0.0.1:8000
   if defined ADMIN_EMAIL echo   Flagsmith login !ADMIN_EMAIL!, password in .env ^(FLAGSMITH_ADMIN_PASSWORD^)
@@ -301,7 +301,7 @@ if defined SY_SERVER (
 )
 echo.
 echo  ------------------------------------------------------------
-echo   Judge mode   http://!SY_HOST!:8090/judge   ^(the whole story, with buttons^)
+echo   Guided demo   http://!SY_HOST!:8090/judge   ^(the whole story, with buttons^)
 echo   Setup check  http://!SY_HOST!:8090/setup   ^(is everything in place?^)
 echo   Console      http://!SY_HOST!:8090
 echo   Shop         http://!SY_HOST!:8080          ^(through Turnout^)
@@ -330,7 +330,7 @@ if errorlevel 1 echo  Some checks above are failing ^(FAIL^). The same list, wit
 exit /b 0
 
 rem The hostname for links on this machine: 127.0.0.1 (Compose publishes there; "localhost" tries IPv6 first and waits
-rem about 2 s for the refusal), or localhost when .env's shop URL uses it, so judge mode and its Shop tab share a
+rem about 2 s for the refusal), or localhost when .env's shop URL uses it, so guided demo and its Shop tab share a
 rem hostname and the shop keeps its cookies.
 :pick_host
 set "SY_HOST=127.0.0.1"
@@ -376,7 +376,7 @@ exit /b 1
 
 :usage
 echo Usage: turnout.bat [start ^| demo ^| status ^| stop ^| reset [/yes] ^| server ^<hostname^>]
-echo   start   (default) start everything, check the setup and open judge mode
+echo   start   (default) start everything, check the setup and open guided demo
 echo   demo    start, then send 1,500 simulated visitors
 echo   status  show what's running, check the setup, and the links
 echo   stop    stop every container; data and keys are kept

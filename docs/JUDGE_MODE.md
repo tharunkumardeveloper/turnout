@@ -1,25 +1,25 @@
-# Judge mode and the console
+# Guided demo and the console
 
 The console runs at <http://127.0.0.1:8090>. It has four pages:
 
 | Page | What it is for |
 |---|---|
-| `/judge` | Judge mode: the whole story from a browser, with a guided tour |
+| `/judge` | Guided demo: the whole story from a browser, with a guided tour |
 | `/` | The full console: traffic map, Flagsmith's results, Ship winner and Revert, demo controls, snapshots, the guard |
 | `/flagsmith` | Every Flagsmith menu and integration, what Turnout does with it, a live value from the Admin API, and for anything a laptop demo can't reach, the source behind that |
 | `/setup` | The setup check (`doctor`) in the browser |
 
 Every number about results comes from Flagsmith as returned; the console computes no statistics. Every visitor it sends is simulated, and the page says so.
 
-## Judge mode
+## Guided demo
 
 One desktop screen, no scrolling (checked at 1366×768 and 1920×1080). Every number on it is Flagsmith's, read from its API; every shopper is simulated, and the page says so.
 
-![Judge mode after an A/B/C test: B shipped to everyone, C stopped by its slower pages, 50 of 50 new shoppers on B](images/judge-dashboard.png)
+![Guided demo after an A/B/C test: B shipped to everyone, C stopped by its slower pages, 50 of 50 new shoppers on B](images/judge-dashboard.png)
 
 ### The page
 
-- **Top bar.** The menu (Judge mode, Console, Setup check, What we use, **Versions**, and **Flagsmith ↗**, which opens Flagsmith itself), the kind of test, **Tour**, **Play it for me** and **Earlier tests**.
+- **Top bar.** The menu (Guided demo, Console, Setup check, What we use, **Versions**, and **Flagsmith ↗**, which opens Flagsmith itself), the kind of test, **Tour**, **Play it for me** and **Earlier tests**.
 - **The kind of test.** A/A (the same shop on both sides: Flagsmith should find no difference, a check that the split and the counting are fair; the copy, A′, has a dashed outline), A/B, or A/B/C (two new versions at once, each against A). A click shows a **preview**: the versions it will compare, and step 1 with its Start button. Nothing changes in Flagsmith until Start; a running test stops first then, and **Keep test #…** goes back to it.
 - **Left: the test in four steps.** Start the test, Send shoppers, Ask Flagsmith, Decide. Only the current step has a button (one green button at a time), each finished step keeps a one-line result, and a running step shows its progress.
 - **Right, top: the versions.** A live preview of each version, laid out at a width that suits its tile, its share of shoppers and, once Flagsmith has counted, its order rate. Clicking a preview opens that version on its own, never counted: its pages, styles and links all stay on that version. **Be a visitor ↗** opens the shop the way a shopper gets it.
@@ -42,12 +42,12 @@ The menu's **Flagsmith ↗** opens Flagsmith's dashboard; its login is in the **
 
 The same page, read-only, at `https://<host>/judge`: no buttons, no console, no Flagsmith links or login. The autopilot runs the story by itself (A/B: 1.5 against 1.4, then 1.6 against the shipped 1.5, then it starts over), and the current step says what it does next. It rests while nobody has the page open and carries on when someone does.
 
-To open judge mode on another device, see [SETUP.md](SETUP.md#judge-mode-on-another-device).
+To open guided demo on another device, see [SETUP.md](SETUP.md#judge-mode-on-another-device).
 
 ## The full console
 
 - **Run a test:** A/A, A/B or A/B/C with a preview first, then one button: start, simulated shoppers, Flagsmith's results (on the demo; for your own app it starts the test). More: send shoppers yourself, and after a ship, swing back or forward.
-- **Try it with your app:** one, two or three versions (Dockerfile, public git repo or image), built and run on this machine, then judge mode for them at `/try`. Local only.
+- **Try it with your app:** one, two or three versions (Dockerfile, public git repo or image), built and run on this machine, then guided demo for them at `/try`. Local only.
 - **Refresh:** held back while no new visit has arrived since the test started or since Flagsmith's last results (Flagsmith allows one recompute every 5 minutes).
 - **Your site:** **Open your site: be a visitor**, one line on where you landed, each version on its own and the goal; under **More**: your visits over time, pin this browser, goal suggestions, a new comparison command and the Flagsmith login.
 - **Traffic map:** each routed request as a dot, counters for the last 60 seconds, ghost dots that always move along the tracks the flag routes to now, a **YOU** pin on your version.

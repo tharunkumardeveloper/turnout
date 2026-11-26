@@ -212,7 +212,7 @@ describe('results summary', () => {
   });
 });
 
-// ---- the console with judge mode --------------------------------------------------------------------------------
+// ---- the console with guided demo --------------------------------------------------------------------------------
 
 const listen = (server: http.Server) =>
   new Promise<string>((resolve) => server.listen(0, '127.0.0.1', () => resolve(`http://127.0.0.1:${(server.address() as AddressInfo).port}`)));
@@ -286,7 +286,7 @@ const raw = (port: number, path: string, headers: Record<string, string>, method
     req.end(body);
   });
 
-describe('judge mode API', () => {
+describe('guided demo API', () => {
   let state: FakeState;
   let flagsmith: Awaited<ReturnType<typeof startFlagsmith>>;
   let server: http.Server;
@@ -749,7 +749,7 @@ describe('shared reads', () => {
   });
 });
 
-describe('judge mode shares one read of Flagsmith between viewers', () => {
+describe('guided demo shares one read of Flagsmith between viewers', () => {
   let state: FakeState;
   let flagsmith: Awaited<ReturnType<typeof startFlagsmith>>;
   let server: http.Server;
@@ -838,7 +838,7 @@ describe('judge mode shares one read of Flagsmith between viewers', () => {
   });
 });
 
-describe('judge mode from another device', () => {
+describe('guided demo from another device', () => {
   const JUDGE_TOKEN = 'judge-secret-token';
   let server: http.Server;
   let port = 0;
@@ -1128,6 +1128,63 @@ describe('the public, read-only judge view (server mode)', () => {
       const res = await fetch(`${pub}${path}`, { headers: h });
       assert.equal(res.status, 404, path);
     }
+  });
+});
+
+describe('public play (server mode): visitors run the guided demo, nothing else', () => {
+  let flagsmith: Awaited<ReturnType<typeof startFlagsmith>>;
+  let server: http.Server;
+  let pub = '';
+  let token = '';
+  const realUi = fileURLToPath(new URL('../src/console/ui/', import.meta.url));
+
+  before(async () => {
+    flagsmith = await startFlagsmith(initialState());
+    server = createConsole({
+      experiments: () => latestExperiment(new AdminClient(flagsmith.apiUrl, { apiKey: 'k' }), ENV, 'shop_release'),
+      feedUrl: 'http://127.0.0.1:9',
+      snapshotDir: mkdtempSync(join(tmpdir(), 'sy-play-snap-')),
+      ledgerDir: mkdtempSync(join(tmpdir(), 'sy-play-ledger-')),
+      uiDir: realUi,
+      judgeToken: 'judge-token-0123456789',
+      flagsmithLogin: { email: 'a@example.com', password: 'admin-password-123' },
+      publicPlay: true,
+      judge: {
+        flag: 'shop_release', releases: RELEASES, goal: 'order_placed', apiUrl: flagsmith.apiUrl, adminKey: 'k',
+        proxyUrl: 'http://proxy.invalid:8080', shopUrl: 'https://shop.turnout.example.com', dashboardUrl: 'http://127.0.0.1:8000',
+        previewToken: 'preview-token-secret', rates: parseRates(DEFAULT_RATES),
+      },
+    });
+    await listen(server);
+    const viewers = listenForPublic(server, 0, '127.0.0.1');
+    await once(viewers, 'listening');
+    pub = `http://127.0.0.1:${(viewers.address() as AddressInfo).port}`;
+    const html = await (await fetch(`${pub}/judge`)).text();
+    token = html.match(/name="turnout-console" content="([^"]+)"/)?.[1] ?? '';
+    assert.match(html, /<meta name="turnout-public-play" content="1">/);
+  });
+  after(() => {
+    server.close();
+    flagsmith.close();
+  });
+
+  const post = (body: object, t = token) =>
+    fetch(`${pub}/judge/api/judge/run`, { method: 'POST', headers: { 'content-type': 'application/json', 'x-turnout-console': t }, body: JSON.stringify(body) });
+
+  test('a step outside the guided demo is refused; the page token is required', async () => {
+    for (const action of ['reset', 'release', 'preview', 'swing-back']) assert.equal((await post({ action })).status, 403, action);
+    assert.equal((await post({ action: 'start', arms: 2 }, 'wrong')).status, 403);
+  });
+
+  test("a guided step runs, and a second click within seconds is held back", async () => {
+    const first = await post({ action: 'start', arms: 2 });
+    assert.ok(first.status < 500, `start answered ${first.status}`);
+    assert.equal((await post({ action: 'visitors' })).status, 429, 'one step at a time');
+  });
+
+  test('every other write stays refused', async () => {
+    for (const method of ['PUT', 'DELETE', 'PATCH']) assert.equal((await fetch(`${pub}/judge`, { method })).status, 405);
+    assert.equal((await fetch(`${pub}/judge/api/ship`, { method: 'POST', headers: { 'x-turnout-console': token } })).status, 405);
   });
 });
 

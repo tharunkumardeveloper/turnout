@@ -1,5 +1,5 @@
 // The console's "Try it with your app" box: one, two or three versions of your app (a Dockerfile, a public git repo
-// or an image), built and run on this machine by the tryit service, then the same test page as judge mode at /try.
+// or an image), built and run on this machine by the tryit service, then the same test page as guided demo at /try.
 // One version makes an A/A test, two an A/B test, three an A/B/C test. Every string goes in through textContent.
 
 import { SKIP, detect, dockerfilesIn, goalsFrom, goalsFromHtml, tarParts } from './try-model.js';
@@ -395,7 +395,7 @@ function renderError(st) {
   const lines = String(m ? m[3] : st.error ?? '').split('\n');
   const said = lines.filter((l, i) => !l.trim() || lines.indexOf(l) === i).map((l) => { const n = lines.filter((x) => x === l).length; return n > 1 && l.trim() ? `${l} (×${n})` : l; }).join('\n');
   err.replaceChildren(
-    h('strong', { class: 'try-error-title' }, m ? `Version ${m[2]} (${m[1]}) couldn't be built` : 'The build stopped'),
+    h('strong', { class: 'try-error-title' }, errorTitle(st, m)),
     ...needsCard(st.needs),
     h('p', { class: 'try-error-text' }, said),
     h('p', { class: 'try-error-hint' }, 'The full output is in the build log below. Fix the version and press Build and try again.'));
@@ -613,4 +613,12 @@ export async function setupTry() {
     showC = false;
     render();
   });
+}
+
+/** The error card's title: where it stopped. A version that built but won't start isn't a build failure. */
+export function errorTitle(st, m) {
+  const versions = Array.isArray(st?.versions) ? st.versions : [];
+  const startFailed = versions.some((v) => v?.stages?.[0]?.status === 'done' && v?.stages?.[1]?.status === 'failed');
+  if (m) return startFailed ? `Version ${m[2]} (${m[1]}) built, but didn't start` : `Version ${m[2]} (${m[1]}) couldn't be built`;
+  return startFailed ? "Your app built, but didn't start" : 'The build stopped';
 }

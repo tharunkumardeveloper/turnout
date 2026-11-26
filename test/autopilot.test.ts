@@ -35,7 +35,7 @@ const results = (call: 'ship' | 'revert' | 'keep-running', o: { losing?: boolean
   recommendation: { call, reason: 'r', variant: 'v2', interval: null, chanceToWin: 0.97 },
 }) as unknown as JudgeState['results'];
 
-describe('planNext: the step judge mode says is current, and Turnout’s recommendation for the decision', () => {
+describe('planNext: the step guided demo says is current, and Turnout’s recommendation for the decision', () => {
   test('each step maps to its job', () => {
     assert.equal(planNext(state('visitors')).action, 'visitors');
     assert.equal(planNext(state('verify')).action, 'verify');

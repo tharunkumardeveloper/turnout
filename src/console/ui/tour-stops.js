@@ -1,4 +1,4 @@
-// The tour's stops, one list per page (the engine is tour.js). Judge mode's tour walks you through one whole test by
+// The tour's stops, one list per page (the engine is tour.js). Guided demo's tour walks you through one whole test by
 // clicking: pick a kind, start it, send shoppers, ask Flagsmith, decide, then look in Flagsmith and be a visitor
 // yourself. The console's tour shows where everything is. Server mode's public page gets narration only (no buttons
 // there): a stop's `readonly` replaces it, `readonly: false` drops it.
@@ -8,7 +8,7 @@ const goLabel = () => (typeof document === 'undefined' ? null : document.querySe
 export const JUDGE_STOPS = [
   {
     target: null,
-    title: "Welcome to Turnout's judge mode",
+    title: "Welcome to Turnout's guided demo",
     text: "Turnout puts every new version of an app into a Flagsmith experiment without touching the app's code. This tour walks you through one real test on a demo shop: you click, Flagsmith decides. About three minutes.",
     readonly: { text: 'Turnout puts every new version of an app into a Flagsmith experiment, without touching its code. This public page runs real Flagsmith experiments on a demo shop by itself, with simulated shoppers. Under two minutes.' },
   },
@@ -104,7 +104,7 @@ export const CONSOLE_STOPS = [
   {
     target: '#try-open',
     title: 'Try it with your own app',
-    text: 'Give Turnout one, two or three versions of your app (a Dockerfile, a public git repo or an image). It builds them, runs them behind its own proxy and opens the same test page as judge mode: previews, one-button runs and Flagsmith’s results. One version makes an A/A test, two an A/B, three an A/B/C.',
+    text: 'Give Turnout one, two or three versions of your app (a Dockerfile, a public git repo or an image). It builds them, runs them behind its own proxy and opens the same test page as guided demo: previews, one-button runs and Flagsmith’s results. One version makes an A/A test, two an A/B, three an A/B/C.',
     readonly: false,
   },
   {

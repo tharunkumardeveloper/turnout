@@ -457,7 +457,7 @@ describe('release receipt footer', () => {
   });
 });
 
-// ---------- who may frame the shop (judge mode's Shop tab) ----------
+// ---------- who may frame the shop (guided demo's Shop tab) ----------
 
 describe('frame-ancestors', () => {
   test('by default only the console on this machine may frame the shop', async () => {

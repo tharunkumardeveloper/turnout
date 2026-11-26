@@ -306,14 +306,16 @@ test('writeEnv refuses newlines in values and unsafe names, leaving the file alo
 
 test('judge links: 127.0.0.1 on this machine; other devices need TURNOUT_CONSOLE_HOSTS', () => {
   const lines = judgeLinks('tok', {});
-  assert.equal(lines[0], 'Judge mode: http://127.0.0.1:8090/judge');
+  assert.equal(lines[0], 'Guided demo: http://127.0.0.1:8090/judge');
   assert.match(lines[1]!, /set TURNOUT_CONSOLE_HOSTS and TURNOUT_PUBLISH_HOST=0\.0\.0\.0/);
   assert.ok(!lines.join('\n').includes('tok'), 'no key link that only this machine could open');
   // An older .env keeps the shop on localhost: the console link follows it, so the Shop tab stays same-site.
-  assert.equal(judgeLinks('tok', { TURNOUT_PUBLIC_SHOP_URL: 'http://localhost:8080' })[0], 'Judge mode: http://localhost:8090/judge');
-  assert.equal(judgeLinks('tok', { TURNOUT_PUBLIC_SHOP_URL: 'not a url' })[0], 'Judge mode: http://127.0.0.1:8090/judge');
-  assert.equal(judgeLinks('tok', { TURNOUT_PUBLIC_CONSOLE_PORT: '18090' })[0], 'Judge mode: http://127.0.0.1:18090/judge');
-  assert.equal(judgeLinks('tok', { TURNOUT_PUBLIC_CONSOLE_PORT: 'x' })[0], 'Judge mode: http://127.0.0.1:8090/judge');
+  assert.equal(judgeLinks('tok', { TURNOUT_PUBLIC_SHOP_URL: 'http://localhost:8080' })[0], 'Guided demo: http://localhost:8090/judge');
+  assert.equal(judgeLinks('tok', { TURNOUT_PUBLIC_SHOP_URL: 'not a url' })[0], 'Guided demo: http://127.0.0.1:8090/judge');
+  assert.equal(judgeLinks('tok', { TURNOUT_PUBLIC_CONSOLE_PORT: '18090' })[0], 'Guided demo: http://127.0.0.1:18090/judge');
+  assert.equal(judgeLinks('tok', { TURNOUT_PUBLIC_CONSOLE_PORT: 'x' })[0], 'Guided demo: http://127.0.0.1:8090/judge');
+  // Server mode: the public address, never the server's loopback.
+  assert.match(judgeLinks('tok', { TURNOUT_MODE: 'server', TURNOUT_HOSTNAME: 'demo.example.com' })[0]!, /^Guided demo \(public\): https:\/\/demo\.example\.com\/judge .* https:\/\/shop\.demo\.example\.com$/);
 });
 
 test("localHost: 127.0.0.1 unless the shop URL uses another loopback name (the CLI's console and watcher links use it)", () => {
@@ -330,7 +332,7 @@ test('judge links: with console hosts, the link for other devices uses the first
     TURNOUT_PUBLIC_SHOP_URL: 'http://192.168.1.20:8080',
   });
   assert.deepEqual(ready, [
-    'Judge mode: http://127.0.0.1:8090/judge',
+    'Guided demo: http://127.0.0.1:8090/judge',
     'Judge link for other devices: http://192.168.1.20:8091/judge?key=tok',
     '  On this machine too, open that link: the Shop tab needs the console and the shop on the same hostname.',
   ]);
@@ -358,7 +360,7 @@ test('init prints the judge links from the settings it is given', async () => {
   });
   const token = readEnv().TURNOUT_JUDGE_TOKEN!;
   assert.ok(token);
-  assert.ok(lines.includes('Judge mode: http://127.0.0.1:8090/judge'));
+  assert.ok(lines.includes('Guided demo: http://127.0.0.1:8090/judge'));
   assert.ok(lines.includes(`Judge link for other devices: http://10.0.0.5:8091/judge?key=${token}`));
   assert.ok(!lines.some((l) => l.includes('localhost:8090')));
 });

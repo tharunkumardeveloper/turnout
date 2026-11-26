@@ -215,7 +215,7 @@ export function verdict(s) {
       variant: w.key,
       tone: 'good',
       title: `${w.name} wins`,
-      text: [`${w.name} ${speed ? 'loads pages faster than' : 'gets more orders than'} A${orders(w.key)}, Flagsmith is ${pct(rec.chanceToWin, 0)} sure, and every safety check is fine.`, ...others(w.key)].join(' '),
+      text: [`${w.name} ${speed ? 'loads pages faster than' : 'gets more orders than'} A${orders(w.key)}, Flagsmith is ${pct(rec.chanceToWin, 0)} sure, and every safety check is fine.`, ...others(w.key), ...watchedWorse(r, w)].join(' '),
     };
   }
   const failing = list.slice(1).filter((x) => failedChecks(s, x.key).length);
@@ -626,4 +626,12 @@ export function blindView(s) {
   const r = b.round.round;
   const verdict = r.outcome === 'right' ? 'Flagsmith got it right' : r.outcome === 'wrong' ? 'Flagsmith got it wrong' : "Flagsmith wasn't sure yet (no call)";
   return { tone: r.outcome === 'right' ? 'good' : r.outcome === 'wrong' ? 'bad' : 'wait', title: `Revealed: ${verdict}`, text: `The truth: ${b.round.truth}.`, score };
+}
+
+/** An also-watched metric that got worse for the winner: said, so the decision is made knowing it (it never blocks). */
+function watchedWorse(r, w) {
+  const worse = r.metrics.filter((m) => m.role === 'secondary' && (m.byArm?.[w.key]?.verdict ?? m[w.key]?.verdict) === 'losing');
+  if (!worse.length) return [];
+  const names = worse.map((m) => String(m.name).replace(/_/g, ' '));
+  return [`Worth knowing: ${w.name} did worse on ${names.join(' and ')}, which is watched but doesn't decide.`];
 }

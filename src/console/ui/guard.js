@@ -1,4 +1,4 @@
-// Judge mode's "Health and guard" card: Flagsmith Feature Health reports and the opt-in guard (GET/POST /api/guard).
+// Guided demo's "Health and guard" card: Flagsmith Feature Health reports and the opt-in guard (GET/POST /api/guard).
 const token = document.querySelector('meta[name="turnout-console"]')?.content ?? '';
 const card = document.getElementById('guard');
 const button = document.getElementById('guard-button');

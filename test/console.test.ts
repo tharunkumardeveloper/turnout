@@ -241,8 +241,8 @@ describe('console API', () => {
 
   test('serves the UI with the token injected and nothing outside it', async () => {
     const res = await fetch(`${base}/`);
-    assert.equal(await res.text(), `<head><meta name="turnout-console" content="${token}"><meta name="turnout-no-judge" content="1"></head><h1>console</h1>`, 'no judge mode here: the menu drops its links');
-    assert.equal(res.headers.get('x-frame-options'), 'SAMEORIGIN', 'judge mode shows the setup check and the feature map as tabs');
+    assert.equal(await res.text(), `<head><meta name="turnout-console" content="${token}"><meta name="turnout-no-judge" content="1"></head><h1>console</h1>`, 'no guided demo here: the menu drops its links');
+    assert.equal(res.headers.get('x-frame-options'), 'SAMEORIGIN', 'guided demo shows the setup check and the feature map as tabs');
     assert.match(res.headers.get('content-security-policy') ?? '', /frame-ancestors 'self'/);
     assert.equal(res.headers.get('x-content-type-options'), 'nosniff');
     assert.equal(res.headers.get('referrer-policy'), 'no-referrer');
@@ -252,14 +252,14 @@ describe('console API', () => {
     assert.equal((await get('/api/state')).headers.get('x-content-type-options'), 'nosniff');
   });
 
-  test('judge mode is off without its options; the judge link needs a judge token', async () => {
+  test('guided demo is off without its options; the judge link needs a judge token', async () => {
     const state = await get('/api/judge/state');
     assert.equal(state.status, 404);
-    assert.match((await json(state)).error, /Judge mode is not configured/);
+    assert.match((await json(state)).error, /Guided demo is not configured/);
     assert.equal((await post('/api/judge/run', { action: 'visitors' })).status, 404);
     assert.equal((await fetch(`${base}/api/judge/state`)).status, 403, 'still behind the page token');
     const page = await fetch(`${base}/judge`, { redirect: 'manual' });
-    assert.deepEqual([page.status, page.headers.get('location')], [302, '/'], 'no judge mode: /judge is the console');
+    assert.deepEqual([page.status, page.headers.get('location')], [302, '/'], 'no guided demo: /judge is the console');
     assert.equal((await fetch(`${base}/judge?key=x`, { redirect: 'manual' })).status, 403);
   });
 
@@ -484,7 +484,7 @@ describe('Try it with your app: the console relays to the tryit service, this ma
     assert.equal((await fetch(`${base}/try`)).status, 404);
   });
 
-  test('on: /try is judge mode for your versions, /api/try/* and /try/api/* reach the service, the token is required', async () => {
+  test('on: /try is guided demo for your versions, /api/try/* and /try/api/* reach the service, the token is required', async () => {
     const seen: string[] = [];
     const tryit = http.createServer((req, res) => {
       seen.push(`${req.method} ${req.url} cookie=${req.headers.cookie ?? ''}`);

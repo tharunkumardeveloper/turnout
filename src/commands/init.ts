@@ -359,7 +359,7 @@ export async function init(opts: Options): Promise<void> {
 
   save({ TURNOUT_EXPERIMENT: `${env.api_key}/${experiment.id}` });
   if (!process.env.TURNOUT_PREVIEW_TOKEN) save({ TURNOUT_PREVIEW_TOKEN: randomBytes(18).toString('base64url') });
-  // Opens judge mode (/judge?key=…) on devices other than this machine. Rotate it to revoke every judge browser.
+  // Opens guided demo (/judge?key=…) on devices other than this machine. Rotate it to revoke every judge browser.
   // Kept across re-runs: from the environment, or from the env file itself.
   const savedJudgeToken =
     process.env.TURNOUT_JUDGE_TOKEN || readFileSync(opts.envFile, 'utf8').match(/^TURNOUT_JUDGE_TOKEN=(\S+)$/m)?.[1];
@@ -405,12 +405,20 @@ export function localHost(env: NodeJS.ProcessEnv): string {
  * Other devices: the first TURNOUT_CONSOLE_HOSTS entry (or the one the shop URL uses), with the key.
  */
 export function judgeLinks(token: string, env: NodeJS.ProcessEnv): string[] {
+  // Server mode: the public address (Caddy), not this machine's loopback; the console and Flagsmith stay private.
+  const publicHost = env.TURNOUT_HOSTNAME?.trim();
+  if (publicHost && env.TURNOUT_MODE === 'server') {
+    return [
+      `Guided demo (public): https://${publicHost}/judge   ·   the shop: https://shop.${publicHost}`,
+      `Console and Flagsmith (private): ssh -L ${consolePort(env)}:127.0.0.1:${consolePort(env)} -L 8000:127.0.0.1:8000 <you>@${publicHost}, then http://127.0.0.1:${consolePort(env)}`,
+    ];
+  }
   const shopHost = hostOf(env.TURNOUT_PUBLIC_SHOP_URL || 'http://127.0.0.1:8080');
   const local = localHost(env);
-  const lines = [`Judge mode: http://${local}:${consolePort(env)}/judge`];
+  const lines = [`Guided demo: http://${local}:${consolePort(env)}/judge`];
   const hosts = (env.TURNOUT_CONSOLE_HOSTS ?? '').split(',').map((h) => h.trim()).filter(Boolean);
   if (hosts.length === 0) {
-    lines.push('Judge mode on other devices: set TURNOUT_CONSOLE_HOSTS and TURNOUT_PUBLISH_HOST=0.0.0.0 in .env (see .env.example), then run init again for the link.');
+    lines.push('Guided demo on other devices: set TURNOUT_CONSOLE_HOSTS and TURNOUT_PUBLISH_HOST=0.0.0.0 in .env (see .env.example), then run init again for the link.');
     return lines;
   }
   const remote = shopHost && hosts.includes(shopHost) ? shopHost : hosts[0]!;

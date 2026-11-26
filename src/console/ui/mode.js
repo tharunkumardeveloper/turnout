@@ -1,19 +1,19 @@
-// One page: the console, with Judge mode as a switch in its bar (beside Tour). On, the console's cards make way for
+// One page: the console, with Guided demo as a switch in its bar (beside Tour). On, the console's cards make way for
 // the judge view: the same test, step by step, one button at a time, with Play it for me. The choice is in the address
 // (?mode=judge, so a link can open it) and remembered in this browser.
-// Judge mode is the demo shop's guided view; your own app's test (Try it) is on its own console, /app.
+// Guided demo is the demo shop's guided view; your own app's test (Try it) is on its own console, /app.
 const $ = (id) => /** @type {HTMLElement} */ (document.getElementById(id));
 const meta = (name) => (typeof document === "undefined" ? null : document.querySelector(`meta[name="${name}"]`));
 const BASE = meta('turnout-base')?.getAttribute('content') ?? '';
 const KEY = 'turnout-mode';
 
-/** Where the judge view comes from: judge mode for the demo shop, or Try it's page for your own app. */
+/** Where the judge view comes from: guided demo for the demo shop, or Try it's page for your own app. */
 export function frameSrc(base, params) {
   const q = new URLSearchParams({ embed: '1', ...(params.get('play') === '1' ? { play: '1' } : {}) });
   return `${base || ''}${base ? '' : '/judge'}?${q}`;
 }
 
-/** Judge mode on or off: from the address first, then this browser's last choice; the public page starts on. */
+/** Guided demo on or off: from the address first, then this browser's last choice; the public page starts on. */
 export function initialMode(params, stored, isPublic) {
   if (params.get('mode') === 'judge') return true;
   if (params.get('mode') === 'console') return false;
@@ -40,7 +40,7 @@ export function setupMode() {
     sw.setAttribute('aria-checked', String(on));
     // Says its state in words, not only by the knob's colour.
     const label = sw.querySelector('.mode-label');
-    if (label) label.textContent = on ? 'Judge mode: on' : 'Judge mode: off';
+    if (label) label.textContent = on ? 'Guided demo: on' : 'Guided demo: off';
     document.body.classList.toggle('judge-on', on);
     view.hidden = !on;
     if (on && !frame.getAttribute('src')) frame.setAttribute('src', frameSrc(BASE, params));
@@ -60,7 +60,7 @@ export function setupMode() {
   sw.addEventListener('click', () => set(!on));
   return {
     isOn: () => on,
-    /** The Tour button while Judge mode is on: the judge view's own tour. */
+    /** The Tour button while Guided demo is on: the judge view's own tour. */
     tour: () => {
       if (!on) return false;
       frame.contentWindow?.postMessage({ turnout: 'tour' }, location.origin);

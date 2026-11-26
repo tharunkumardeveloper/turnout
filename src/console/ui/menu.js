@@ -1,4 +1,4 @@
-// The menu the console and judge mode share: the views, every version of the site on its own (never counted), and
+// The menu the console and guided demo share: the views, every version of the site on its own (never counted), and
 // a link to Flagsmith itself (its login is on the pages: signinBox). Server mode's public page keeps only what the public may see: judge
 // mode and the versions; no console, no setup check, no Flagsmith link or login. Every string goes in through
 // textContent.
@@ -9,7 +9,9 @@ const meta = (name) => (typeof document === 'undefined' ? null : document.queryS
 const TOKEN = meta('turnout-console')?.getAttribute('content') ?? '';
 const BASE = meta('turnout-base')?.getAttribute('content') ?? '';
 export const READONLY = meta('turnout-readonly') !== null;
-// Judge mode drives the demo shop; a console for your own app (turnout compare) has none, so no links to it.
+/** The public page lets visitors run the guided demo's own steps (simulated shoppers only); everything else stays read-only. */
+export const PLAY = READONLY && meta('turnout-public-play') !== null;
+// Guided demo drives the demo shop; a console for your own app (turnout compare) has none, so no links to it.
 export const NO_JUDGE = meta('turnout-no-judge') !== null;
 const api = (path) => fetch(BASE + path, { cache: 'no-store', headers: { 'x-turnout-console': TOKEN } });
 
@@ -121,7 +123,7 @@ export function setupMenu(current) {
   const menu = document.getElementById('menu');
   if (!menu) return;
   for (const a of menu.querySelectorAll('a[data-page]')) if (a.dataset.page === current) a.setAttribute('aria-current', 'page');
-  // The public page keeps judge mode, the read-only console and the versions; setup and Flagsmith stay private.
+  // The public page keeps guided demo, the read-only console and the versions; setup and Flagsmith stay private.
   if (READONLY) {
     const consoleLink = menu.querySelector('a[data-page="console"]');
     if (consoleLink) {

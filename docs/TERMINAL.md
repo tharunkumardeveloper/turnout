@@ -39,7 +39,7 @@ Your browser opens the console at <http://127.0.0.1:8090>.
 
 | Address | What it is |
 |---|---|
-| <http://127.0.0.1:8090> | **The console**: traffic map, Flagsmith's results, Run a test, Decide. The **Judge mode** switch next to **Tour** shows the step-by-step view. |
+| <http://127.0.0.1:8090> | **The console**: traffic map, Flagsmith's results, Run a test, Decide. The **Guided demo** switch next to **Tour** shows the step-by-step view. |
 | <http://127.0.0.1:8080> | The demo shop through Turnout: you get one version and count as a visitor. |
 | <http://127.0.0.1:8001> | **Flagsmith's dashboard with Turnout's tour.** Press **✦ Turnout tour** at the bottom right. |
 | <http://127.0.0.1:8000> | Flagsmith's dashboard, unchanged. |

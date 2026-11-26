@@ -31,8 +31,8 @@ Each line is one thing to check, and what you should see. Start with `turnout de
 |---|---|---|
 | Menu | look at the bar on Console, Setup check and What we use | the same menu on all three: Console · Setup check · What we use · Versions · Flagsmith ↗ (Flagsmith's logo) |
 | Tour | press **Tour** | a guided overlay over the console |
-| Judge mode | flip the **Judge mode** switch | the step-by-step view replaces the cards; flip back for the console; reload keeps the choice |
-| Judge tour | with Judge mode on, press **Tour** | the judge view's tour |
+| Guided demo | flip the **Guided demo** switch | the step-by-step view replaces the cards; flip back for the console; reload keeps the choice |
+| Judge tour | with Guided demo on, press **Tour** | the judge view's tour |
 | Traffic card | press **Previews**, then **Traffic** | Previews: the versions' websites only. Traffic: the flow chart only |
 | Run a test | pick A/A, A/B or A/B/C, press its one button | the test starts, simulated shoppers flow on the map, Flagsmith's results arrive |
 | Results headline | after a test | names the version to ship, in that version's colour; a version that loses a safety check is never the one to ship |
@@ -65,6 +65,6 @@ Each line is one thing to check, and what you should see. Start with `turnout de
 
 | Check | Open | Expected |
 |---|---|---|
-| Judge page | `https://<host>/judge` | the public console with Judge mode on; blind rounds and their scoreboard; nothing that changes anything |
+| Judge page | `https://<host>/judge` | the public console with Guided demo on; blind rounds and their scoreboard; nothing that changes anything |
 | Public console | `https://<host>/judge/console` | the console, read-only |
 | Private parts stay private | `https://<host>/app`, `/setup` | not found |

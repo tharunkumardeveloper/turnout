@@ -337,3 +337,15 @@ a.version-frame:hover::after, a.version-frame:focus-visible::after { opacity: 1;
 
 /* hidden always hides, whatever display a class gives (an empty box showed under Decide). */
 [hidden] { display: none !important; }
+
+/* Use it on your app: three commands, each with Copy. */
+.yours { padding: 12px 4px 4px; }
+.yours-lead { margin: 0 0 10px; color: var(--muted, #9aa4b2); }
+.yours-steps { margin: 0; padding: 0; list-style: none; counter-reset: s; display: grid; gap: 8px; }
+.yours-steps li { counter-increment: s; display: grid; grid-template-columns: 22px 170px 1fr auto; align-items: center; gap: 10px; }
+.yours-steps li::before { content: counter(s); width: 22px; height: 22px; border-radius: 50%; display: grid; place-items: center; font-size: 12px; font-weight: 700; background: var(--go, #22c55e); color: #fff; }
+.yours-steps span { font-weight: 600; font-size: 13px; }
+.yours-steps code { font-size: 12.5px; padding: 6px 10px; border-radius: 6px; background: rgba(127,127,127,.12); overflow-x: auto; white-space: nowrap; }
+.yours-steps code[hidden] { display: none; }
+.yours-note { margin: 10px 0 0; font-size: 13px; color: var(--muted, #9aa4b2); }
+@media (max-width: 760px) { .yours-steps li { grid-template-columns: 22px 1fr auto; } .yours-steps span { grid-column: 2 / 4; } .yours-steps code { grid-column: 1 / 3; } }

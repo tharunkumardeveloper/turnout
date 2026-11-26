@@ -138,6 +138,13 @@ describe('demo-model.js: what the simple judge page says', () => {
     assert.match(M.verdict(base({ results })).text, /every safety check is fine/);
   });
 
+  test('an also-watched metric that got worse for the winner is said, and still never blocks', () => {
+    const results = { ...abcResults, metrics: [...abcResults.metrics, metric('add_to_cart', 'secondary', 'occurrence', 'up', { control: 0.32, v2: 0.28, v3: 0.31 }, { v2: ['losing', 0.04], v3: ['inconclusive', 0.4] })] };
+    const v = M.verdict(base({ results }));
+    assert.equal(v.call, 'ship');
+    assert.match(v.text, /Worth knowing: B · 1\.5 Express did worse on add to cart, which is watched but doesn't decide\./);
+  });
+
   test('every new version failing: roll back to A', () => {
     const results = {
       ...abcResults,
@@ -312,7 +319,7 @@ describe('the tour: one engine (tour.js), a list of stops per page (tour-stops.j
     }
   });
 
-  test("judge mode's tour walks one test by clicks: pick a kind, start, send shoppers, ask Flagsmith, decide, then Flagsmith and you", () => {
+  test("guided demo's tour walks one test by clicks: pick a kind, start, send shoppers, ask Flagsmith, decide, then Flagsmith and you", () => {
     const clicks = STOPS.JUDGE_STOPS.filter((s: any) => s.click).map((s: any) => s.title);
     assert.deepEqual(clicks, ['Pick the kind of test', 'Start the test', 'Send shoppers', 'Ask Flagsmith', 'Decide', 'Look inside Flagsmith', 'Be a visitor yourself']);
     const actions = STOPS.JUDGE_STOPS.filter((s: any) => s.action).map((s: any) => [s.action].flat().join('|'));

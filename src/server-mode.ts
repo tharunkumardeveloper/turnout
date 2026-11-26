@@ -64,7 +64,7 @@ export function serverSecretProblems(env: NodeJS.ProcessEnv, afterInit = false):
   }
   const publish = (env.TURNOUT_PUBLISH_HOST ?? '127.0.0.1').trim();
   if (publish !== '127.0.0.1') problems.push({ name: 'TURNOUT_PUBLISH_HOST', problem: `"${publish}": server mode publishes through Caddy only, keep 127.0.0.1` });
-  if ((env.TURNOUT_CONSOLE_HOSTS ?? '').trim()) problems.push({ name: 'TURNOUT_CONSOLE_HOSTS', problem: 'set: server mode shows judge mode read-only at https://<hostname>/judge; leave it empty' });
+  if ((env.TURNOUT_CONSOLE_HOSTS ?? '').trim()) problems.push({ name: 'TURNOUT_CONSOLE_HOSTS', problem: 'set: server mode shows guided demo read-only at https://<hostname>/judge; leave it empty' });
   return problems;
 }
 

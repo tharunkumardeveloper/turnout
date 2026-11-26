@@ -31,7 +31,7 @@ An unknown option or a missing value prints what was wrong and exits 1, before a
 | `check` | Finds experiment splits left behind on any flag; with an admin key, also runs the Experiment Doctor (see below) |
 | `code-refs [--project <id>]` | Finds the flag's name in this checkout and submits it to Flagsmith's Code References (see below) |
 | `proxy` | Runs the reverse proxy (port 8080). Compose runs it for you |
-| `console` | Runs the console and judge mode (port 8090). Compose runs it for you |
+| `console` | Runs the console and guided demo (port 8090). Compose runs it for you |
 
 ### `new`
 

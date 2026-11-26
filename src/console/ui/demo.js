@@ -5,7 +5,7 @@
 import * as M from './demo-model.js';
 import { createTour } from './tour.js';
 import { JUDGE_STOPS, stopsFor } from './tour-stops.js';
-import { READONLY, loadSignin, setupMenu, setVersions, signinBox, viewLink } from './menu.js';
+import { PLAY, READONLY, loadSignin, setupMenu, setVersions, signinBox, viewLink } from './menu.js';
 
 const STATE_POLL_MS = 4000;
 const JOB_POLL_MS = 800;
@@ -18,15 +18,17 @@ const TOKEN_HEADER = 'x-turnout-console';
 const BASE = document.querySelector('meta[name="turnout-base"]')?.getAttribute('content') ?? '';
 const api = (path, init = {}) => fetch(BASE + path, { ...init, headers: { ...(init.headers ?? {}), [TOKEN_HEADER]: TOKEN } });
 if (READONLY) document.body.classList.add('is-readonly');
+// Locked: the public page without play. With play, visitors run the demo's steps; pins, sign-in and links stay private.
+const LOCKED = READONLY && !PLAY;
 
-// One page: judge mode is a switch on the console. This page is what the switch shows (?embed=1, inside the console);
+// One page: guided demo is a switch on the console. This page is what the switch shows (?embed=1, inside the console);
 // opened on its own (an old link, a bookmark) it sends you to the console with the switch on.
 const QUERY = new URLSearchParams(location.search);
 export const EMBED = QUERY.has('embed') || window.self !== window.top;
 if (!EMBED) {
   const tryPage = document.querySelector('meta[name="turnout-try"]') !== null;
   const consolePath = BASE === '/judge' ? '/judge/console' : '/';
-  // Your app's test lives on your app's console; the demo shop's on the console with Judge mode on.
+  // Your app's test lives on your app's console; the demo shop's on the console with Guided demo on.
   if (tryPage) location.replace('/app');
   else location.replace(`${consolePath}?${new URLSearchParams({ mode: 'judge' })}`);
 } else {
@@ -271,9 +273,9 @@ function renderKinds(s, kind) {
     h('span', { class: 'kinds-label' }, 'Test'),
     ...options.map((o) => h('button', {
       class: 'kind', type: 'button',
-      title: READONLY ? `${o.blurb} On this public page the autopilot picks the test.` : `${o.blurb} Click to preview it; Start runs it.`,
+      title: LOCKED ? `${o.blurb} On this public page the autopilot picks the test.` : `${o.blurb} Click to preview it; Start runs it.`,
       'aria-pressed': String(o.arms === (ui.plan ?? ui.pendingKind ?? kind)), 'data-running': o.arms === current ? 'true' : null,
-      disabled: READONLY || busy,
+      disabled: LOCKED || busy,
       on: { click: () => pickKind(o.arms) },
     }, o.label)));
 }
@@ -283,7 +285,7 @@ const isBusy = () => ui.job?.status === 'running' || ui.state?.job?.status === '
 // A click on a kind previews that test: its versions show, and step 1 offers Start. Nothing changes in Flagsmith
 // until Start (a running test stops first then). Clicking the running test's own kind goes back to it.
 function pickKind(k) {
-  if (READONLY || isBusy()) return;
+  if (LOCKED || isBusy()) return;
   ui.kind = k;
   try {
     localStorage.setItem(KIND_KEY, String(k));
@@ -322,7 +324,7 @@ function render() {
   setText($('now'), m.now);
   setText($('exp-id'), m.plan ? `· preview of an ${m.letters} test` : s.experiment ? `· ${m.letters} test #${s.experiment.id}` : '');
   const visit = $('be-visitor');
-  visit.setAttribute('href', READONLY ? '/' : String(links.shop ?? '#'));
+  visit.setAttribute('href', String(links.shop ?? (READONLY ? '/' : '#'))); // the public shop is its own host (shop.<host>)
   renderVersions(s, m);
   renderSteps(s, m);
   renderNext(s, m);
@@ -418,7 +420,7 @@ function renderSteps(s, m) {
 
 function actionBox(m) {
   const a = m.action;
-  if (READONLY) {
+  if (LOCKED) {
     return h('div', { class: 'action' }, h('p', { class: 'action-explain' }, a.explain), h('p', { class: 'autopilot', role: 'status' }, M.autopilotLine(ui.state)));
   }
   const wait = a.waitUntil ? Math.max(0, Date.parse(a.waitUntil) - Date.now()) : 0;
@@ -638,13 +640,33 @@ function pinRow() {
 function setTab(tab) {
   ui.tab = tab;
   if (tab === 'flagsmith' && !READONLY && ui.you?.visited) void loadPin().then(() => renderFlagsmith(ui.state, true));
-  for (const [id, name] of [['tab-results', 'results'], ['tab-flagsmith', 'flagsmith']]) $(id).setAttribute('aria-selected', String(tab === name));
+  for (const [id, name] of [['tab-results', 'results'], ['tab-flagsmith', 'flagsmith'], ['tab-yours', 'yours']]) $(id).setAttribute('aria-selected', String(tab === name));
   $('results').hidden = tab !== 'results';
   $('flagsmith-tab').hidden = tab !== 'flagsmith';
+  $('yours-tab').hidden = tab !== 'yours';
   renderFlagsmith(ui.state);
 }
 $('tab-results').addEventListener('click', () => setTab('results'));
 $('tab-flagsmith').addEventListener('click', () => setTab('flagsmith'));
+$('tab-yours').addEventListener('click', () => setTab('yours'));
+// Use it on your app: this machine's install line (Windows or not), each command with Copy.
+{
+  // The repository's address, written apart: the page itself names no remote URL (it requests nothing outside).
+  const repo = ['https:', '', 'github.com', 'tharunkumardeveloper', 'turnout'].join('/');
+  for (const c of document.querySelectorAll('#yours-tab [data-repo]')) c.textContent = (c.textContent ?? '').replace('{repo}', repo);
+  for (const a of document.querySelectorAll('#yours-tab [data-repo-link]')) a.setAttribute('href', repo + a.getAttribute('data-repo-link'));
+  const win = /Win/i.test(navigator.platform || navigator.userAgent);
+  for (const c of document.querySelectorAll('#yours-tab code[data-os]')) c.hidden = (c.getAttribute('data-os') === 'win') !== win;
+  for (const b of document.querySelectorAll('#yours-tab .copy')) {
+    b.addEventListener('click', () => {
+      const code = [...b.parentElement.querySelectorAll('code')].find((c) => !c.hidden);
+      void navigator.clipboard?.writeText(code?.textContent ?? '').then(() => {
+        b.textContent = 'Copied';
+        setTimeout(() => (b.textContent = 'Copy'), 1500);
+      });
+    });
+  }
+}
 
 // ---- in Flagsmith: the flag, the route each shopper takes (and yours), the experiment, the login -----------------
 function renderFlagsmith(s, force = false) {
@@ -715,7 +737,7 @@ if (TRY) {
   document.title = 'Turnout: try it with your app';
 }
 $('tour-open').addEventListener('click', () => tour.start());
-// The console's Tour button, while Judge mode is on: the tour of this view.
+// The console's Tour button, while Guided demo is on: the tour of this view.
 window.addEventListener('message', (e) => {
   if (e.origin === location.origin && e.data?.turnout === 'tour') tour.start();
 });

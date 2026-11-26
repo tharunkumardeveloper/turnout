@@ -11,7 +11,7 @@ export const PREVIEW_COOKIE = 'tn_preview';
 // "View this version" (server mode's public demo, TURNOUT_VIEW_SWITCH=1): a judge picks a release to look at. That
 // browser is then served that release and never counted (no exposure, no events), so looking never skews the data.
 export const VIEW_COOKIE = 'tn_view';
-export const VIEW_PARAM = '__turnout_view'; // the same for one page: judge mode's side-by-side previews
+export const VIEW_PARAM = '__turnout_view'; // the same for one page: guided demo's side-by-side previews
 // Paths under this prefix are answered by Turnout itself and never reach the app.
 export const OWN_PREFIX = '/__turnout/';
 // The app may name conversion events itself: "X-Turnout-Event: signup, plan_chosen;value=49". Turnout always
@@ -68,6 +68,7 @@ type Options = {
   assignTimeoutMs?: number; // a visitor never waits longer than this for a flag; default 150
   upstreamTimeoutMs?: number; // default 30 s, then 504
   secureCookies?: boolean; // also set automatically for https or X-Forwarded-Proto: https
+  cookieDomain?: string; // the visitor cookie for a parent domain too (server mode: shop.example and the console on example)
   viewSwitch?: boolean; // /__turnout/view?release=…: look at one release, uncounted (TURNOUT_VIEW_SWITCH=1)
   // Set: every page gets a small script that reports clicks on links and buttons and form sends, by visible label.
   onClick?: (click: ClickEvent) => void;
@@ -307,7 +308,7 @@ export function createProxy(opts: Options): http.Server {
         headers['x-turnout-enrolled'] = String(enrolled);
       }
       if (!known && !bot && !viewing) { // looking at a chosen version never makes a visitor
-        const cookie = `${ID_COOKIE}=${id}; Path=/; Max-Age=${ONE_YEAR_S}; HttpOnly; SameSite=Lax${secure ? '; Secure' : ''}`;
+        const cookie = `${ID_COOKIE}=${id}; Path=/; Max-Age=${ONE_YEAR_S}; HttpOnly; SameSite=Lax${secure ? '; Secure' : ''}${opts.cookieDomain ? `; Domain=${opts.cookieDomain}` : ''}`;
         headers['set-cookie'] = [...asArray(headers['set-cookie']), cookie];
       }
       // The click script, added to the end of every uncompressed page (opt-in).

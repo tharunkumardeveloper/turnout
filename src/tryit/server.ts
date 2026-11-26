@@ -6,8 +6,8 @@
 //   3. They go behind a Turnout proxy of their own (port 8085) on a flag of their own, tryit_release, in the same
 //      Flagsmith environment, so the demo's flag is never touched. One version makes an A/A test (the same app on both
 //      sides), two an A/B test, three an A/B/C test.
-//   4. Judge mode's jobs run on it (start, simulated visitors, ask Flagsmith, decide), with the explorer simulator
-//      (simulate-any.ts) instead of the demo shop's. The console serves judge mode's page for it at /try.
+//   4. Guided demo's jobs run on it (start, simulated visitors, ask Flagsmith, decide), with the explorer simulator
+//      (simulate-any.ts) instead of the demo shop's. The console serves guided demo's page for it at /try.
 // It needs the Docker socket, which is root on the host: compose.turnout.yml starts it only in local mode, and the
 // console exposes its API only to this machine.
 import http from 'node:http';

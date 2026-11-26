@@ -1,4 +1,4 @@
-// Blind rounds for the demo (judge mode). Without them, the simulator's fixed rates decide the winner before Flagsmith
+// Blind rounds for the demo (guided demo). Without them, the simulator's fixed rates decide the winner before Flagsmith
 // looks. With them, each experiment's true order rates are drawn at random and kept hidden: the new release is
 // better, worse, or identical (an A/A round). Flagsmith sees only the traffic. When the round is decided, the page
 // reveals the truth next to Flagsmith's call, and a scoreboard counts how often the call was right.
