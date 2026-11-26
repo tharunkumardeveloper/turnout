@@ -233,3 +233,32 @@ test('the event buffer fits Flagsmith\'s 2 MiB body limit with the largest event
   const worst = JSON.stringify({ event: 'x'.repeat(100), feature_name: null, identifier: '0b7e2f0c-1f2a-4d0e-9c1b-2a3b4c5d6e7f', value: '1234567.89', traits: null, metadata: { sdk_version: '9.4.0' }, timestamp: Date.now() });
   assert.ok((Buffer.byteLength(worst) + 1) * MAX_EVENT_BUFFER + 12 < 2_097_152);
 });
+
+test('a slow events endpoint never loses events: Turnout holds its own back while the SDK buffer is full', async () => {
+  const { HOLD_AT } = await import('../src/flagsmith/flag-source.ts');
+  let received = 0;
+  let slow = true;
+  const fetchStub = async (input: string | URL | Request, init?: RequestInit): Promise<Response> => {
+    const url = String(input instanceof Request ? input.url : input);
+    if (url.endsWith('/v1/events')) {
+      const n = (JSON.parse(String(init!.body)) as { events: unknown[] }).events.length;
+      if (slow) await new Promise((r) => setTimeout(r, 1500)); // one batch in flight for a while
+      received += n;
+      return new Response(JSON.stringify({ accepted: n, rejected: [] }), { status: 202 });
+    }
+    return new Response(JSON.stringify(environmentDocument({ enabled: true, value: 'shop:1.4', v2: null })), { status: 200 });
+  };
+  const source = createFlagSource({ apiUrl: API, serverKey: 'ser.key', flag: 'shop_release', fetch: fetchStub as typeof fetch });
+  const total = 25_000; // well over the SDK's 7,000-event buffer while a batch is in flight
+  try {
+    for (let i = 0; i < total; i++) source.track('doc_latency_ms', `id-${i % 500}`, 10);
+    assert.ok(source.receipts.heldMax >= total - HOLD_AT - 1, 'events past the SDK buffer were held back');
+    slow = false;
+    for (let i = 0; i < 200 && received < total; i++) await new Promise((r) => setTimeout(r, 100));
+  } finally {
+    slow = false;
+    await source.close();
+  }
+  assert.equal(received, total, 'every event reached the events endpoint');
+  assert.equal(source.receipts.droppedBySdk, 0);
+});

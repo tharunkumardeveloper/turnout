@@ -58,7 +58,7 @@ type Options = {
   config: Config;
   flags: FlagSource;
   onTraffic?: (event: TrafficEvent) => void;
-  receipts?: { get(identity: string): Receipt | undefined; undelivered?: number; droppedBySdk?: number; batches?: object };
+  receipts?: { get(identity: string): Receipt | undefined; undelivered?: number; droppedBySdk?: number; heldMax?: number; batches?: object };
   previewToken?: string; // opening /__turnout/preview?token=<it> puts this browser in the preview segment
   debugToken?: string; // x-turnout-debug: <it> adds the variant headers to a response; unset = never
   assignTimeoutMs?: number; // a visitor never waits longer than this for a flag; default 150
@@ -287,7 +287,7 @@ export function createProxy(opts: Options): http.Server {
         fallbacks: Object.fromEntries([...fallbacks].map(([k, v]) => [k, v.count])),
         undeliveredEvents: receipts?.undelivered ?? 0,
         ...(upstreams ? { upstreams } : {}),
-        ...(debug ? { trackedEvents: Object.fromEntries(trackedEvents), droppedBySdk: receipts?.droppedBySdk ?? 0, eventBatches: receipts?.batches } : {}),
+        ...(debug ? { trackedEvents: Object.fromEntries(trackedEvents), droppedBySdk: receipts?.droppedBySdk ?? 0, heldMax: receipts?.heldMax ?? 0, eventBatches: receipts?.batches } : {}),
       });
     }
     if (pathname === `${OWN_PREFIX}preview` || pathname === `${OWN_PREFIX}preview/off`) {

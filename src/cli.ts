@@ -265,7 +265,7 @@ async function proxy(): Promise<void> {
     server.close();
     feedServer.close();
     // Flush buffered events, but never hang a deploy on an unreachable Flagsmith.
-    await Promise.race([flags.close(), new Promise((r) => setTimeout(r, 5000))]);
+    await Promise.race([flags.close(), new Promise((r) => setTimeout(r, 12_000))]);
     process.exit(0);
   };
   process.on('SIGTERM', shutdown);

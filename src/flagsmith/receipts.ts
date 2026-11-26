@@ -16,7 +16,8 @@ export class Receipts {
   private byIdentity = new Map<string, Receipt>();
   private readonly onUndelivered: ((receipt: Receipt) => void) | undefined;
   undelivered = 0; // events Flagsmith didn't accept or the SDK dropped, since start (a retried attempt counts too)
-  droppedBySdk = 0; // of those, dropped by the SDK before sending
+  droppedBySdk = 0; // of those, dropped before sending (the SDK's full buffer, or Turnout's hold-back queue over its cap)
+  heldMax = 0; // the most events Turnout has held back at once while the SDK's buffer was full
   // Every events POST: how many, how big, how slow. A slow batch is what fills the SDK's buffer.
   batches = { count: 0, events: 0, maxEvents: 0, maxMs: 0, over5s: 0, failed: 0 };
 

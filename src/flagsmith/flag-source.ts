@@ -17,6 +17,8 @@ export function eventsApiUrlFor(apiUrl: string): string {
 }
 
 export const MAX_EVENT_BUFFER = 7000;
+export const HOLD_AT = MAX_EVENT_BUFFER - 500; // Turnout's own events wait above this; the rest is room for exposures
+export const QUEUE_CAP = 100_000;
 
 // The SDK reports events it drops (a full buffer while a batch is in flight) only as log warnings. This logger counts
 // them as undelivered, so /__turnout/health and doctor show the loss instead of it passing silently.
@@ -40,7 +42,7 @@ export function dropLogger(receipts: Receipts, write: (line: string) => void = (
   };
 }
 
-export function createFlagSource(opts: Options): FlagSource & { close(): Promise<void>; receipts: Receipts } {
+export function createFlagSource(opts: Options): FlagSource & { close(): Promise<void>; receipts: Receipts; held(): number } {
   const receipts = new Receipts(opts.onUndelivered);
   let environmentAt: number | null = null;
   let lastError: string | null = null;
@@ -72,6 +74,30 @@ export function createFlagSource(opts: Options): FlagSource & { close(): Promise
     },
   });
 
+  // Back-pressure: the SDK sends one batch at a time and, while it's in flight, a full buffer drops its oldest events.
+  // So Turnout holds its own events back once the SDK's buffer passes HOLD_AT (the rest is room for the exposures the
+  // SDK records itself) and feeds them in as it empties. Only beyond QUEUE_CAP (about 20 MB) are events dropped, and
+  // counted. The SDK's buffer length is read from its event processor (@flagsmith/nodejs 9.4.0); if a later version
+  // hides it, events go straight to the SDK as before.
+  const sdkBuffered = (): number | null => {
+    const b = (flagsmith as unknown as { eventProcessor?: { buffer?: unknown[] } }).eventProcessor?.buffer;
+    return Array.isArray(b) ? b.length : null;
+  };
+  type Held = { event: string; opts: { identifier: string; value?: number } };
+  const held: Held[] = [];
+  const room = () => {
+    const n = sdkBuffered();
+    return n === null || n < HOLD_AT;
+  };
+  const drain = () => {
+    while (held.length && room()) {
+      const h = held.shift()!;
+      flagsmith.trackEvent(h.event, h.opts);
+    }
+  };
+  const drainTimer = setInterval(drain, 100);
+  drainTimer.unref?.();
+
   return {
     ready: () => environmentAt !== null,
     status: (): FlagSourceStatus => ({
@@ -91,9 +117,26 @@ export function createFlagSource(opts: Options): FlagSource & { close(): Promise
       };
     },
     track(event, identity, value) {
-      flagsmith.trackEvent(event, value === undefined ? { identifier: identity } : { identifier: identity, value });
+      const opts = value === undefined ? { identifier: identity } : { identifier: identity, value };
+      if (!held.length && room()) return void flagsmith.trackEvent(event, opts);
+      held.push({ event, opts });
+      receipts.heldMax = Math.max(receipts.heldMax, held.length);
+      if (held.length > QUEUE_CAP) {
+        held.shift();
+        receipts.dropped(1);
+      }
     },
-    close: () => flagsmith.close(),
+    close: async () => {
+      clearInterval(drainTimer);
+      // Hand over what's held as room appears, for up to 10 s; whatever is left then is counted as dropped.
+      for (const until = Date.now() + 10_000; held.length && Date.now() < until; ) {
+        drain();
+        if (held.length) await new Promise((r) => setTimeout(r, 100));
+      }
+      if (held.length) receipts.dropped(held.splice(0).length);
+      await flagsmith.close();
+    },
+    held: () => held.length,
     receipts,
   };
 }
