@@ -60,7 +60,10 @@ export type BuildState = {
   versions: { slot: string; label: string; name: string; source: VersionSource['kind']; port: number | null; stages: Stage[] }[];
   log: LogLine[];
   error: string | null;
-  shop: string; // the try proxy, for previews and "be a visitor"
+  shop: string; // the try proxy, for "be a visitor"
+  // Each version on its own address (A, B, C): straight to it, never counted. A preview through the proxy picks its
+  // version per page; an app that builds its pages in the browser fetched its files from either version.
+  previews: Record<string, string>;
   goal: string | null;
 };
 
@@ -147,6 +150,8 @@ export type TryitOptions = {
   proxyPort: number;
   apiPort: number;
   consolePort?: number; // your app's console (the main console shows it at /app); unset: none
+  previewPorts?: number[]; // one preview address per version (A, B, C), e.g. [8086, 8087, 8088]
+  previewHost?: string; // where a browser reaches them, default http://127.0.0.1
   uiDir?: string;
   stateDir: string;
   log?: (line: string) => void;
@@ -165,7 +170,25 @@ export function startTryit(o: TryitOptions) {
   let appConsole: http.Server | null = null;
   let rates: Record<string, number> = {};
   let names: Record<string, string> = {};
-  const state: BuildState = { status: 'idle', kind: null, versions: [], log: [], error: null, shop: o.publicShop, goal: null };
+  const state: BuildState = { status: 'idle', kind: null, versions: [], log: [], error: null, shop: o.publicShop, goal: null, previews: {} };
+  // The preview servers: each forwards to its version's container, as it is now (rebuilt versions, same address).
+  const previewUpstream: Record<string, string> = {};
+  const previewServers = (o.previewPorts ?? []).map((port, i) => {
+    const label = LABELS[i]!;
+    const server = http.createServer((req, res) => {
+      const base = previewUpstream[label];
+      if (!base) return void res.writeHead(503, { 'content-type': 'text/plain' }).end(`Version ${'ABC'[i]} isn't built.`);
+      const target = new URL(req.url ?? '/', base);
+      const up = http.request(target, { method: req.method, headers: { ...req.headers, host: target.host } }, (answer) => {
+        res.writeHead(answer.statusCode ?? 502, answer.headers);
+        answer.pipe(res);
+      });
+      up.on('error', (e) => (res.headersSent ? res.end() : res.writeHead(502, { 'content-type': 'text/plain' }).end(e.message)));
+      req.pipe(up);
+    });
+    server.listen(port, '0.0.0.0');
+    return server;
+  });
   // Uploads (a project folder as a tar, or an image file): kept in the state folder, the newest 6, so a few builds
   // can reuse them; the rest are removed.
   const uploads = join(o.stateDir, 'uploads');
@@ -236,7 +259,7 @@ export function startTryit(o: TryitOptions) {
       judge: judgeOptions,
       judgePage: false,
       lock,
-      site: { url: o.publicShop, dashboardUrl: o.dashboardUrl, goal, simulated: true },
+      site: { url: o.publicShop, dashboardUrl: o.dashboardUrl, goal, simulated: true, previews: state.previews },
     });
     await new Promise<void>((r) => server.listen(o.consolePort, '0.0.0.0', () => r()));
     appConsole = server;
@@ -306,9 +329,14 @@ export function startTryit(o: TryitOptions) {
         run!.status = 'done';
         run!.detail = `answering on port ${port}`;
         upstream[slot.label] = `http://try-${slot.slot}:${port}`;
+        previewUpstream[slot.label] = upstream[slot.label]!;
         note(`${slot.name} is running, answering on port ${port}`, slot.slot.toUpperCase(), 'ok');
       }
       for (const slot of SLOTS.slice(versions.length)) await o.docker.remove(`turnout-try-${slot}`);
+      if (versions.length === 1) previewUpstream[LABELS[1]!] = previewUpstream[LABELS[0]!]!;
+      for (const label of LABELS.slice(versions.length === 1 ? 2 : versions.length)) delete previewUpstream[label];
+      const host = (o.previewHost ?? 'http://127.0.0.1').replace(/\/$/, '');
+      state.previews = Object.fromEntries((o.previewPorts ?? []).map((p, i) => [LABELS[i]!, `${host}:${p}`]).filter(([l]) => previewUpstream[l as string]));
       if (versions.length === 1) upstream[LABELS[1]!] = upstream[LABELS[0]!]!.replace('try-a', 'try-b');
 
       // The flag and its metrics in Flagsmith (idempotent): every slot label is a variant value, so a later build
@@ -471,5 +499,5 @@ export function startTryit(o: TryitOptions) {
     }
   });
   apiServer.listen(o.apiPort, '0.0.0.0', () => log(`tryit: API on :${o.apiPort}, your versions through Turnout on :${o.proxyPort}`));
-  return { state, apiServer, close: async () => { apiServer.close(); proxyServer?.close(); appConsole?.close(); await flags.close(); } };
+  return { state, apiServer, close: async () => { apiServer.close(); proxyServer?.close(); appConsole?.close(); for (const s of previewServers) s.close(); await flags.close(); } };
 }

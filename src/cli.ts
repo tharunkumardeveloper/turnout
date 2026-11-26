@@ -410,6 +410,7 @@ const commands: Record<string, () => Promise<void>> = {
       proxyPort: Number(env('TRYIT_PROXY_PORT', '8085')),
       apiPort: Number(env('TRYIT_PORT', '8097')),
       consolePort: Number(env('TRYIT_CONSOLE_PORT', '8099')),
+      previewPorts: env('TRYIT_PREVIEW_PORTS', '8086,8087,8088').split(',').map(Number).filter((n) => n > 0),
       uiDir: fileURLToPath(new URL('./console/ui/', import.meta.url)),
       stateDir: join(STATE_DIR, 'tryit'),
     });

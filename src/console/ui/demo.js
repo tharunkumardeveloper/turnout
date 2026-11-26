@@ -26,8 +26,9 @@ export const EMBED = QUERY.has('embed') || window.self !== window.top;
 if (!EMBED) {
   const tryPage = document.querySelector('meta[name="turnout-try"]') !== null;
   const consolePath = BASE === '/judge' ? '/judge/console' : '/';
-  const next = new URLSearchParams({ mode: 'judge', ...(tryPage ? { app: 'try' } : {}), ...(QUERY.get('play') === '1' ? { play: '1' } : {}) });
-  location.replace(`${consolePath}?${next}`);
+  // Your app's test lives on your app's console; the demo shop's on the console with Judge mode on.
+  if (tryPage) location.replace('/app');
+  else location.replace(`${consolePath}?${new URLSearchParams({ mode: 'judge' })}`);
 } else {
   document.body.classList.add('is-embed');
   // Links inside open in the console's window, not in this frame (those with their own target keep it).

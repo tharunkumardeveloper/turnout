@@ -317,9 +317,10 @@ const RUN_WORD = { building: ['Building…', 'busy'], ready: ['Ready', 'good'], 
 function previews(state) {
   const shop = String(state.shop ?? '').replace(/\/$/, '');
   const list = state.versions.length === 1 ? [state.versions[0], { ...state.versions[0], slot: 'a′', label: 'try:b', name: `${state.versions[0].name} (copy)` }] : state.versions;
-  return list.map((v, i) => h('a', { class: 'try-tile', href: `${shop}/?__turnout_view=${encodeURIComponent(v.label)}`, target: '_blank', rel: 'noopener', 'data-i': String(i), title: `Open ${v.name} on its own (never counted)` },
+  const own = (v) => state.previews?.[v.label] ?? `${shop}/?__turnout_view=${encodeURIComponent(v.label)}`;
+  return list.map((v, i) => h('a', { class: 'try-tile', href: own(v), target: '_blank', rel: 'noopener', 'data-i': String(i), title: `Open ${v.name} on its own (never counted)` },
     h('span', { class: 'try-tile-name' }, `${i === 1 && state.versions.length === 1 ? 'A′' : LETTERS[i]} · ${v.name}`),
-    h('span', { class: 'try-frame' }, h('iframe', { src: `${shop}/?__turnout_view=${encodeURIComponent(v.label)}`, title: `Preview of ${v.name}`, tabindex: '-1' }))));
+    h('span', { class: 'try-frame' }, h('iframe', { src: own(v), title: `Preview of ${v.name}`, tabindex: '-1' }))));
 }
 
 async function poll() {

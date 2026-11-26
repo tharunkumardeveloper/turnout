@@ -131,7 +131,8 @@ describe('console UI files', () => {
   test('where you land: /api/you, polled, and each version openable on its own', () => {
     assert.match(read('app.js'), /api\('\/api\/you'/);
     assert.ok(html.includes('id="you"') && html.includes('id="site-version-list"'));
-    assert.match(read('app.js'), /viewLink\(site\?\.url, v\.label\)/);
+    assert.match(read('app.js'), /previewOf\(site, v\.label\)/);
+    assert.match(read('app.js'), /return site\?\.previews\?\.\[label\] \?\? viewLink\(site\?\.url, label\);/, "Try it's versions each have their own address");
   });
 
   test('phones: 44 px touch targets, dialogs that fit, a compact traffic map', () => {
@@ -542,7 +543,7 @@ describe('mode.js: Judge mode, a switch on the one console page', () => {
   test('the judge view comes from judge mode, Try it (your app), or the public judge page', () => {
     const p = (q: string) => new URLSearchParams(q);
     assert.equal(M.frameSrc('', p('mode=judge')), '/judge?embed=1');
-    assert.equal(M.frameSrc('', p('mode=judge&app=try&play=1')), '/try?embed=1&play=1');
+    assert.equal(M.frameSrc('', p('mode=judge&app=try&play=1')), '/judge?embed=1&play=1', 'your app is never in the judge view: it has /app');
     assert.equal(M.frameSrc('/judge', p('mode=judge')), '/judge?embed=1');
   });
   test('on or off: the address first, then this browser, and the public page starts on', () => {

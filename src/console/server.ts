@@ -52,7 +52,7 @@ export type ConsoleOptions = {
   cacheMs?: Partial<CacheTimes>; // how long each shared read is kept; defaults in CACHE_MS
   // The console's first card: where visitors open the app through Turnout, the Flagsmith dashboard, and the goal
   // (null: none yet, the experiment is judged on page speed).
-  site?: { url: string; dashboardUrl: string; goal: string | null; simulated?: boolean };
+  site?: { url: string; dashboardUrl: string; goal: string | null; simulated?: boolean; previews?: Record<string, string> };
   liveVisitors?: () => Promise<LiveVisitors | null>; // server mode's real-visitor experiment, for judge mode
   // Server mode: runs the judge story by itself (autopilot.ts) while the console listens. Needs `judge`.
   autopilot?: AutopilotOptions;
@@ -87,9 +87,9 @@ const TYPES: Record<string, string> = {
 
 // Judge mode shows the setup check and the feature map as tabs (same-origin frames) and the shop through
 // Turnout (frame-src names the shop's origin). Nothing else may frame the console.
-function securityHeaders(shopUrl: string | undefined, extraFrames: string[] = []): Record<string, string> {
+function securityHeaders(shopUrl: string | undefined, extraFrames: string[] = [], more: string[] = []): Record<string, string> {
   let shop = '';
-  for (const url of [shopUrl, ...extraFrames]) {
+  for (const url of [shopUrl, ...extraFrames, ...more]) {
     try {
       if (url) shop += ` ${new URL(url).origin}`;
     } catch {
@@ -170,7 +170,9 @@ export function createConsole(opts: ConsoleOptions): http.Server {
   }
   const mark = opts.judgeToken ? judgeMark(opts.judgeToken) : undefined;
   // Try it with your app: its previews frame the tryit proxy (127.0.0.1:8085).
-  const SECURITY_HEADERS = securityHeaders(opts.judge?.shopUrl, opts.tryitUrl ? [opts.tryitShopUrl ?? 'http://127.0.0.1:8085'] : []);
+  const tryShop = opts.tryitShopUrl ?? 'http://127.0.0.1:8085';
+  const tryPreviews = opts.tryitUrl ? [8086, 8087, 8088].map((p) => tryShop.replace(/:\d+\/?$/, `:${p}`)) : [];
+  const SECURITY_HEADERS = securityHeaders(opts.judge?.shopUrl, opts.tryitUrl ? [tryShop, ...tryPreviews] : [], opts.site?.previews ? Object.values(opts.site.previews) : []);
   const ttl: CacheTimes = { ...CACHE_MS, ...opts.cacheMs };
   const resolve = opts.experiments;
   const latest = typeof resolve === 'function' ? shared(resolve, ttl.latest) : null;
@@ -414,7 +416,12 @@ export function createConsole(opts: ConsoleOptions): http.Server {
       if (tryPath) {
         if (!opts.tryitUrl) return isApi || url.pathname.startsWith('/api/') ? json(res, 404, { error: 'Try it is off on this console (it needs local mode).' }) : page(res, 404, 'Try it is off here', 'Try it with your app runs only on a local Turnout (it builds and runs code).');
         if (!thisMachine) return json(res, 403, { error: 'Try it is only available on the machine running Turnout.' });
-        if (req.method === 'GET' && (url.pathname === '/try' || url.pathname === '/try/')) return serveTryPage(opts.uiDir, res, token);
+        // Your app's test is on your app's console (/app), not in a judge view: /try goes there.
+        if (req.method === 'GET' && (url.pathname === '/try' || url.pathname === '/try/')) {
+          if (!opts.tryitConsoleUrl) return serveTryPage(opts.uiDir, res, token);
+          res.writeHead(302, { location: '/app', 'cache-control': 'no-store' });
+          return void res.end();
+        }
         if (url.pathname === '/try/api/flagsmith-login') {
           const login = opts.flagsmithLogin;
           return json(res, 200, { dashboardUrl: opts.judge?.dashboardUrl ?? null, email: login?.email ?? null, password: login?.password ?? null });

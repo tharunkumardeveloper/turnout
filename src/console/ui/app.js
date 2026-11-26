@@ -329,6 +329,10 @@ function render() {
 // Before a test has traffic the card shows each version, live (as judge mode does); once requests flow it shows the
 // traffic map. The switch overrides that until the page reloads.
 const mapView = { choice: null, framesKey: '' };
+/** One version on its own: its own address (Try it), or the proxy's view link. Never counted either way. */
+function previewOf(site, label) {
+  return site?.previews?.[label] ?? viewLink(site?.url, label);
+}
 function renderMapMode(s) {
   const variants = s.experiment ? F.variantList(s.experiment) : [];
   const flowing = Object.values(s.traffic?.byVariant ?? {}).some((v) => v.requests > 0) || flow.running;
@@ -347,9 +351,9 @@ function renderMapMode(s) {
   if (mapView.framesKey === key) return;
   mapView.framesKey = key;
   box.style.setProperty('--n', String(variants.length));
-  box.replaceChildren(...variants.map((v, i) => h('a', { class: 'map-preview', href: viewLink(s.site.url, v.label), target: '_blank', rel: 'noopener', title: `Open ${v.label} on its own (never counted)`, vars: { '--c': v.color } },
+  box.replaceChildren(...variants.map((v, i) => h('a', { class: 'map-preview', href: previewOf(s.site, v.label), target: '_blank', rel: 'noopener', title: `Open ${v.label} on its own (never counted)`, vars: { '--c': v.color } },
     h('span', { class: 'map-preview-name' }, h('span', { class: 'you-chip', vars: { '--c': v.color } }, LETTERS[i] ?? '?'), v.label, h('span', { class: 'v-key' }, v.isControl ? ' current' : ' new')),
-    h('span', { class: 'map-preview-frame' }, h('iframe', { src: viewLink(s.site.url, v.label), title: `Preview of ${v.label}`, tabIndex: -1, onload: fitMapPreviews })))));
+    h('span', { class: 'map-preview-frame' }, h('iframe', { src: previewOf(s.site, v.label), title: `Preview of ${v.label}`, tabIndex: -1, onload: fitMapPreviews })))));
   requestAnimationFrame(fitMapPreviews);
 }
 // Each preview is a 1,000 px wide page scaled to its tile, as tall as the tile at that scale.
@@ -1152,7 +1156,7 @@ function renderYou() {
     $('site-versions').hidden = !site?.url || site.simulated || !variants.length;
     list.replaceChildren(...variants.map((v, n) => h('li', {},
       h('span', { class: 'you-chip', vars: { '--c': v.color } }, LETTERS[n] ?? '?'),
-      h('a', { href: viewLink(site?.url, v.label), target: '_blank', rel: 'noopener', title: `Open ${v.label} on its own` }, `${v.label} ↗`),
+      h('a', { href: previewOf(site, v.label), target: '_blank', rel: 'noopener', title: `Open ${v.label} on its own` }, `${v.label} ↗`),
       h('span', { class: 'v-key' }, v.isControl ? 'control' : v.key))));
   }
   // The YOU pin on the map, and where this browser landed over time (before a test, in it, after the decision).

@@ -56,9 +56,11 @@ export function createFlagSource(opts: Options): FlagSource & { close(): Promise
     apiUrl: opts.apiUrl,
     enableLocalEvaluation: true,
     environmentRefreshIntervalSeconds: opts.refreshSeconds ?? 5,
-    // A visitor must never wait on Flagsmith: short requests, no retries. Until the first environment document
-    // arrives the proxy routes to the last known live release without asking the SDK (see ready()).
-    requestTimeoutSeconds: 2,
+    // A visitor never waits on Flagsmith: flags are evaluated locally, and this timeout is for the background refresh
+    // of the environment document. Until the first document arrives the proxy routes to the last known live release
+    // (see ready()). 2 s was too short on a busy machine (a Docker build, a visitor run): refreshes kept timing out,
+    // the proxy kept routing on a document from before the test started, and every visitor went to A.
+    requestTimeoutSeconds: 10,
     retries: 0,
     enableAnalytics: true,
     enableEvents: true,

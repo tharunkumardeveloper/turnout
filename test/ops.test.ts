@@ -34,6 +34,7 @@ describe('compose: published ports', () => {
       'console 127.0.0.1:8090:8090', // this machine's console: loopback Host names are trusted here only
       'flagsmith 127.0.0.1:8000:8000', // the dashboard and admin API keep the official placeholder secrets
       'tryit 127.0.0.1:8085:8085', // Try it with your app: your versions through Turnout, this machine only
+      'tryit 127.0.0.1:8086-8088:8086-8088', // each version on its own (previews, never counted), this machine only
       'turnout ${TURNOUT_PUBLISH_HOST:-127.0.0.1}:8080:8080',
     ]);
     assert.equal(String(services.console!.environment!.CONSOLE_DEVICE_PORT), '8091');

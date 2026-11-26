@@ -125,7 +125,8 @@ services:
       TURNOUT_TRYIT_SHOP_URL: http://127.0.0.1:8085
       TURNOUT_STATE_DIR: /tmp/turnout-tryit
     ports:
-      - 127.0.0.1:8085:8085 # your versions, through Turnout (previews, "be a visitor")
+      - 127.0.0.1:8085:8085 # your versions, through Turnout ("be a visitor")
+      - 127.0.0.1:8086-8088:8086-8088 # each version on its own (previews, never counted): A, B, C
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
     networks: [default]

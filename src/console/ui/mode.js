@@ -1,7 +1,7 @@
 // One page: the console, with Judge mode as a switch in its bar (beside Tour). On, the console's cards make way for
 // the judge view: the same test, step by step, one button at a time, with Play it for me. The choice is in the address
 // (?mode=judge, so a link can open it) and remembered in this browser.
-// Try it's test page is the judge view for your own app (?mode=judge&app=try).
+// Judge mode is the demo shop's guided view; your own app's test (Try it) is on its own console, /app.
 const $ = (id) => /** @type {HTMLElement} */ (document.getElementById(id));
 const meta = (name) => (typeof document === "undefined" ? null : document.querySelector(`meta[name="${name}"]`));
 const BASE = meta('turnout-base')?.getAttribute('content') ?? '';
@@ -9,9 +9,8 @@ const KEY = 'turnout-mode';
 
 /** Where the judge view comes from: judge mode for the demo shop, or Try it's page for your own app. */
 export function frameSrc(base, params) {
-  const app = params.get('app') === 'try' && !base ? 'try' : 'judge';
   const q = new URLSearchParams({ embed: '1', ...(params.get('play') === '1' ? { play: '1' } : {}) });
-  return `${base || ''}${app === 'try' ? '/try' : base ? '' : '/judge'}?${q}`;
+  return `${base || ''}${base ? '' : '/judge'}?${q}`;
 }
 
 /** Judge mode on or off: from the address first, then this browser's last choice; the public page starts on. */
@@ -29,8 +28,6 @@ export function setupMode() {
   if (!sw || !view || meta('turnout-no-judge')) return { isOn: () => false, tour: () => false };
   sw.hidden = false;
   const params = new URLSearchParams(location.search);
-  // Try it's test: the switch says whose app the judge view shows.
-  if (params.get('app') === 'try' && !BASE) sw.querySelector('.mode-label').textContent = 'Judge mode · your app';
   let stored = null;
   try {
     stored = localStorage.getItem(KEY);
