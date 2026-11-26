@@ -252,7 +252,7 @@ test('view switch: a browser can look at any allowlisted release, is never count
     assert.doesNotMatch(page, /tn_view|tn_id/, 'Turnout cookies never reach the app');
     await new Promise((r) => setTimeout(r, 20));
     assert.deepEqual([exposures, tracked], [[], []], 'looking is never counted');
-    const receipt = await (await fetch(`${base}/__turnout/receipt`, { headers: { cookie: view } })).json();
+    const receipt = (await (await fetch(`${base}/__turnout/receipt`, { headers: { cookie: view } })).json()) as { release: string; viewing: boolean; enrolled: boolean };
     assert.deepEqual([receipt.release, receipt.viewing, receipt.enrolled], ['app:b', true, false]);
     assert.equal((await fetch(`${base}/__turnout/view?release=evil`, { redirect: 'manual' })).status, 400, 'only allowlisted releases');
     const off = await fetch(`${base}/__turnout/view/off`, { redirect: 'manual' });
@@ -272,5 +272,27 @@ test('view switch is off unless enabled', async () => {
     assert.equal((await fetch(`http://127.0.0.1:${(proxy.address() as AddressInfo).port}/__turnout/view?release=a`, { redirect: 'manual' })).status, 404);
   } finally {
     proxy.close();
+  }
+});
+
+test('page-level view (?__turnout_view=): that release for this page, uncounted, the parameter never reaches the app', async () => {
+  const { createProxy, VIEW_PARAM } = await import('../src/proxy/server.ts');
+  const { parseConfig } = await import('../src/config.ts');
+  const app = http.createServer((req, res) => res.writeHead(200, { 'content-type': 'text/html' }).end(`B url=${req.url}`));
+  await new Promise<void>((r) => app.listen(0, '127.0.0.1', r));
+  const appUrl = `http://127.0.0.1:${(app.address() as AddressInfo).port}`;
+  const exposures: string[] = [];
+  const flags = { async assign(id: string, o: { recordExposure: boolean }) { if (o.recordExposure) exposures.push(id); return { variant: 'control', release: 'app:a', enrolled: true }; }, track() {} };
+  const config = parseConfig({ flag: 'f', releases: { 'app:a': 'http://127.0.0.1:9', 'app:b': appUrl } });
+  const proxy = createProxy({ config, flags, viewSwitch: true, log: () => {}, warn: () => {} });
+  await new Promise<void>((r) => proxy.listen(0, '127.0.0.1', r));
+  try {
+    const res = await fetch(`http://127.0.0.1:${(proxy.address() as AddressInfo).port}/?x=1&${VIEW_PARAM}=app%3Ab`, { headers: { 'user-agent': 'Mozilla/5.0 x', accept: 'text/html' } });
+    assert.equal(await res.text(), 'B url=/?x=1');
+    assert.equal(res.headers.get('set-cookie'), null, 'a preview never becomes a visitor');
+    assert.deepEqual(exposures, []);
+  } finally {
+    proxy.close();
+    app.close();
   }
 });

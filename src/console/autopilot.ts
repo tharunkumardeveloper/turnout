@@ -12,8 +12,8 @@ import type { Job, JudgeAction, JudgeState, RunResponse } from './judge.ts';
 export type AutopilotOptions = {
   visitors?: number; // per visitors step; default 2,000: enough for Flagsmith to decide on its first look, so the story rarely waits out its 5-minute refresh limit
   ambientVisitors?: number; // a small top-up batch while Flagsmith's refresh window is closed; 0: none. Default 150
-  pauseMs?: number; // after each step, before the next; default 8 s
-  endPauseMs?: number; // after the story's last step, before Reset; default 30 s
+  pauseMs?: number; // after each step, before the next; default 4 s
+  endPauseMs?: number; // after the story's last step, before Reset; default 15 s
   humanPauseMs?: number; // after a write from the private console; default 10 min
   errorPauseMs?: number; // after a refused or failed step; default 60 s
   maxKeepRunning?: number; // "keep running" this many times on one experiment (each waits out Flagsmith's 5-minute refresh limit), then follow its pick; default 1
@@ -96,8 +96,8 @@ export function createAutopilot(judge: JudgeLike, lock: { busy: boolean }, opts:
   const sleep = opts.sleep ?? ((ms: number) => new Promise<void>((r) => setTimeout(r, ms)));
   const now = opts.now ?? Date.now;
   const log = opts.log ?? (() => {});
-  const pauseMs = opts.pauseMs ?? 8_000;
-  const endPauseMs = opts.endPauseMs ?? 30_000;
+  const pauseMs = opts.pauseMs ?? 4_000;
+  const endPauseMs = opts.endPauseMs ?? 15_000;
   const humanPauseMs = opts.humanPauseMs ?? 10 * 60_000;
   const errorPauseMs = opts.errorPauseMs ?? 60_000;
   const pollMs = opts.pollMs ?? 1000;

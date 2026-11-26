@@ -37,6 +37,7 @@ services:
       TURNOUT_PREVIEW_TOKEN: ${TURNOUT_PREVIEW_TOKEN:-}
       TURNOUT_SECURE_COOKIES: ${TURNOUT_SECURE_COOKIES:-} # "1": mark the proxy's cookies Secure (behind TLS)
       TURNOUT_ACCESS_LOG: ${TURNOUT_ACCESS_LOG:-} # "0": no access log lines
+      TURNOUT_VIEW_SWITCH: ${TURNOUT_VIEW_SWITCH:-1} # judge mode previews each version side by side, never counted
     ports:
       # The feed on :8081 stays inside the compose network. TURNOUT_PUBLISH_HOST=0.0.0.0 lets phones on your
       # network reach the shop and the console; that requires TURNOUT_JUDGE_TOKEN and TURNOUT_CONSOLE_HOSTS.

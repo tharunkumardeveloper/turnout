@@ -915,13 +915,14 @@ export function createJudge(opts: JudgeOptions, ctx: JudgeContext) {
     log("Waiting for the proxy's events to reach Flagsmith (the proxy sends them every 2 s)…");
     const first = await deps.readEvents();
     if (!first) {
-      await deps.sleep(12_000);
+      await deps.sleep(6_000);
     } else {
       const started = deps.now();
       let last = first.accepted;
       let since = started;
-      while (deps.now() - since < 12_000 && deps.now() - started < 45_000) {
-        await deps.sleep(2000);
+      // The proxy flushes events every second: 5 quiet seconds means they've all reached Flagsmith.
+      while (deps.now() - since < 5_000 && deps.now() - started < 45_000) {
+        await deps.sleep(1000);
         const now = (await deps.readEvents())?.accepted ?? last;
         if (now !== last) {
           last = now;
@@ -946,7 +947,7 @@ export function createJudge(opts: JudgeOptions, ctx: JudgeContext) {
     const started = deps.now();
     let results: Results | null = null;
     while (deps.now() - started < 90_000) {
-      await deps.sleep(2000);
+      await deps.sleep(1000);
       results = await s.exps.results();
       if ((results?.as_of ?? null) !== before) break;
       results = null;
@@ -1019,8 +1020,8 @@ export function createJudge(opts: JudgeOptions, ctx: JudgeContext) {
 
   const visitBatch = async (count: number) => {
     const byRelease: Record<string, number> = {};
-    for (let i = 0; i < count; i += 10) {
-      const batch = await Promise.all(Array.from({ length: Math.min(10, count - i) }, () => deps.visit().catch(() => null)));
+    for (let i = 0; i < count; i += 25) {
+      const batch = await Promise.all(Array.from({ length: Math.min(25, count - i) }, () => deps.visit().catch(() => null)));
       for (const r of batch) byRelease[r ?? 'no answer'] = (byRelease[r ?? 'no answer'] ?? 0) + 1;
     }
     return byRelease;

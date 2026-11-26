@@ -848,3 +848,37 @@ export function chanceHeadline(points) {
   const verdict = c >= 0.95 ? 'clearly better: ship' : c <= 0.05 ? 'clearly worse: revert' : 'not sure yet: keep running';
   return { pct: Math.round(c * 100), verdict, tone: c >= 0.95 ? 'good' : c <= 0.05 ? 'bad' : 'wait', visitors: last.identities };
 }
+
+// ---- the showdown: the two versions under test, side by side, and which one won -----------------------------------
+const NAMES = { 'shop:1.4': 'Classic', 'shop:1.5': 'Express', 'shop:1.6': 'Bold' };
+/**
+ * The two versions in the experiment and where the contest stands.
+ * phase: 'testing' (Flagsmith splits visitors), 'shipped' (the new version won and everyone gets it),
+ * 'kept' (the current version stays: reverted), or null with nothing to show.
+ */
+export function showdown(s) {
+  const e = s?.experiment;
+  if (!e?.control || !e?.v2) return null;
+  const goal = (s.results?.metrics ?? []).find((m) => m.role === 'goal');
+  const arm = (key) => (goal?.arms?.[key] ? { rate: goal.arms[key].mean, n: goal.arms[key].n } : null);
+  const done = e.status === 'completed';
+  const phase = !done ? 'testing' : s.live === e.v2 ? 'shipped' : 'kept';
+  const side = (key, release) => ({
+    key,
+    release,
+    name: NAMES[release] ?? '',
+    flagsmith: arm(key),
+    state: phase === 'testing' ? 'testing' : (phase === 'shipped') === (key === 'v2') ? 'winner' : 'retired',
+  });
+  return {
+    phase,
+    chance: goal?.v2?.chanceToWin ?? null,
+    sides: [side('control', e.control), side('v2', e.v2)],
+    headline:
+      phase === 'testing'
+        ? `Testing ${e.v2} against ${e.control}: Flagsmith gives each visitor one of them`
+        : phase === 'shipped'
+          ? `${e.v2} won: shipped to everyone`
+          : `${e.control} stays: ${e.v2} was rolled back`,
+  };
+}

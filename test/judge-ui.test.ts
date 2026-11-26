@@ -667,3 +667,19 @@ test('the chance headline says the latest chance in words', () => {
   assert.equal(J.chanceHeadline([p(0.97)]).verdict, 'clearly better: ship');
   assert.equal(J.chanceHeadline([p(0.01)]).tone, 'bad');
 });
+
+test('showdown: the two versions under test, then the winner shipped or the current one kept', () => {
+  const base = { experiment: { id: 1, status: 'running', control: 'shop:1.4', v2: 'shop:1.5' }, live: 'shop:1.4',
+    results: { metrics: [{ role: 'goal', arms: { control: { n: 900, mean: 0.1 }, v2: { n: 910, mean: 0.14 } }, v2: { chanceToWin: 0.98 } }] } };
+  const t = J.showdown(base);
+  assert.equal(t.phase, 'testing');
+  assert.deepEqual(t.sides.map((x: any) => [x.release, x.name, x.state, x.flagsmith.rate]), [['shop:1.4', 'Classic', 'testing', 0.1], ['shop:1.5', 'Express', 'testing', 0.14]]);
+  assert.equal(t.chance, 0.98);
+  const shipped = J.showdown({ ...base, experiment: { ...base.experiment, status: 'completed' }, live: 'shop:1.5' });
+  assert.equal(shipped.phase, 'shipped');
+  assert.deepEqual(shipped.sides.map((x: any) => x.state), ['retired', 'winner']);
+  assert.equal(shipped.headline, 'shop:1.5 won: shipped to everyone');
+  const kept = J.showdown({ ...base, experiment: { ...base.experiment, status: 'completed' }, live: 'shop:1.4' });
+  assert.deepEqual([kept.phase, ...kept.sides.map((x: any) => x.state)], ['kept', 'winner', 'retired']);
+  assert.equal(J.showdown({ experiment: null }), null);
+});

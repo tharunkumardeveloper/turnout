@@ -11,6 +11,7 @@ export const PREVIEW_COOKIE = 'tn_preview';
 // "View this version" (server mode's public demo, TURNOUT_VIEW_SWITCH=1): a judge picks a release to look at. That
 // browser is then served that release and never counted (no exposure, no events), so looking never skews the data.
 export const VIEW_COOKIE = 'tn_view';
+export const VIEW_PARAM = '__turnout_view'; // the same for one page: judge mode's side-by-side previews
 // Paths under this prefix are answered by Turnout itself and never reach the app.
 export const OWN_PREFIX = '/__turnout/';
 // The app may name conversion events itself: "X-Turnout-Event: signup, plan_chosen;value=49". Turnout always
@@ -142,7 +143,13 @@ export function createProxy(opts: Options): http.Server {
     const known = !!cookieId && UUID_RE.test(cookieId);
 
     const previewing = !!previewMark && safeEqual(readCookie(req.headers.cookie, PREVIEW_COOKIE), previewMark);
-    const viewing = opts.viewSwitch ? viewedRelease(readCookie(req.headers.cookie, VIEW_COOKIE)) : undefined;
+    const query = new URLSearchParams(target.search);
+    const viewParam = opts.viewSwitch ? (query.get(VIEW_PARAM) ?? undefined) : undefined;
+    if (viewParam !== undefined) {
+      query.delete(VIEW_PARAM); // the app never sees it
+      target.search = query.size ? `?${query}` : '';
+    }
+    const viewing = opts.viewSwitch ? (viewedRelease(viewParam) ?? viewedRelease(readCookie(req.headers.cookie, VIEW_COOKIE))) : undefined;
     if (target.pathname.startsWith(OWN_PREFIX)) {
       return ownEndpoint({ req, res, url: target, identity: known ? cookieId : undefined, previewing, viewing });
     }
@@ -243,7 +250,7 @@ export function createProxy(opts: Options): http.Server {
         headers['x-turnout-release'] = release;
         headers['x-turnout-enrolled'] = String(enrolled);
       }
-      if (!known && !bot) {
+      if (!known && !bot && !viewing) { // looking at a chosen version never makes a visitor
         const cookie = `${ID_COOKIE}=${id}; Path=/; Max-Age=${ONE_YEAR_S}; HttpOnly; SameSite=Lax${secure ? '; Secure' : ''}`;
         headers['set-cookie'] = [...asArray(headers['set-cookie']), cookie];
       }

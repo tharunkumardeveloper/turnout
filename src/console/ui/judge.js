@@ -345,6 +345,7 @@ function render() {
   renderFlow(s);
   renderKpis(s);
   renderRail(s);
+  renderShowdown(s);
   renderRound(s);
   renderVisitor(s);
   renderTrack(s);
@@ -354,6 +355,65 @@ function render() {
   renderShopHead(s);
   preloadFrames(s);
   tour.update(s);
+}
+
+// ---- the showdown: the two versions under test, side by side, live counters, then the winner ----------------------
+// Each side shows a live preview of its version (the proxy serves ?__turnout_view=<release> uncounted), the page views
+// and orders its simulated shoppers make right now (from the traffic feed), and Flagsmith's own rate once it has one.
+const sd = { exp: null, counts: {}, frame: 0 };
+function noteShowdown(ev) {
+  const c = (sd.counts[ev.release] ??= { pages: 0, orders: 0 });
+  if (ev.document) c.pages++;
+  if (ev.converted) c.orders++;
+  if (!sd.frame) sd.frame = requestAnimationFrame(() => { sd.frame = 0; paintShowdownCounts(); });
+}
+function paintShowdownCounts() {
+  for (const side of document.querySelectorAll('.sd-side[data-release]')) {
+    const c = sd.counts[side.dataset.release] ?? { pages: 0, orders: 0 };
+    const set = (sel, v) => { const el = side.querySelector(sel); if (el) setText(el, v); };
+    set('[data-k="pages"]', c.pages.toLocaleString('en-GB'));
+    set('[data-k="orders"]', c.orders.toLocaleString('en-GB'));
+  }
+}
+function fitFrames() {
+  for (const box of document.querySelectorAll('.sd-frame')) {
+    const f = box.querySelector('iframe');
+    if (f) f.style.transform = `scale(${(box.clientWidth / 1280).toFixed(4)})`;
+  }
+}
+addEventListener('resize', fitFrames);
+
+function renderShowdown(s) {
+  const card = $('showdown-card');
+  const v = J.showdown(s);
+  card.hidden = !v;
+  if (!v) return;
+  if (sd.exp !== s.experiment.id) { sd.exp = s.experiment.id; sd.counts = {}; }
+  setText($('showdown-head'), v.headline);
+  setSlot($('sd-vs'), JSON.stringify(v.chance), () => [
+    'VS',
+    v.chance === null ? null : h('small', {}, `${Math.round(v.chance * 100)}% that ${v.sides[1].release} is better`),
+  ]);
+  for (const side of v.sides) {
+    const el = $(side.key === 'control' ? 'sd-control' : 'sd-v2');
+    el.dataset.state = side.state;
+    el.dataset.release = side.release;
+    // The frame is built once per release, so it doesn't reload on every state poll.
+    setSlot(el, JSON.stringify([side.release, side.state]), () => [
+      side.state === 'winner' ? h('span', { class: 'sd-crown' }, v.phase === 'shipped' ? 'WINNER · SHIPPED' : 'KEPT · EVERYONE GETS IT') : null,
+      h('div', { class: 'sd-top' },
+        h('span', { class: 'sd-name' }, side.name || side.release, h('code', {}, side.release)),
+        h('span', { class: 'sd-badge' }, side.state === 'testing' ? (side.key === 'v2' ? 'new · being tested' : 'current · being tested') : side.state === 'winner' ? 'everyone gets this' : v.phase === 'shipped' ? 'retired' : 'rolled back')),
+      h('div', { class: 'sd-frame' },
+        h('iframe', { src: `${s.links.shop.replace(/\/$/, '')}/?__turnout_view=${encodeURIComponent(side.release)}`, title: `Preview of ${side.release}`, loading: 'lazy', tabindex: '-1', 'aria-hidden': 'true', on: { load: fitFrames } })),
+      h('div', { class: 'sd-stats' },
+        h('div', { class: 'sd-stat' }, h('b', { 'data-k': 'pages' }, '0'), h('span', {}, 'page views now')),
+        h('div', { class: 'sd-stat' }, h('b', { 'data-k': 'orders' }, '0'), h('span', {}, 'orders now')),
+        h('div', { class: 'sd-stat' }, h('b', {}, side.flagsmith ? `${(side.flagsmith.rate * 100).toFixed(1)}%` : '—'), h('span', {}, side.flagsmith ? `ordered (Flagsmith, ${side.flagsmith.n} visitors)` : 'Flagsmith: no result yet'))),
+    ]);
+  }
+  paintShowdownCounts();
+  fitFrames();
 }
 
 // ---- the step rail: where the story is, at a glance, on top of the stage card -----------------------------------
@@ -1444,6 +1504,7 @@ function connectFeed() {
     try {
       const ev = JSON.parse(m.data);
       if (ev && typeof ev.release === 'string' && ev.release) {
+        noteShowdown(ev);
         ownTimes.push(performance.now());
         if (ownTimes.length > 5000) ownTimes.splice(0, ownTimes.length - 5000);
         track.pulse(ev, J.routeOf(ev, ui.rules));

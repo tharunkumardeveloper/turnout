@@ -907,3 +907,33 @@ body.welcome-open { overflow: hidden; }
 @media (prefers-reduced-motion: reduce) { .srail-dot, .srail-step::after { transition: none; } .srail-step[data-running='true'] .srail-dot { animation: none; } }
 /* The stage text eases in when the step changes, instead of jumping. */
 .stage-title, .stage-text { transition: opacity .25s; }
+
+/* ---- the showdown: two versions under test, side by side, and the winner ------------------------------------- */
+.showdown-card[hidden] { display: none; }
+.showdown-head { margin: 0 0 12px; font-size: 16px; font-weight: 700; }
+.showdown-grid { display: grid; grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr); gap: 14px; align-items: stretch; }
+@media (max-width: 700px) { .showdown-grid { grid-template-columns: minmax(0, 1fr); } .sd-vs { justify-self: center; } }
+.sd-vs { align-self: center; font: 800 20px var(--sans, system-ui); color: var(--muted); display: grid; place-items: center; gap: 2px; text-align: center; }
+.sd-vs small { font-size: 12px; font-weight: 600; }
+.sd-side { border: 2px solid var(--border); border-radius: 14px; padding: 10px; display: grid; gap: 8px; transition: border-color .5s, opacity .5s, transform .5s, box-shadow .5s; position: relative; }
+.sd-side[data-state='testing'] { border-color: color-mix(in srgb, var(--treatment, #2f9e6b) 35%, var(--border)); }
+.sd-side[data-state='winner'] { border-color: #2f9e6b; box-shadow: 0 10px 30px -12px #2f9e6b; transform: translateY(-3px); }
+.sd-side[data-state='retired'] { opacity: .45; filter: grayscale(.6); }
+.sd-top { display: flex; justify-content: space-between; align-items: center; gap: 8px; }
+.sd-name { font-weight: 800; font-size: 15px; }
+.sd-name code { font-size: 13px; color: var(--muted); font-weight: 600; margin-left: 6px; }
+.sd-badge { font-size: 12px; font-weight: 800; padding: 3px 10px; border-radius: 999px; background: var(--surface-2, #f1f5f9); color: var(--muted); white-space: nowrap; }
+.sd-side[data-state='testing'] .sd-badge::before { content: ''; display: inline-block; width: 7px; height: 7px; border-radius: 50%; background: var(--treatment, #2f9e6b); margin-right: 6px; animation: autopilot-blink 1.2s ease-in-out infinite; }
+.sd-side[data-state='winner'] .sd-badge { background: #2f9e6b; color: #fff; }
+.sd-frame { position: relative; overflow: hidden; border-radius: 10px; border: 1px solid var(--border); aspect-ratio: 16 / 10; background: var(--surface-2, #f8fafc); }
+.sd-frame iframe { position: absolute; top: 0; left: 0; width: 1280px; height: 800px; border: 0; transform-origin: 0 0; pointer-events: none; }
+.sd-stats { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 6px; text-align: center; }
+.sd-stat b { display: block; font-size: 20px; font-variant-numeric: tabular-nums; }
+.sd-stat span { font-size: 11.5px; color: var(--muted); }
+.sd-crown { position: absolute; top: -14px; left: 50%; transform: translateX(-50%); background: #2f9e6b; color: #fff; font: 800 12px var(--sans, system-ui); padding: 4px 12px; border-radius: 999px; letter-spacing: .04em; animation: sd-pop .5s ease-out; }
+@keyframes sd-pop { from { transform: translateX(-50%) scale(.6); opacity: 0; } to { transform: translateX(-50%) scale(1); opacity: 1; } }
+@media (prefers-reduced-motion: reduce) { .sd-side, .sd-crown { transition: none; animation: none; } }
+.focus-view .col-main > #showdown-card { order: 2; }
+.focus-view .col-main > #round-card { order: 3; }
+.focus-view .col-main > #track-card { order: 4; }
+.focus-view .col-main > #visitor-card { order: 5; }
