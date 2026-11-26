@@ -663,6 +663,18 @@ export function startTryit(o: TryitOptions) {
       for (const [i, slot] of state.versions.entries()) {
         const home = await homeStatus(upstream[LABELS[i]!]!);
         if (home.status >= 400) note(`${slot.name} answers its home page with HTTP ${home.status}${home.title ? ` (${home.title})` : ''}: visitors would see that error. Check its settings, then build again.`, slot.slot.toUpperCase(), 'error');
+        // A server error whose log names the settings it lacks (NextAuth's secret, an API key): stop here with the
+        // card that asks for them, instead of starting a test on error pages.
+        if (home.status >= 500) {
+          const tail = await o.docker.logs(`turnout-try-${slot.slot}`, 120).catch(() => '');
+          const given = new Set([...dbEnv, ...parseEnv(req.env)].map((l) => l.slice(0, l.indexOf('='))));
+          const settings = missingSettings(tail).filter((n) => !given.has(n));
+          if (settings.length) {
+            state.needs = { settings, database: req.database ? null : wantsDatabase(settings, tail) };
+            for (const s of state.versions) if (s.stages[1]?.status === 'done') s.stages[1].status = 'failed';
+            throw new Error(`${slot.name} (version ${slot.slot.toUpperCase()}): it runs, but every page answers HTTP ${home.status} because it needs settings: ${settings.join(', ')}. Give them below (test values are fine), then build again.`);
+          }
+        }
       }
       current = { versions, releases, upstream };
       await setUp(current);

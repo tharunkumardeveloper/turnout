@@ -142,3 +142,16 @@ test('a gallery of HTML pages is served with a folder listing; a library package
   // Nothing recognisable at all: null, and Try it says what it looked for.
   assert.equal(generatedDockerfile(['README.md', 'notes.txt'], none), null);
 });
+
+test('a start script that is a development server is built and served instead (it listens on its own loopback)', () => {
+  // puikinsh/adminator-admin-dashboard: "start": "webpack server", "main": "dist/index.html".
+  const d = generatedDockerfile(['package.json'], () => JSON.stringify({ main: 'dist/index.html', scripts: { start: 'webpack server', build: 'webpack' } }))!;
+  assert.match(d, /FROM nginx/);
+  assert.doesNotMatch(generatedDockerfile(['package.json', 'server.js'], () => JSON.stringify({ scripts: { start: 'node server.js', build: 'tsc' } }))!, /nginx/);
+  assert.match(generatedDockerfile(['package.json', 'index.js'], () => JSON.stringify({ scripts: { start: 'node index.js' } }))!, /HOST=0\.0\.0\.0/);
+});
+
+test('NextAuth without a secret is recognised as a missing setting', () => {
+  const log = '[next-auth][error][NO_SECRET] \nhttps://next-auth.js.org/errors#no_secret Please define a `secret` in production. Error [MissingSecretError]';
+  assert.deepEqual(missingSettings(log).sort(), ['AUTH_SECRET', 'NEXTAUTH_SECRET']);
+});

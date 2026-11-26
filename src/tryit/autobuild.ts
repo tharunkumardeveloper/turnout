@@ -25,14 +25,19 @@ export function generatedDockerfile(files: string[], read: Read): string | null 
     if (!s.start && s.build && deps['@sveltejs/adapter-node']) {
       return `FROM node:22-alpine\nWORKDIR /app\nCOPY . .\nRUN npm install --no-audit --no-fund\n${build}ENV PORT=3000 HOST=0.0.0.0\nEXPOSE 3000\nCMD ["node", "build"]\n`;
     }
-    // A build with no start script is a static site: serve what it built, from whichever folder it built into
-    // (Vite dist/, Create React App and SvelteKit's static adapter build/, Next's export out/).
-    if (!s.start && s.build && !pkg.main) {
+    // A start script that is a development server (webpack serve, Vite, react-scripts start, Parcel, ng serve…) listens
+    // on the container's own loopback and rebuilds on every change: with a build script, serve what the build makes.
+    // (puikinsh/adminator-admin-dashboard: webpack-dev-server on 127.0.0.1:4000, unreachable.)
+    const devServer = /\b(webpack(-dev-server|\s+serve)|vite(?!\s+(build|preview))\b|react-scripts\s+start|parcel(?!\s+build)\b|ng\s+serve|vue-cli-service\s+serve|gatsby\s+develop|nuxt\s+dev|astro\s+dev|browser-sync|live-server|http-server)/.test(s.start ?? '');
+    // A build with no start script (or only a development server) is a static site: serve what it built, from whichever
+    // folder it built into (Vite dist/, Create React App and SvelteKit's static adapter build/, Next's export out/).
+    if ((!s.start || devServer) && s.build && (!pkg.main || /\.html?$/i.test(pkg.main))) {
       return `FROM node:22-alpine AS build\nWORKDIR /app\nCOPY . .\nRUN npm install --no-audit --no-fund\n${build}RUN for d in dist build out public; do if [ -f "$d/index.html" ]; then cp -r "$d" /site; break; fi; done; test -d /site\nFROM nginx:1.27-alpine\nCOPY --from=build /site /usr/share/nginx/html\n`;
     }
     // Something to run: a start script or an entry file that is there. A package.json with neither (a library, like
     // knadh/oat) isn't an app: look at it as a static site below instead of starting a container that crashes.
-    if (s.start || has(entry)) return `FROM node:22-alpine\nWORKDIR /app\nCOPY . .\nRUN npm install --no-audit --no-fund\n${build}ENV PORT=3000\nEXPOSE 3000\nCMD ${start}\n`;
+    // HOST=0.0.0.0: servers that read it listen on every interface, not only the container's own loopback.
+    if (s.start || has(entry)) return `FROM node:22-alpine\nWORKDIR /app\nCOPY . .\nRUN npm install --no-audit --no-fund\n${build}ENV PORT=3000 HOST=0.0.0.0\nEXPOSE 3000\nCMD ${start}\n`;
   }
   if (has('requirements.txt') || has('pyproject.toml')) {
     const reqs = (read('requirements.txt') ?? '').toLowerCase();
@@ -107,6 +112,12 @@ export function missingSettings(log: string): string[] {
     /\b(DATABASE_URL|REDIS_URL|MONGO(?:DB)?_URI|POSTGRES_URL)\b/g,
   ];
   for (const p of patterns) for (const m of log.matchAll(p)) if (!/^(ERROR|WARN|INFO|DEBUG|HTTP|GET|POST|NODE_ENV|PATH|HOME)$/.test(m[1]!)) names.add(m[1]!);
+  // Errors that name no variable but mean one: NextAuth / Auth.js without a secret ("Please define a `secret` in
+  // production", [next-auth][error][NO_SECRET], MissingSecret): every page answers 500 until it has one.
+  if (/\[next-auth\]\[error\]\[NO_SECRET\]|MissingSecretError|MissingSecret\b|define a `secret` in production/.test(log)) {
+    names.add('NEXTAUTH_SECRET');
+    names.add('AUTH_SECRET');
+  }
   return [...names].slice(0, 10);
 }
 

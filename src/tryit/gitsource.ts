@@ -2,7 +2,8 @@
 // everything a folder gets, a Dockerfile written for it when it has none included. Docker's own git build can only
 // use a repository's Dockerfile, and most small repositories don't have one.
 import { execFile } from 'node:child_process';
-import { mkdtempSync, readdirSync, readFileSync, rmSync, statSync, writeFileSync } from 'node:fs';
+import { createWriteStream, mkdtempSync, readdirSync, rmSync, statSync } from 'node:fs';
+import { readFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 // @ts-expect-error: a plain browser module with no types (the console page loads it as is)
@@ -63,16 +64,28 @@ export async function gitToTar(url: string, tarFile: string, onLog: (line: strin
     const commit = (await git(['rev-parse', '--short', 'HEAD'], join(work, 'repo')).catch(() => '')).trim();
     const root = join(work, 'repo', folder);
     if (!statSync(root, { throwIfNoEntry: false })?.isDirectory()) throw new Error(`the repository has no folder "${folder}"`);
+    // Written file by file, giving the event loop a turn every few files: a 400 MB repository read in one go blocked
+    // Try it for long enough that the console said it wasn't running.
+    const paths = filesOf(root);
     let total = 0;
-    const entries = filesOf(root).map((path) => {
-      const data = new Uint8Array(readFileSync(join(root, path)));
-      total += data.length;
-      if (total > MAX_BYTES) throw new Error('the repository is over 512 MB without node_modules and .git: build its image yourself and paste the image name');
-      // Executable files stay executable (bin/rails, gradlew, entrypoint scripts): git records the bit.
-      const mode = statSync(join(root, path)).mode & 0o111 ? 0o755 : 0o644;
-      return { path, size: data.length, data, mode };
-    });
-    writeFileSync(tarFile, Buffer.concat(tarParts(entries)));
+    const out = createWriteStream(tarFile);
+    const write = (chunk: Uint8Array) => new Promise<void>((ok, fail) => (out.write(chunk, (e) => (e ? fail(e) : ok()))));
+    try {
+      for (const [i, path] of paths.entries()) {
+        const data = new Uint8Array(await readFile(join(root, path)));
+        total += data.length;
+        if (total > MAX_BYTES) throw new Error('the repository is over 512 MB without node_modules and .git: build its image yourself and paste the image name');
+        // Executable files stay executable (bin/rails, gradlew, entrypoint scripts): git records the bit.
+        const mode = statSync(join(root, path)).mode & 0o111 ? 0o755 : 0o644;
+        const parts: Uint8Array[] = tarParts([{ path, size: data.length, data, mode }]);
+        for (const part of parts.slice(0, -1)) await write(part); // the last part is the archive's end, written once below
+        if (i % 50 === 49) await new Promise((r) => setImmediate(r));
+      }
+      await write(new Uint8Array(1024));
+    } finally {
+      await new Promise<void>((ok) => out.end(ok));
+    }
+    const entries = paths;
     onLog(`Cloned ${entries.length} files${commit ? ` at ${commit}` : ''}${folder ? `, folder ${folder}` : ''}`);
     return commit;
   } finally {
