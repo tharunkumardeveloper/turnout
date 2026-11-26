@@ -639,3 +639,23 @@ describe('autopilotLine: the public stage says what runs next', () => {
     assert.match(js, /if \(!frame \|\| ui\.tab === tab\) continue;/, 'no map or setup frame in the public view');
   });
 });
+
+test('this round: the chance-to-win chart geometry, the scoreboard and the blind reveal', () => {
+  const c = J.chanceChart([
+    { asOf: 'a', chanceToWin: 0.5, low: -0.2, high: 0.3, identities: 300 },
+    { asOf: 'b', chanceToWin: null, low: null, high: null, identities: 0 },
+    { asOf: 'c', chanceToWin: 1, low: 0.1, high: 0.6, identities: 900 },
+  ], 200, 100, 10);
+  assert.equal(c.dots.length, 2, 'points without a chance are left out');
+  assert.deepEqual(c.dots.map((d: { x: number; y: number }) => [d.x, d.y]), [[10, 50], [190, 10]]);
+  assert.equal(c.line, '10,50 190,10');
+  assert.equal(c.ship, 14);
+  assert.equal(J.chanceChart([], 200, 100).empty, true);
+  assert.equal(J.scoreText({ rounds: 0 }).head, 'No rounds decided yet');
+  assert.equal(J.scoreText({ rounds: 28, right: 24, wrong: 1, noCall: 3 }).head, "Flagsmith's call was right in 24 of 28 rounds");
+  assert.equal(J.revealText({ enabled: true, round: { hidden: true } }).kind, 'hidden');
+  const r = J.revealText({ enabled: true, round: { hidden: false, truth: 'identical on orders (10.0% each)', round: { outcome: 'right', call: 'keep-running', expected: 'keep-running', chanceToWin: 0.61 } } });
+  assert.equal(r.head, 'Revealed: ✓ right');
+  assert.match(r.text, /Truth: identical on orders \(10\.0% each\)\. Flagsmith's numbers said: no clear winner yet \(keep running\) \(61\.0% chance to win\)/);
+  assert.equal(J.revealText({ enabled: false, round: null }), null);
+});

@@ -220,7 +220,8 @@ volumes:
 // The demo's Flagsmith file, made safe to run next to another Turnout or Flagsmith: no fixed container name (Compose
 // prefixes each project's own) and the dashboard on the port given.
 export function bundledFlagsmith(text: string, port: number): string {
-  const out = text.replace(/^\s*container_name:.*\n/gm, '').replace(/127\.0\.0\.1:8000:8000/g, `127.0.0.1:${port}:8000`);
+  // [ \t] and \r?: `.` stops at the \r of a Windows line ending (a core.autocrlf checkout).
+  const out = text.replace(/^[ \t]*container_name:.*\r?\n/gm, '').replace(/127\.0\.0\.1:8000:8000/g, `127.0.0.1:${port}:8000`);
   if (/container_name:/.test(out) || (port !== 8000 && /:8000:8000/.test(out))) throw new Error('unexpected Flagsmith compose file: fixed names or ports remain');
   return out;
 }

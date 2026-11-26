@@ -161,3 +161,12 @@ test("--app-env-file gives each release image your app's .env", async () => {
   assert.equal(compose.services['shop-main-abc'].image, 'shop-main:abc');
   assert.deepEqual(compose.services['shop-new-def'].env_file, ['C:\Users\me\app\.env']);
 });
+
+test('the bundled Flagsmith file is rewritten the same with Windows line endings (a core.autocrlf checkout)', async () => {
+  const { bundledFlagsmith } = await import('../src/commands/new.ts');
+  const { readFileSync } = await import('node:fs');
+  const lf = readFileSync(new URL('../compose.flagsmith.yml', import.meta.url), 'utf8').replace(/\r\n/g, '\n');
+  const out = bundledFlagsmith(lf.replace(/\n/g, '\r\n'), 8001);
+  assert.doesNotMatch(out, /container_name:/);
+  assert.match(out, /127\.0\.0\.1:8001:8000/);
+});
