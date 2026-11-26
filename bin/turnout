@@ -7,6 +7,7 @@
 #       branches of the git project you're in (main new-checkout: each built from its Dockerfile; your .env is passed)
 #       --port: the port your app listens on in its container (default: the Dockerfile's EXPOSE, else 8080)
 #   turnout demo: the demo shop and judge mode (stop: turnout demo stop)    turnout update: get the latest Turnout
+#   turnout simulate [--visitors 500] [--yes]: pretend visitors, in a separate Flagsmith environment, results in minutes
 #   turnout deploy [domain]: the Caddy or Nginx lines to put your web server in front of Turnout
 #   turnout open | status | down | reset [--yes]
 #
@@ -239,20 +240,54 @@ cmd_deploy() {
   say "  then open http://127.0.0.1:$CONSOLE_PORT"
 }
 
+cmd_simulate() {
+  need_state; need_docker
+  visitors=500; yes=
+  while [ $# -gt 0 ]; do
+    case "$1" in
+      --visitors) visitors="${2:?--visitors needs a number}"; shift 2 ;;
+      --yes) yes=1; shift ;;
+      *) die "unknown option $1" ;;
+    esac
+  done
+  goal=$(sed -n 's/^goal=//p' "$STATE/compare.args")
+  if [ "$goal" != none ] && [ -z "$yes" ]; then
+    say "Pretend visitors send real requests to your app, including the goal ($goal): it may create real records."
+    printf 'Go ahead? [y/N] '; read -r ok; [ "$ok" = y ] || exit 1
+  fi
+  real=$(sed -n 's#^TURNOUT_EXPERIMENT=\([^/]*\)/.*#\1#p' "$STATE/.env")
+  [ -n "$real" ] || die "run turnout compare first: there's no experiment yet."
+  mkdir -p "$STATE/.turnout/sim"
+  [ -f "$STATE/.turnout/sim.env" ] || grep -E '^(TURNOUT_ADMIN_KEY|TURNOUT_PREVIEW_TOKEN)=' "$STATE/.env" > "$STATE/.turnout/sim.env"
+  say "Setting up the separate Demo environment in Flagsmith (once)…"
+  compose run --rm -e TURNOUT_ENV_FILE=.turnout/sim.env -e TURNOUT_REAL_ENV_KEY="$real" cli sim-setup >"$STATE/sim-setup.log" 2>&1 \
+    || { tail -20 "$STATE/sim-setup.log" >&2; die "setting up the Demo environment failed (full log: $STATE/sim-setup.log)."; }
+  SIM_PORT=$(sed -n 's/^sim_console_port=//p' "$STATE/compare.args")
+  if [ -z "$SIM_PORT" ]; then SIM_PORT=$(free_port 8099); echo "sim_console_port=$SIM_PORT" >> "$STATE/compare.args"; fi
+  TURNOUT_SIM_CONSOLE_PORT=$SIM_PORT compose --profile sim up -d --wait turnout-sim console-sim >"$STATE/sim-up.log" 2>&1 \
+    || { tail -20 "$STATE/sim-up.log" >&2; die "starting the simulation failed (full log: $STATE/sim-up.log)."; }
+  compose run --rm -e TURNOUT_ENV_FILE=.turnout/sim.env cli simulate --visitors "$visitors" || die "the simulation stopped (see above)."
+  say ""
+  say "  Simulated results (Demo environment, never your real experiment):  http://127.0.0.1:$SIM_PORT"
+  say "  Flagsmith recomputes results at most every 5 minutes. Run turnout simulate again for more visitors."
+  open_url "http://127.0.0.1:$SIM_PORT"
+}
+
 need_state() { [ -f "$STATE/compare.args" ] || die "nothing set up for $NAME here yet: run turnout compare <live> <new> first."; ports_from_state; }
 
 cmd="${1:-help}"; [ $# -gt 0 ] && shift
 case "$cmd" in
   compare) cmd_compare "$@" ;;
   deploy) cmd_deploy "$@" ;;
+  simulate) cmd_simulate "$@" ;;
   demo) need_docker; cd "$HOME_DIR" && exec sh turnout.sh "${1:-start}" ;;   # start (opens judge mode), or: stop, status, reset
   update) cd "$HOME_DIR" && git pull --ff-only && say "Up to date. The next turnout compare or turnout demo uses it." ;;
   open) need_state; open_url "http://127.0.0.1:$CONSOLE_PORT"; banner ;;
   status) need_state; need_docker; compose ps; compose run --rm cli doctor | tail -1 ;;
-  down) need_state; need_docker; compose down; say "Stopped. turnout compare with the same arguments starts it again, with its data." ;;
+  down) need_state; need_docker; compose --profile sim down; say "Stopped. turnout compare with the same arguments starts it again, with its data." ;;
   reset)
     need_state; need_docker
     if [ "${1:-}" != --yes ]; then printf 'Delete %s'"'"'s Turnout and Flagsmith data? [y/N] ' "$NAME"; read -r ok; [ "$ok" = y ] || exit 1; fi
-    compose down -v; rm -rf "$STATE"; say "Wiped. turnout compare starts fresh." ;;
-  *) sed -n '2,12p' "$0" | sed 's/^# \{0,1\}//' ;;
+    compose --profile sim down -v; rm -rf "$STATE"; say "Wiped. turnout compare starts fresh." ;;
+  *) sed -n '2,13p' "$0" | sed 's/^# \{0,1\}//' ;;
 esac

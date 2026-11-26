@@ -43,7 +43,7 @@ export type ConsoleOptions = {
   cacheMs?: Partial<CacheTimes>; // how long each shared read is kept; defaults in CACHE_MS
   // The console's first card: where visitors open the app through Turnout, the Flagsmith dashboard, and the goal
   // (null: none yet, the experiment is judged on page speed).
-  site?: { url: string; dashboardUrl: string; goal: string | null };
+  site?: { url: string; dashboardUrl: string; goal: string | null; simulated?: boolean };
   liveVisitors?: () => Promise<LiveVisitors | null>; // server mode's real-visitor experiment, for judge mode
   // Server mode: runs the judge story by itself (autopilot.ts) while the console listens. Needs `judge`.
   autopilot?: AutopilotOptions;

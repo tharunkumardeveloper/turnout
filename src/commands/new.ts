@@ -203,6 +203,40 @@ services:
       - ./turnout.config.yml:/app/turnout.config.yml:ro
       - ./.env:/app/.env
       - ./.turnout:/app/.turnout${nets}${waitFlagsmith}
+
+  # turnout simulate: pretend visitors, kept apart from real ones. A second proxy and console on a separate Flagsmith
+  # environment ("Demo (simulated)"), whose keys init writes to .turnout/sim.env. Started only by turnout simulate.
+  turnout-sim:
+    <<: *turnout
+    command: proxy
+    profiles: [sim]
+    env_file: [{ path: ./.turnout/sim.env, required: false }]
+    environment:
+      FLAGSMITH_API_URL: ${api}
+      TURNOUT_STATE_DIR: /app/.turnout/sim
+    volumes:
+      - ./turnout.config.yml:/app/turnout.config.yml:ro
+      - turnout-state:/app/.turnout${nets}
+
+  console-sim:
+    <<: *turnout
+    command: console
+    profiles: [sim]
+    env_file: [{ path: ./.turnout/sim.env, required: false }]
+    environment:
+      FLAGSMITH_API_URL: ${api}
+      TURNOUT_FEED_URL: http://turnout-sim:8081
+      TURNOUT_PROXY_URL: http://turnout-sim:8080
+      TURNOUT_SIMULATED: '1' # the console says on its first card that every visitor here is simulated${bundled ? `\n      FLAGSMITH_DASHBOARD_URL: http://127.0.0.1:${a.flagsmithPort ?? 8000}` : ''}
+      CONSOLE_HOST: 0.0.0.0
+    ports:
+      - 127.0.0.1:\${TURNOUT_SIM_CONSOLE_PORT:-8099}:8090
+    volumes:
+      - ./turnout.config.yml:/app/turnout.config.yml:ro
+      - ./.turnout/sim:/app/.turnout${nets}
+    depends_on:
+      turnout-sim:
+        condition: service_started
 ${apps
   .map(
     (r) => `

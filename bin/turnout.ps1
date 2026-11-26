@@ -6,6 +6,7 @@
 #       branches of the git project you're in (main new-checkout: each built from its Dockerfile; your .env is passed)
 #       --port: the port your app listens on in its container (default: the Dockerfile's EXPOSE, else 8080)
 #   turnout demo: the demo shop and judge mode (stop: turnout demo stop)    turnout update: get the latest Turnout
+#   turnout simulate [--visitors 500] [--yes]: pretend visitors, in a separate Flagsmith environment, results in minutes
 #   turnout deploy [domain]: the Caddy or Nginx lines to put your web server in front of Turnout
 #   turnout open | status | down | reset [--yes]
 #
@@ -233,11 +234,52 @@ function Invoke-Deploy([string[]]$a) {
   $lines | ForEach-Object { Say $_ }
 }
 
+function Invoke-Simulate([string[]]$a) {
+  $lines = Read-Args; Need-Docker
+  $visitors = '500'; $yes = $false
+  for ($i = 0; $i -lt $a.Count; $i++) {
+    switch ($a[$i]) {
+      '--visitors' { $visitors = $a[$i + 1]; $i++ }
+      '--yes' { $yes = $true }
+      default { Die "unknown option $($a[$i])" }
+    }
+  }
+  $goal = (($lines | Where-Object { $_ -like 'goal=*' }) -replace '^goal=', '')
+  if ($goal -ne 'none' -and -not $yes) {
+    Say "Pretend visitors send real requests to your app, including the goal ($goal): it may create real records."
+    if ((Read-Host 'Go ahead? [y/N]') -ne 'y') { exit 1 }
+  }
+  $envFile = Join-Path $State '.env'
+  $real = (Get-Content $envFile | Where-Object { $_ -like 'TURNOUT_EXPERIMENT=*' }) -replace '^TURNOUT_EXPERIMENT=([^/]*)/.*$', '$1'
+  if (-not $real) { Die "run turnout compare first: there's no experiment yet." }
+  New-Item -ItemType Directory -Force (Join-Path $State '.turnout\sim') | Out-Null
+  $simEnv = Join-Path $State '.turnout\sim.env'
+  if (-not (Test-Path $simEnv)) { Get-Content $envFile | Where-Object { $_ -match '^(TURNOUT_ADMIN_KEY|TURNOUT_PREVIEW_TOKEN)=' } | Set-Content -Encoding ascii $simEnv }
+  Say 'Setting up the separate Demo environment in Flagsmith (once)...'
+  $log = Join-Path $State 'sim-setup.log'
+  Compose run --rm -e TURNOUT_ENV_FILE=.turnout/sim.env -e "TURNOUT_REAL_ENV_KEY=$real" cli sim-setup *> $log
+  if ($LASTEXITCODE -ne 0) { Get-Content $log -Tail 20; Die "setting up the Demo environment failed (full log: $log)." }
+  $argsFile = Join-Path $State 'compare.args'
+  $simPort = (Get-Content $argsFile | Where-Object { $_ -like 'sim_console_port=*' }) -replace '^sim_console_port=', ''
+  if (-not $simPort) { $simPort = Get-FreePort 8099 @([int]$ProxyPort, [int]$ConsolePort); Add-Content -Encoding ascii $argsFile "sim_console_port=$simPort" }
+  $env:TURNOUT_SIM_CONSOLE_PORT = $simPort
+  $log = Join-Path $State 'sim-up.log'
+  Compose --profile sim up -d --wait turnout-sim console-sim *> $log
+  if ($LASTEXITCODE -ne 0) { Get-Content $log -Tail 20; Die "starting the simulation failed (full log: $log)." }
+  Compose run --rm -e TURNOUT_ENV_FILE=.turnout/sim.env cli simulate --visitors $visitors 2>&1 | ForEach-Object { "$_" }
+  if ($LASTEXITCODE -ne 0) { Die 'the simulation stopped (see above).' }
+  Say ''
+  Say "  Simulated results (Demo environment, never your real experiment):  http://127.0.0.1:$simPort"
+  Say '  Flagsmith recomputes results at most every 5 minutes. Run turnout simulate again for more visitors.'
+  Start-Process "http://127.0.0.1:$simPort"
+}
+
 $cmd = if ($args.Count) { $args[0] } else { 'help' }
 $rest = if ($args.Count -gt 1) { [string[]]$args[1..($args.Count - 1)] } else { [string[]]@() }
 switch ($cmd) {
   'compare' { Invoke-Compare $rest }
   'deploy' { Invoke-Deploy $rest }
+  'simulate' { Invoke-Simulate $rest }
   'demo' {
     Need-Docker
     $what = if ($rest.Count) { $rest[0] } else { 'start' }   # start (opens judge mode), or: stop, status, reset
@@ -246,11 +288,11 @@ switch ($cmd) {
   'update' { Push-Location $HomeDir; try { git pull --ff-only; if ($LASTEXITCODE -eq 0) { Say 'Up to date. The next turnout compare or turnout demo uses it.' } } finally { Pop-Location } }
   'open' { Read-Args | Out-Null; Start-Process "http://127.0.0.1:$ConsolePort"; Show-Banner }
   'status' { Read-Args | Out-Null; Need-Docker; Compose ps; Compose run --rm cli doctor | Select-Object -Last 1 }
-  'down' { Read-Args | Out-Null; Need-Docker; Compose down; Say 'Stopped. turnout compare with the same arguments starts it again, with its data.' }
+  'down' { Read-Args | Out-Null; Need-Docker; Compose --profile sim down; Say 'Stopped. turnout compare with the same arguments starts it again, with its data.' }
   'reset' {
     Read-Args | Out-Null; Need-Docker
     if ($rest -notcontains '--yes') { $ok = Read-Host "Delete $Name's Turnout and Flagsmith data? [y/N]"; if ($ok -ne 'y') { exit 1 } }
-    Compose down -v; Remove-Item -Recurse -Force $State; Say 'Wiped. turnout compare starts fresh.'
+    Compose --profile sim down -v; Remove-Item -Recurse -Force $State; Say 'Wiped. turnout compare starts fresh.'
   }
-  default { Get-Content $PSCommandPath -TotalCount 11 | ForEach-Object { $_ -replace '^# ?', '' } }
+  default { Get-Content $PSCommandPath -TotalCount 12 | ForEach-Object { $_ -replace '^# ?', '' } }
 }

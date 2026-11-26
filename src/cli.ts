@@ -6,6 +6,9 @@ import { parseArgs } from 'node:util';
 import { check } from './commands/check.ts';
 import { formatReport, runDoctor, type DoctorOptions } from './commands/doctor.ts';
 import { init, judgeLinks, localHost, writeEnv } from './commands/init.ts';
+import { simulateAny } from './commands/simulate-any.ts';
+import { truthText } from './console/blind.ts';
+const SIM_ENVIRONMENT = 'Demo (simulated)';
 import { DEFAULT_RELEASES, DEFAULT_SUCCESS, readFileIfExists, writeNew, type NewAnswers } from './commands/new.ts';
 import { createInterface } from 'node:readline/promises';
 import { preview } from './commands/preview.ts';
@@ -528,6 +531,7 @@ const commands: Record<string, () => Promise<void>> = {
         url: process.env.TURNOUT_PUBLIC_SHOP_URL || 'http://127.0.0.1:8080',
         dashboardUrl: process.env.FLAGSMITH_DASHBOARD_URL || 'http://127.0.0.1:8000',
         goal: describeGoal(config.goal),
+        ...(process.env.TURNOUT_SIMULATED === '1' ? { simulated: true } : {}),
       },
       // Server mode only: the public view is read-only, so the story runs by itself (compose.server.yml sets it).
       ...(autopilot ? { autopilot } : {}),
@@ -573,6 +577,62 @@ const commands: Record<string, () => Promise<void>> = {
     });
   },
   new: newCommand,
+  // turnout simulate, step 1: a separate Flagsmith environment for pretend visitors, so they never reach the real
+  // experiment. Creates "Demo (simulated)" in the project the real experiment is in (if missing), then runs init for it:
+  // its own server key, event store, flag and experiment, written to the env file given (TURNOUT_ENV_FILE).
+  'sim-setup': async () => {
+    const key = await adminKey();
+    const api = new AdminClient(apiUrl(), { apiKey: key });
+    const real = process.env.TURNOUT_REAL_ENV_KEY;
+    if (!real) throw new Error('sim-setup needs TURNOUT_REAL_ENV_KEY: the real environment, whose project gets the Demo environment');
+    const projects = await api.list<{ id: number; name: string }>('/api/v1/projects/');
+    let project: { id: number; name: string } | undefined;
+    for (const p of projects) {
+      const envs = await api.list<{ api_key: string; name: string }>(`/api/v1/environments/?project=${p.id}`);
+      if (envs.some((e) => e.api_key === real)) project = p;
+    }
+    if (!project) throw new Error("couldn't find the project of the real environment");
+    const envs = await api.list<{ api_key: string; name: string }>(`/api/v1/environments/?project=${project.id}`);
+    if (!envs.some((e) => e.name === SIM_ENVIRONMENT)) {
+      await api.post('/api/v1/environments/', { name: SIM_ENVIRONMENT, project: project.id });
+      console.log(`✓ environment "${SIM_ENVIRONMENT}" created in project "${project.name}"`);
+    }
+    return init({
+      apiUrl: apiUrl(),
+      dashboardUrl: process.env.FLAGSMITH_DASHBOARD_URL || 'http://127.0.0.1:8000',
+      config: loadConfig(configPath()),
+      adminKey: key,
+      serverKey: process.env.TURNOUT_SERVER_KEY || undefined,
+      envFile: ENV_FILE,
+      project: String(project.id),
+      environment: SIM_ENVIRONMENT,
+    });
+  },
+  // turnout simulate, step 2: pretend visitors through the simulation proxy; hidden rates revealed at the end.
+  simulate: async () => {
+    const config = loadConfig(configPath());
+    const [control, v2] = [...config.releases.keys()];
+    if (!control || !v2) throw new Error('turnout.config.yml needs two releases');
+    const token = process.env.TURNOUT_PREVIEW_TOKEN;
+    if (!token) throw new Error('no TURNOUT_PREVIEW_TOKEN in the simulation env file: run sim-setup first');
+    const visitors = wholeNumber('visitors', 500, 10, 20000);
+    console.log(`Sending ${visitors} simulated visitors (labelled TurnoutSimulatedVisitor) through the simulation proxy…`);
+    const report = await simulateAny({
+      target: process.env.TURNOUT_SIM_TARGET || 'http://turnout-sim:8080',
+      visitors,
+      concurrency: wholeNumber('concurrency', 10, 1, 200),
+      releases: [control, v2],
+      goal: config.goal.when,
+      debugToken: token,
+      log: (l) => console.log(l),
+    });
+    for (const [release, r] of Object.entries(report.byRelease)) {
+      console.log(`  ${release}: ${r.visitors} visitors${config.goal.when ? `, ${r.goals} made the goal request` : ''}${r.errors ? `, ${r.errors} server errors` : ''}`);
+    }
+    if (config.goal.when) console.log(`Hidden truth for this run (now revealed): ${truthText(report.truth)}.`);
+    else console.log('No goal: these visitors only browse, so the comparison is on page speed and errors.');
+    console.log('Flagsmith recomputes results at most every 5 minutes: see them in the simulation console.');
+  },
 };
 
 // turnout new: each question has a default and a flag; in a terminal (without --yes) it asks, otherwise it doesn't.

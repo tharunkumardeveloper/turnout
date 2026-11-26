@@ -55,7 +55,8 @@ That's it: no questions, no app code. Turnout starts its own Flagsmith, creates 
 - **No goal needed to start:** a version is judged on page speed, with server errors as the guardrail. To measure a conversion, add `--goal "POST /signup"`; the page lists the requests it sees, with the exact `--goal` for each.
 - `--split 10` sends 10% of visitors to the new version (up to 50). Different versions or settings start a new experiment.
 - Ports already taken (8080, 8090, 8000) are skipped, and the next free ones are used. A version that crashes stops the run within seconds, with its last log lines.
-- `turnout down` stops (the same `compare` resumes, data kept), `turnout reset` wipes, `turnout open` reopens the page.
+- **No visitors yet? `turnout simulate`** sends pretend visitors (500 by default) so results appear in minutes. They go to a separate Flagsmith environment, "Demo (simulated)", with its own console, so they can never touch your real experiment; their hidden rates are revealed at the end. They are real requests to your app, so with a goal it asks before sending them.
+- `turnout down` stops (the same `compare` resumes, data kept), `turnout reset` wipes, `turnout open` reopens the page, `turnout demo` starts the demo shop, `turnout update` gets the latest Turnout.
 - The Turnout image can't be pulled while the repository is private, so the first run builds it from your checkout (about a minute, once).
 
 ## Go live

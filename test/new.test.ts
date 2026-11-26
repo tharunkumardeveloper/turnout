@@ -50,7 +50,7 @@ test('bundled Flagsmith: a loadable config, a compose file with the proxy, conso
 
   const compose = YAML.parse(readFileSync(join(dir, 'turnout.compose.yml'), 'utf8'), { merge: true });
   assert.deepEqual(compose.include, ['flagsmith.compose.yml']);
-  assert.deepEqual(Object.keys(compose.services).sort(), ['cli', 'console', 'landing-1', 'landing-2', 'turnout']);
+  assert.deepEqual(Object.keys(compose.services).sort(), ['cli', 'console', 'console-sim', 'landing-1', 'landing-2', 'turnout', 'turnout-sim']);
   for (const name of ['turnout', 'console', 'cli']) {
     const s = compose.services[name];
     assert.equal(s.image, DEFAULT_IMAGE, name);
@@ -89,7 +89,7 @@ test('your own Flagsmith: its URL in compose, no bundled Flagsmith, and the proj
   assert.equal(compose.services.turnout.environment.FLAGSMITH_API_URL, 'https://flags.example.com/api/v1/');
   assert.equal(compose.services.turnout.image, 'turnout:local');
   assert.equal(compose.services.turnout.depends_on, undefined);
-  assert.deepEqual(Object.keys(compose.services).sort(), ['cli', 'console', 'turnout']);
+  assert.deepEqual(Object.keys(compose.services).sort(), ['cli', 'console', 'console-sim', 'turnout', 'turnout-sim']);
   assert.doesNotMatch(readFileSync(join(dir, 'turnout.compose.yml'), 'utf8'), /org\.secret/, 'the key stays out of the compose file');
   assert.deepEqual({ ...parseEnv(readFileSync(join(dir, '.env'), 'utf8')) }, { OTHER: 'kept', TURNOUT_PROJECT: 'Web', TURNOUT_ENVIRONMENT: 'Production', TURNOUT_ADMIN_KEY: 'org.secret' });
   assert.equal(loadConfig(join(dir, 'turnout.config.yml')).flag, 'web_release');
@@ -169,4 +169,19 @@ test('the bundled Flagsmith file is rewritten the same with Windows line endings
   const out = bundledFlagsmith(lf.replace(/\n/g, '\r\n'), 8001);
   assert.doesNotMatch(out, /container_name:/);
   assert.match(out, /127\.0\.0\.1:8001:8000/);
+});
+
+test('turnout simulate services: only with the sim profile, on their own env file and state, console on 127.0.0.1', async () => {
+  const { renderCompose, parseReleases } = await import('../src/commands/new.ts');
+  const { parse } = await import('yaml');
+  const { releases } = parseReleases(['http://localhost:3001', 'http://localhost:3002']);
+  const c = parse(renderCompose({ flagsmith: 'bundled', releases: [], success: 'none', traffic: 100 }, releases));
+  for (const name of ['turnout-sim', 'console-sim']) {
+    assert.deepEqual(c.services[name].profiles, ['sim']);
+    assert.deepEqual(c.services[name].env_file, [{ path: './.turnout/sim.env', required: false }]);
+  }
+  assert.equal(c.services['turnout-sim'].ports, undefined, 'the simulation proxy is never published');
+  assert.deepEqual(c.services['console-sim'].ports, ['127.0.0.1:${TURNOUT_SIM_CONSOLE_PORT:-8099}:8090']);
+  assert.equal(c.services['console-sim'].environment.TURNOUT_SIMULATED, '1');
+  assert.ok(c.services['console-sim'].volumes.includes('./.turnout/sim:/app/.turnout'), 'its own snapshots and ledger');
 });

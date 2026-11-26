@@ -195,6 +195,14 @@ function renderSite(s) {
     return;
   }
   card.hidden = false;
+  if (s.site.simulated) {
+    $('site-title').textContent = 'Simulated visitors only: the Demo environment';
+    $('site-open').hidden = true;
+    const goalLine = $('site-goal');
+    goalLine.textContent = 'Every visitor in this console is a pretend visitor sent by turnout simulate, counted in a separate Flagsmith environment ("Demo (simulated)"). Nothing here is evidence about real people, and nothing here can change your real experiment.';
+    $('site-flagsmith').href = s.site.dashboardUrl;
+    return;
+  }
   $('site-open').href = s.site.url;
   $('site-open').textContent = `Open your site (${s.site.url.replace(/^https?:\/\//, '')})`;
   $('site-flagsmith').href = s.site.dashboardUrl;
