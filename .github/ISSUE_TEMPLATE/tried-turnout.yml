@@ -1,0 +1,48 @@
+name: Tried Turnout
+description: You ran Turnout on your own app. Tell us how it went, good or bad.
+title: "Tried Turnout: <your app>"
+labels: ["tried-turnout"]
+body:
+  - type: markdown
+    attributes:
+      value: Thanks for trying Turnout. Short answers are fine; what broke is the most useful part.
+  - type: input
+    id: app
+    attributes:
+      label: The app or repository you used
+      description: A link, or a few words if it's private (e.g. "my Next.js portfolio").
+    validations:
+      required: true
+  - type: dropdown
+    id: os
+    attributes:
+      label: Your operating system
+      options: [Windows, macOS, Linux, Other]
+    validations:
+      required: true
+  - type: dropdown
+    id: how
+    attributes:
+      label: How you ran it
+      options: ["turnout compare", "Try it with your app (in the console)", "turnout demo only"]
+    validations:
+      required: true
+  - type: input
+    id: minutes
+    attributes:
+      label: Minutes from cloning Turnout to your first experiment running
+      placeholder: e.g. 6
+    validations:
+      required: true
+  - type: dropdown
+    id: ship
+    attributes:
+      label: Did Ship (or Revert) work?
+      options: ["Yes", "No", "Didn't get that far"]
+    validations:
+      required: true
+  - type: textarea
+    id: broke
+    attributes:
+      label: What broke or confused you?
+      description: Error messages, screenshots, the step where you got stuck. "Nothing" is a fine answer too.

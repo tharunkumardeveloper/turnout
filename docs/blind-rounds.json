@@ -1,0 +1,2336 @@
+{
+ "source": "the live demo (server mode), blind.json from the console container, 2026-11-24 to 2026-11-26",
+ "rounds": [
+  {
+   "experimentId": 90,
+   "at": "2026-11-24T07:08:52.979Z",
+   "truth": {
+    "experimentId": 90,
+    "control": "shop:1.5",
+    "v2": "shop:1.6",
+    "scenario": "same",
+    "rates": {
+     "control": 0.093,
+     "v2": 0.093
+    },
+    "slow": true
+   },
+   "expected": "revert",
+   "call": "revert",
+   "chanceToWin": 0.20345478481385643,
+   "reason": "v2 is losing doc_latency_ms (lift +718%, 0.0% chance to win)",
+   "decision": "revert",
+   "outcome": "right"
+  },
+  {
+   "experimentId": 91,
+   "at": "2026-11-24T07:14:05.020Z",
+   "truth": {
+    "experimentId": 91,
+    "control": "shop:1.4",
+    "v2": "shop:1.5",
+    "scenario": "old-better",
+    "rates": {
+     "control": 0.171,
+     "v2": 0.107
+    },
+    "slow": false
+   },
+   "expected": "revert",
+   "call": "revert",
+   "chanceToWin": 6.57453338015479e-06,
+   "reason": "control is better: v2's interval \u00e2\u02c6\u201968% to \u00e2\u02c6\u201926%, 0.0% chance to win",
+   "decision": "revert",
+   "outcome": "right"
+  },
+  {
+   "experimentId": 92,
+   "at": "2026-11-24T07:17:46.869Z",
+   "truth": {
+    "experimentId": 92,
+    "control": "shop:1.4",
+    "v2": "shop:1.6",
+    "scenario": "old-better",
+    "rates": {
+     "control": 0.131,
+     "v2": 0.082
+    },
+    "slow": true
+   },
+   "expected": "revert",
+   "call": "revert",
+   "chanceToWin": 0.0004246182795618614,
+   "reason": "v2 is losing doc_latency_ms (lift +615%, 0.0% chance to win)",
+   "decision": "revert",
+   "outcome": "right"
+  },
+  {
+   "experimentId": 93,
+   "at": "2026-11-24T07:21:53.250Z",
+   "truth": {
+    "experimentId": 93,
+    "control": "shop:1.4",
+    "v2": "shop:1.5",
+    "scenario": "new-better",
+    "rates": {
+     "control": 0.104,
+     "v2": 0.166
+    },
+    "slow": false
+   },
+   "expected": "ship",
+   "call": "ship",
+   "chanceToWin": 0.9810560740639784,
+   "reason": "interval +5% to +179% clears zero, 98.1% chance to win",
+   "decision": "ship",
+   "outcome": "right"
+  },
+  {
+   "experimentId": 94,
+   "at": "2026-11-24T07:26:57.013Z",
+   "truth": {
+    "experimentId": 94,
+    "control": "shop:1.5",
+    "v2": "shop:1.6",
+    "scenario": "same",
+    "rates": {
+     "control": 0.083,
+     "v2": 0.083
+    },
+    "slow": true
+   },
+   "expected": "revert",
+   "call": "revert",
+   "chanceToWin": 0.5531248568107562,
+   "reason": "v2 is losing doc_latency_ms (lift +443%, 0.0% chance to win)",
+   "decision": "revert",
+   "outcome": "right"
+  },
+  {
+   "experimentId": 95,
+   "at": "2026-11-24T07:31:07.749Z",
+   "truth": {
+    "experimentId": 95,
+    "control": "shop:1.4",
+    "v2": "shop:1.5",
+    "scenario": "old-better",
+    "rates": {
+     "control": 0.184,
+     "v2": 0.115
+    },
+    "slow": false
+   },
+   "expected": "revert",
+   "call": "revert",
+   "chanceToWin": 0.000780100692233443,
+   "reason": "control is better: v2's interval \u00e2\u02c6\u201963% to \u00e2\u02c6\u201915%, 0.1% chance to win",
+   "decision": "revert",
+   "outcome": "right"
+  },
+  {
+   "experimentId": 96,
+   "at": "2026-11-24T07:34:46.084Z",
+   "truth": {
+    "experimentId": 96,
+    "control": "shop:1.4",
+    "v2": "shop:1.6",
+    "scenario": "same",
+    "rates": {
+     "control": 0.084,
+     "v2": 0.084
+    },
+    "slow": true
+   },
+   "expected": "revert",
+   "call": "revert",
+   "chanceToWin": 0.7129715493103431,
+   "reason": "v2 is losing doc_latency_ms (lift +553%, 0.0% chance to win)",
+   "decision": "revert",
+   "outcome": "right"
+  },
+  {
+   "experimentId": 97,
+   "at": "2026-11-24T07:54:39.116Z",
+   "truth": {
+    "experimentId": 97,
+    "control": "shop:1.4",
+    "v2": "shop:1.5",
+    "scenario": "same",
+    "rates": {
+     "control": 0.105,
+     "v2": 0.105
+    },
+    "slow": false
+   },
+   "expected": "keep-running",
+   "call": "keep-running",
+   "chanceToWin": 0.4346394355067075,
+   "reason": "interval \u00e2\u02c6\u201920% to +17% crosses zero",
+   "decision": "revert",
+   "outcome": "right"
+  },
+  {
+   "experimentId": 98,
+   "at": "2026-11-24T07:58:22.520Z",
+   "truth": {
+    "experimentId": 98,
+    "control": "shop:1.4",
+    "v2": "shop:1.6",
+    "scenario": "new-better",
+    "rates": {
+     "control": 0.11,
+     "v2": 0.176
+    },
+    "slow": true
+   },
+   "expected": "revert",
+   "call": "revert",
+   "chanceToWin": 0.9724678332653297,
+   "reason": "v2 is losing doc_latency_ms (lift +613%, 0.0% chance to win)",
+   "decision": "revert",
+   "outcome": "right"
+  },
+  {
+   "experimentId": 99,
+   "at": "2026-11-24T08:07:47.771Z",
+   "truth": {
+    "experimentId": 99,
+    "control": "shop:1.4",
+    "v2": "shop:1.5",
+    "scenario": "new-better",
+    "rates": {
+     "control": 0.118,
+     "v2": 0.189
+    },
+    "slow": false
+   },
+   "expected": "ship",
+   "call": "ship",
+   "chanceToWin": 0.997565820499644,
+   "reason": "interval +17% to +92% clears zero, 99.8% chance to win",
+   "decision": "ship",
+   "outcome": "right"
+  },
+  {
+   "experimentId": 100,
+   "at": "2026-11-24T08:11:22.159Z",
+   "truth": {
+    "experimentId": 100,
+    "control": "shop:1.5",
+    "v2": "shop:1.6",
+    "scenario": "old-better",
+    "rates": {
+     "control": 0.157,
+     "v2": 0.098
+    },
+    "slow": true
+   },
+   "expected": "revert",
+   "call": "revert",
+   "chanceToWin": 0.1264514354370282,
+   "reason": "v2 is losing doc_latency_ms (lift +1032%, 0.0% chance to win)",
+   "decision": "revert",
+   "outcome": "right"
+  },
+  {
+   "experimentId": 101,
+   "at": "2026-11-24T08:15:27.075Z",
+   "truth": {
+    "experimentId": 101,
+    "control": "shop:1.4",
+    "v2": "shop:1.5",
+    "scenario": "old-better",
+    "rates": {
+     "control": 0.187,
+     "v2": 0.117
+    },
+    "slow": false
+   },
+   "expected": "revert",
+   "call": "revert",
+   "chanceToWin": 0.004870086517177741,
+   "reason": "control is better: v2's interval \u00e2\u02c6\u201961% to \u00e2\u02c6\u20198%, 0.5% chance to win",
+   "decision": "revert",
+   "outcome": "right"
+  },
+  {
+   "experimentId": 102,
+   "at": "2026-11-24T08:19:12.872Z",
+   "truth": {
+    "experimentId": 102,
+    "control": "shop:1.4",
+    "v2": "shop:1.6",
+    "scenario": "same",
+    "rates": {
+     "control": 0.111,
+     "v2": 0.111
+    },
+    "slow": true
+   },
+   "expected": "revert",
+   "call": "revert",
+   "chanceToWin": 0.5838055773926156,
+   "reason": "v2 is losing doc_latency_ms (lift +481%, 0.0% chance to win)",
+   "decision": "revert",
+   "outcome": "right"
+  },
+  {
+   "experimentId": 103,
+   "at": "2026-11-24T08:28:34.901Z",
+   "truth": {
+    "experimentId": 103,
+    "control": "shop:1.4",
+    "v2": "shop:1.5",
+    "scenario": "new-better",
+    "rates": {
+     "control": 0.105,
+     "v2": 0.168
+    },
+    "slow": false
+   },
+   "expected": "ship",
+   "call": "ship",
+   "chanceToWin": 0.9980739132546215,
+   "reason": "interval +18% to +95% clears zero, 99.8% chance to win",
+   "decision": "ship",
+   "outcome": "right"
+  },
+  {
+   "experimentId": 104,
+   "at": "2026-11-24T08:32:14.985Z",
+   "truth": {
+    "experimentId": 104,
+    "control": "shop:1.5",
+    "v2": "shop:1.6",
+    "scenario": "same",
+    "rates": {
+     "control": 0.11,
+     "v2": 0.11
+    },
+    "slow": true
+   },
+   "expected": "revert",
+   "call": "revert",
+   "chanceToWin": 0.6515256152756544,
+   "reason": "v2 is losing doc_latency_ms (lift +820%, 0.0% chance to win)",
+   "decision": "revert",
+   "outcome": "right"
+  },
+  {
+   "experimentId": 105,
+   "at": "2026-11-24T08:41:39.671Z",
+   "truth": {
+    "experimentId": 105,
+    "control": "shop:1.4",
+    "v2": "shop:1.5",
+    "scenario": "new-better",
+    "rates": {
+     "control": 0.117,
+     "v2": 0.187
+    },
+    "slow": false
+   },
+   "expected": "ship",
+   "call": "ship",
+   "chanceToWin": 0.9997217638552225,
+   "reason": "interval +24% to +89% clears zero, 100.0% chance to win",
+   "decision": "ship",
+   "outcome": "right"
+  },
+  {
+   "experimentId": 106,
+   "at": "2026-11-24T08:45:27.595Z",
+   "truth": {
+    "experimentId": 106,
+    "control": "shop:1.5",
+    "v2": "shop:1.6",
+    "scenario": "old-better",
+    "rates": {
+     "control": 0.163,
+     "v2": 0.102
+    },
+    "slow": true
+   },
+   "expected": "revert",
+   "call": "revert",
+   "chanceToWin": 6.964176163193336e-05,
+   "reason": "v2 is losing doc_latency_ms (lift +480%, 0.0% chance to win)",
+   "decision": "revert",
+   "outcome": "right"
+  },
+  {
+   "experimentId": 107,
+   "at": "2026-11-24T08:55:09.779Z",
+   "truth": {
+    "experimentId": 107,
+    "control": "shop:1.4",
+    "v2": "shop:1.5",
+    "scenario": "old-better",
+    "rates": {
+     "control": 0.16,
+     "v2": 0.1
+    },
+    "slow": false
+   },
+   "expected": "revert",
+   "call": "revert",
+   "chanceToWin": 9.465417769027873e-06,
+   "reason": "control is better: v2's interval \u00e2\u02c6\u201955% to \u00e2\u02c6\u201920%, 0.0% chance to win",
+   "decision": "revert",
+   "outcome": "right"
+  },
+  {
+   "experimentId": 108,
+   "at": "2026-11-24T08:59:35.011Z",
+   "truth": {
+    "experimentId": 108,
+    "control": "shop:1.4",
+    "v2": "shop:1.6",
+    "scenario": "new-better",
+    "rates": {
+     "control": 0.118,
+     "v2": 0.189
+    },
+    "slow": true
+   },
+   "expected": "revert",
+   "call": "revert",
+   "chanceToWin": 0.9428595751253317,
+   "reason": "v2 is losing doc_latency_ms (lift +269%, 0.0% chance to win)",
+   "decision": "revert",
+   "outcome": "right"
+  },
+  {
+   "experimentId": 109,
+   "at": "2026-11-24T09:03:53.252Z",
+   "truth": {
+    "experimentId": 109,
+    "control": "shop:1.4",
+    "v2": "shop:1.5",
+    "scenario": "new-better",
+    "rates": {
+     "control": 0.119,
+     "v2": 0.19
+    },
+    "slow": false
+   },
+   "expected": "ship",
+   "call": "ship",
+   "chanceToWin": 0.9844590188977944,
+   "reason": "interval +8% to +170% clears zero, 98.4% chance to win",
+   "decision": "ship",
+   "outcome": "right"
+  },
+  {
+   "experimentId": 110,
+   "at": "2026-11-24T09:07:32.775Z",
+   "truth": {
+    "experimentId": 110,
+    "control": "shop:1.5",
+    "v2": "shop:1.6",
+    "scenario": "old-better",
+    "rates": {
+     "control": 0.179,
+     "v2": 0.112
+    },
+    "slow": true
+   },
+   "expected": "revert",
+   "call": "revert",
+   "chanceToWin": 0.00023473334466744822,
+   "reason": "v2 is losing doc_latency_ms (lift +446%, 0.0% chance to win)",
+   "decision": "revert",
+   "outcome": "right"
+  },
+  {
+   "experimentId": 111,
+   "at": "2026-11-24T09:38:17.674Z",
+   "truth": {
+    "experimentId": 111,
+    "control": "shop:1.4",
+    "v2": "shop:1.5",
+    "scenario": "same",
+    "rates": {
+     "control": 0.117,
+     "v2": 0.117
+    },
+    "slow": false
+   },
+   "expected": "keep-running",
+   "call": "keep-running",
+   "chanceToWin": 0.9386448888691263,
+   "reason": "interval \u00e2\u02c6\u20193% to +26% crosses zero",
+   "decision": "ship",
+   "outcome": "right"
+  },
+  {
+   "experimentId": 112,
+   "at": "2026-11-24T09:41:59.170Z",
+   "truth": {
+    "experimentId": 112,
+    "control": "shop:1.5",
+    "v2": "shop:1.6",
+    "scenario": "old-better",
+    "rates": {
+     "control": 0.131,
+     "v2": 0.082
+    },
+    "slow": true
+   },
+   "expected": "revert",
+   "call": "revert",
+   "chanceToWin": 0.14261873592982705,
+   "reason": "v2 is losing doc_latency_ms (lift +633%, 0.0% chance to win)",
+   "decision": "revert",
+   "outcome": "right"
+  },
+  {
+   "experimentId": 113,
+   "at": "2026-11-24T09:46:10.770Z",
+   "truth": {
+    "experimentId": 113,
+    "control": "shop:1.4",
+    "v2": "shop:1.5",
+    "scenario": "old-better",
+    "rates": {
+     "control": 0.142,
+     "v2": 0.089
+    },
+    "slow": false
+   },
+   "expected": "revert",
+   "call": "revert",
+   "chanceToWin": 3.8942506106476316e-05,
+   "reason": "control is better: v2's interval \u00e2\u02c6\u201971% to \u00e2\u02c6\u201924%, 0.0% chance to win",
+   "decision": "revert",
+   "outcome": "right"
+  },
+  {
+   "experimentId": 114,
+   "at": "2026-11-24T09:49:47.010Z",
+   "truth": {
+    "experimentId": 114,
+    "control": "shop:1.4",
+    "v2": "shop:1.6",
+    "scenario": "same",
+    "rates": {
+     "control": 0.1,
+     "v2": 0.1
+    },
+    "slow": true
+   },
+   "expected": "revert",
+   "call": "revert",
+   "chanceToWin": 0.3661637437323182,
+   "reason": "v2 is losing doc_latency_ms (lift +806%, 0.0% chance to win)",
+   "decision": "revert",
+   "outcome": "right"
+  },
+  {
+   "experimentId": 115,
+   "at": "2026-11-24T10:09:41.631Z",
+   "truth": {
+    "experimentId": 115,
+    "control": "shop:1.4",
+    "v2": "shop:1.5",
+    "scenario": "same",
+    "rates": {
+     "control": 0.117,
+     "v2": 0.117
+    },
+    "slow": false
+   },
+   "expected": "keep-running",
+   "call": "keep-running",
+   "chanceToWin": 0.7310849661102778,
+   "reason": "interval \u00e2\u02c6\u201912% to +23% crosses zero",
+   "decision": "ship",
+   "outcome": "right"
+  },
+  {
+   "experimentId": 116,
+   "at": "2026-11-24T10:13:10.889Z",
+   "truth": {
+    "experimentId": 116,
+    "control": "shop:1.5",
+    "v2": "shop:1.6",
+    "scenario": "old-better",
+    "rates": {
+     "control": 0.184,
+     "v2": 0.115
+    },
+    "slow": true
+   },
+   "expected": "revert",
+   "call": "revert",
+   "chanceToWin": 0.004107306020529833,
+   "reason": "v2 is losing doc_latency_ms (lift +662%, 0.0% chance to win)",
+   "decision": "revert",
+   "outcome": "right"
+  },
+  {
+   "experimentId": 117,
+   "at": "2026-11-24T10:22:31.786Z",
+   "truth": {
+    "experimentId": 117,
+    "control": "shop:1.4",
+    "v2": "shop:1.5",
+    "scenario": "new-better",
+    "rates": {
+     "control": 0.108,
+     "v2": 0.173
+    },
+    "slow": false
+   },
+   "expected": "ship",
+   "call": "ship",
+   "chanceToWin": 0.9994450682931968,
+   "reason": "interval +27% to +109% clears zero, 99.9% chance to win",
+   "decision": "ship",
+   "outcome": "right"
+  },
+  {
+   "experimentId": 118,
+   "at": "2026-11-24T10:26:13.958Z",
+   "truth": {
+    "experimentId": 118,
+    "control": "shop:1.5",
+    "v2": "shop:1.6",
+    "scenario": "new-better",
+    "rates": {
+     "control": 0.091,
+     "v2": 0.146
+    },
+    "slow": true
+   },
+   "expected": "revert",
+   "call": "revert",
+   "chanceToWin": 0.7777433292381266,
+   "reason": "v2 is losing doc_latency_ms (lift +547%, 0.0% chance to win)",
+   "decision": "revert",
+   "outcome": "right"
+  },
+  {
+   "experimentId": 119,
+   "at": "2026-11-24T10:46:40.267Z",
+   "truth": {
+    "experimentId": 119,
+    "control": "shop:1.4",
+    "v2": "shop:1.5",
+    "scenario": "same",
+    "rates": {
+     "control": 0.091,
+     "v2": 0.091
+    },
+    "slow": false
+   },
+   "expected": "keep-running",
+   "call": "keep-running",
+   "chanceToWin": 0.60603344624292,
+   "reason": "interval \u00e2\u02c6\u201918% to +24% crosses zero",
+   "decision": "ship",
+   "outcome": "right"
+  },
+  {
+   "experimentId": 120,
+   "at": "2026-11-24T10:50:26.915Z",
+   "truth": {
+    "experimentId": 120,
+    "control": "shop:1.5",
+    "v2": "shop:1.6",
+    "scenario": "old-better",
+    "rates": {
+     "control": 0.144,
+     "v2": 0.09
+    },
+    "slow": true
+   },
+   "expected": "revert",
+   "call": "revert",
+   "chanceToWin": 0.0002134083672424847,
+   "reason": "v2 is losing doc_latency_ms (lift +247%, 0.0% chance to win)",
+   "decision": "revert",
+   "outcome": "right"
+  },
+  {
+   "experimentId": 121,
+   "at": "2026-11-24T11:00:16.740Z",
+   "truth": {
+    "experimentId": 121,
+    "control": "shop:1.4",
+    "v2": "shop:1.5",
+    "scenario": "new-better",
+    "rates": {
+     "control": 0.08,
+     "v2": 0.128
+    },
+    "slow": false
+   },
+   "expected": "ship",
+   "call": "ship",
+   "chanceToWin": 0.9999916004762528,
+   "reason": "interval +43% to +116% clears zero, 100.0% chance to win",
+   "decision": "ship",
+   "outcome": "right"
+  },
+  {
+   "experimentId": 122,
+   "at": "2026-11-24T11:02:24.793Z",
+   "truth": {
+    "experimentId": 122,
+    "control": "shop:1.5",
+    "v2": "shop:1.6",
+    "scenario": "same",
+    "rates": {
+     "control": 0.12,
+     "v2": 0.12
+    },
+    "slow": true
+   },
+   "expected": "revert",
+   "call": "revert",
+   "chanceToWin": 0.7350921232822296,
+   "reason": "v2 is losing doc_latency_ms (lift +228%, 0.0% chance to win)",
+   "decision": "revert",
+   "outcome": "right"
+  },
+  {
+   "experimentId": 123,
+   "at": "2026-11-24T11:04:39.859Z",
+   "truth": {
+    "experimentId": 123,
+    "control": "shop:1.4",
+    "v2": "shop:1.5",
+    "scenario": "old-better",
+    "rates": {
+     "control": 0.128,
+     "v2": 0.08
+    },
+    "slow": false
+   },
+   "expected": "revert",
+   "call": "revert",
+   "chanceToWin": 8.881784197001252e-16,
+   "reason": "control is better: v2's interval \u00e2\u02c6\u201966% to \u00e2\u02c6\u201940%, 0.0% chance to win",
+   "decision": "revert",
+   "outcome": "right"
+  },
+  {
+   "experimentId": 124,
+   "at": "2026-11-24T11:06:45.600Z",
+   "truth": {
+    "experimentId": 124,
+    "control": "shop:1.4",
+    "v2": "shop:1.6",
+    "scenario": "old-better",
+    "rates": {
+     "control": 0.146,
+     "v2": 0.091
+    },
+    "slow": true
+   },
+   "expected": "revert",
+   "call": "revert",
+   "chanceToWin": 0.000860090446728301,
+   "reason": "v2 is losing doc_latency_ms (lift +222%, 0.0% chance to win)",
+   "decision": "revert",
+   "outcome": "right"
+  },
+  {
+   "experimentId": 125,
+   "at": "2026-11-24T11:14:20.112Z",
+   "truth": {
+    "experimentId": 125,
+    "control": "shop:1.4",
+    "v2": "shop:1.5",
+    "scenario": "same",
+    "rates": {
+     "control": 0.106,
+     "v2": 0.106
+    },
+    "slow": false
+   },
+   "expected": "keep-running",
+   "call": "keep-running",
+   "chanceToWin": 0.04609591326409945,
+   "reason": "interval \u00e2\u02c6\u201924% to +2% crosses zero",
+   "decision": "revert",
+   "outcome": "right"
+  },
+  {
+   "experimentId": 126,
+   "at": "2026-11-24T11:16:29.283Z",
+   "truth": {
+    "experimentId": 126,
+    "control": "shop:1.4",
+    "v2": "shop:1.6",
+    "scenario": "same",
+    "rates": {
+     "control": 0.091,
+     "v2": 0.091
+    },
+    "slow": true
+   },
+   "expected": "revert",
+   "call": "revert",
+   "chanceToWin": 0.34012752158465653,
+   "reason": "v2 is losing doc_latency_ms (lift +236%, 0.0% chance to win)",
+   "decision": "revert",
+   "outcome": "right"
+  },
+  {
+   "experimentId": 127,
+   "at": "2026-11-24T11:18:46.405Z",
+   "truth": {
+    "experimentId": 127,
+    "control": "shop:1.4",
+    "v2": "shop:1.5",
+    "scenario": "new-better",
+    "rates": {
+     "control": 0.099,
+     "v2": 0.158
+    },
+    "slow": false
+   },
+   "expected": "ship",
+   "call": "ship",
+   "chanceToWin": 0.9998377465924184,
+   "reason": "interval +38% to +128% clears zero, 100.0% chance to win",
+   "decision": "ship",
+   "outcome": "right"
+  },
+  {
+   "experimentId": 128,
+   "at": "2026-11-24T11:21:04.773Z",
+   "truth": {
+    "experimentId": 128,
+    "control": "shop:1.5",
+    "v2": "shop:1.6",
+    "scenario": "new-better",
+    "rates": {
+     "control": 0.084,
+     "v2": 0.134
+    },
+    "slow": true
+   },
+   "expected": "revert",
+   "call": "revert",
+   "chanceToWin": 0.9989644014734029,
+   "reason": "v2 is losing doc_latency_ms (lift +198%, 0.0% chance to win)",
+   "decision": "revert",
+   "outcome": "right"
+  },
+  {
+   "experimentId": 129,
+   "at": "2026-11-24T11:23:23.760Z",
+   "truth": {
+    "experimentId": 129,
+    "control": "shop:1.4",
+    "v2": "shop:1.5",
+    "scenario": "old-better",
+    "rates": {
+     "control": 0.181,
+     "v2": 0.113
+    },
+    "slow": false
+   },
+   "expected": "revert",
+   "call": "revert",
+   "chanceToWin": 4.481276548728985e-07,
+   "reason": "control is better: v2's interval \u00e2\u02c6\u201949% to \u00e2\u02c6\u201921%, 0.0% chance to win",
+   "decision": "revert",
+   "outcome": "right"
+  },
+  {
+   "experimentId": 130,
+   "at": "2026-11-24T11:25:36.623Z",
+   "truth": {
+    "experimentId": 130,
+    "control": "shop:1.4",
+    "v2": "shop:1.6",
+    "scenario": "same",
+    "rates": {
+     "control": 0.088,
+     "v2": 0.088
+    },
+    "slow": true
+   },
+   "expected": "revert",
+   "call": "revert",
+   "chanceToWin": 0.9287135929123276,
+   "reason": "v2 is losing doc_latency_ms (lift +214%, 0.0% chance to win)",
+   "decision": "revert",
+   "outcome": "right"
+  },
+  {
+   "experimentId": 131,
+   "at": "2026-11-24T11:27:58.972Z",
+   "truth": {
+    "experimentId": 131,
+    "control": "shop:1.4",
+    "v2": "shop:1.5",
+    "scenario": "old-better",
+    "rates": {
+     "control": 0.179,
+     "v2": 0.112
+    },
+    "slow": false
+   },
+   "expected": "revert",
+   "call": "revert",
+   "chanceToWin": 1.7911255811853266e-10,
+   "reason": "control is better: v2's interval \u00e2\u02c6\u201953% to \u00e2\u02c6\u201928%, 0.0% chance to win",
+   "decision": "revert",
+   "outcome": "right"
+  },
+  {
+   "experimentId": 132,
+   "at": "2026-11-24T11:30:12.128Z",
+   "truth": {
+    "experimentId": 132,
+    "control": "shop:1.4",
+    "v2": "shop:1.6",
+    "scenario": "same",
+    "rates": {
+     "control": 0.116,
+     "v2": 0.116
+    },
+    "slow": true
+   },
+   "expected": "revert",
+   "call": "revert",
+   "chanceToWin": 0.8628616549404976,
+   "reason": "v2 is losing doc_latency_ms (lift +255%, 0.0% chance to win)",
+   "decision": "revert",
+   "outcome": "right"
+  },
+  {
+   "experimentId": 133,
+   "at": "2026-11-24T11:38:01.421Z",
+   "truth": {
+    "experimentId": 133,
+    "control": "shop:1.4",
+    "v2": "shop:1.5",
+    "scenario": "same",
+    "rates": {
+     "control": 0.087,
+     "v2": 0.087
+    },
+    "slow": false
+   },
+   "expected": "keep-running",
+   "call": "keep-running",
+   "chanceToWin": 0.02930892006189345,
+   "reason": "interval \u00e2\u02c6\u201927% to +0% crosses zero",
+   "decision": "revert",
+   "outcome": "right"
+  },
+  {
+   "experimentId": 134,
+   "at": "2026-11-24T11:39:40.038Z",
+   "truth": {
+    "experimentId": 134,
+    "control": "shop:1.4",
+    "v2": "shop:1.6",
+    "scenario": "new-better",
+    "rates": {
+     "control": 0.106,
+     "v2": 0.17
+    },
+    "slow": true
+   },
+   "expected": "revert",
+   "call": "revert",
+   "chanceToWin": 0.9999568447161602,
+   "reason": "v2 is losing doc_latency_ms (lift +163%, 0.0% chance to win)",
+   "decision": "revert",
+   "outcome": "right"
+  },
+  {
+   "experimentId": 135,
+   "at": "2026-11-24T11:47:05.412Z",
+   "truth": {
+    "experimentId": 135,
+    "control": "shop:1.4",
+    "v2": "shop:1.5",
+    "scenario": "same",
+    "rates": {
+     "control": 0.11,
+     "v2": 0.11
+    },
+    "slow": false
+   },
+   "expected": "keep-running",
+   "call": "keep-running",
+   "chanceToWin": 0.4827421053833766,
+   "reason": "interval \u00e2\u02c6\u201914% to +13% crosses zero",
+   "decision": "revert",
+   "outcome": "right"
+  },
+  {
+   "experimentId": 136,
+   "at": "2026-11-24T11:49:45.625Z",
+   "truth": {
+    "experimentId": 136,
+    "control": "shop:1.4",
+    "v2": "shop:1.6",
+    "scenario": "old-better",
+    "rates": {
+     "control": 0.13,
+     "v2": 0.081
+    },
+    "slow": true
+   },
+   "expected": "revert",
+   "call": "revert",
+   "chanceToWin": 8.326672684688674e-16,
+   "reason": "v2 is losing doc_latency_ms (lift +167%, 0.0% chance to win)",
+   "decision": "revert",
+   "outcome": "right"
+  },
+  {
+   "experimentId": 137,
+   "at": "2026-11-24T11:51:35.569Z",
+   "truth": {
+    "experimentId": 137,
+    "control": "shop:1.4",
+    "v2": "shop:1.5",
+    "scenario": "old-better",
+    "rates": {
+     "control": 0.176,
+     "v2": 0.11
+    },
+    "slow": false
+   },
+   "expected": "revert",
+   "call": "revert",
+   "chanceToWin": 1.0982324266661792e-07,
+   "reason": "control is better: v2's interval \u00e2\u02c6\u201949% to \u00e2\u02c6\u201922%, 0.0% chance to win",
+   "decision": "revert",
+   "outcome": "right"
+  },
+  {
+   "experimentId": 138,
+   "at": "2026-11-24T11:53:24.026Z",
+   "truth": {
+    "experimentId": 138,
+    "control": "shop:1.4",
+    "v2": "shop:1.6",
+    "scenario": "same",
+    "rates": {
+     "control": 0.082,
+     "v2": 0.082
+    },
+    "slow": true
+   },
+   "expected": "revert",
+   "call": "revert",
+   "chanceToWin": 0.141648807652399,
+   "reason": "v2 is losing doc_latency_ms (lift +200%, 0.0% chance to win)",
+   "decision": "revert",
+   "outcome": "right"
+  },
+  {
+   "experimentId": 139,
+   "at": "2026-11-24T12:28:38.569Z",
+   "truth": {
+    "experimentId": 139,
+    "control": "shop:1.4",
+    "v2": "shop:1.5",
+    "scenario": "same",
+    "rates": {
+     "control": 0.083,
+     "v2": 0.083
+    },
+    "slow": false
+   },
+   "expected": "keep-running",
+   "call": "keep-running",
+   "chanceToWin": 0.03741411805622752,
+   "reason": "interval \u00e2\u02c6\u201920% to +1% crosses zero",
+   "decision": "revert",
+   "outcome": "right"
+  },
+  {
+   "experimentId": 140,
+   "at": "2026-11-24T12:54:01.938Z",
+   "truth": {
+    "experimentId": 140,
+    "control": "shop:1.4",
+    "v2": "shop:1.6",
+    "scenario": "new-better",
+    "rates": {
+     "control": 0.102,
+     "v2": 0.163
+    },
+    "slow": true
+   },
+   "expected": "revert",
+   "call": "revert",
+   "chanceToWin": 0.9997151602221189,
+   "reason": "v2 is losing doc_latency_ms (lift +40%, 0.0% chance to win)",
+   "decision": "revert",
+   "outcome": "right"
+  },
+  {
+   "experimentId": 141,
+   "at": "2026-11-24T13:02:55.578Z",
+   "truth": {
+    "experimentId": 141,
+    "control": "shop:1.4",
+    "v2": "shop:1.5",
+    "scenario": "old-better",
+    "rates": {
+     "control": 0.15,
+     "v2": 0.094
+    },
+    "slow": false
+   },
+   "expected": "revert",
+   "call": "revert",
+   "chanceToWin": 8.928413564035509e-13,
+   "reason": "control is better: v2's interval \u00e2\u02c6\u201961% to \u00e2\u02c6\u201934%, 0.0% chance to win",
+   "decision": "revert",
+   "outcome": "right"
+  },
+  {
+   "experimentId": 142,
+   "at": "2026-11-24T13:07:16.491Z",
+   "truth": {
+    "experimentId": 142,
+    "control": "shop:1.4",
+    "v2": "shop:1.6",
+    "scenario": "new-better",
+    "rates": {
+     "control": 0.086,
+     "v2": 0.138
+    },
+    "slow": true
+   },
+   "expected": "revert",
+   "call": "revert",
+   "chanceToWin": 0.9995561081041927,
+   "reason": "v2 is losing doc_latency_ms (lift +125%, 0.0% chance to win)",
+   "decision": "revert",
+   "outcome": "right"
+  },
+  {
+   "experimentId": 143,
+   "at": "2026-11-24T13:11:18.551Z",
+   "truth": {
+    "experimentId": 143,
+    "control": "shop:1.4",
+    "v2": "shop:1.5",
+    "scenario": "new-better",
+    "rates": {
+     "control": 0.098,
+     "v2": 0.157
+    },
+    "slow": false
+   },
+   "expected": "ship",
+   "call": "ship",
+   "chanceToWin": 0.9970484295011537,
+   "reason": "interval +15% to +87% clears zero, 99.7% chance to win",
+   "decision": "ship",
+   "outcome": "right"
+  },
+  {
+   "experimentId": 144,
+   "at": "2026-11-24T13:15:22.030Z",
+   "truth": {
+    "experimentId": 144,
+    "control": "shop:1.5",
+    "v2": "shop:1.6",
+    "scenario": "old-better",
+    "rates": {
+     "control": 0.187,
+     "v2": 0.117
+    },
+    "slow": true
+   },
+   "expected": "revert",
+   "call": "revert",
+   "chanceToWin": 1.022809324513485e-06,
+   "reason": "v2 is losing doc_latency_ms (lift +161%, 0.0% chance to win)",
+   "decision": "revert",
+   "outcome": "right"
+  },
+  {
+   "experimentId": 145,
+   "at": "2026-11-24T13:17:34.697Z",
+   "truth": {
+    "experimentId": 145,
+    "control": "shop:1.4",
+    "v2": "shop:1.5",
+    "scenario": "old-better",
+    "rates": {
+     "control": 0.171,
+     "v2": 0.107
+    },
+    "slow": false
+   },
+   "expected": "revert",
+   "call": "revert",
+   "chanceToWin": 3.2751579226442118e-15,
+   "reason": "control is better: v2's interval \u00e2\u02c6\u201960% to \u00e2\u02c6\u201936%, 0.0% chance to win",
+   "decision": "revert",
+   "outcome": "right"
+  },
+  {
+   "experimentId": 146,
+   "at": "2026-11-24T13:24:12.717Z",
+   "truth": {
+    "experimentId": 146,
+    "control": "shop:1.4",
+    "v2": "shop:1.6",
+    "scenario": "old-better",
+    "rates": {
+     "control": 0.149,
+     "v2": 0.093
+    },
+    "slow": true
+   },
+   "expected": "revert",
+   "call": "revert",
+   "chanceToWin": 2.970308443650538e-09,
+   "reason": "v2 is losing doc_latency_ms (lift +142%, 0.0% chance to win)",
+   "decision": "revert",
+   "outcome": "right"
+  },
+  {
+   "experimentId": 147,
+   "at": "2026-11-24T13:25:58.707Z",
+   "truth": {
+    "experimentId": 147,
+    "control": "shop:1.4",
+    "v2": "shop:1.5",
+    "scenario": "new-better",
+    "rates": {
+     "control": 0.1,
+     "v2": 0.16
+    },
+    "slow": false
+   },
+   "expected": "ship",
+   "call": "ship",
+   "chanceToWin": 0.9997758087668942,
+   "reason": "interval +30% to +106% clears zero, 100.0% chance to win",
+   "decision": "ship",
+   "outcome": "right"
+  },
+  {
+   "experimentId": 148,
+   "at": "2026-11-24T13:31:57.479Z",
+   "truth": {
+    "experimentId": 148,
+    "control": "shop:1.5",
+    "v2": "shop:1.6",
+    "scenario": "same",
+    "rates": {
+     "control": 0.106,
+     "v2": 0.106
+    },
+    "slow": true
+   },
+   "expected": "revert",
+   "call": "revert",
+   "chanceToWin": 0.6691541392296511,
+   "reason": "v2 is losing doc_latency_ms (lift +171%, 0.0% chance to win)",
+   "decision": "revert",
+   "outcome": "right"
+  },
+  {
+   "experimentId": 149,
+   "at": "2026-11-24T13:34:40.088Z",
+   "truth": {
+    "experimentId": 149,
+    "control": "shop:1.4",
+    "v2": "shop:1.5",
+    "scenario": "new-better",
+    "rates": {
+     "control": 0.104,
+     "v2": 0.166
+    },
+    "slow": false
+   },
+   "expected": "ship",
+   "call": "ship",
+   "chanceToWin": 0.9999667181065361,
+   "reason": "interval +47% to +139% clears zero, 100.0% chance to win",
+   "decision": "ship",
+   "outcome": "right"
+  },
+  {
+   "experimentId": 150,
+   "at": "2026-11-24T13:40:42.101Z",
+   "truth": {
+    "experimentId": 150,
+    "control": "shop:1.5",
+    "v2": "shop:1.6",
+    "scenario": "same",
+    "rates": {
+     "control": 0.098,
+     "v2": 0.098
+    },
+    "slow": true
+   },
+   "expected": "revert",
+   "call": "revert",
+   "chanceToWin": 0.34334375557707475,
+   "reason": "v2 is losing doc_latency_ms (lift +162%, 0.0% chance to win)",
+   "decision": "revert",
+   "outcome": "right"
+  },
+  {
+   "experimentId": 151,
+   "at": "2026-11-24T13:48:29.461Z",
+   "truth": {
+    "experimentId": 151,
+    "control": "shop:1.4",
+    "v2": "shop:1.5",
+    "scenario": "same",
+    "rates": {
+     "control": 0.08,
+     "v2": 0.08
+    },
+    "slow": false
+   },
+   "expected": "keep-running",
+   "call": "keep-running",
+   "chanceToWin": 0.6206523600446432,
+   "reason": "interval \u00e2\u02c6\u201917% to +23% crosses zero",
+   "decision": "ship",
+   "outcome": "right"
+  },
+  {
+   "experimentId": 152,
+   "at": "2026-11-24T13:53:06.974Z",
+   "truth": {
+    "experimentId": 152,
+    "control": "shop:1.5",
+    "v2": "shop:1.6",
+    "scenario": "same",
+    "rates": {
+     "control": 0.12,
+     "v2": 0.12
+    },
+    "slow": true
+   },
+   "expected": "revert",
+   "call": "revert",
+   "chanceToWin": 0.1555233404343016,
+   "reason": "v2 is losing doc_latency_ms (lift +1346%, 0.0% chance to win)",
+   "decision": "revert",
+   "outcome": "right"
+  },
+  {
+   "experimentId": 153,
+   "at": "2026-11-24T14:09:12.653Z",
+   "truth": {
+    "experimentId": 153,
+    "control": "shop:1.4",
+    "v2": "shop:1.5",
+    "scenario": "new-better",
+    "rates": {
+     "control": 0.11,
+     "v2": 0.176
+    },
+    "slow": false
+   },
+   "expected": "ship",
+   "call": "ship",
+   "chanceToWin": 0.9999999244279774,
+   "reason": "interval +35% to +76% clears zero, 100.0% chance to win",
+   "decision": "ship",
+   "outcome": "right"
+  },
+  {
+   "experimentId": 154,
+   "at": "2026-11-24T14:12:04.460Z",
+   "truth": {
+    "experimentId": 154,
+    "control": "shop:1.5",
+    "v2": "shop:1.6",
+    "scenario": "same",
+    "rates": {
+     "control": 0.086,
+     "v2": 0.086
+    },
+    "slow": true
+   },
+   "expected": "revert",
+   "call": "revert",
+   "chanceToWin": 0.23652584361726942,
+   "reason": "v2 is losing doc_latency_ms (lift +247%, 0.0% chance to win)",
+   "decision": "revert",
+   "outcome": "right"
+  },
+  {
+   "experimentId": 155,
+   "at": "2026-11-24T14:14:37.696Z",
+   "truth": {
+    "experimentId": 155,
+    "control": "shop:1.4",
+    "v2": "shop:1.5",
+    "scenario": "old-better",
+    "rates": {
+     "control": 0.152,
+     "v2": 0.095
+    },
+    "slow": false
+   },
+   "expected": "revert",
+   "call": "revert",
+   "chanceToWin": 5.426215032855453e-13,
+   "reason": "control is better: v2's interval \u00e2\u02c6\u201969% to \u00e2\u02c6\u201939%, 0.0% chance to win",
+   "decision": "revert",
+   "outcome": "right"
+  },
+  {
+   "experimentId": 156,
+   "at": "2026-11-24T14:19:26.003Z",
+   "truth": {
+    "experimentId": 156,
+    "control": "shop:1.4",
+    "v2": "shop:1.6",
+    "scenario": "same",
+    "rates": {
+     "control": 0.093,
+     "v2": 0.093
+    },
+    "slow": true
+   },
+   "expected": "revert",
+   "call": "revert",
+   "chanceToWin": 0.39577289047363107,
+   "reason": "v2 is losing doc_latency_ms (lift +1941%, 0.0% chance to win)",
+   "decision": "revert",
+   "outcome": "right"
+  },
+  {
+   "experimentId": 157,
+   "at": "2026-11-24T14:28:54.220Z",
+   "truth": {
+    "experimentId": 157,
+    "control": "shop:1.4",
+    "v2": "shop:1.5",
+    "scenario": "same",
+    "rates": {
+     "control": 0.116,
+     "v2": 0.116
+    },
+    "slow": false
+   },
+   "expected": "keep-running",
+   "call": "keep-running",
+   "chanceToWin": 0.18536588033506474,
+   "reason": "interval \u00e2\u02c6\u201925% to +9% crosses zero",
+   "decision": "revert",
+   "outcome": "right"
+  },
+  {
+   "experimentId": 158,
+   "at": "2026-11-24T14:33:43.309Z",
+   "truth": {
+    "experimentId": 158,
+    "control": "shop:1.4",
+    "v2": "shop:1.6",
+    "scenario": "same",
+    "rates": {
+     "control": 0.096,
+     "v2": 0.096
+    },
+    "slow": true
+   },
+   "expected": "revert",
+   "call": "revert",
+   "chanceToWin": 0.2134628938024682,
+   "reason": "v2 is losing doc_latency_ms (lift +221%, 0.0% chance to win)",
+   "decision": "revert",
+   "outcome": "right"
+  },
+  {
+   "experimentId": 159,
+   "at": "2026-11-24T19:11:24.361Z",
+   "truth": {
+    "experimentId": 159,
+    "control": "shop:1.4",
+    "v2": "shop:1.5",
+    "scenario": "same",
+    "rates": {
+     "control": 0.104,
+     "v2": 0.104
+    },
+    "slow": false
+   },
+   "expected": "keep-running",
+   "call": "ship",
+   "chanceToWin": 0.9995910677214848,
+   "reason": "interval +6% to +24% clears zero, 100.0% chance to win",
+   "decision": "ship",
+   "outcome": "wrong"
+  },
+  {
+   "experimentId": 175,
+   "at": "2026-11-25T05:35:38.677Z",
+   "truth": {
+    "experimentId": 175,
+    "control": "shop:1.4",
+    "v2": "shop:1.5",
+    "scenario": "old-better",
+    "rates": {
+     "control": 0.189,
+     "v2": 0.118
+    },
+    "slow": false
+   },
+   "expected": "revert",
+   "call": "revert",
+   "chanceToWin": 1.660415232418444e-06,
+   "reason": "control is better: v2's interval \u00e2\u02c6\u201938% to \u00e2\u02c6\u201916%, 0.0% chance to win",
+   "decision": "revert",
+   "outcome": "right"
+  },
+  {
+   "experimentId": 177,
+   "at": "2026-11-25T05:37:03.904Z",
+   "truth": {
+    "experimentId": 177,
+    "control": "shop:1.4",
+    "v2": "shop:1.6",
+    "scenario": "same",
+    "rates": {
+     "control": 0.097,
+     "v2": 0.097
+    },
+    "slow": true
+   },
+   "expected": "revert",
+   "call": "revert",
+   "chanceToWin": 0.4463221535717595,
+   "reason": "v2 is losing doc_latency_ms (lift +2547%, 0.0% chance to win)",
+   "decision": "revert",
+   "outcome": "right"
+  },
+  {
+   "experimentId": 178,
+   "at": "2026-11-25T06:06:53.084Z",
+   "truth": {
+    "experimentId": 178,
+    "control": "shop:1.4",
+    "v2": "shop:1.5",
+    "scenario": "same",
+    "rates": {
+     "control": 0.092,
+     "v2": 0.092
+    },
+    "slow": false
+   },
+   "expected": "keep-running",
+   "call": "keep-running",
+   "chanceToWin": 0.3294325953576692,
+   "reason": "interval \u00e2\u02c6\u201930% to +19% crosses zero",
+   "decision": "revert",
+   "outcome": "right"
+  },
+  {
+   "experimentId": 179,
+   "at": "2026-11-25T06:08:21.845Z",
+   "truth": {
+    "experimentId": 179,
+    "control": "shop:1.4",
+    "v2": "shop:1.6",
+    "scenario": "new-better",
+    "rates": {
+     "control": 0.089,
+     "v2": 0.142
+    },
+    "slow": true
+   },
+   "expected": "revert",
+   "call": "revert",
+   "chanceToWin": 0.9953493960882063,
+   "reason": "v2 is losing doc_latency_ms (lift +2356%, 0.0% chance to win)",
+   "decision": "revert",
+   "outcome": "right"
+  },
+  {
+   "experimentId": 180,
+   "at": "2026-11-25T10:39:39.160Z",
+   "truth": {
+    "experimentId": 180,
+    "control": "shop:1.4",
+    "v2": "shop:1.5",
+    "scenario": "same",
+    "rates": {
+     "control": 0.091,
+     "v2": 0.091
+    },
+    "slow": false
+   },
+   "expected": "keep-running",
+   "call": "keep-running",
+   "chanceToWin": 0.6679937413904508,
+   "reason": "interval \u00e2\u02c6\u20195% to +8% crosses zero",
+   "decision": "ship",
+   "outcome": "right"
+  },
+  {
+   "experimentId": 181,
+   "at": "2026-11-25T10:41:06.765Z",
+   "truth": {
+    "experimentId": 181,
+    "control": "shop:1.5",
+    "v2": "shop:1.6",
+    "scenario": "old-better",
+    "rates": {
+     "control": 0.166,
+     "v2": 0.104
+    },
+    "slow": true
+   },
+   "expected": "revert",
+   "call": "revert",
+   "chanceToWin": 3.7317807371484157e-06,
+   "reason": "v2 is losing doc_latency_ms (lift +1747%, 0.0% chance to win)",
+   "decision": "revert",
+   "outcome": "right"
+  },
+  {
+   "experimentId": 182,
+   "at": "2026-11-25T10:47:38.699Z",
+   "truth": {
+    "experimentId": 182,
+    "control": "shop:1.4",
+    "v2": "shop:1.5",
+    "scenario": "new-better",
+    "rates": {
+     "control": 0.106,
+     "v2": 0.17
+    },
+    "slow": false
+   },
+   "expected": "ship",
+   "call": "ship",
+   "chanceToWin": 0.9999998812529648,
+   "reason": "interval +31% to +68% clears zero, 100.0% chance to win",
+   "decision": "ship",
+   "outcome": "right"
+  },
+  {
+   "experimentId": 183,
+   "at": "2026-11-25T10:49:02.448Z",
+   "truth": {
+    "experimentId": 183,
+    "control": "shop:1.5",
+    "v2": "shop:1.6",
+    "scenario": "same",
+    "rates": {
+     "control": 0.081,
+     "v2": 0.081
+    },
+    "slow": true
+   },
+   "expected": "revert",
+   "call": "revert",
+   "chanceToWin": 0.009456077161127063,
+   "reason": "v2 is losing doc_latency_ms (lift +2027%, 0.0% chance to win)",
+   "decision": "revert",
+   "outcome": "right"
+  },
+  {
+   "experimentId": 184,
+   "at": "2026-11-25T10:50:33.755Z",
+   "truth": {
+    "experimentId": 184,
+    "control": "shop:1.4",
+    "v2": "shop:1.5",
+    "scenario": "new-better",
+    "rates": {
+     "control": 0.114,
+     "v2": 0.182
+    },
+    "slow": false
+   },
+   "expected": "ship",
+   "call": "ship",
+   "chanceToWin": 0.9873950285841402,
+   "reason": "interval +6% to +86% clears zero, 98.7% chance to win",
+   "decision": "ship",
+   "outcome": "right"
+  },
+  {
+   "experimentId": 185,
+   "at": "2026-11-25T10:51:57.436Z",
+   "truth": {
+    "experimentId": 185,
+    "control": "shop:1.5",
+    "v2": "shop:1.6",
+    "scenario": "same",
+    "rates": {
+     "control": 0.119,
+     "v2": 0.119
+    },
+    "slow": true
+   },
+   "expected": "revert",
+   "call": "revert",
+   "chanceToWin": 0.24873364045779883,
+   "reason": "v2 is losing doc_latency_ms (lift +1544%, 0.0% chance to win)",
+   "decision": "revert",
+   "outcome": "right"
+  },
+  {
+   "experimentId": 186,
+   "at": "2026-11-26T06:31:13.450Z",
+   "truth": {
+    "experimentId": 186,
+    "control": "shop:1.4",
+    "v2": "shop:1.5",
+    "scenario": "same",
+    "rates": {
+     "control": 0.089,
+     "v2": 0.089
+    },
+    "slow": false
+   },
+   "expected": "keep-running",
+   "call": "keep-running",
+   "chanceToWin": 0.5456594261492818,
+   "reason": "interval \u00e2\u02c6\u20197% to +7% crosses zero",
+   "decision": "ship",
+   "outcome": "right"
+  },
+  {
+   "experimentId": 187,
+   "at": "2026-11-26T06:32:40.172Z",
+   "truth": {
+    "experimentId": 187,
+    "control": "shop:1.5",
+    "v2": "shop:1.6",
+    "scenario": "old-better",
+    "rates": {
+     "control": 0.13,
+     "v2": 0.081
+    },
+    "slow": true
+   },
+   "expected": "revert",
+   "call": "revert",
+   "chanceToWin": 0.0013433368256575151,
+   "reason": "v2 is losing doc_latency_ms (lift +1582%, 0.0% chance to win)",
+   "decision": "revert",
+   "outcome": "right"
+  },
+  {
+   "experimentId": 188,
+   "at": "2026-11-26T06:34:12.737Z",
+   "truth": {
+    "experimentId": 188,
+    "control": "shop:1.4",
+    "v2": "shop:1.5",
+    "scenario": "old-better",
+    "rates": {
+     "control": 0.144,
+     "v2": 0.09
+    },
+    "slow": false
+   },
+   "expected": "revert",
+   "call": "revert",
+   "chanceToWin": 1.340754385181775e-06,
+   "reason": "control is better: v2's interval \u00e2\u02c6\u201961% to \u00e2\u02c6\u201925%, 0.0% chance to win",
+   "decision": "revert",
+   "outcome": "right"
+  },
+  {
+   "experimentId": 189,
+   "at": "2026-11-26T06:35:37.048Z",
+   "truth": {
+    "experimentId": 189,
+    "control": "shop:1.4",
+    "v2": "shop:1.6",
+    "scenario": "same",
+    "rates": {
+     "control": 0.117,
+     "v2": 0.117
+    },
+    "slow": true
+   },
+   "expected": "revert",
+   "call": "revert",
+   "chanceToWin": 0.614071108977072,
+   "reason": "v2 is losing doc_latency_ms (lift +1107%, 0.0% chance to win)",
+   "decision": "revert",
+   "outcome": "right"
+  },
+  {
+   "experimentId": 190,
+   "at": "2026-11-26T08:49:09.437Z",
+   "truth": {
+    "experimentId": 190,
+    "control": "shop:1.4",
+    "v2": "shop:1.5",
+    "scenario": "same",
+    "rates": {
+     "control": 0.11,
+     "v2": 0.11
+    },
+    "slow": false
+   },
+   "expected": "keep-running",
+   "call": "keep-running",
+   "chanceToWin": 0.6084884229896247,
+   "reason": "interval \u00e2\u02c6\u201914% to +19% crosses zero",
+   "decision": "ship",
+   "outcome": "right"
+  },
+  {
+   "experimentId": 191,
+   "at": "2026-11-26T08:50:31.660Z",
+   "truth": {
+    "experimentId": 191,
+    "control": "shop:1.5",
+    "v2": "shop:1.6",
+    "scenario": "old-better",
+    "rates": {
+     "control": 0.189,
+     "v2": 0.118
+    },
+    "slow": true
+   },
+   "expected": "revert",
+   "call": "revert",
+   "chanceToWin": 5.154687490738219e-07,
+   "reason": "v2 is losing doc_latency_ms (lift +1653%, 0.0% chance to win)",
+   "decision": "revert",
+   "outcome": "right"
+  },
+  {
+   "experimentId": 192,
+   "at": "2026-11-26T08:51:59.270Z",
+   "truth": {
+    "experimentId": 192,
+    "control": "shop:1.4",
+    "v2": "shop:1.5",
+    "scenario": "old-better",
+    "rates": {
+     "control": 0.131,
+     "v2": 0.082
+    },
+    "slow": false
+   },
+   "expected": "revert",
+   "call": "revert",
+   "chanceToWin": 0.0035868485230449165,
+   "reason": "control is better: v2's interval \u00e2\u02c6\u201954% to \u00e2\u02c6\u20199%, 0.4% chance to win",
+   "decision": "revert",
+   "outcome": "right"
+  },
+  {
+   "experimentId": 193,
+   "at": "2026-11-26T09:02:20.038Z",
+   "truth": {
+    "experimentId": 193,
+    "control": "shop:1.4",
+    "v2": "shop:1.6",
+    "scenario": "new-better",
+    "rates": {
+     "control": 0.103,
+     "v2": 0.165
+    },
+    "slow": true
+   },
+   "expected": "revert",
+   "call": "revert",
+   "chanceToWin": 0.969637725930138,
+   "reason": "v2 is losing doc_latency_ms (lift +1871%, 0.0% chance to win)",
+   "decision": "revert",
+   "outcome": "right"
+  },
+  {
+   "experimentId": 194,
+   "at": "2026-11-26T09:30:15.295Z",
+   "truth": {
+    "experimentId": 194,
+    "control": "shop:1.4",
+    "v2": "shop:1.5",
+    "scenario": "same",
+    "rates": {
+     "control": 0.119,
+     "v2": 0.119
+    },
+    "slow": false
+   },
+   "expected": "keep-running",
+   "call": "keep-running",
+   "chanceToWin": 0.5492706992142316,
+   "reason": "interval \u00e2\u02c6\u201919% to +22% crosses zero",
+   "decision": "ship",
+   "outcome": "right"
+  },
+  {
+   "experimentId": 195,
+   "at": "2026-11-26T09:31:57.038Z",
+   "truth": {
+    "experimentId": 195,
+    "control": "shop:1.5",
+    "v2": "shop:1.6",
+    "scenario": "same",
+    "rates": {
+     "control": 0.108,
+     "v2": 0.108
+    },
+    "slow": true
+   },
+   "expected": "revert",
+   "call": "revert",
+   "chanceToWin": 0.4097784839166893,
+   "reason": "v2 is losing doc_latency_ms (lift +942%, 0.0% chance to win)",
+   "decision": "revert",
+   "outcome": "right"
+  },
+  {
+   "experimentId": 196,
+   "at": "2026-11-26T09:38:32.736Z",
+   "truth": {
+    "experimentId": 196,
+    "control": "shop:1.4",
+    "v2": "shop:1.5",
+    "scenario": "new-better",
+    "rates": {
+     "control": 0.104,
+     "v2": 0.166
+    },
+    "slow": false
+   },
+   "expected": "ship",
+   "call": "ship",
+   "chanceToWin": 0.9999999866471843,
+   "reason": "interval +36% to +76% clears zero, 100.0% chance to win",
+   "decision": "ship",
+   "outcome": "right"
+  },
+  {
+   "experimentId": 197,
+   "at": "2026-11-26T09:39:58.859Z",
+   "truth": {
+    "experimentId": 197,
+    "control": "shop:1.5",
+    "v2": "shop:1.6",
+    "scenario": "old-better",
+    "rates": {
+     "control": 0.176,
+     "v2": 0.11
+    },
+    "slow": true
+   },
+   "expected": "revert",
+   "call": "revert",
+   "chanceToWin": 0.006235011934762724,
+   "reason": "v2 is losing doc_latency_ms (lift +1723%, 0.0% chance to win)",
+   "decision": "revert",
+   "outcome": "right"
+  },
+  {
+   "experimentId": 198,
+   "at": "2026-11-26T09:46:39.398Z",
+   "truth": {
+    "experimentId": 198,
+    "control": "shop:1.4",
+    "v2": "shop:1.5",
+    "scenario": "same",
+    "rates": {
+     "control": 0.102,
+     "v2": 0.102
+    },
+    "slow": false
+   },
+   "expected": "keep-running",
+   "call": "ship",
+   "chanceToWin": 0.99258404642587,
+   "reason": "interval +5% to +43% clears zero, 99.3% chance to win",
+   "decision": "ship",
+   "outcome": "wrong"
+  },
+  {
+   "experimentId": 199,
+   "at": "2026-11-26T09:48:30.499Z",
+   "truth": {
+    "experimentId": 199,
+    "control": "shop:1.5",
+    "v2": "shop:1.6",
+    "scenario": "same",
+    "rates": {
+     "control": 0.107,
+     "v2": 0.107
+    },
+    "slow": true
+   },
+   "expected": "revert",
+   "call": "revert",
+   "chanceToWin": 0.5340477411444663,
+   "reason": "v2 is losing doc_latency_ms (lift +1701%, 0.0% chance to win)",
+   "decision": "revert",
+   "outcome": "right"
+  },
+  {
+   "experimentId": 200,
+   "at": "2026-11-26T09:49:55.456Z",
+   "truth": {
+    "experimentId": 200,
+    "control": "shop:1.4",
+    "v2": "shop:1.5",
+    "scenario": "new-better",
+    "rates": {
+     "control": 0.119,
+     "v2": 0.19
+    },
+    "slow": false
+   },
+   "expected": "ship",
+   "call": "ship",
+   "chanceToWin": 0.9950129371078342,
+   "reason": "interval +12% to +89% clears zero, 99.5% chance to win",
+   "decision": "ship",
+   "outcome": "right"
+  },
+  {
+   "experimentId": 201,
+   "at": "2026-11-26T11:27:05.522Z",
+   "truth": {
+    "experimentId": 201,
+    "control": "shop:1.4",
+    "v2": "shop:1.5",
+    "scenario": "new-better",
+    "rates": {
+     "control": 0.099,
+     "v2": 0.158
+    },
+    "slow": false
+   },
+   "expected": "ship",
+   "call": "ship",
+   "chanceToWin": 0.9992630498394888,
+   "reason": "interval +32% to +134% clears zero, 99.9% chance to win",
+   "decision": "ship",
+   "outcome": "right"
+  },
+  {
+   "experimentId": 202,
+   "at": "2026-11-26T11:31:42.371Z",
+   "truth": {
+    "experimentId": 202,
+    "control": "shop:1.4",
+    "v2": "shop:1.5",
+    "scenario": "old-better",
+    "rates": {
+     "control": 0.139,
+     "v2": 0.087
+    },
+    "slow": false
+   },
+   "expected": "revert",
+   "call": "revert",
+   "chanceToWin": 3.802771478655931e-06,
+   "reason": "control is better: v2's interval \u00e2\u02c6\u201961% to \u00e2\u02c6\u201924%, 0.0% chance to win",
+   "decision": "revert",
+   "outcome": "right"
+  },
+  {
+   "experimentId": 203,
+   "at": "2026-11-26T11:34:20.122Z",
+   "truth": {
+    "experimentId": 203,
+    "control": "shop:1.4",
+    "v2": "shop:1.5",
+    "scenario": "same",
+    "rates": {
+     "control": 0.109,
+     "v2": 0.109
+    },
+    "slow": false
+   },
+   "expected": "keep-running",
+   "call": "keep-running",
+   "chanceToWin": 0.1442074870391924,
+   "reason": "interval \u00e2\u02c6\u201937% to +11% crosses zero",
+   "decision": "revert",
+   "outcome": "right"
+  },
+  {
+   "experimentId": 204,
+   "at": "2026-11-26T12:10:40.750Z",
+   "truth": {
+    "experimentId": 204,
+    "control": "shop:1.4",
+    "v2": "shop:1.5",
+    "scenario": "same",
+    "rates": {
+     "control": 0.091,
+     "v2": 0.091
+    },
+    "slow": false
+   },
+   "expected": "keep-running",
+   "call": "keep-running",
+   "chanceToWin": 0.7560621726826846,
+   "reason": "interval \u00e2\u02c6\u20197% to +14% crosses zero",
+   "decision": "ship",
+   "outcome": "right"
+  },
+  {
+   "experimentId": 205,
+   "at": "2026-11-26T12:22:37.960Z",
+   "truth": {
+    "experimentId": 205,
+    "control": "shop:1.5",
+    "v2": "shop:1.6",
+    "scenario": "new-better",
+    "rates": {
+     "control": 0.117,
+     "v2": 0.187
+    },
+    "slow": true
+   },
+   "expected": "revert",
+   "call": "revert",
+   "chanceToWin": 0.9925366325602358,
+   "reason": "v2 is losing doc_latency_ms (lift +1398%, 0.0% chance to win)",
+   "decision": "revert",
+   "outcome": "right"
+  },
+  {
+   "experimentId": 206,
+   "at": "2026-11-26T12:31:00.724Z",
+   "truth": {
+    "experimentId": 206,
+    "control": "shop:1.4",
+    "v2": "shop:1.5",
+    "scenario": "new-better",
+    "rates": {
+     "control": 0.109,
+     "v2": 0.174
+    },
+    "slow": false
+   },
+   "expected": "ship",
+   "call": "ship",
+   "chanceToWin": 0.9966674681078085,
+   "reason": "interval +19% to +115% clears zero, 99.7% chance to win",
+   "decision": "ship",
+   "outcome": "right"
+  },
+  {
+   "experimentId": 207,
+   "at": "2026-11-26T12:33:29.595Z",
+   "truth": {
+    "experimentId": 207,
+    "control": "shop:1.5",
+    "v2": "shop:1.6",
+    "scenario": "old-better",
+    "rates": {
+     "control": 0.155,
+     "v2": 0.097
+    },
+    "slow": true
+   },
+   "expected": "revert",
+   "call": "revert",
+   "chanceToWin": 0.0002532598651686091,
+   "reason": "v2 is losing doc_latency_ms (lift +1454%, 0.0% chance to win)",
+   "decision": "revert",
+   "outcome": "right"
+  },
+  {
+   "experimentId": 208,
+   "at": "2026-11-26T12:34:57.022Z",
+   "truth": {
+    "experimentId": 208,
+    "control": "shop:1.4",
+    "v2": "shop:1.5",
+    "scenario": "old-better",
+    "rates": {
+     "control": 0.173,
+     "v2": 0.108
+    },
+    "slow": false
+   },
+   "expected": "revert",
+   "call": "revert",
+   "chanceToWin": 1.6615853193346908e-08,
+   "reason": "control is better: v2's interval \u00e2\u02c6\u201964% to \u00e2\u02c6\u201930%, 0.0% chance to win",
+   "decision": "revert",
+   "outcome": "right"
+  },
+  {
+   "experimentId": 209,
+   "at": "2026-11-26T12:37:22.855Z",
+   "truth": {
+    "experimentId": 209,
+    "control": "shop:1.4",
+    "v2": "shop:1.6",
+    "scenario": "same",
+    "rates": {
+     "control": 0.115,
+     "v2": 0.115
+    },
+    "slow": true
+   },
+   "expected": "revert",
+   "call": "revert",
+   "chanceToWin": 0.001638901847231311,
+   "reason": "v2 is losing doc_latency_ms (lift +1298%, 0.0% chance to win)",
+   "decision": "revert",
+   "outcome": "right"
+  },
+  {
+   "experimentId": 210,
+   "at": "2026-11-26T12:44:00.075Z",
+   "truth": {
+    "experimentId": 210,
+    "control": "shop:1.4",
+    "v2": "shop:1.5",
+    "scenario": "new-better",
+    "rates": {
+     "control": 0.086,
+     "v2": 0.138
+    },
+    "slow": false
+   },
+   "expected": "ship",
+   "call": "ship",
+   "chanceToWin": 0.9999996678949024,
+   "reason": "interval +36% to +82% clears zero, 100.0% chance to win",
+   "decision": "ship",
+   "outcome": "right"
+  },
+  {
+   "experimentId": 211,
+   "at": "2026-11-26T12:46:23.301Z",
+   "truth": {
+    "experimentId": 211,
+    "control": "shop:1.5",
+    "v2": "shop:1.6",
+    "scenario": "new-better",
+    "rates": {
+     "control": 0.098,
+     "v2": 0.157
+    },
+    "slow": true
+   },
+   "expected": "revert",
+   "call": "revert",
+   "chanceToWin": 0.970017177404821,
+   "reason": "v2 is losing doc_latency_ms (lift +1853%, 0.0% chance to win)",
+   "decision": "revert",
+   "outcome": "right"
+  },
+  {
+   "experimentId": 212,
+   "at": "2026-11-26T12:47:48.594Z",
+   "truth": {
+    "experimentId": 212,
+    "control": "shop:1.4",
+    "v2": "shop:1.5",
+    "scenario": "new-better",
+    "rates": {
+     "control": 0.089,
+     "v2": 0.142
+    },
+    "slow": false
+   },
+   "expected": "ship",
+   "call": "ship",
+   "chanceToWin": 0.9971787796375104,
+   "reason": "interval +26% to +151% clears zero, 99.7% chance to win",
+   "decision": "ship",
+   "outcome": "right"
+  },
+  {
+   "experimentId": 213,
+   "at": "2026-11-26T12:50:09.764Z",
+   "truth": {
+    "experimentId": 213,
+    "control": "shop:1.5",
+    "v2": "shop:1.6",
+    "scenario": "same",
+    "rates": {
+     "control": 0.12,
+     "v2": 0.12
+    },
+    "slow": true
+   },
+   "expected": "revert",
+   "call": "revert",
+   "chanceToWin": 0.16283480894436442,
+   "reason": "v2 is losing doc_latency_ms (lift +1819%, 0.0% chance to win)",
+   "decision": "revert",
+   "outcome": "right"
+  },
+  {
+   "experimentId": 214,
+   "at": "2026-11-26T13:50:08.662Z",
+   "truth": {
+    "experimentId": 214,
+    "control": "shop:1.4",
+    "v2": "shop:1.5",
+    "scenario": "same",
+    "rates": {
+     "control": 0.086,
+     "v2": 0.086
+    },
+    "slow": false
+   },
+   "expected": "keep-running",
+   "call": "keep-running",
+   "chanceToWin": 0.43553204708415694,
+   "reason": "interval \u00e2\u02c6\u201911% to +10% crosses zero",
+   "decision": "ship",
+   "outcome": "right"
+  },
+  {
+   "experimentId": 215,
+   "at": "2026-11-26T13:52:28.571Z",
+   "truth": {
+    "experimentId": 215,
+    "control": "shop:1.5",
+    "v2": "shop:1.6",
+    "scenario": "same",
+    "rates": {
+     "control": 0.102,
+     "v2": 0.102
+    },
+    "slow": true
+   },
+   "expected": "revert",
+   "call": "revert",
+   "chanceToWin": 0.6024969148385932,
+   "reason": "v2 is losing doc_latency_ms (lift +2131%, 0.0% chance to win)",
+   "decision": "revert",
+   "outcome": "right"
+  },
+  {
+   "experimentId": 216,
+   "at": "2026-11-26T16:05:29.372Z",
+   "truth": {
+    "experimentId": 216,
+    "control": "shop:1.4",
+    "v2": "shop:1.5",
+    "scenario": "old-better",
+    "rates": {
+     "control": 0.134,
+     "v2": 0.084
+    },
+    "slow": false
+   },
+   "expected": "revert",
+   "call": "revert",
+   "chanceToWin": 0.01716055663091237,
+   "reason": "control is better: v2's interval \u00e2\u02c6\u201950% to \u00e2\u02c6\u20192%, 1.7% chance to win",
+   "decision": "revert",
+   "outcome": "right"
+  }
+ ]
+}

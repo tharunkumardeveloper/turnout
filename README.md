@@ -22,6 +22,17 @@
 
 </div>
 
+## Track 03 at a glance
+
+| Track 03 asks for | Turnout's evidence |
+|---|---|
+| **Self-hosted Flagsmith** | Flagsmith's official Docker Compose file, version pinned to 2.291.0 ([compose.flagsmith.yml](compose.flagsmith.yml)), with Experimentation and its event store on PostgreSQL; the [live demo](https://172-198-62-67.sslip.io) runs it on a VM |
+| **Integrations and plugins** | A Feature Health provider (Flagsmith marks a losing version Unhealthy), Code References for the flag, a reusable GitHub Action ([action.yml](action.yml)), and a tour inside Flagsmith's own dashboard |
+| **Developer tools** | The `turnout` CLI (`compare`, `results`, `ship`, `revert`, `simulate`), a setup check with 28 checks, and Try it with your app (paste a GitHub link) |
+| **Easy for others to reuse** | One-line installers for Windows, macOS and Linux, a public image on GitHub Container Registry, and 53 real GitHub repos tested, 39 run end to end ([Proof](#proof)) |
+
+**Flagsmith's own calls, graded:** in 111 blind rounds with hidden true rates, Flagsmith caught every real lift and drop (38 of 38) and called a false winner in 2 of 20 rounds with no difference. [The write-up](docs/BLIND_ROUNDS.md).
+
 ## In plain words
 
 You have the version of your website everyone uses today, and a new one you think is better. Turnout answers **"is it really better?"** with real visitors, and then switches everyone over safely.
@@ -109,7 +120,7 @@ Turnout is what I wished existed while setting up Flagsmith's Experimentation on
 | Real GitHub repos, pasted as links | 53 public repos, from hello-world samples to harder ones on purpose (framework starters, Laravel, Spring PetClinic, NestJS, realworld apps, 400 MB template galleries): **39 of 53** build, start, serve real pages (each home page checked), get Flagsmith results with matching counts, and ship. Most have no Dockerfile. The 14 that don't: the repository itself is broken (4: its own Dockerfile fails, or requirements.txt names a file it doesn't have), an API with no home page (2), it needs keys, a database or a setup step Turnout can't guess (6, including a Vercel-only SvelteKit app and a monorepo), a Vite build not yet diagnosed (1), and one that ran and shipped but whose counts didn't match Flagsmith's (1). Each with its reason: [github-run.json](scoreboard/github-run.json). |
 | A server, rebooted | back by itself in 50 s, every check passing |
 
-Raw logs and numbers: [spikes/RESULTS.md](spikes/RESULTS.md). Not claimed: production users, or any simulated number as evidence about real people.
+Raw logs and numbers: [spikes/RESULTS.md](spikes/RESULTS.md). Not claimed yet: production users, or any simulated number as evidence about real people. Tried it? [Tell us how it went](https://github.com/tharunkumardeveloper/turnout/issues/new?template=tried-turnout.yml): those reports will be listed here.
 
 ## See it in 2 minutes
 
