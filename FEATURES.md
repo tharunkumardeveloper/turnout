@@ -2,6 +2,14 @@
 
 Turnout is a reverse proxy in front of your web app. It turns every release into a Flagsmith experiment without any change to the app's code. When the experiment ends, it ships or reverts the release on the same flag.
 
+## One command for your app
+- **`turnout compare <live> <new>`**: two URLs, two Docker images, or two git branches (each built from its Dockerfile, the port from `EXPOSE`, your `.env` passed). No questions: a bundled Flagsmith, the flag, the experiment, the proxy and a check, then one page with **Open your site**.
+- **No goal needed**: a version is judged on page speed with server errors as the guardrail; `--goal "POST /signup"` adds a conversion, and the page suggests goals from the requests it sees (with the right status, e.g. a form post's 303).
+- **`--split 10`**: the share of visitors who get the new version (up to 50). Changed versions or settings start a new experiment.
+- **Fixes itself**: busy ports are skipped; a private image is built from the checkout; a crashing version stops the run in seconds with its log lines.
+- **`turnout deploy <domain>`**: the Caddy or Nginx lines to put your own web server in front. `down`, `reset`, `open`, `status`.
+- **Installers**: `install.sh` (macOS, Linux) and `install.ps1` (Windows) put `turnout` on your PATH.
+
 ## Routing and identity
 - **Zero app code.** Turnout routes each visitor to one release (for example `shop:1.4` vs `shop:1.5`) using a Flagsmith multivariate flag whose variant values are release labels.
 - **One identity per visitor.** Each visitor gets a random first-party ID cookie (`tn_id`, kept for a year). It never holds a name, email or IP address.
@@ -17,6 +25,7 @@ Turnout is a reverse proxy in front of your web app. It turns every release into
 - **Funnel metrics.** Secondary metrics such as `add_to_cart` are tracked but never act as guardrails.
 - **Built-in guardrails.** Every page load sends `doc_latency_ms` and `server_error`.
 - **Event header.** An app can name events itself in a response header, `X-Turnout-Event: signup, plan_chosen;value=49`.
+- **No lost events under load.** Turnout holds its own events back while the Flagsmith SDK's buffer is full (the SDK drops events then), and counts any drop so health and doctor show it. 0 of 121,678 lost at up to 200 concurrent visitors.
 - **Counting rule.** A visitor counts from their first page load in a browser, so bounces are in the data. Without the cookie, API calls, assets, scripts and Turnout's own probes never become identities.
 - **Single-page apps.** Goals go on API calls or the event header; verified on a Node SPA.
 - **Flagsmith does all the statistics.** Lift, credible interval and chance to win come from Flagsmith's Bayesian engine. Turnout shows them exactly as returned.
@@ -103,7 +112,7 @@ Turnout is a reverse proxy in front of your web app. It turns every release into
 - **Caching.** Responses carry `Cache-Control: private` and `Vary: Cookie`. Turnout's cookies are stripped before requests reach the app.
 
 ## Quality
-- **Tests.** 637 tests on Node's built-in test runner.
+- **Tests.** 649 tests (648 pass, 1 skipped) on Node's built-in test runner.
 - **Evidence.** Results measured on Flagsmith 2.291.0 are recorded in `spikes/RESULTS.md`.
 
 ## Not built yet

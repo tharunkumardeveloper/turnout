@@ -4,9 +4,54 @@ Turnout is a small proxy that sits in front of your web app and turns each new r
 
 **The question it answers:** can every release be a Flagsmith experiment, and be shipped or reverted on the same flag without leaving anyone behind, with zero changes to the app?
 
-## Try it
+## Try it with your app (about 5 minutes)
 
-You need Docker with Compose 2.20+ and about 8 GB of RAM for Docker. Get the code (`git clone https://github.com/tharunkumardeveloper/turnout-practice.git`, a private practice repo), then:
+You need Docker (Docker Desktop on Windows and macOS) with about 4 GB of memory for it: the whole stack peaked at 1.45 GB under load. Get Turnout once (a private practice repo for now):
+
+```sh
+git clone https://github.com/tharunkumardeveloper/turnout-practice.git turnout
+sh turnout/install.sh                                                  # macOS, Linux
+powershell -ExecutionPolicy Bypass -File turnout\install.ps1           # Windows (PowerShell or CMD)
+```
+
+Then run the version you have and the version you want to test, and give Turnout both, from your project's folder:
+
+```sh
+turnout compare localhost:3001 localhost:3002
+```
+
+That's it: no questions, no app code. Turnout starts its own Flagsmith, creates the flag and the experiment, starts the proxy, checks everything and opens one page with an **Open your site** button. Each new browser is a new visitor: half get the second version and keep it; Flagsmith compares the two, and **Ship winner** or **Revert** moves everyone to one.
+
+| You have | Run |
+|---|---|
+| Two versions running (any language, any server) | `turnout compare localhost:3001 localhost:3002` |
+| Two Docker images | `turnout compare myapp:1.0 myapp:1.1 --port 3000` |
+| A git project with a Dockerfile, two branches | `turnout compare main new-checkout` (each built from its last commit; your `.env` is passed; the port comes from `EXPOSE`) |
+
+- **No goal needed to start:** a version is judged on page speed, with server errors as the guardrail. To measure a conversion, add `--goal "POST /signup"`; the page lists the requests it sees, with the exact `--goal` for each.
+- `--split 10` sends 10% of visitors to the new version (up to 50). Different versions or settings start a new experiment.
+- Ports already taken (8080, 8090, 8000) are skipped, and the next free ones are used. A version that crashes stops the run within seconds, with its last log lines.
+- `turnout down` stops (the same `compare` resumes, data kept), `turnout reset` wipes, `turnout open` reopens the page.
+- The Turnout image can't be pulled while the repository is private, so the first run builds it from your checkout (about a minute, once).
+
+## Go live
+
+Run `turnout compare` on the server that will take the traffic, then `turnout deploy your-domain.com`: it prints the lines for the web server you already have, for example Nginx:
+
+```nginx
+location / {
+    proxy_pass http://127.0.0.1:8080;
+    proxy_set_header Host $host;
+    proxy_set_header X-Forwarded-Proto $scheme;
+    proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+}
+```
+
+or, for Caddy, `reverse_proxy 127.0.0.1:8080`. Visitors keep using your domain and never see a second link; Turnout picks their version. Its own port and the console stay on 127.0.0.1 (open the console over `ssh -L`).
+
+## The demo: judge mode
+
+A shop with three releases, simulated visitors and a guided tour. Get the code as above, then:
 
 | | Start (one command) |
 |---|---|
@@ -16,14 +61,12 @@ You need Docker with Compose 2.20+ and about 8 GB of RAM for Docker. Get the cod
 
 **When it works,** your browser opens judge mode at <http://127.0.0.1:8090/judge> showing **Step 1 of 7**. Follow the steps, or choose **Play it for me**. If anything is missing, <http://127.0.0.1:8090/setup> (or `docker compose run --rm cli doctor`) says what.
 
-## Use it with your app
+## Set it up by hand
 
-Step by step, with every flag and what to check: [docs/PLUG_AND_PLAY.md](docs/PLUG_AND_PLAY.md).
-
-The shop is one example. Any web app with two or more releases you can reach over HTTP works: containers, or apps on your machine (`http://host.docker.internal:3000`, on Linux too). In your project's folder:
+What `turnout compare` does, step by step, for your own Flagsmith or anything `compare` doesn't cover. Every flag and what to check: [docs/PLUG_AND_PLAY.md](docs/PLUG_AND_PLAY.md).
 
 ```sh
-# 1. Four questions (Flagsmith: bundled or yours; the releases; success, e.g. "POST /signup 2xx" or "header signup"; % of traffic)
+# 1. Four questions (Flagsmith: bundled or yours; the releases; success, e.g. "POST /signup 2xx", "header signup" or "none"; % of traffic)
 docker run --rm -it -v "$PWD:/work" ghcr.io/tharunkumardeveloper/turnout new --dir /work
 # 2. Set up Flagsmith: the release flag, metrics, the experiment (yours: add --project <name|id> --environment <name|key>)
 docker compose -f turnout.compose.yml run --rm cli init
@@ -31,9 +74,7 @@ docker compose -f turnout.compose.yml run --rm cli init
 docker compose -f turnout.compose.yml up -d
 ```
 
-`new` writes `turnout.config.yml`, `turnout.compose.yml` (the proxy, the console and the CLI, plus your release images if you gave images) and, for a bundled Flagsmith, `flagsmith.compose.yml`. Every answer is also a flag, for scripts: `new --yes --release v1=http://host.docker.internal:3000 --release v2=http://host.docker.internal:3001 --success "POST /signup 2xx" --traffic 50`. With your own Flagsmith, `init --project` reuses your project and environment and creates nothing else; it never touches other flags ([docs/SETUP.md](docs/SETUP.md#bring-your-own-flagsmith)).
-
-> **The image isn't published yet.** `.github/workflows/publish.yml` pushes `ghcr.io/<owner>/turnout` on a version tag, and hasn't run. Until then, build it from this checkout (`docker build -t ghcr.io/tharunkumardeveloper/turnout .`) or run `node src/cli.ts new` here and pass `--image turnout:local`.
+`new` writes `turnout.config.yml`, `turnout.compose.yml` (the proxy, the console and the CLI, plus your release images if you gave images) and, for a bundled Flagsmith, `flagsmith.compose.yml`. Every answer is also a flag, for scripts: `new --yes --release v1=http://host.docker.internal:3000 --release v2=http://host.docker.internal:3001 --success "POST /signup 2xx" --traffic 50`. With your own Flagsmith, `init --project` reuses your project and environment and creates nothing else; it never touches other flags ([docs/SETUP.md](docs/SETUP.md#bring-your-own-flagsmith)). The image isn't published yet: build it from this checkout first (`docker build -t ghcr.io/tharunkumardeveloper/turnout .`).
 
 A second, different example lives in [`examples/landing/`](examples/landing/README.md): a static landing page with a Sign up button, two releases as two containers, success = `POST /signup` 2xx.
 
@@ -220,6 +261,8 @@ All on Flagsmith `2.291.0` and Node SDK `9.4.0`, Docker Desktop on Windows 11 un
 | Feature Health and the guard | Flagsmith tagged `shop_release` "Unhealthy" within 20 s, with Turnout's reason and links; the guard, once switched on, reverted the experiment and the tag cleared; 30 of 30 new visitors on shop:1.5 |
 | Preview | A preview browser kept shop:1.6 through the experiment, `enrolled: false`, out of the data |
 | Server mode on a 2-vCPU VM ([spikes/RESULTS.md](spikes/RESULTS.md#server-mode-stress-tests-on-the-vm-2026-11-24)) | Reboot: back with 35 ok, 0 failing, no manual step (public page in 50 s). Flagsmith stopped: 100/100 pages served, mean 86 ms. 5,000 visitors: 0 events lost, stack peak ≈ 1.45 GiB. Ship during live traffic: 263 of 263 later visitors on the winner |
+| `turnout compare` from an empty folder ([spikes/RESULTS.md](spikes/RESULTS.md#turnout-compare-end-to-end-2026-11-24)) | Two URLs: 152 s to running on Windows. Two branches: 167 s (Windows), 168 s (Linux). Split over 2,000 new visitors: 49.3% and 50.8% at `--split 50`, 19.7% at `--split 20`. A branch that crashes on start: stopped in 32–34 s with its error |
+| Events under load, counted in Flagsmith's own table ([spikes/RESULTS.md](spikes/RESULTS.md#event-loss-under-load-the-cause-the-fix-and-the-measured-result-2026-11-24)) | 8 runs, 20 to 200 concurrent visitors: 0 of 121,678 events lost. Without Turnout's hold-back, the Flagsmith Node SDK dropped up to 25% of a run when one batch was slow; SDK-only reproduction in [spikes/sdk-buffer-repro](spikes/sdk-buffer-repro/) |
 | Open-proxy attempts (`//flagsmith:8000/…`, `//console:8090/…`, absolute-form, `/\host`) | 400, and the proxy keeps serving; covered by tests |
 
 Seen in testing (shop:1.5 is about 0.7 ms slower than shop:1.4): the first experiment's latency guardrail read as losing in 2 of the 5 runs on record as of 18 Nov 2026, so Ship asked for that loss to be accepted. Losing: a fresh Windows stack (1,500 visitors, 3.0% chance to win) and experiment 23 (18,000 visitors, 2.6%). Inconclusive: the Linux run (21.5%). Not losing: the timed tour. Not recorded: the experiment 22 timing runs.
