@@ -164,6 +164,28 @@ describe('the autopilot loop (fake judge, fake clock)', () => {
     assert.deepEqual(ran[0], { action: 'visitors', experimentId: 7, visitors: 120 });
   });
 
+  test("while it waits for Flagsmith's refresh window it reads the state from Flagsmith only every 30 s, not every poll", async () => {
+    const clock = { t: T0 };
+    let reads = 0;
+    const judge: JudgeLike = {
+      state: async () => {
+        reads++;
+        return state('score', { results: results('keep-running', { refreshAllowedAt: new Date(T0 + 300_000).toISOString() }) });
+      },
+      run: async () => ({ status: 202, body: { job: { id: 'j', status: 'done' } } }),
+      job: () => null,
+    };
+    const ap = createAutopilot(judge, { busy: false }, { sleep: tick(clock), now: () => clock.t, pauseMs: 20_000, ambientVisitors: 0, pollMs: 1000 });
+    ap.start();
+    while (clock.t < T0 + 290_000) await new Promise((r) => setImmediate(r));
+    const stopped = ap.stop();
+    clock.t += 1;
+    await stopped;
+    // 270 s of waiting after the first 20 s pause: about 9 reads at 30 s, not 270 at 1 s.
+    assert.ok(reads <= 12, `${reads} state reads`);
+    assert.ok(reads >= 2);
+  });
+
   test('never starts a job while the shared lock is held, and steps aside after a human action', async () => {
     const clock = { t: T0 };
     const judge = fakeJudge(clock);

@@ -17,7 +17,8 @@ export type AutopilotOptions = {
   humanPauseMs?: number; // after a write from the private console; default 10 min
   errorPauseMs?: number; // after a refused or failed step; default 60 s
   maxKeepRunning?: number; // "keep running" this many times on one experiment, then follow Flagsmith's pick; default 3
-  pollMs?: number; // how often it looks again while waiting; default 1 s
+  pollMs?: number; // how often it looks again while waiting (local checks only); default 1 s
+  recheckMs?: number; // while waiting for a step, how often it re-reads the judge state from Flagsmith; default 30 s
   sleep?: (ms: number) => Promise<void>;
   now?: () => number;
   log?: (line: string) => void;
@@ -101,6 +102,7 @@ export function createAutopilot(judge: JudgeLike, lock: { busy: boolean }, opts:
   const errorPauseMs = opts.errorPauseMs ?? 60_000;
   const pollMs = opts.pollMs ?? 1000;
   const ambient = opts.ambientVisitors ?? 150;
+  const recheckMs = opts.recheckMs ?? 30_000;
   const iso = (ms: number | null) => (ms === null ? null : new Date(ms).toISOString());
 
   let stopped = true;
@@ -108,6 +110,7 @@ export function createAutopilot(judge: JudgeLike, lock: { busy: boolean }, opts:
   let humanUntil = 0;
   let readyAt = 0; // no step before this: the pause after the last one
   let lastJobEnd = 0;
+  let recheckAt = 0; // while waiting for a step, no state read before this
   const keptRunning = new Map<number, number>();
   const status: AutopilotStatus = { enabled: true, phase: 'starting', next: null, pausedUntil: null, lastError: null, loops: 0 };
 
@@ -123,6 +126,13 @@ export function createAutopilot(judge: JudgeLike, lock: { busy: boolean }, opts:
       readyAt = Math.max(readyAt, now() + pauseMs);
       return sleep(pollMs);
     }
+    // Reading the judge state costs several Flagsmith admin API calls: never while a pause runs, and while waiting
+    // for a step only every STATE_RECHECK_MS (once a second kept a 2-vCPU Flagsmith above 100% CPU around the clock).
+    const quiet = Math.max(readyAt, recheckAt);
+    if (now() < quiet) {
+      if (status.phase !== 'waiting') status.phase = 'waiting';
+      return sleep(Math.min(pollMs, quiet - now()));
+    }
     const s = await judge.state();
     const expId = s.experiment?.id ?? 0;
     let plan = planNext(s, { keptRunning: keptRunning.get(expId) ?? 0, ...(opts.maxKeepRunning !== undefined ? { maxKeepRunning: opts.maxKeepRunning } : {}), ...(opts.visitors !== undefined ? { visitors: opts.visitors } : {}) });
@@ -135,6 +145,7 @@ export function createAutopilot(judge: JudgeLike, lock: { busy: boolean }, opts:
     status.next = { action: plan.action, title: plan.title, at: iso(at) };
     if (now() < at) {
       status.phase = 'waiting';
+      recheckAt = Math.min(at, now() + recheckMs);
       return sleep(Math.min(pollMs, at - now()));
     }
     const ran = await judge.run({ action: plan.action, ...(s.experiment ? { experimentId: s.experiment.id } : {}), ...(plan.visitors ? { visitors: plan.visitors } : {}) });
@@ -199,6 +210,7 @@ export function createAutopilot(judge: JudgeLike, lock: { busy: boolean }, opts:
     /** Someone used the private console: stay out of their way for a while. */
     noteHuman(): void {
       humanUntil = now() + humanPauseMs;
+    recheckAt = 0; // after the pause, read the state afresh: the person may have changed everything
       status.phase = 'paused';
       status.pausedUntil = iso(humanUntil);
     },
