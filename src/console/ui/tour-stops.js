@@ -93,7 +93,7 @@ export const CONSOLE_STOPS = [
   {
     target: null,
     title: 'The Turnout console',
-    text: 'The console is where you run tests on your own app (turnout compare opens it). Everything on it is read from Flagsmith or the proxy, live. A short tour: about a minute.',
+    text: 'The console is where you run tests on your own app (Try it with your app, or turnout compare, opens it). Everything on it is read from Flagsmith or the proxy, live. A short tour: about a minute.',
   },
   {
     target: '#run',

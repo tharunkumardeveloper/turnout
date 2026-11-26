@@ -13,7 +13,7 @@ export function patternOf(path: string): string {
 
 const ASSET = /\.(css|js|mjs|map|png|jpe?g|gif|svg|webp|avif|ico|woff2?|ttf|otf)$/i;
 
-export type SeenAction = { action: string; count: number; byRelease: Record<string, number>; statuses: Record<string, number> };
+export type SeenAction = { action: string; count: number; byRelease: Record<string, number>; statuses: Record<string, number>; failedByRelease?: Record<string, number> };
 
 /** Server actions seen through the proxy, most frequent first. Assets and Turnout's own paths are left out. */
 export class ActionLog {
@@ -26,6 +26,8 @@ export class ActionLog {
     a.byRelease[e.release] = (a.byRelease[e.release] ?? 0) + 1;
     const s = `${Math.floor(e.status / 100)}xx`;
     a.statuses[s] = (a.statuses[s] ?? 0) + 1;
+    // Answers of 400 and up, per version: a goal that fails on one version makes the test unfair (the panel says so).
+    if (e.status >= 400) (a.failedByRelease ??= {})[e.release] = (a.failedByRelease[e.release] ?? 0) + 1;
     if (!this.seen.has(action) && this.seen.size >= 500) return;
     this.seen.set(action, a);
   }

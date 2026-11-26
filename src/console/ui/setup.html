@@ -31,6 +31,7 @@
       <details class="menu-drop" id="menu-versions"><summary>Versions</summary><div class="menu-panel" id="versions-list"><p class="menu-note">Loading…</p></div></details>
       <a href="#" id="menu-flagsmith" class="menu-ext fs-mark" target="_blank" rel="noopener" data-private>Flagsmith <span aria-hidden="true">↗</span></a>
     </nav>
+    <a class="btn btn-small try-btn" href="/#try" data-private>Try it with your app</a>
   </header>
   <header class="shead">
     <div class="shead-inner">
@@ -61,7 +62,7 @@
     <div id="error" class="banner sbanner" role="alert" hidden></div>
 
     <h2 id="checks-title" class="sr-only" tabindex="-1">Checks</h2>
-    <div id="groups" class="groups" aria-busy="true"></div>
+    <div id="groups" class="groups" aria-busy="true"><div class="skeleton" aria-hidden="true"></div><div class="skeleton" aria-hidden="true"></div><div class="skeleton" aria-hidden="true"></div></div>
 
     <p class="sfoot">The same checks in a terminal: <code>docker compose run --rm cli doctor</code> (exit code 1 when something is failing). <code>turnout.bat</code> and <code>turnout.sh</code> run it after every start.</p>
   </main>

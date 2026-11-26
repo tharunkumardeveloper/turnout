@@ -347,13 +347,13 @@ function renderMapMode(s) {
   const box = $('map-previews');
   box.hidden = mode !== 'previews';
   if (mode !== 'previews') return;
-  const key = JSON.stringify([s.site?.url, variants.map((v) => v.label)]);
+  const key = JSON.stringify([s.site?.url, variants.map((v) => v.label), F.shownKey()]);
   if (mapView.framesKey === key) return;
   mapView.framesKey = key;
   box.style.setProperty('--n', String(variants.length));
-  box.replaceChildren(...variants.map((v, i) => h('a', { class: 'map-preview', href: previewOf(s.site, v.label), target: '_blank', rel: 'noopener', title: `Open ${v.label} on its own (never counted)`, vars: { '--c': v.color } },
-    h('span', { class: 'map-preview-name' }, h('span', { class: 'you-chip', vars: { '--c': v.color } }, LETTERS[i] ?? '?'), v.label, h('span', { class: 'v-key' }, v.isControl ? ' current' : ' new')),
-    h('span', { class: 'map-preview-frame' }, h('iframe', { src: previewOf(s.site, v.label), title: `Preview of ${v.label}`, tabIndex: -1, onload: fitMapPreviews })))));
+  box.replaceChildren(...variants.map((v, i) => h('a', { class: 'map-preview', href: previewOf(s.site, v.label), target: '_blank', rel: 'noopener', title: `Open ${F.shown(v.label)} on its own (never counted)`, vars: { '--c': v.color } },
+    h('span', { class: 'map-preview-name' }, h('span', { class: 'you-chip', vars: { '--c': v.color } }, LETTERS[i] ?? '?'), F.shown(v.label), h('span', { class: 'v-key' }, v.isControl ? ' current' : ' new')),
+    h('span', { class: 'map-preview-frame' }, h('iframe', { src: previewOf(s.site, v.label), title: `Preview of ${F.shown(v.label)}`, tabIndex: -1, onload: fitMapPreviews })))));
   requestAnimationFrame(fitMapPreviews);
 }
 // Each preview is a 1,000 px wide page scaled to its tile, as tall as the tile at that scale.
@@ -415,11 +415,11 @@ function renderConnection() {
 
 function renderHeader(s) {
   const e = s.experiment;
-  $('exp-name').textContent = e.name;
+  $('exp-name').textContent = F.shownText(e.name);
   const pill = $('exp-status');
   pill.textContent = F.statusLabel(e.status);
   pill.dataset.status = e.status;
-  $('exp-hypothesis').textContent = e.hypothesis || '—';
+  $('exp-hypothesis').textContent = F.shownText(e.hypothesis || '—');
   const started = F.parseTime(e.started_at);
   const ended = F.parseTime(e.ended_at);
   let when = Number.isFinite(started) ? `${fmtDateTime(started)} (${F.formatAgo(started)})` : 'not started';
@@ -444,7 +444,7 @@ function renderMap(s) {
   const badge = $('merged-badge');
   if (r.soleKey && variants.length > 1) {
     const v = variants.find((x) => x.key === r.soleKey);
-    badge.textContent = `Tracks merged · everyone on ${v?.label ?? r.soleKey}`;
+    badge.textContent = `Tracks merged · everyone on ${F.shown(v?.label ?? r.soleKey)}`;
     badge.style.setProperty('--c', v?.color ?? 'currentColor');
     badge.hidden = false;
   } else {
@@ -514,9 +514,9 @@ function metricsTable(metrics) {
     h('caption', { class: 'sr-only' }, "Flagsmith's results per metric and release"),
     h('thead', {}, h('tr', {},
       h('th', { scope: 'col' }, 'Metric'),
-      columns.map((c) => h('th', { scope: 'col', vars: { '--c': c.color } }, h('span', { class: 'swatch', 'aria-hidden': 'true' }), h('span', { class: 'v-label' }, c.label), ' ', h('span', { class: 'v-key' }, c.key))))),
+      columns.map((c) => h('th', { scope: 'col', vars: { '--c': c.color } }, h('span', { class: 'swatch', 'aria-hidden': 'true' }), h('span', { class: 'v-label' }, F.shown(c.label)), ' ', h('span', { class: 'v-key' }, c.key))))),
     h('tbody', {}, metrics.map((m) => h('tr', { 'data-role': m.role, 'data-state': m.state },
-      h('th', { scope: 'row' }, h('span', { class: 'mx-name' }, m.name), h('span', { class: 'mx-meta' }, h('span', { class: `mx-role mx-role-${m.role}` }, ROLE_NAME[m.role] ?? m.role), ` · ${m.direction}`)),
+      h('th', { scope: 'row', title: m.name }, h('span', { class: 'mx-name' }, F.metricName(m.name)), h('span', { class: 'mx-meta' }, h('span', { class: `mx-role mx-role-${m.role}` }, ROLE_NAME[m.role] ?? m.role), ` · ${m.direction}`)),
       m.rows.map((r) => {
         const t = m.treatments.find((x) => x.key === r.key);
         const call = !t || m.state !== 'ready'
@@ -534,7 +534,7 @@ function metricsTable(metrics) {
       ? h('tfoot', {}, h('tr', {}, h('td', { colSpan: columns.length + 1 },
           metrics.every((m) => m.state === 'collecting')
             ? "Collecting data: Flagsmith shows numbers once enough visitors have come through (at least 50 per release)."
-            : metrics.filter((m) => m.state !== 'ready').map((m) => `${m.name}: ${m.note || m.state}`).join(' · '))))
+            : metrics.filter((m) => m.state !== 'ready').map((m) => `${F.metricName(m.name)}: ${m.note || m.state}`).join(' · '))))
       : null,
   );
 }
@@ -591,8 +591,8 @@ function renderActions(s) {
   const recommended = s.recommendation?.call === 'ship' && s.recommendation.variant === winnerKey;
 
   const keys = variants.map((v) => `${v.key}=${v.label}`).join('|');
-  if (keys !== app.choiceKeys) {
-    app.choiceKeys = keys;
+  if (keys + F.shownKey() !== app.choiceKeys) {
+    app.choiceKeys = keys + F.shownKey();
     $('ship-choices').replaceChildren(
       ...variants.map((v) =>
         h(
@@ -600,7 +600,7 @@ function renderActions(s) {
           { class: 'choice', vars: { '--c': v.color } },
           h('input', { type: 'radio', name: 'ship-variant', value: v.key }),
           h('span', { class: 'choice-swatch', 'aria-hidden': 'true' }),
-          h('span', { class: 'choice-text' }, h('span', { class: 'choice-label' }, v.label), h('span', { class: 'choice-key' }, v.key)),
+          h('span', { class: 'choice-text' }, h('span', { class: 'choice-label' }, F.shown(v.label)), h('span', { class: 'choice-key' }, v.key)),
           h('span', { class: 'pick', hidden: true }, "Flagsmith's pick"),
         ),
       ),
@@ -615,6 +615,21 @@ function renderActions(s) {
     pick.hidden = input.value !== winnerKey;
     pick.textContent = recommended ? 'Recommended' : "Flagsmith's pick";
   }
+  // A decided test: its outcome instead of greyed-out buttons that can't do anything.
+  let decided = document.getElementById('decided');
+  if (!decided) {
+    decided = h('p', { id: 'decided', class: 'decided-note', role: 'status' });
+    $('ship-form').before(decided);
+  }
+  $('ship-form').hidden = completed;
+  decided.hidden = !completed;
+  if (completed) {
+    const last = [...(s.ledger ?? [])].reverse().find((x) => x.experimentId === e.id && x.decision !== 'kept-running');
+    const label = F.shown(variants.find((v) => v.key === last?.variant)?.label ?? last?.release ?? 'control');
+    decided.textContent = last
+      ? `${last.decision === 'shipped' ? `Shipped ${label} to everyone` : `Reverted: everyone gets ${label}`} on ${new Date(last.at).toLocaleString('en-GB', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}. The next test starts from Run a test.`
+      : 'This test is decided: the flag is a plain flag again. The next test starts from Run a test.';
+  }
   // A demo job holds the console's lock too: Ship and Revert wait for it. The public page decides nothing.
   const busy = app.busy || demoRunning() || READONLY;
   /** @type {HTMLFieldSetElement} */ ($('ship-fieldset')).disabled = completed || busy;
@@ -622,7 +637,7 @@ function renderActions(s) {
   const sel = variants.find((v) => v.key === selected);
   const ship = /** @type {HTMLButtonElement} */ ($('ship-btn'));
   ship.disabled = completed || !sel || busy;
-  ship.textContent = sel ? `Ship ${sel.label}` : 'Ship winner';
+  ship.textContent = sel ? `Ship ${F.shown(sel.label)}` : 'Ship winner';
   ship.style.setProperty('--c', sel?.color ?? 'var(--muted)');
 
   let note;
@@ -649,7 +664,7 @@ function renderActions(s) {
   const control = variants.find((v) => v.isControl);
   $('revert-note').textContent = completed
     ? 'Revert is not available: the experiment is completed. Edit the flag in Flagsmith instead.'
-    : `Revert completes the experiment and drains the split: everyone gets control (${control?.label ?? 'control'}).`;
+    : `Revert completes the experiment and drains the split: everyone gets control (${F.shown(control?.label ?? 'control')}).`;
   renderDemo();
 }
 
@@ -1155,13 +1170,13 @@ function renderYou() {
   setVersions(site?.url, variants.map((v) => v.label));
   // Every version in the experiment, each openable on its own through the proxy's view switch (never counted).
   const list = $('site-version-list');
-  const vkey = JSON.stringify([site?.url, variants.map((v) => [v.key, v.label])]);
+  const vkey = JSON.stringify([site?.url, variants.map((v) => [v.key, v.label]), F.shownKey()]);
   if (list.dataset.key !== vkey) {
     list.dataset.key = vkey;
     $('site-versions').hidden = !site?.url || site.simulated || !variants.length;
     list.replaceChildren(...variants.map((v, n) => h('li', {},
       h('span', { class: 'you-chip', vars: { '--c': v.color } }, LETTERS[n] ?? '?'),
-      h('a', { href: previewOf(site, v.label), target: '_blank', rel: 'noopener', title: `Open ${v.label} on its own` }, `${v.label} ↗`),
+      h('a', { href: previewOf(site, v.label), target: '_blank', rel: 'noopener', title: `Open ${F.shown(v.label)} on its own` }, `${F.shown(v.label)} ↗`),
       h('span', { class: 'v-key' }, v.isControl ? 'control' : v.key))));
   }
   // The YOU pin on the map, and where this browser landed over time (before a test, in it, after the decision).
@@ -1323,13 +1338,16 @@ function renderRun() {
   $('visitors-form').hidden = s.simulator === false;
 }
 
+// Your own app (/app) has visitors, not shoppers.
+const WHO = document.querySelector('meta[name="turnout-app"]') ? 'visitors' : 'shoppers';
+
 // ---- one button: start the test, send shoppers, ask Flagsmith ------------------------------------------------
 // The same judge jobs the steps run, one after the other, each waited for. Flagsmith recomputes results at most once
 // every 5 minutes, so the flow asks only after the shoppers' events have arrived, and if a window is still closed it
 // waits it out with a countdown and asks then. A console for your own app only starts the test (no shoppers).
 const FLOW_STEPS = [
   { id: 'start', title: 'Start the test in Flagsmith' },
-  { id: 'visitors', title: 'Send simulated shoppers' },
+  { id: 'visitors', title: `Send simulated ${WHO}` },
   { id: 'score', title: 'Ask Flagsmith for the results' },
 ];
 const flow = { running: false, step: -1, done: [], note: '', tone: 'neutral', waitUntil: 0, timer: 0 };
@@ -1352,10 +1370,10 @@ function renderFlowButton(s, current, blocked) {
       : fresh
         ? `▶ Run ${article} ${label} test`
         : counted
-          ? '▶ Send more shoppers and ask Flagsmith again'
-          : '▶ Send shoppers and ask Flagsmith';
+          ? `▶ Send more ${WHO} and ask Flagsmith again`
+          : `▶ Send ${WHO} and ask Flagsmith`;
   go.disabled = flow.running || (blocked && !flow.running) || (!sim && !fresh);
-  go.title = sim ? 'Starts the test if needed, sends simulated shoppers, then asks Flagsmith for its results: one click.' : 'Starts the test in Flagsmith. Then open your site to be a visitor, or run turnout simulate.';
+  go.title = sim ? `Starts the test if needed, sends simulated ${WHO}, then asks Flagsmith for its results: one click.` : 'Starts the test in Flagsmith. Then open your site to be a visitor, or run turnout simulate.';
   $('run-cancel').hidden = run.plan === null || flow.running;
   const steps = $('run-steps');
   steps.hidden = flow.step < 0 && !flow.note;
@@ -1481,6 +1499,14 @@ const tour = createTour({ stops: stopsFor(CONSOLE_STOPS, READONLY), seenKey: REA
 // Your app's console (/app, from Try it): the same page for your versions; it says so, and links back to the shop's.
 if (document.querySelector('meta[name="turnout-app"]')) {
   document.body.classList.add('is-app');
+  void fetch('/try/api/try/status', { headers: { [TOKEN_HEADER]: TOKEN } }).then((r) => r.json()).then((st) => {
+    const names = st?.names ?? {};
+    F.setShownNames(Object.fromEntries(Object.entries(names).map(([label, name]) => [label, `${label.slice(-1).toUpperCase()} · ${name}`])));
+    app.choiceKeys = '';
+    if (app.state) render(app.state);
+  }).catch(() => {});
+  const more = document.querySelector('#run-more > summary, .run-card details > summary');
+  if (more) more.textContent = more.textContent.replace('shoppers', 'visitors');
   document.querySelector('.brand-name')?.append(h('span', { class: 'app-chip' }, 'your app'));
   document.querySelector('.brand')?.setAttribute('href', '/app');
   document.getElementById('try-open')?.after(h('a', { class: 'btn btn-ghost btn-small app-back', href: '/' }, '← Demo shop'));
@@ -1488,7 +1514,8 @@ if (document.querySelector('meta[name="turnout-app"]')) {
 // One page: Judge mode is the switch beside Tour; while it is on, Tour shows the judge view's tour.
 const mode = setupMode();
 $('tour-open').addEventListener('click', () => mode.tour() || tour.start());
-setTimeout(() => (mode.isOn() ? null : tour.offer()), 1500);
+// Your app's console (/app) opens straight after a build: no tour on top of it (Tour is one click away).
+setTimeout(() => (mode.isOn() || document.body.classList.contains('is-app') ? null : tour.offer()), 1500);
 
 setInterval(renderConnection, 1000);
 refreshNow();

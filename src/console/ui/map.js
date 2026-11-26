@@ -4,6 +4,8 @@
 // never still; they are not visitors and the legend says so. A YOU pin marks the release this browser gets.
 // Narrow containers (phones) get a compact junction with bigger type, and the counters as HTML below it.
 
+import { shown } from './format.js';
+
 const NS = 'http://www.w3.org/2000/svg';
 const WIDE = { W: 960, ENTRY_X: 36, SWITCH_X: 330, CURVE_END_X: 480, TRACK_END_X: 694, STATION_X: 696, STATION_W: 256, STATION_H: 88, ROW: 100, MIN_H: 270, PAD: 62 };
 const COMPACT = { W: 480, ENTRY_X: 14, SWITCH_X: 150, CURVE_END_X: 250, TRACK_END_X: 300, STATION_X: 302, STATION_W: 170, STATION_H: 72, ROW: 96, MIN_H: 230, PAD: 56 };
@@ -157,13 +159,13 @@ export class TrafficMap {
       const state = text(st, { x: STATION_W - 4, y: -8, class: 'station-state', 'text-anchor': 'end' }, '');
       const counters = {};
       if (this.compact) {
-        text(st, { x: 18, y: 32, class: 'station-title' }, v.label);
+        text(st, { x: 18, y: 32, class: 'station-title' }, shown(v.label));
         text(st, { x: 18, y: 58, class: 'station-key' }, v.key);
         const li = document.createElement('li');
         li.style.setProperty('--c', v.color);
         const name = document.createElement('span');
         name.className = 'pf-name';
-        name.textContent = `${v.label} `;
+        name.textContent = `${shown(v.label)} `;
         const key = document.createElement('span');
         key.className = 'pf-key';
         key.textContent = v.key;
@@ -179,7 +181,7 @@ export class TrafficMap {
         }
         platforms.append(li);
       } else {
-        const title = text(st, { x: 18, y: 28, class: 'station-title' }, v.label);
+        const title = text(st, { x: 18, y: 28, class: 'station-title' }, shown(v.label));
         const keyT = el('tspan', { class: 'station-key', dx: 8 }, title);
         keyT.textContent = v.key;
         [

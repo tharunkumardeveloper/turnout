@@ -17,7 +17,8 @@
     "shop": "node demo/shop/server.ts",
     "typecheck": "tsc --noEmit",
     "test": "node --test \"test/**/*.test.ts\"",
-    "scoreboard": "node scoreboard/run.ts"
+    "scoreboard": "node scoreboard/run.ts",
+    "ui-check": "node scoreboard/ui-check.ts"
   },
   "dependencies": {
     "@flagsmith/nodejs": "^9.4.0",

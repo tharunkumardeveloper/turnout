@@ -64,7 +64,8 @@ export function createTour({ stops, seenKey }) {
     } catch {
       seen = false;
     }
-    if (!seen) start();
+    // Never on top of another dialog (Try it, Your test): one dialog at a time.
+    if (!seen && !document.querySelector('dialog[open]')) start();
   }
 
   function start(at = 0) {

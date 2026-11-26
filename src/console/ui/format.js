@@ -277,7 +277,7 @@ export function winnerText(experiment, winner, context = {}) {
     return {
       tone: 'neutral',
       headline: 'No leader yet',
-      detail: `Flagsmith is collecting data on ${primary}.`,
+      detail: `Flagsmith is collecting data on ${metricName(primary)}.`,
     };
   }
   const label = releaseLabel(experiment, winner.key);
@@ -612,3 +612,23 @@ export function built(state, variants) {
   if (!previews || !Object.keys(previews).length) return variants;
   return variants.filter((v) => v.isControl || previews[v.label]);
 }
+
+// ---- Names people read (UI review, 26 Nov): on your app's console a release is "A · Folder 1", not "try:a" ----
+let SHOWN = {};
+/** Display names by release label, e.g. { 'try:a': 'A · Folder 1' }. Labels stay the keys everywhere else. */
+export function setShownNames(map) {
+  SHOWN = { ...(map ?? {}) };
+}
+/** A release label as people read it. */
+export const shown = (label) => SHOWN[label] ?? label;
+/** A sentence with every known release label replaced by its name ("try:b vs try:a" → "B · Folder 2 vs A · Folder 1"). */
+export function shownText(text) {
+  let out = String(text ?? '');
+  for (const [label, name] of Object.entries(SHOWN)) out = out.split(label).join(name);
+  return out;
+}
+/** Changes when the names do: part of each cache key that draws a name. */
+export const shownKey = () => JSON.stringify(SHOWN);
+const METRIC_NAMES = { doc_latency_ms: 'Page load time', server_error: 'Server errors', order_placed: 'Orders', add_to_cart: 'Added to cart' };
+/** A metric's name for people: "docs_cv_pdf" → "docs cv pdf"; the known ones in words. The raw name is the tooltip. */
+export const metricName = (name) => METRIC_NAMES[name] ?? String(name).replace(/_/g, ' ');

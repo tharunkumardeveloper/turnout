@@ -38,6 +38,9 @@ export function setupMode() {
   function set(next, remember = true) {
     on = next;
     sw.setAttribute('aria-checked', String(on));
+    // Says its state in words, not only by the knob's colour.
+    const label = sw.querySelector('.mode-label');
+    if (label) label.textContent = on ? 'Judge mode: on' : 'Judge mode: off';
     document.body.classList.toggle('judge-on', on);
     view.hidden = !on;
     if (on && !frame.getAttribute('src')) frame.setAttribute('src', frameSrc(BASE, params));

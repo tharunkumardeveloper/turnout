@@ -143,13 +143,13 @@ function rowView(r, i) {
       h('span', { class: 'try-row-state', 'aria-hidden': 'true' }, state === 'ok' ? '✓' : state === 'bad' ? '!' : '')),
     picked
       ? h('div', { class: 'try-picked' },
-          h('span', { class: 'try-picked-icon' }, r.folder ? '📁' : '📦'),
+          h('span', { class: 'try-picked-icon' }, r.folder ? '▤' : '▣'),
           h('strong', {}, r.folder ? r.folder.shared.name : r.file.name),
           h('button', { type: 'button', class: 'btn btn-small btn-ghost', on: { click: clear } }, 'Change'))
       : h('textarea', { spellcheck: 'false', placeholder: i ? 'Paste a Dockerfile, a GitHub link or an image name…' : 'Paste a Dockerfile, a GitHub link or an image name (myapp:1.2)…', value: r.text, on: { input: (e) => ((r.text = e.target.value), (ready = ''), refreshLine(i)) } }),
     picked ? null : h('div', { class: 'try-pick' },
-      h('label', { class: 'btn btn-small' }, '📁 Project folder', h('input', { type: 'file', class: 'try-hidden-input', webkitdirectory: true, on: { change: (e) => pickFolder(r, e.target.files ?? []) } })),
-      h('label', { class: 'btn btn-small btn-ghost', title: 'A Dockerfile, or an image saved with: docker save -o app.tar myapp:1.2' }, '📄 A file', h('input', { type: 'file', class: 'try-hidden-input', on: { change: (e) => pickFile(r, e.target.files?.[0]) } }))),
+      h('label', { class: 'btn btn-small' }, 'Project folder', h('input', { type: 'file', class: 'try-hidden-input', webkitdirectory: true, on: { change: (e) => pickFolder(r, e.target.files ?? []) } })),
+      h('label', { class: 'btn btn-small btn-ghost', title: 'A Dockerfile, or an image saved with: docker save -o app.tar myapp:1.2' }, 'A file', h('input', { type: 'file', class: 'try-hidden-input', on: { change: (e) => pickFile(r, e.target.files?.[0]) } }))),
     h('div', { class: 'try-line' }, sourceLine(r)),
     h('details', { class: 'try-side' },
       h('summary', {}, 'Advanced'),
@@ -183,7 +183,8 @@ function filled() {
 function kindLine() {
   const n = filled().length;
   const bad = filled().some((r) => !usable(r));
-  $('try-kind').textContent = ready || (bad ? 'Fix the version marked in red first.' : n ? `${n} version${n > 1 ? 's' : ''}: ${KIND[n]}.` : 'Give version A to start.');
+  const left = ready && step !== 3 ? "Your last test is still running: Open your app's console to see it." : ready;
+  $('try-kind').textContent = left || (bad ? 'Fix the version marked in red first.' : n ? `${n} version${n > 1 ? 's' : ''}: ${KIND[n]}.` : 'Give version A to start.');
   /** @type {HTMLButtonElement} */ ($('try-build')).disabled = !n || bad || Boolean(polling) || offline;
   /** @type {HTMLButtonElement} */ ($('try-next')).disabled = !n || bad;
   renderPlan();
@@ -208,7 +209,8 @@ function go(n) {
   $('try-build').hidden = n === 1 || (n === 3 && $('try-error').hidden); // step 3: only to try again after a failure
   $('try-next').classList.toggle('btn-primary', n === 1);
   if (n === 2) void suggestGoals();
-  $('try-build').textContent = n === 3 ? '↻ Build again' : '🚀 Build and try';
+  $('try-build').textContent = n === 3 ? '↻ Build again' : 'Build and try';
+  kindLine();
 }
 
 // Goals from the site itself: its pages, read from the folder you chose or the GitHub repository's file list (the
@@ -224,7 +226,7 @@ function renderChips(goals, fromSite) {
   }
   const list = goals.length ? goals : COMMON_GOALS;
   $('try-goal-chips').replaceChildren(
-    h('span', { class: 'try-chips-label' }, fromSite ? 'From your site:' : 'Common goals:'),
+    h('span', { class: 'try-chips-label' }, fromSite ? 'From your site:' : 'Examples:'),
     ...list.map((g) => h('button', { type: 'button', class: 'try-chip', title: `Count ${g} as a win`, on: { click: pick(g) } }, g)));
 }
 async function suggestGoals() {
@@ -271,7 +273,7 @@ function renderPlan() {
     ? [
         ...filled().map((r, i) => h('li', {}, h('span', { class: 'try-letter', 'data-i': String(i) }, LETTERS[i]), `Build ${what(r)}`)),
         h('li', {}, h('span', { class: 'try-plan-icon' }, '⇄'), n === 1 ? 'Run it twice and split visitors 50/50 (A/A)' : `Split visitors ${n === 2 ? '50/50' : 'three ways'} on the flag tryit_release`),
-        h('li', {}, h('span', { class: 'try-plan-icon' }, '🏁'), goal ? `Count ${goal} as a win; Flagsmith picks the winner` : 'Compare page speed and errors; Flagsmith picks the winner'),
+        h('li', {}, h('span', { class: 'try-plan-icon' }, '✓'), goal ? `Count ${goal} as a win; Flagsmith picks the winner` : 'Turnout picks the goal from your running versions (or compares page speed); Flagsmith picks the winner'),
       ]
     : [h('li', { class: 'try-plan-empty' }, 'Give a version in step 1 first.')]));
 }
@@ -567,6 +569,11 @@ export async function setupTry() {
     go(built ? 3 : 1);
     void poll();
   });
+  // A link from another page (the setup check, What we use): /#try opens Try it.
+  if (location.hash === '#try') {
+    history.replaceState(null, '', location.pathname + location.search);
+    open.click();
+  }
   $('try-build').addEventListener('click', async () => {
     await poll(); // started since the box opened?
     if (offline) return;

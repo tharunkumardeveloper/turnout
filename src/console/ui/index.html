@@ -271,21 +271,21 @@
         </section>
 
         <section class="try-panel" data-panel="2" aria-label="Options">
-          <p class="try-lead"><strong>Optional.</strong> Without a goal, versions are compared on page speed and errors. Skip this if you're not sure.</p>
+          <p class="try-lead"><strong>Optional.</strong> Leave the goal empty and Turnout watches your running versions and picks the best action every one of them has (a form sent, a download, a sign-up page). With none, it compares page speed and errors.</p>
           <div class="try-options">
             <div class="try-opt-card">
-              <label class="try-field-label" for="try-goal">🎯 Goal <small>what counts as a win</small></label>
+              <label class="try-field-label" for="try-goal">Goal <small>what counts as a win</small></label>
               <input id="try-goal" class="try-text" spellcheck="false" placeholder="e.g. POST /signup">
               <div class="try-chips" id="try-goal-chips"></div>
               <p class="try-small">A request your visitors make when they convert: a page (<code>GET /pricing</code>) or a form (<code>POST /signup</code>). <code>*</code> matches anything.</p>
             </div>
             <div class="try-opt-card">
-              <label class="try-field-label" for="try-env">⚙️ Settings for your app <small>KEY=value, one per line</small></label>
+              <label class="try-field-label" for="try-env">Settings for your app <small>KEY=value, one per line</small></label>
               <textarea id="try-env" class="try-env" spellcheck="false" placeholder="DATABASE_URL=postgresql://user:pass@host.docker.internal:5432/app&#10;API_KEY=…"></textarea>
               <p class="try-small">Passed to every version. <code>host.docker.internal</code> is your machine, for a database or service you run there.</p>
             </div>
             <div class="try-opt-card try-summary">
-              <span class="try-field-label">📋 What will happen</span>
+              <span class="try-field-label">What will happen</span>
               <ol id="try-plan" class="try-plan"></ol>
             </div>
           </div>
@@ -325,11 +325,11 @@
         <p id="try-off" class="try-off" hidden></p>
         <p id="try-kind" class="try-kindline" aria-live="polite"></p>
         <div class="try-actions">
-          <button id="try-example" class="btn btn-ghost" type="button" title="Two small self-contained Dockerfiles (nginx pages), so you can see it work without an app of your own">✨ Use an example</button>
+          <button id="try-example" class="btn btn-ghost" type="button" title="Two small self-contained Dockerfiles (nginx pages), so you can see it work without an app of your own">Use an example</button>
           <button id="try-back" class="btn btn-ghost" type="button">← Back</button>
           <button id="try-next" class="btn" type="button">Next →</button>
           <a id="try-open-page" class="btn" href="/app" hidden>Open your app's console →</a>
-          <button id="try-build" class="btn btn-primary try-go" type="button" disabled>🚀 Build and try</button>
+          <button id="try-build" class="btn btn-primary try-go" type="button" disabled>Build and try</button>
         </div>
       </footer>
     </form>

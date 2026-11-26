@@ -1326,3 +1326,87 @@ body.console-screen.judge-on { grid-template-rows: auto minmax(0, 1fr); }
 .tp-table th, .tp-table td { text-align: left; padding: 6px 8px; border-bottom: 1px solid var(--border); white-space: nowrap; }
 .tp-seen { margin: 8px 0 0; padding-left: 18px; }
 .tp-full summary { cursor: pointer; font-weight: 600; }
+
+/* ---- Narrower screens (UI review, 26 Nov): laptops, tablets and phones get the whole console, no sideways scroll ---- */
+@media (max-width: 1365px) {
+  body.console-screen { min-width: 0; }
+  .console-screen .cbar { flex-wrap: wrap; row-gap: 6px; }
+  /* The connection labels become dots (their text stays for screen readers and in the tooltip). */
+  .console-screen .connections .conn-text { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+  .cgrid { grid-template-columns: minmax(260px, 25%) minmax(0, 1fr) minmax(300px, 31%); }
+}
+@media (max-width: 1100px) {
+  body.console-screen { height: auto; min-height: 100vh; overflow: visible; display: block; }
+  body.console-screen.judge-on { display: grid; height: 100vh; }
+  .console-screen .strip { flex-wrap: wrap; row-gap: 4px; }
+  .cgrid { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); grid-template-rows: auto; grid-template-areas: "map map" "site results" "run decide"; }
+  .cgrid:has(.run-card[hidden]) .site-card { grid-row: auto; }
+  .cgrid:has(.run-card[hidden]) { grid-template-areas: "map map" "site results" "site decide"; }
+  .cgrid .map-card { min-height: 560px; }
+  .cgrid .site-card, .cgrid .results-card { overflow: visible; }
+}
+@media (max-width: 760px) {
+  .console-screen .cbar { gap: 8px 10px; padding: 8px 12px; }
+  .console-screen .cbar .menu { order: 10; flex: 1 1 100%; overflow-x: auto; white-space: nowrap; scrollbar-width: none; }
+  .console-screen .strip { padding: 8px 12px; }
+  .console-screen .strip .hypothesis { white-space: normal; flex-basis: 100%; }
+  .cgrid { grid-template-columns: minmax(0, 1fr); grid-template-areas: "site" "results" "decide" "map" "run"; padding: 10px 12px; }
+  .cgrid:has(.run-card[hidden]) { grid-template-areas: "site" "results" "decide" "map"; }
+  .cgrid .map-card { min-height: 480px; }
+  .map-previews { grid-template-columns: minmax(0, 1fr); }
+  .history-panel { width: calc(100vw - 24px); right: -12px; }
+  .try-versions { grid-template-columns: minmax(0, 1fr); }
+  .try-dialog { width: calc(100vw - 16px); height: calc(100dvh - 16px); }
+  .try-head { grid-template-columns: minmax(0, 1fr) auto; gap: 10px; padding: 12px 14px; }
+  .test-panel { width: calc(100vw - 16px); max-height: calc(100dvh - 16px); }
+  .tp-table th, .tp-table td { white-space: normal; }
+}
+/* Buttons and chips never break across lines (the header's "Your test", the "your app" chip). */
+.cbar .btn, .site-bar .btn, .app-chip, .try-pill, .tp-head .btn { white-space: nowrap; }
+@media (max-width: 1100px) {
+  .console-screen .strip .meta { flex: 1 1 100%; flex-wrap: wrap; row-gap: 2px; min-width: 0; }
+  .console-screen .strip .meta div { min-width: 0; flex-wrap: wrap; }
+  .console-screen .strip .meta dd { overflow-wrap: anywhere; }
+}
+/* A link that is a button looks like one (Open your app's console →, ← Demo shop). */
+a.btn { text-decoration: none; display: inline-flex; align-items: center; justify-content: center; gap: 6px; }
+
+/* hidden always hides, whatever display a class gives (an empty box showed under Decide). */
+[hidden] { display: none !important; }
+.decided-note { margin: 4px 0 8px; padding: 10px 12px; border-radius: 10px; background: color-mix(in srgb, var(--good) 10%, var(--surface)); border: 1px solid color-mix(in srgb, var(--good) 35%, var(--border)); font-weight: 600; }
+.mx-name { overflow-wrap: break-word; word-break: normal; hyphens: auto; }
+/* Placeholder rows while a page reads Flagsmith (setup check, What we use): the layout is there at once. */
+.skeleton { height: 120px; margin: 0 0 14px; border-radius: 14px; border: 1px solid var(--border);
+  background: linear-gradient(90deg, var(--surface) 25%, var(--surface-2) 50%, var(--surface) 75%) 0 0 / 200% 100%; animation: skeleton 1.4s linear infinite; }
+@keyframes skeleton { to { background-position: -200% 0; } }
+@media (prefers-reduced-motion: reduce) { .skeleton { animation: none; } }
+/* The header always fits: it wraps, and the connection labels become dots before anything is pushed off-screen. */
+.console-screen .cbar, .site-bar { flex-wrap: wrap; row-gap: 6px; }
+@media (max-width: 1600px) {
+  .console-screen .connections .conn-text { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+}
+@media (max-width: 760px) {
+  .site-bar { gap: 8px 10px; padding: 8px 12px; }
+  .site-bar .menu { order: 10; flex: 1 1 100%; overflow-x: auto; white-space: nowrap; scrollbar-width: none; }
+}
+
+/* Your test: the alert, progress per version, the table's details. */
+.tp-card[data-tone="bad"] { border-color: color-mix(in srgb, var(--bad) 45%, var(--border)); background: color-mix(in srgb, var(--bad) 6%, var(--surface)); }
+.tp-alert, .tp-banner { margin: 0 0 8px; padding: 8px 10px; border-radius: 8px; background: color-mix(in srgb, var(--bad) 12%, var(--surface)); color: var(--bad); font-weight: 650; }
+.tp-banner { margin: 8px 18px 0; border: 1px solid color-mix(in srgb, var(--bad) 40%, var(--border)); }
+.tp-head-actions { display: flex; gap: 8px; }
+.tp-progress { display: grid; gap: 6px; }
+.tp-progress h3, .tp-box h3 { margin: 0 0 2px; font-size: .95rem; }
+.tp-bar-row { display: grid; grid-template-columns: minmax(120px, 30%) minmax(0, 1fr) auto; gap: 10px; align-items: center; }
+.tp-bar-name { font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.tp-bar { position: relative; height: 10px; border-radius: 5px; background: var(--border); }
+.tp-bar-fill { position: absolute; inset: 0 auto 0 0; border-radius: 5px; background: var(--good); }
+.tp-bar-min { position: absolute; top: -3px; bottom: -3px; width: 2px; background: var(--text); opacity: .6; }
+.tp-bar-num { font-variant-numeric: tabular-nums; color: var(--muted); font-size: 13px; }
+.tp-table th[scope="row"] { font-weight: 600; white-space: normal; min-width: 180px; }
+.tp-role { font-weight: 400; font-size: 12px; color: var(--muted); }
+.tp-n, .tp-vs { color: var(--muted); font-size: 12.5px; }
+.tp-table td { white-space: normal; }
+.tp-inline { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; }
+.tp-fail { color: var(--bad); }
+@media (max-width: 760px) { .tp-bar-row { grid-template-columns: minmax(0, 1fr) auto; } .tp-bar { grid-column: 1 / -1; grid-row: 2; } .tp-banner { margin: 8px 12px 0; } }

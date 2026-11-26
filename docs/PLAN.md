@@ -29,7 +29,8 @@ only counts if it works on all of them.
   when an app resets a kept-alive connection (it had cost 1 to 2 visitors per run), and **Your test** on /app: the
   verdict card, every metric, the checks, the goal choice, steady visitors and the report.
 - Not done: building with Cloud Native Buildpacks (Turnout writes a Dockerfile instead).
-- Not yet checked on screen: the console layout, the Try it wizard and its needs card, Your test on /app, and the tour
+- Checked on screen (26 Nov, `npm run ui-check`: 26 of 26 screens at 390, 820, 1280 and 1440 px, light and dark). Not
+  yet: the Try it needs card with a real failing app, and the tour
   inside Flagsmith.
 
 ## 1. A test set and a scoreboard (first)
