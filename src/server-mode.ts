@@ -184,7 +184,7 @@ export async function gatherServerFacts(o: ServerModeOptions): Promise<ServerFac
   const address = o.edgeAddress || o.hostname;
   const [httpsFacts, cookies, readOnly, loopback] = await Promise.all([
     settle(probeTls(address, o.hostname)),
-    settle(httpsRequest(address, o.hostname, 'GET', '/').then((r) => ({ status: r.status, setCookies: r.setCookies.length, secure: r.setCookies.filter((c) => /;\s*secure(;|$)/i.test(c)).length }))),
+    settle(httpsRequest(address, `shop.${o.hostname}`, 'GET', '/') /* the shop is on shop.<host>; <host> opens the guided demo */.then((r) => ({ status: r.status, setCookies: r.setCookies.length, secure: r.setCookies.filter((c) => /;\s*secure(;|$)/i.test(c)).length }))),
     settle(httpsRequest(address, o.hostname, 'POST', '/judge/api/judge/run').then((r) => ({ postStatus: r.status }))),
     isLoopbackName(o.hostname),
   ]);
@@ -223,7 +223,7 @@ export function evaluateServer(f: ServerFacts): DoctorCheck[] {
   }
 
   if ('error' in f.cookies) add('Secure cookies', 'fail', 'the proxy sets cookies with Secure over HTTPS', f.cookies.error);
-  else if (f.cookies.value.setCookies === 0) add('Secure cookies', 'warn', 'the proxy sets cookies with Secure over HTTPS', `GET / answered HTTP ${f.cookies.value.status} with no cookies`, 'Is the proxy up? docker compose logs turnout');
+  else if (f.cookies.value.setCookies === 0) add('Secure cookies', 'warn', 'the proxy sets cookies with Secure over HTTPS', `GET https://shop.<host>/ answered HTTP ${f.cookies.value.status} with no cookies`, 'Is the proxy up? docker compose logs turnout');
   else {
     const { setCookies, secure } = f.cookies.value;
     add('Secure cookies', secure === setCookies ? 'ok' : 'fail', 'every cookie marked Secure', `${secure} of ${setCookies} marked Secure`, 'compose.server.yml sets TURNOUT_SECURE_COOKIES=1 on the proxy');
