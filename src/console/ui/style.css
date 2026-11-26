@@ -761,3 +761,144 @@ fieldset:disabled .choice { opacity: 0.55; cursor: not-allowed; }
 .new-error[hidden] { display: none; }
 .new-out { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
 .new-command { font-family: var(--mono, ui-monospace, monospace); font-size: 13.5px; padding: 8px 10px; border-radius: 10px; background: var(--surface-2); border: 1px solid var(--border); overflow-wrap: anywhere; }
+
+/* ==== The console on one desktop screen (index.html, body.console-screen): no page scroll. ======================
+   The menu bar, one line about the experiment, then three columns: your site and the decision | the traffic map |
+   Flagsmith's results. Past experiments and snapshots sit under History. A card scrolls inside itself only if a
+   very short window leaves it no room. */
+body.console-screen { height: 100vh; overflow: hidden; display: grid; grid-template-rows: auto auto auto minmax(0, 1fr); min-width: 1100px; }
+.console-screen .cbar { display: flex; align-items: center; gap: 18px; padding: 8px 18px; background: var(--surface); border-bottom: 1px solid var(--border); }
+.console-screen .cbar .brand { text-decoration: none; color: inherit; gap: 8px; }
+.console-screen .cbar .brand-mark { width: 26px; height: 26px; }
+.console-screen .cbar .menu { flex: 1; }
+.console-screen .connections { display: flex; gap: 14px; margin: 0; padding: 0; list-style: none; font-size: 12.5px; }
+.console-screen .strip { display: flex; align-items: center; gap: 18px; padding: 8px 18px; border-bottom: 1px solid var(--border); background: var(--surface-2); min-width: 0; }
+.console-screen .strip .experiment-title { flex-wrap: nowrap; min-width: 0; gap: 10px; }
+.console-screen .strip h1 { font-size: 16px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.console-screen .strip .meta { display: flex; gap: 14px; margin: 0; font-size: 13px; flex: none; }
+.console-screen .strip .meta div { display: flex; gap: 6px; align-items: baseline; }
+.console-screen .strip .meta dd { margin: 0; }
+.console-screen .strip .hypothesis { flex: 1; min-width: 0; margin: 0; font-size: 13px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.history-drop { position: relative; flex: none; font-size: 13.5px; }
+.history-drop > summary { cursor: pointer; list-style: none; padding: 4px 10px; border: 1px solid var(--border); border-radius: 8px; background: var(--surface); font-weight: 650; }
+.history-drop > summary::-webkit-details-marker { display: none; }
+.history-drop > summary::after { content: " ▾"; font-size: 11px; }
+.history-panel { position: absolute; right: 0; top: calc(100% + 6px); z-index: 30; width: 620px; max-height: 70vh; overflow: auto; padding: 12px 14px;
+  background: var(--surface); border: 1px solid var(--border); border-radius: 12px; box-shadow: 0 14px 32px -12px rgb(0 0 0 / .35); }
+.history-panel .sidings-title { margin: 4px 0 6px; font-size: 13px; }
+.console-screen .banner { margin: 8px 18px 0; }
+
+.cgrid {
+  min-height: 0; padding: 12px 18px 14px; display: grid; gap: 12px;
+  grid-template-columns: minmax(290px, 24%) minmax(0, 1fr) minmax(360px, 31%);
+  grid-template-rows: minmax(220px, 1fr) auto;
+  grid-template-areas: "site map results" "site decide results";
+}
+.cgrid > .card { min-height: 0; margin: 0; padding: 12px 14px; overflow: auto; display: flex; flex-direction: column; gap: 8px; }
+.cgrid .card-head { display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; margin: 0; }
+.cgrid .card-head h2 { font-size: 15px; margin: 0; }
+.cgrid .card-sub { font-size: 12.5px; margin: 0; }
+.cgrid .site-card { grid-area: site; position: relative; overflow: visible; text-align: left; align-items: stretch; }
+.cgrid .site-card > * { margin: 0; }
+.cgrid .site-card[hidden] { display: none; }
+.cgrid .actions-card { grid-area: decide; }
+.cgrid .site-card[hidden] ~ .map-card { grid-column: 1 / span 2; }
+.cgrid .site-card[hidden] ~ .actions-card { grid-column: 1 / span 2; }
+/* The versions, each on its own (never counted) */
+.site-versions { display: grid; gap: 4px; }
+.site-versions h3 { margin: 0; font-size: 12.5px; color: var(--muted); font-weight: 650; }
+.site-versions ul { list-style: none; margin: 0; padding: 0; display: grid; gap: 3px; }
+.site-versions li { display: flex; align-items: center; gap: 8px; font-size: 13.5px; }
+.site-versions a { color: var(--text); font-weight: 650; text-decoration: none; }
+.site-versions a:hover { text-decoration: underline; }
+.site-versions .v-key { font: 11.5px var(--mono); color: var(--muted); }
+.cgrid .map-card { grid-area: map; }
+.cgrid .results-card { grid-area: results; }
+.cgrid .site-card .card-head { justify-content: space-between; }
+.cgrid .btn-big { font-size: 15px; padding: 10px 16px; text-align: center; }
+.cgrid .site-how, .cgrid .site-goal { margin: 0; font-size: 13px; color: var(--muted); }
+.cgrid .site-goal strong { color: var(--text); }
+
+/* You: where this browser lands */
+.you { padding: 8px 10px; border-radius: 10px; background: var(--surface-2); border: 1px solid var(--border); font-size: 13.5px; display: grid; gap: 4px; }
+.you p { margin: 0; }
+.you-chip { display: inline-grid; place-items: center; width: 20px; height: 20px; margin-right: 6px; border-radius: 5px; background: var(--c); color: #fff; font-size: 12px; font-weight: 800; vertical-align: -4px; }
+.you-sub { color: var(--muted); font-size: 12.5px; }
+.you-link { font-size: 12.5px; }
+
+/* New comparison: a pop-over, so it never pushes the screen */
+.site-new { font-size: 13.5px; }
+.site-new > summary { cursor: pointer; font-weight: 650; }
+.site-new-panel { position: absolute; left: 0; right: -40px; top: 100%; z-index: 20; margin-top: 6px; padding: 12px 14px; display: grid; gap: 8px;
+  background: var(--surface); border: 1px solid var(--border); border-radius: 12px; box-shadow: 0 14px 32px -12px rgb(0 0 0 / .35); }
+.site-new-panel .new-form { display: grid; gap: 6px; }
+.site-new-panel label { display: grid; gap: 2px; font-size: 12.5px; }
+
+/* Decide */
+.cgrid .actions-body { display: grid; gap: 8px; }
+.cgrid .ship-choices { margin: 0; padding: 0; border: 0; min-width: 0; }
+.cgrid .ship-choices legend { font-size: 12.5px; margin-bottom: 4px; padding: 0; }
+.cgrid .choices { display: flex; flex-wrap: wrap; gap: 6px; }
+.cgrid .choices > * { padding: 4px 10px; min-height: 0; }
+.cgrid .actions-card { overflow: visible; }
+.cgrid .actions-card .card-sub, .cgrid #revert-note { display: none; }
+.cgrid .action-notes .action-note:empty { display: none; }
+.cgrid .action-row { display: flex; flex-wrap: wrap; gap: 6px; }
+.cgrid .action-row .btn { padding: 7px 12px; font-size: 14px; }
+.cgrid .action-notes .action-note { font-size: 12.5px; margin: 0; }
+.cgrid .guard-card { padding-top: 6px; border-top: 1px dashed var(--border); display: flex; align-items: center; gap: 8px; font-size: 12.5px; }
+.cgrid .guard-card #health-line { flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.cgrid .guard-card #guard-line { display: none; }
+.cgrid .guard-card[hidden] { display: none; }
+.cgrid .guard-toggle { display: flex; align-items: center; gap: 8px; }
+.cgrid .guard-line { margin: 0; font-size: 12.5px; }
+
+/* The traffic map fills its column */
+.cgrid .map-card { overflow: hidden; }
+.cgrid .map { flex: 1; min-height: 0; display: grid; }
+.cgrid .map .junction { width: 100%; height: 100%; }
+.cgrid .legend { margin: 0; font-size: 12px; gap: 4px 12px; }
+.cgrid .demo-card { margin-top: auto !important; border-top: 1px dashed var(--border); padding-top: 8px; display: grid; gap: 4px; }
+.cgrid .demo-card .demo-row > .demo-label:first-child { width: 100%; font-weight: 650; }
+.cgrid .demo-card[hidden] { display: none; }
+.cgrid .demo-row { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; font-size: 13px; }
+.cgrid .demo-count { width: 80px; }
+.cgrid .demo-card .action-note:empty, .cgrid .demo-card .action-status:empty { display: none; }
+.cgrid .demo-card .action-note { display: none; }
+.cgrid .demo-card .action-status { margin: 0; font-size: 12.5px; }
+
+/* Flagsmith's results: one table */
+.cgrid .provenance { margin: 0; font-size: 12px; }
+.cgrid .winner { margin: 0; padding: 8px 10px; }
+.cgrid .winner-headline { font-size: 14.5px; }
+.cgrid .winner-detail { font-size: 12.5px; }
+.mx { width: 100%; border-collapse: collapse; font-size: 13px; table-layout: fixed; }
+.mx th, .mx td { padding: 6px 6px; border-bottom: 1px solid var(--border); text-align: left; vertical-align: top; }
+.mx thead th { font-size: 12px; color: var(--muted); font-weight: 700; overflow-wrap: anywhere; }
+.mx thead th:first-child { width: 30%; }
+.mx thead .v-key { display: block; }
+.mx thead .swatch { display: inline-block; width: 8px; height: 8px; border-radius: 2px; background: var(--c); margin-right: 5px; }
+.mx thead .v-label { color: var(--text); }
+.mx thead .v-key { font-family: var(--mono); font-size: 11px; }
+.mx tbody th { font-weight: 400; }
+.mx-name { display: block; font: 650 12.5px var(--mono); overflow-wrap: anywhere; }
+.mx-meta { display: block; font-size: 11px; color: var(--muted); }
+.mx-role { font-weight: 700; text-transform: uppercase; letter-spacing: .04em; font-size: 10.5px; }
+.mx-role-goal { color: var(--focus); }
+.mx-role-guardrail { color: var(--warn); }
+.mx-value { font-weight: 700; font-variant-numeric: tabular-nums; }
+.mx-n { font-size: 11px; color: var(--muted); }
+.mx-call { display: block; font-size: 11.5px; font-weight: 650; color: var(--muted); }
+.mx-call[data-tone='good'] { color: var(--good); }
+.mx-call[data-tone='bad'] { color: var(--bad); }
+.mx td[data-tone='bad'] { background: color-mix(in srgb, var(--bad) 9%, transparent); }
+.mx tfoot td { font-size: 11.5px; color: var(--muted); border: 0; }
+.cgrid .results-foot { margin-top: auto; }
+.cgrid .results-foot .foot-line { margin: 0; font-size: 12px; }
+
+@media (max-height: 760px) {
+  .console-screen .cbar, .console-screen .strip { padding-top: 6px; padding-bottom: 6px; }
+  .cgrid { padding-top: 10px; gap: 10px; }
+  .cgrid > .card { padding: 10px 12px; gap: 6px; }
+  .mx th, .mx td { padding: 4px 6px; }
+}

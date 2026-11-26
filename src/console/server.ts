@@ -449,6 +449,24 @@ export function createConsole(opts: ConsoleOptions): http.Server {
         return json(res, 404, { error: 'not found' });
       }
 
+      // Where this browser lands: its visitor cookie (cookies are per host, not per port, so the shop's cookie comes
+      // here too), handed to the proxy's own receipt. Never records an exposure. Not on the public view.
+      if (req.method === 'GET' && url.pathname === '/api/you') {
+        const safe = (v: string | undefined) => (v && /^[\w%.~:-]{1,200}$/.test(v) ? v : undefined); // passed on as-is
+        const id = safe(readCookie(req.headers.cookie, 'tn_id'));
+        const view = safe(readCookie(req.headers.cookie, 'tn_view'));
+        if (!id && !view) return json(res, 200, { visited: false });
+        const proxy = (opts.judge?.proxyUrl ?? 'http://turnout:8080').replace(/\/$/, '');
+        try {
+          const cookie = [id && `tn_id=${id}`, view && `tn_view=${view}`].filter(Boolean).join('; ');
+          const r = await fetch(`${proxy}/__turnout/receipt`, { headers: { cookie }, signal: AbortSignal.timeout(2500) });
+          const body = r.ok ? ((await r.json()) as Record<string, unknown>) : null;
+          return json(res, 200, body ? { visited: true, ...body } : { visited: Boolean(id), error: `The proxy answered ${r.status}.` });
+        } catch (error) {
+          return json(res, 200, { visited: Boolean(id), error: `The proxy didn't answer: ${(error as Error).message}` });
+        }
+      }
+
       if (req.method === 'GET' && url.pathname === '/api/doctor') {
         if (!doctor) return json(res, 404, { error: 'The setup check is not configured for this console.' });
         return json(res, 200, await doctor.get(url.searchParams.get('fresh') === '1')); // ?fresh=1: "Check again"
@@ -601,10 +619,10 @@ const TOKEN_META = '<meta name="turnout-console" content="">';
 // Pages by path; each gets the API token injected.
 const PAGES: Record<string, string> = { '/': 'index.html', '/judge': 'demo.html', '/setup': 'setup.html', '/flagsmith': 'flagsmith.html' };
 
-// The public judge page: the same judge.html, read-only, its assets under /judge/ (Caddy sends only /judge* here, so
+// The public judge page: the same demo.html as /judge, read-only, its assets under /judge/ (Caddy sends only /judge* here, so
 // /style.css and friends stay the app's), and its API calls under /judge/api/ (the page reads turnout-base).
 function servePublicPage(dir: string, res: http.ServerResponse, token: string): void {
-  const html = readFileSync(join(dir, 'judge.html'), 'utf8')
+  const html = readFileSync(join(dir, 'demo.html'), 'utf8')
     .replace(
       TOKEN_META,
       `<meta name="turnout-console" content="${token}"><meta name="turnout-base" content="${PUBLIC_BASE}"><meta name="turnout-readonly" content="1">`,

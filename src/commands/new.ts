@@ -161,6 +161,9 @@ services:
       FLAGSMITH_API_URL: ${api}
       TURNOUT_SERVER_KEY: \${TURNOUT_SERVER_KEY:-} # written by init
       TURNOUT_PREVIEW_TOKEN: \${TURNOUT_PREVIEW_TOKEN:-}
+      # /?__turnout_view=<release> shows one version on its own, never counted (the console's Versions menu).
+      # Set it to 0 before real visitors arrive if they mustn't be able to pick a version.
+      TURNOUT_VIEW_SWITCH: \${TURNOUT_VIEW_SWITCH:-1}
     ports:
       - 127.0.0.1:${port}:8080
     volumes:

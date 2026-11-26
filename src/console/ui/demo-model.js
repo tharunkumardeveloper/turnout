@@ -445,3 +445,44 @@ export function history(ledger, limit = 8) {
       };
     });
 }
+
+/** The versions a test of this kind will show, before it starts: A/A is A and A′, A/B is A and B, and so on. */
+export function plannedVersions(releases, kind) {
+  const list = releases ?? [];
+  const n = Math.min(Math.max(1, kind), list.length);
+  const picked = n === 1 ? [list[0], list[0]] : list.slice(0, n);
+  return picked.map((release, i) => {
+    const letter = n === 1 && i === 1 ? 'A′' : LETTERS[i];
+    return { key: i === 0 ? 'control' : `v${i + 1}`, release, letter, name: `${letter} · ${label(release)}`, role: i === 0 ? 'Now' : 'New', badge: 'Starting…', state: 'testing' };
+  });
+}
+
+/** Server mode's public page: what the autopilot does next, in one line. */
+export function autopilotLine(s, nowMs = Date.now()) {
+  const job = s?.job;
+  if (job?.status === 'running') return `Running by itself: ${(JOB_TITLES[job.action] ?? 'working').toLowerCase()}…`;
+  const ap = s?.autopilot;
+  if (!ap) return 'Read-only: the steps run on the server.';
+  if (ap.phase === 'paused') return 'Paused while someone uses the console on the server; it carries on by itself.';
+  if (ap.phase === 'idle') return 'Waking up: the demo rests while nobody watches, and carries on now.';
+  const next = ap.next;
+  if (!next) return 'Running by itself: starting…';
+  const at = Date.parse(next.at ?? '');
+  const sec = Number.isFinite(at) ? Math.ceil((at - nowMs) / 1000) : 0;
+  const when = sec > 90 ? `in about ${Math.round(sec / 60)} min` : sec > 0 ? `in ${sec} s` : 'any moment';
+  return `Running by itself. Next: ${next.title.toLowerCase()}, ${when}.`;
+}
+
+/** Where this browser lands, from the proxy's receipt: { visited, variant, release, enrolled, viewing, receipt }. */
+export function youText(you, s, live = false) {
+  if (!you) return '';
+  if (you.viewing) return `You're looking at ${label(you.release)} on its own (not counted).`;
+  if (!you.visited && !you.release) return 'You: not in the shop yet. Open it from the Versions menu, or the plain shop link, to get a version.';
+  // Server mode: real visitors are counted in their own live experiment, never in the simulated test on this page.
+  if (live) return `You got ${label(you.release)}${you.enrolled ? ': Flagsmith counts you in the live test for real visitors' : ''}.`;
+  const list = arms(s);
+  const mine = list.find((a) => a.key === you.variant);
+  const running = s?.experiment?.status === 'running';
+  if (mine && you.enrolled && running) return `You got ${mine.name}: Flagsmith counts you in this test.`;
+  return `You got ${label(you.release)}${running ? ', outside the test (not counted)' : ''}.`;
+}

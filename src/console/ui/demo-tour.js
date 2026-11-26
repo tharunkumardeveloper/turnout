@@ -1,64 +1,86 @@
+import { READONLY } from './menu.js';
+
 // A short guided tour of the judge page: each stop highlights one part of the screen and says what it is, with a
 // Next button. Ten stops of a few sentences: under two minutes. It opens by itself on a first visit, and again from
 // the Tour button. Every string goes in through textContent.
 
 const SEEN_KEY = 'turnout-demo-tour-seen';
 
-/** The stops, in order. target: a selector, a list (the first one on screen wins), or null for a centred card. */
+/**
+ * The stops, in order. target: a selector, a list (the first one on screen wins), or null for a centred card.
+ * interactive: the page under the card stays clickable (the test picker). readonly: what server mode's public page
+ * shows instead (false: the stop is skipped there: no buttons, no console, no Flagsmith login on the public page).
+ */
 export const STOPS = [
   {
     target: null,
     title: "Welcome to Turnout's judge mode",
-    text: "Turnout puts every new version of an app into a Flagsmith experiment, without touching the app's code. This page runs a real Flagsmith experiment on a demo shop, with simulated shoppers. Ten stops, under two minutes.",
+    text: "Turnout puts every new version of an app into a Flagsmith experiment, without touching the app's code. This page runs real Flagsmith experiments on a demo shop with simulated shoppers. Ten stops, under two minutes.",
+    readonly: { text: 'Turnout puts every new version of an app into a Flagsmith experiment, without touching its code. This public page runs real Flagsmith experiments on a demo shop by itself, with simulated shoppers. Under two minutes.' },
   },
   {
     target: '#kinds',
-    title: 'Pick the kind of test',
-    text: 'A/B: one new version against the one everyone gets now (A). A/B/C: two new versions at once. A/A: the same version twice, a check that the split is fair. With your own app, two versions make an A/B test, three an A/B/C test, and so on.',
+    interactive: true,
+    title: 'Pick a test: click one now',
+    text: 'A/A puts the same version on both sides: the numbers should match, which proves the split is fair. A/B tests one new version against A; A/B/C tests two at once. Click any of them: it starts straight away.',
+    done: (label) =>
+      label === 'A/A'
+        ? 'A/A started: both sides are A (A and A′, the same shop). Flagsmith should find no difference. Click another kind any time, or Next.'
+        : `${label} started: the versions on the right changed at once, each a different shop. Flagsmith compares each new one with A. Next →`,
+    readonly: { interactive: false, title: 'The kind of test', text: 'A/A: the same version twice, a check that the split is fair. A/B: one new version against A. A/B/C: two at once. On this public page the autopilot picks the test.' },
   },
   {
     target: '#steps-panel',
     title: 'Four steps, one green button',
-    text: 'Start the test, send shoppers, ask Flagsmith, decide. Only the current step has a button. Finished steps keep a one-line result, so the whole story stays on screen.',
+    text: 'Start the test, send shoppers, ask Flagsmith, decide. Only the current step has a button, and finished steps keep a one-line result.',
+    readonly: { title: 'Four steps, run by the autopilot', text: 'Start the test, send shoppers, ask Flagsmith, decide. Here the autopilot runs each step by itself; the line in the current step says what comes next.' },
   },
   {
     target: '#versions-panel',
-    title: 'The versions',
-    text: 'A is what every shopper gets now; B and C are the new ones. Each card shows a live preview, its share of shoppers and, once Flagsmith has counted, how many of them ordered.',
+    title: 'The versions, and you',
+    text: 'A is what everyone gets now; B and C are the new ones. Click a preview to open that version on its own (never counted). The line at the top says which version you got.',
   },
   {
     target: '#results-panel',
     title: 'What Flagsmith measured',
-    text: "Orders is the goal. Page load time and server errors are safety checks: a version that sells more but is slower doesn't ship. Every number and every call is Flagsmith's own; Turnout does no statistics.",
+    text: "Orders is the goal. Page load time and server errors are safety checks: a version that sells more but is slower doesn't ship. Every number and call is Flagsmith's own.",
   },
   {
     target: ['#go', '#steps-panel'],
-    title: 'The one thing to do now',
-    text: 'The green button is always the next step. Ship or roll back is one flag change in Flagsmith, not a deploy, and right after it 50 brand-new shoppers check that everyone really gets the result.',
+    title: 'The decision',
+    text: 'Ship or roll back is one flag change in Flagsmith, not a deploy. Right after it, 50 brand-new shoppers check that everyone really gets the result.',
   },
   {
     target: '#autoplay',
     title: 'Play it for me',
-    text: 'Clicks every green button for you, through one whole test: about a minute.',
+    text: 'Clicks every green button for you through one whole test, in about a minute.',
+    readonly: false,
   },
   {
-    target: '#history-box',
-    title: 'Earlier tests',
-    text: "Every decision so far, newest first, from Turnout's release ledger.",
+    target: '#menu-versions',
+    title: 'Every version of the site',
+    text: 'The Versions menu opens each version on its own, and the plain shop link gives you a version the way a real visitor gets one.',
   },
   {
-    target: '#link-console',
+    target: '#menu a[data-page="console"]',
     title: 'The console, for your own app',
-    text: 'Run turnout compare with your versions: URLs, Docker images or git branches. The console shows real visitors on a live traffic map, Flagsmith\'s results, and Ship winner or Revert. This page is the guided demo of the same engine.',
+    text: "Run turnout compare with your versions: 2 make an A/B test, 3 an A/B/C test. The console shows where you land, live traffic, Flagsmith's results, and Ship or Revert.",
+    readonly: false,
   },
   {
-    target: '#link-flagsmith',
-    title: 'It all lives in Flagsmith',
-    text: "The flag, the experiment, the split and the results are Flagsmith's. Open it to see the same numbers on Flagsmith's own pages. Now press the green button, or Play it for me.",
+    target: '#menu-flagsmith',
+    title: 'Sign in to Flagsmith',
+    text: 'Everything here lives in Flagsmith. This menu has its address, email and password: sign in to see the same flag, experiment and results there. Now press the green button.',
+    readonly: { target: null, title: 'It all lives in Flagsmith', text: "The flag, the split and the results are Flagsmith's. On this public page Flagsmith's dashboard stays private; the numbers you see come straight from its API." },
   },
 ];
 
-let tour = null; // { i, block, ring, tip, keys, resize, back }
+/** The stops for this page: the console's, or server mode's public ones. */
+export const stopsFor = (readonly) =>
+  STOPS.flatMap((s) => (!readonly ? [s] : s.readonly === false ? [] : [{ ...s, ...(s.readonly ?? {}) }]));
+
+const stops = stopsFor(READONLY);
+let tour = null; // { i, block, ring, tip, keys, resize, back, onKind }
 
 function el(tag, cls, text) {
   const node = document.createElement(tag);
@@ -123,9 +145,17 @@ export function startTour(at = 0) {
     }
   };
   const resize = () => tour && place();
+  const onKind = (e) => {
+    const stop = tour && stops[tour.i];
+    if (!stop?.interactive || !stop.done) return;
+    const text = tour.tip.querySelector('.tour-text');
+    if (text) text.textContent = stop.done(e.detail.label);
+    setTimeout(() => tour && place(), 50);
+  };
+  document.addEventListener('turnout:kind', onKind);
   addEventListener('keydown', keys, true);
   addEventListener('resize', resize);
-  tour = { i: 0, block, ring, tip, keys, resize, back: document.activeElement };
+  tour = { i: 0, block, ring, tip, keys, resize, onKind, back: document.activeElement };
   document.body.classList.add('touring');
   show(at);
 }
@@ -134,6 +164,7 @@ export function closeTour() {
   if (!tour) return;
   removeEventListener('keydown', tour.keys, true);
   removeEventListener('resize', tour.resize);
+  document.removeEventListener('turnout:kind', tour.onKind);
   tour.block.remove();
   tour.ring.remove();
   tour.tip.remove();
@@ -146,15 +177,18 @@ export function closeTour() {
 
 function next() {
   if (!tour) return;
-  if (tour.i >= STOPS.length - 1) closeTour();
+  if (tour.i >= stops.length - 1) closeTour();
   else show(tour.i + 1);
 }
 
 function show(i) {
   if (!tour) return;
-  tour.i = Math.max(0, Math.min(STOPS.length - 1, i));
-  const stop = STOPS[tour.i];
-  const last = tour.i === STOPS.length - 1;
+  tour.i = Math.max(0, Math.min(stops.length - 1, i));
+  const stop = stops[tour.i];
+  const last = tour.i === stops.length - 1;
+  // An interactive stop leaves the page clickable (the picker): the dimmed screen no longer catches clicks.
+  tour.block.style.pointerEvents = stop.interactive ? 'none' : '';
+  tour.ring.classList.toggle('tour-ring-live', Boolean(stop.interactive));
   const title = el('h3', 'tour-title', stop.title);
   title.id = 'tour-title';
   const back = el('button', 'btn btn-quiet', 'Back');
@@ -171,7 +205,7 @@ function show(i) {
   go.addEventListener('click', next);
   const row = el('div', 'tour-row');
   row.append(back, skip, go);
-  tour.tip.replaceChildren(el('p', 'tour-count', `${tour.i + 1} of ${STOPS.length}`), title, el('p', 'tour-text', stop.text), row);
+  tour.tip.replaceChildren(el('p', 'tour-count', `${tour.i + 1} of ${stops.length}`), title, el('p', 'tour-text', stop.text), row);
   place();
   go.focus();
 }
@@ -179,7 +213,7 @@ function show(i) {
 // The ring hugs the target (a dimmed screen around it); the card sits below it, else above, else beside it.
 function place() {
   const { ring, tip } = tour;
-  const target = targetOf(STOPS[tour.i]);
+  const target = targetOf(stops[tour.i]);
   const vw = innerWidth;
   const vh = innerHeight;
   const gap = 12;

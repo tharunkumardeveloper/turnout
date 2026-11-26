@@ -1,7 +1,10 @@
-// Turnout's simple judge page: one column, four fixed steps, one green button at a time. Wording and rules live in
+// Turnout's judge page: one screen, four fixed steps, one green button at a time. Wording and rules live in
 // demo-model.js; this file only draws them and runs the button. Every string goes in through textContent.
+// Server mode's public page is the same page, read-only (meta turnout-readonly): the autopilot runs the tests, the
+// API lives under /judge/api/, and nothing private shows (no Flagsmith link or login, no console).
 import * as M from './demo-model.js';
 import { startTour, offerTour } from './demo-tour.js';
+import { READONLY, setupMenu, setVersions, viewLink } from './menu.js';
 
 const STATE_POLL_MS = 4000;
 const JOB_POLL_MS = 800;
@@ -11,7 +14,9 @@ const $ = (id) => /** @type {HTMLElement} */ (document.getElementById(id));
 // The per-boot token the server put in the page. Every /api/* call carries it.
 const TOKEN = document.querySelector('meta[name="turnout-console"]')?.getAttribute('content') ?? '';
 const TOKEN_HEADER = 'x-turnout-console';
-const api = (path, init = {}) => fetch(path, { ...init, headers: { ...(init.headers ?? {}), [TOKEN_HEADER]: TOKEN } });
+const BASE = document.querySelector('meta[name="turnout-base"]')?.getAttribute('content') ?? '';
+const api = (path, init = {}) => fetch(BASE + path, { ...init, headers: { ...(init.headers ?? {}), [TOKEN_HEADER]: TOKEN } });
+if (READONLY) document.body.classList.add('is-readonly');
 
 /** Small element builder; strings become text nodes, never HTML. */
 function h(tag, props = {}, ...children) {
@@ -42,6 +47,8 @@ const storedKind = (() => {
 
 const ui = {
   kind: storedKind, // the kind of test the judge picked: 1 = A/A, 2 = A/B, 3 = A/B/C…; null: the current test's kind
+  pendingKind: null, // a kind just picked: its versions show at once, until the page shows the started test
+  you: null, // where this browser lands (the proxy's receipt)
   state: null,
   job: null, // the job this page is following
   jobTimer: 0,
@@ -108,7 +115,10 @@ function followJob(job) {
 }
 
 async function jobFinished(job) {
-  if (job?.status === 'failed') ui.error = job.error ?? 'That step failed.';
+  if (job?.status === 'failed') {
+    ui.error = job.error ?? 'That step failed.';
+    ui.pendingKind = null;
+  }
   else ui.settle = { sig: ui.before ?? signature(ui.state), until: Date.now() + 8000 };
   ui.before = null;
   await loadState();
@@ -143,6 +153,7 @@ async function run(action, extra = {}) {
   } catch (error) {
     ui.error = error.message;
     ui.before = null;
+    ui.pendingKind = null;
     stopAutoplay();
   }
   ui.sending = false;
@@ -153,7 +164,7 @@ async function run(action, extra = {}) {
 let feed = null;
 function connectFeed() {
   if (feed || document.hidden) return;
-  feed = new EventSource(`/api/traffic?token=${encodeURIComponent(TOKEN)}`); // EventSource can't set headers
+  feed = new EventSource(`${BASE}/api/traffic?token=${encodeURIComponent(TOKEN)}`); // EventSource can't set headers
   feed.onmessage = (m) => {
     try {
       const ev = JSON.parse(m.data);
@@ -204,37 +215,37 @@ function renderKinds(s, kind) {
   const box = $('kinds');
   const options = M.kinds(s.releases);
   const current = s.experiment?.status !== 'completed' ? M.kindOf(s) : null;
-  const key = JSON.stringify([options.map((o) => o.arms), kind, current]);
+  const busy = isBusy();
+  const key = JSON.stringify([options.map((o) => o.arms), kind, current, busy, ui.pendingKind]);
   if (box.dataset.key === key) return;
   box.dataset.key = key;
   box.replaceChildren(
     h('span', { class: 'kinds-label' }, 'Test'),
     ...options.map((o) => h('button', {
-      class: 'kind', type: 'button', title: o.blurb, 'aria-pressed': String(o.arms === kind), 'data-running': o.arms === current ? 'true' : null,
+      class: 'kind', type: 'button',
+      title: READONLY ? `${o.blurb} On this public page the autopilot picks the test.` : `${o.blurb} Click to start it now.`,
+      'aria-pressed': String(o.arms === (ui.pendingKind ?? kind)), 'data-running': o.arms === current ? 'true' : null,
+      disabled: READONLY || busy,
       on: { click: () => pickKind(o.arms) },
     }, o.label)));
 }
 
+const isBusy = () => ui.job?.status === 'running' || ui.state?.job?.status === 'running' || ui.sending || Boolean(ui.settle);
+
+// One click starts the picked kind of test (a running one stops first: everyone back on A). The version tiles switch
+// to the new test at once, before Flagsmith has answered.
 function pickKind(k) {
+  if (READONLY || isBusy()) return;
   ui.kind = k;
   try {
     localStorage.setItem(KIND_KEY, String(k));
   } catch {
     /* remembered for this page only */
   }
-  const s = ui.state;
-  const confirm = $('kinds-confirm');
-  const running = s?.experiment && s.experiment.status !== 'completed' ? M.kindOf(s) : null;
-  if (running !== null && running !== k) {
-    const a = M.startAction(s, 'Start', k);
-    confirm.replaceChildren(
-      h('p', {}, h('strong', {}, `Start ${/^A/.test(M.kindLabel(k)) ? 'an' : 'a'} ${M.kindLabel(k)} test now?`), ` The running ${M.kindLabel(running)} test stops and everyone goes back to A.`),
-      h('div', { class: 'action-row' },
-        h('button', { class: 'btn btn-go', type: 'button', on: { click: () => { confirm.hidden = true; run('start', { arms: a.arms }); } } }, a.label),
-        h('button', { class: 'btn btn-quiet', type: 'button', on: { click: () => { confirm.hidden = true; ui.kind = running; render(); } } }, 'Keep the running test')));
-    confirm.hidden = false;
-  } else confirm.hidden = true;
+  ui.pendingKind = k;
+  document.dispatchEvent(new CustomEvent('turnout:kind', { detail: { kind: k, label: M.kindLabel(k) } }));
   render();
+  run('start', { arms: k });
 }
 
 // ---- drawing ------------------------------------------------------------------------------------------------------
@@ -246,16 +257,16 @@ function render() {
   if (!s) return;
 
   const links = s.links ?? {};
-  $('link-shop').setAttribute('href', links.shop ?? '#');
-  const fs = $('link-flagsmith');
-  fs.hidden = !(links.experiment ?? s.dashboardUrl);
-  fs.setAttribute('href', links.experiment ?? s.dashboardUrl ?? '#');
+  setVersions(links.shop, s.releases);
   const rl = $('results-link');
   rl.hidden = !(links.experiment && s.results);
   rl.setAttribute('href', links.experiment ?? '#');
 
   const kind = chosenKind(s);
   const m = M.model(s, { kind });
+  // A test that was just picked: show its versions now, before Flagsmith confirms it. Cleared once the page shows it.
+  if (ui.pendingKind !== null && !ui.sending && !isBusy() && M.kindOf(s) === ui.pendingKind && s.experiment?.status === 'running') ui.pendingKind = null;
+  if (ui.pendingKind !== null) m.versions = M.plannedVersions(s.releases, ui.pendingKind);
   renderKinds(s, kind);
   if (ui.live.exp !== s.experiment?.id) ui.live = { exp: s.experiment?.id ?? null, counts: {} };
 
@@ -305,10 +316,10 @@ function renderVersions(s, m) {
 function frameFor(s, key, release) {
   const id = `${key}:${release}`;
   if (!ui.frames[id]) {
-    const src = `${(s.links?.shop ?? '').replace(/\/$/, '')}/?__turnout_view=${encodeURIComponent(release)}`;
+    const src = viewLink(s.links?.shop, release);
     const iframe = h('iframe', { src, title: `Preview of ${M.label(release)}`, tabindex: '-1', 'aria-hidden': 'true' });
     iframe.addEventListener('load', fitFrames);
-    ui.frames[id] = h('div', { class: 'version-frame' }, iframe);
+    ui.frames[id] = h('a', { class: 'version-frame', href: viewLink(s.links?.shop, release), target: '_blank', rel: 'noopener', title: `Open ${M.label(release)} on its own (never counted)` }, iframe);
   }
   return ui.frames[id];
 }
@@ -343,6 +354,9 @@ function renderSteps(s, m) {
 
 function actionBox(m) {
   const a = m.action;
+  if (READONLY) {
+    return h('div', { class: 'action' }, h('p', { class: 'action-explain' }, a.explain), h('p', { class: 'autopilot', role: 'status' }, M.autopilotLine(ui.state)));
+  }
   const wait = a.waitUntil ? Math.max(0, Date.parse(a.waitUntil) - Date.now()) : 0;
   const mins = Math.floor(wait / 60000);
   const secs = String(Math.floor((wait % 60000) / 1000)).padStart(2, '0');
@@ -465,6 +479,26 @@ function scheduleAutoplay(m) {
   }, AUTOPLAY_PAUSE_MS);
 }
 
+// ---- you: where this browser lands -------------------------------------------------------------------------------
+// The console asks the proxy with this browser's visitor cookie (/api/you). The public page shares an origin with the
+// shop, so it asks the proxy's receipt directly.
+async function loadYou() {
+  if (!document.hidden) {
+    try {
+      const res = READONLY ? await fetch('/__turnout/receipt', { cache: 'no-store', credentials: 'same-origin' }) : await api('/api/you', { cache: 'no-store' });
+      ui.you = res.ok ? await res.json() : READONLY && res.status === 404 ? { visited: false } : null;
+      if (READONLY && ui.you && !('visited' in ui.you)) ui.you.visited = true;
+    } catch {
+      ui.you = null;
+    }
+    setText($('you'), M.youText(ui.you, ui.state, READONLY));
+  }
+  setTimeout(loadYou, 4000);
+}
+
+setupMenu('judge');
+if (READONLY) $('autoplay').hidden = true;
+void loadYou();
 $('tour-open').addEventListener('click', () => startTour());
 connectFeed();
 loadState().then(() => offerTour());

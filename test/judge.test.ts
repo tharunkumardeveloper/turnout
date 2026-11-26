@@ -266,7 +266,9 @@ const UI = (() => {
   const dir = mkdtempSync(join(tmpdir(), 'sy-judge-ui-'));
   writeFileSync(join(dir, 'index.html'), '<head><meta name="turnout-console" content=""></head><h1>console</h1>');
   writeFileSync(join(dir, 'judge.html'), '<head><meta name="turnout-console" content=""></head><h1>judge</h1>'); // server mode's public page
-  writeFileSync(join(dir, 'demo.html'), '<head><meta name="turnout-console" content=""></head><h1>demo</h1>'); // /judge on the console
+  // /judge on the console, and server mode's public page (read-only)
+  writeFileSync(join(dir, 'demo.html'), '<head><meta name="turnout-console" content=""><script type="module" src="/demo.js"></script></head><h1>demo</h1>');
+  writeFileSync(join(dir, 'demo.js'), 'export {};');
   writeFileSync(join(dir, 'judge.js'), 'export {};');
   writeFileSync(join(dir, 'judge.css'), 'body{}');
   return dir;
@@ -430,7 +432,7 @@ describe('judge mode API', () => {
     assert.match(token, /^[\w-]{32}$/);
     const page = await fetch(`${base}/judge`);
     assert.equal(page.headers.get('content-type'), 'text/html; charset=utf-8');
-    assert.equal(await page.text(), `<head><meta name="turnout-console" content="${token}"></head><h1>demo</h1>`);
+    assert.equal(await page.text(), `<head><meta name="turnout-console" content="${token}"><script type="module" src="/demo.js"></script></head><h1>demo</h1>`);
     assert.equal((await fetch(`${base}/judge.js`)).headers.get('content-type'), 'text/javascript; charset=utf-8');
     assert.equal((await fetch(`${base}/judge.css`)).headers.get('content-type'), 'text/css; charset=utf-8');
     assert.equal((await fetch(`${base}/api/judge/state`)).status, 403, 'the API needs the token');
@@ -1054,9 +1056,9 @@ describe('the public, read-only judge view (server mode)', () => {
     assert.ok(token);
     assert.match(html, /<meta name="turnout-readonly" content="1">/);
     assert.match(html, /<meta name="turnout-base" content="\/judge">/);
-    assert.match(html, /src="\/judge\/judge\.js"/);
+    assert.match(html, /src="\/judge\/demo\.js"/, 'the same page as /judge, its assets under /judge/');
     assert.doesNotMatch(html, /(href|src)="\/[a-z-]+\.(css|js|svg)"/, 'no asset left at the root, where the app lives');
-    assert.equal((await fetch(`${pub}/judge/judge.js`)).status, 200);
+    assert.equal((await fetch(`${pub}/judge/demo.js`)).status, 200);
     assert.equal((await fetch(`${pub}/judge/style.css`)).status, 200);
   });
 

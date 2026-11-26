@@ -3,6 +3,7 @@
 // from the server goes in through textContent.
 import * as F from './format.js';
 import { TrafficMap } from './map.js';
+import { setupMenu, setVersions, viewLink } from './menu.js';
 
 const POLL_MS = 5000;
 const $ = (id) => /** @type {HTMLElement} */ (document.getElementById(id));
@@ -265,7 +266,7 @@ function renderSuggestions(s) {
 // ---- new comparison: the form writes the command -------------------------------------------------------------------
 function setupNewForm() {
   const out = () => {
-    const r = F.compareCommand({ a: $('new-a').value, b: $('new-b').value, goal: $('new-goal').value, split: $('new-split').value });
+    const r = F.compareCommand({ a: $('new-a').value, b: $('new-b').value, more: $('new-more').value, goal: $('new-goal').value, split: $('new-split').value });
     $('new-error').hidden = !r.error || (!$('new-a').value && !$('new-b').value);
     $('new-error').textContent = r.error ?? '';
     $('new-command').textContent = r.command ?? 'turnout compare <current> <new>';
@@ -418,9 +419,8 @@ function renderResults(s) {
   $('winner-headline').textContent = w.headline;
   $('winner-detail').textContent = w.detail;
 
-  const cards = (e.metrics ?? []).map((m, i) => metricCard(F.assessMetric(e, m, res, i)));
-  if (!cards.length) cards.push(h('p', { class: 'empty' }, 'This experiment has no metrics.'));
-  $('metrics').replaceChildren(...cards);
+  const assessed = (e.metrics ?? []).map((m, i) => F.assessMetric(e, m, res, i));
+  $('metrics').replaceChildren(assessed.length ? metricsTable(assessed) : h('p', { class: 'empty' }, 'This experiment has no metrics.'));
 
   $('srm').textContent = F.srmText(res);
   $('events').textContent = F.eventsText(s.events);
@@ -433,83 +433,42 @@ function renderResults(s) {
   }
 }
 
-function metricCard(m) {
-  const head = h(
-    'div',
-    { class: 'metric-head' },
-    h('h3', { class: 'metric-name' }, m.name),
-    h('span', { class: `role role-${m.role}` }, m.role === 'goal' ? 'Goal' : m.role === 'secondary' ? 'Secondary' : 'Guardrail'),
-    h('span', { class: 'metric-meta' }, `${m.aggregation} · ${m.direction}`),
-  );
-
-  const hasData = m.rows.some((r) => r.n != null);
-  const table = !hasData
-    ? null
-    : h(
-    'table',
-    { class: 'values' },
-    h('caption', { class: 'sr-only' }, `${m.name} per release`),
-    h('thead', {}, h('tr', {}, h('th', { scope: 'col' }, 'Release'), h('th', { scope: 'col' }, 'Value'), h('th', { scope: 'col' }, 'n'))),
-    h(
-      'tbody',
-      {},
-      m.rows.map((r) =>
-        h(
-          'tr',
-          { vars: { '--c': r.color } },
-          h('th', { scope: 'row' }, h('span', { class: 'swatch', 'aria-hidden': 'true' }), h('span', { class: 'v-label' }, r.label), ' ', h('span', { class: 'v-key' }, r.key)),
-          h('td', { class: 'num' }, r.display),
-          h('td', { class: 'num muted' }, r.n == null ? '—' : F.formatInt(r.n)),
-        ),
-      ),
-    ),
-  );
-
-  const body = [];
-  if (m.state === 'no-events') body.push(h('p', { class: 'metric-note good' }, m.note));
-  else if (m.state === 'collecting') body.push(h('p', { class: 'metric-note' }, h('span', { class: 'spinner', 'aria-hidden': 'true' }), 'Collecting data'));
-  else {
-    for (const t of m.treatments) body.push(inferenceBlock(t, m.treatments.length > 1));
-  }
-
-  return h('article', { class: `metric metric-${m.role}`, 'data-state': m.state, 'aria-label': `${m.role === 'goal' ? 'Goal' : m.role === 'secondary' ? 'Secondary' : 'Guardrail'} metric ${m.name}` }, head, table, ...body);
-}
-
-function inferenceBlock(t, many) {
-  if (t.collecting) {
-    return h('div', { class: 'inference', vars: { '--c': t.color } }, h('p', { class: 'metric-note' }, `${t.key} vs control: collecting data`));
-  }
-  const pct = Math.max(0, Math.min(100, t.chance * 100));
-  const chance = F.formatChance(t.chance);
+// Flagsmith's results in one table: a row per metric, a column per release. Each treatment's cell carries Flagsmith's
+// word on it (winning / losing / inconclusive) and its chance to win against control, exactly as returned.
+const ROLE_NAME = { goal: 'Goal', secondary: 'Secondary', guardrail: 'Guardrail' };
+function metricsTable(metrics) {
+  const hasData = (key) => metrics.some((m) => m.rows.some((r) => r.key === key && r.n != null));
+  const any = metrics[0].rows.some((r) => r.key !== 'control' && hasData(r.key));
+  const columns = metrics[0].rows.filter((r) => r.key === 'control' || !any || hasData(r.key));
+  metrics = metrics.map((m) => ({ ...m, rows: m.rows.filter((r) => columns.some((c) => c.key === r.key)) }));
   return h(
-    'div',
-    { class: 'inference', vars: { '--c': t.color } },
-    h(
-      'div',
-      { class: 'inference-top' },
-      h('span', { class: 'vs' }, many ? `${t.key} (${t.label}) vs control` : `${t.key} vs control`),
-      h('span', { class: 'verdict', 'data-tone': t.verdict.tone }, t.verdict.word),
-    ),
-    h(
-      'div',
-      { class: 'chance' },
-      h(
-        'div',
-        { class: 'chance-bar', role: 'img', 'aria-label': `${chance} chance to win; Flagsmith's thresholds are 5% and 95%` },
-        h('span', { class: 'chance-fill', vars: { '--w': `${pct}%` } }),
-        h('span', { class: 'tick tick-lo', 'aria-hidden': 'true' }),
-        h('span', { class: 'tick tick-hi', 'aria-hidden': 'true' }),
-      ),
-      h('span', { class: 'chance-value' }, chance),
-      h('span', { class: 'chance-label' }, 'chance to win'),
-    ),
-    h(
-      'p',
-      { class: 'lift' },
-      'Lift ',
-      h('strong', {}, F.formatLift(t.lift)),
-      h('span', { class: 'ci' }, ` · credible interval ${F.formatInterval(t.ciLow, t.ciHigh)}`),
-    ),
+    'table',
+    { class: 'mx' },
+    h('caption', { class: 'sr-only' }, "Flagsmith's results per metric and release"),
+    h('thead', {}, h('tr', {},
+      h('th', { scope: 'col' }, 'Metric'),
+      columns.map((c) => h('th', { scope: 'col', vars: { '--c': c.color } }, h('span', { class: 'swatch', 'aria-hidden': 'true' }), h('span', { class: 'v-label' }, c.label), ' ', h('span', { class: 'v-key' }, c.key))))),
+    h('tbody', {}, metrics.map((m) => h('tr', { 'data-role': m.role, 'data-state': m.state },
+      h('th', { scope: 'row' }, h('span', { class: 'mx-name' }, m.name), h('span', { class: 'mx-meta' }, h('span', { class: `mx-role mx-role-${m.role}` }, ROLE_NAME[m.role] ?? m.role), ` · ${m.direction}`)),
+      m.rows.map((r) => {
+        const t = m.treatments.find((x) => x.key === r.key);
+        const call = !t || m.state !== 'ready'
+          ? null
+          : t.collecting
+            ? h('span', { class: 'mx-call' }, 'collecting')
+            : h('span', { class: 'mx-call', 'data-tone': t.verdict.tone, title: `Lift ${F.formatLift(t.lift)} · credible interval ${F.formatInterval(t.ciLow, t.ciHigh)}` }, `${t.verdict.word} · ${F.formatChance(t.chance)}`);
+        return h('td', { 'data-tone': t && !t.collecting && m.state === 'ready' ? t.verdict.tone : null },
+          h('span', { class: 'mx-value' }, r.n == null ? '—' : r.display),
+          r.n == null ? null : h('span', { class: 'mx-n' }, ` n ${F.formatInt(r.n)}`),
+          call);
+      }),
+    ))),
+    metrics.some((m) => m.state !== 'ready')
+      ? h('tfoot', {}, h('tr', {}, h('td', { colSpan: columns.length + 1 },
+          metrics.every((m) => m.state === 'collecting')
+            ? "Collecting data: Flagsmith shows numbers once enough visitors have come through (at least 50 per release)."
+            : metrics.filter((m) => m.state !== 'ready').map((m) => `${m.name}: ${m.note || m.state}`).join(' · '))))
+      : null,
   );
 }
 
@@ -1054,7 +1013,83 @@ function renderSnapshots(s) {
   list.replaceChildren(...items);
 }
 
+// ---- you: where this browser lands in the experiment ------------------------------------------------------------
+// The console asks the proxy with this browser's visitor cookie (/api/you); the proxy answers as it routes pages,
+// without counting anything. Polled every few seconds while the page is visible.
+const YOU_POLL_MS = 4000;
+const LETTERS = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
+const RECEIPT_WORDS = {
+  accepted: 'Flagsmith accepted it',
+  rejected: 'Flagsmith rejected it',
+  batch_rejected: 'Flagsmith rejected its batch',
+  store_not_connected: "Flagsmith's event store isn't connected",
+  not_delivered: "it didn't reach Flagsmith",
+};
+async function loadYou() {
+  if (!document.hidden) {
+    try {
+      const res = await api('/api/you', { cache: 'no-store' });
+      app.you = res.ok ? await res.json() : null;
+    } catch {
+      app.you = null;
+    }
+    renderYou();
+  }
+  setTimeout(loadYou, YOU_POLL_MS);
+}
+function renderYou() {
+  const box = $('you');
+  const y = app.you;
+  const e = app.state?.experiment;
+  const variants = e ? F.variantList(e) : [];
+  const site = app.state?.site;
+  setVersions(site?.url, variants.map((v) => v.label));
+  // Every version in the experiment, each openable on its own through the proxy's view switch (never counted).
+  const list = $('site-version-list');
+  const vkey = JSON.stringify([site?.url, variants.map((v) => [v.key, v.label])]);
+  if (list.dataset.key !== vkey) {
+    list.dataset.key = vkey;
+    $('site-versions').hidden = !site?.url || site.simulated || !variants.length;
+    list.replaceChildren(...variants.map((v, n) => h('li', {},
+      h('span', { class: 'you-chip', vars: { '--c': v.color } }, LETTERS[n] ?? '?'),
+      h('a', { href: viewLink(site?.url, v.label), target: '_blank', rel: 'noopener', title: `Open ${v.label} on its own` }, `${v.label} ↗`),
+      h('span', { class: 'v-key' }, v.isControl ? 'control' : v.key))));
+  }
+  const key = JSON.stringify([y, e?.id, e?.status]);
+  if (box.dataset.key === key) return;
+  box.dataset.key = key;
+  if (!y) return box.replaceChildren(h('p', { class: 'you-line' }, "Can't tell where you land right now."));
+  if (!y.visited) {
+    return box.replaceChildren(
+      h('p', { class: 'you-line' }, h('strong', {}, 'You: not visited yet. '), 'Open your site from this browser: Turnout gives you a version, and this card says which.'),
+    );
+  }
+  if (y.viewing) {
+    return box.replaceChildren(
+      h('p', { class: 'you-line' }, h('strong', {}, `You're looking at ${y.release}`), ' on its own (Versions menu): not counted as a visitor.'),
+      h('a', { class: 'you-link', href: `${String(site?.url ?? '').replace(/\/$/, '')}/__turnout/view/off`, target: '_blank', rel: 'noopener' }, 'Back to the version Flagsmith gives you ↗'),
+    );
+  }
+  const i = variants.findIndex((v) => v.key === y.variant);
+  const letter = i >= 0 ? LETTERS[i] : null;
+  const where = y.enrolled && e?.status === 'running'
+    ? `in experiment ${e.id} as ${y.variant}${letter ? ` (${letter})` : ''}: Flagsmith counts your visits and orders there.`
+    : e?.status === 'running'
+      ? 'outside the experiment: everyone outside it gets this version, and Flagsmith doesn\'t count you.'
+      : 'from the flag: no experiment is running, so everyone gets this version.';
+  const lines = [
+    h('p', { class: 'you-line' }, h('span', { class: 'you-chip', vars: { '--c': variants[i]?.color ?? 'var(--muted)' } }, letter ?? '•'), h('strong', {}, `You got ${y.release ?? 'no version'}`), ` ${where}`),
+  ];
+  if (y.receipt) {
+    lines.push(h('p', { class: 'you-sub' }, `Your last event: ${y.receipt.event}; ${RECEIPT_WORDS[y.receipt.status] ?? y.receipt.status}.`));
+  }
+  if (y.error) lines.push(h('p', { class: 'you-sub' }, y.error));
+  box.replaceChildren(...lines);
+}
+
 // ---- start ---------------------------------------------------------------------------------------------------
+setupMenu('console');
+void loadYou();
 
 setInterval(renderConnection, 1000);
 refreshNow();

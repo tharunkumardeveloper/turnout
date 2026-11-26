@@ -249,6 +249,32 @@ describe('demo-model.js: what the simple judge page says', () => {
   });
 });
 
+describe('demo-model.js: the picker, you, and the autopilot', () => {
+  test('a picked kind shows its versions at once, before Flagsmith confirms the test', () => {
+    const rel = ['shop:1.4', 'shop:1.5', 'shop:1.6'];
+    assert.deepEqual(M.plannedVersions(rel, 1).map((v: any) => v.name), ['A · 1.4 Classic', 'A′ · 1.4 Classic']);
+    assert.deepEqual(M.plannedVersions(rel, 2).map((v: any) => v.name), ['A · 1.4 Classic', 'B · 1.5 Express']);
+    assert.deepEqual(M.plannedVersions(rel, 3).map((v: any) => [v.key, v.badge]), [['control', 'Starting…'], ['v2', 'Starting…'], ['v3', 'Starting…']]);
+  });
+
+  test('where you land, in one line', () => {
+    const s = base();
+    assert.equal(M.youText(null, s), '');
+    assert.match(M.youText({ visited: false }, s), /not in the shop yet/);
+    assert.equal(M.youText({ visited: true, variant: 'v3', release: 'shop:1.6', enrolled: true }, s), 'You got C · 1.6 Bold: Flagsmith counts you in this test.');
+    assert.equal(M.youText({ visited: true, variant: 'control', release: 'shop:1.4', enrolled: false }, s), 'You got 1.4 Classic, outside the test (not counted).');
+    assert.equal(M.youText({ viewing: true, release: 'shop:1.5' }, s), "You're looking at 1.5 Express on its own (not counted).");
+    assert.equal(M.youText({ visited: true, variant: 'v2', release: 'shop:1.5', enrolled: true }, s, true), 'You got 1.5 Express: Flagsmith counts you in the live test for real visitors.');
+  });
+
+  test("server mode: the autopilot's next step in place of a button", () => {
+    const now = Date.parse('2026-11-24T10:00:00Z');
+    assert.equal(M.autopilotLine({ autopilot: { phase: 'waiting', next: { title: 'Send simulated visitors', at: '2026-11-24T10:00:05Z' } } }, now), 'Running by itself. Next: send simulated visitors, in 5 s.');
+    assert.match(M.autopilotLine({ job: { status: 'running', action: 'score' } }), /^Running by itself: flagsmith is computing the results…$/);
+    assert.match(M.autopilotLine({ autopilot: { phase: 'paused' } }), /Paused while someone uses the console/);
+  });
+});
+
 const TOUR: any = await import(pathToFileURL(join(UI, 'demo-tour.js')).href);
 
 describe('demo-tour.js: the two-minute tour', () => {
@@ -261,10 +287,34 @@ describe('demo-tour.js: the two-minute tour', () => {
     assert.ok(seconds < 120, `about ${Math.round(seconds)} s`);
     for (const s of TOUR.STOPS) {
       for (const sel of [s.target].flat().filter(Boolean)) {
-        assert.ok(sel === '#go' || html.includes(`id="${sel.slice(1)}"`), `the tour points at ${sel}, which demo.html lacks`);
+        const id = sel.match(/^#([\w-]+)/)![1];
+        const attr = sel.match(/\[([\w-]+="[^"]+")\]/)?.[1];
+        assert.ok(id === 'go' || html.includes(`id="${id}"`), `the tour points at ${sel}, which demo.html lacks`);
+        if (attr) assert.ok(html.includes(attr), `the tour points at ${sel}, which demo.html lacks`);
       }
     }
-    assert.match(TOUR.STOPS.map((s: any) => s.title).join(' | '), /kind of test.*console, for your own app.*Flagsmith/i);
+    assert.match(TOUR.STOPS.map((s: any) => s.title).join(' | '), /Pick a test.*versions.*console, for your own app.*Sign in to Flagsmith/i);
+  });
+
+  test('the picker stop: click a test right there, and the card says what started', () => {
+    const pick = TOUR.STOPS.find((s: any) => s.target === '#kinds');
+    assert.equal(pick.interactive, true);
+    assert.match(pick.text, /Click any of them: it starts straight away/);
+    assert.match(pick.done('A/A'), /both sides are A \(A and A′, the same shop\)\. Flagsmith should find no difference/);
+    assert.match(pick.done('A/B/C'), /^A\/B\/C started: the versions on the right changed at once/);
+    const tour = read('demo-tour.js');
+    assert.match(tour, /tour\.block\.style\.pointerEvents = stop\.interactive \? 'none' : '';/);
+    assert.match(tour, /document\.addEventListener\('turnout:kind', onKind\)/);
+    assert.match(js, /new CustomEvent\('turnout:kind'/);
+  });
+
+  test('server mode: no button, console or Flagsmith-login stops; the picker stop only explains', () => {
+    const pub = TOUR.stopsFor(true);
+    assert.equal(pub.length, 8);
+    assert.ok(!pub.some((s: any) => s.target === '#autoplay' || s.target === '#menu-flagsmith' || String(s.target).includes('console')));
+    assert.equal(pub.find((s: any) => s.target === '#kinds').interactive, false);
+    assert.match(pub.at(-1).text, /Flagsmith's dashboard stays private/);
+    assert.equal(TOUR.stopsFor(false).length, 10);
   });
 
   test('opens by itself once, from the Tour button any time; keys: → / Enter next, ← back, Esc closes', () => {
@@ -305,7 +355,7 @@ describe('demo.html and demo.js', () => {
     assert.match(js, /\[TOKEN_HEADER\]: TOKEN/);
     assert.match(js, /method: 'POST', headers: \{ 'content-type': 'application\/json' \}/);
     assert.match(js, /experimentId: s\.experiment\.id/);
-    assert.match(js, /new EventSource\(`\/api\/traffic\?token=\$\{encodeURIComponent\(TOKEN\)\}`\)/);
+    assert.match(js, /new EventSource\(`\$\{BASE\}\/api\/traffic\?token=\$\{encodeURIComponent\(TOKEN\)\}`\)/);
   });
 
   test('a click can only be sent once, and the buttons wait for the state to show a finished job', () => {

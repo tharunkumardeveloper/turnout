@@ -5,7 +5,7 @@
 const NS = 'http://www.w3.org/2000/svg';
 const WIDE = { W: 960, ENTRY_X: 36, SWITCH_X: 330, CURVE_END_X: 480, TRACK_END_X: 694, STATION_X: 696, STATION_W: 256, STATION_H: 88, ROW: 100, MIN_H: 270, PAD: 62 };
 const COMPACT = { W: 480, ENTRY_X: 14, SWITCH_X: 150, CURVE_END_X: 250, TRACK_END_X: 300, STATION_X: 302, STATION_W: 170, STATION_H: 72, ROW: 96, MIN_H: 230, PAD: 56 };
-const COMPACT_BELOW_PX = 700;
+const COMPACT_BELOW_PX = 520; // the console's middle column on a laptop (about 560 px) keeps the full junction
 const DURATION_MS = 2100;
 const MAX_DOTS = 90;
 const SAMPLE_POINTS = 160;

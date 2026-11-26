@@ -8,6 +8,7 @@
   <title>Turnout demo</title>
   <link rel="icon" href="/favicon.svg" type="image/svg+xml">
   <link rel="stylesheet" href="/demo.css">
+  <link rel="stylesheet" href="/menu.css">
   <script type="module" src="/demo.js"></script>
   <link rel="modulepreload" href="/demo-tour.js">
 </head>
@@ -20,11 +21,15 @@
       </svg>
       Turnout
     </a>
-    <p class="tagline">Every release becomes a Flagsmith experiment. The shop has no Flagsmith code.</p>
-    <div class="kinds-wrap">
-      <div class="kinds" id="kinds" role="group" aria-label="Kind of test"></div>
-      <div class="kinds-confirm" id="kinds-confirm" role="dialog" aria-live="polite" hidden></div>
-    </div>
+    <nav class="menu" id="menu" aria-label="Turnout">
+      <a href="/judge" data-page="judge">Judge mode</a>
+      <a href="/" data-page="console" data-private>Console</a>
+      <a href="/setup" data-private>Setup check</a>
+      <a href="/flagsmith" data-private>What we use</a>
+      <details class="menu-drop" id="menu-versions"><summary>Versions</summary><div class="menu-panel" id="versions-list"><p class="menu-note">Loading…</p></div></details>
+      <details class="menu-drop" id="menu-flagsmith" data-private><summary>Flagsmith</summary><div class="menu-panel" id="flagsmith-panel"><p class="menu-note">Loading…</p></div></details>
+    </nav>
+    <div class="kinds" id="kinds" role="group" aria-label="Kind of test"></div>
     <div class="top-actions">
       <button class="btn btn-ghost" id="tour-open" type="button">Tour</button>
       <button class="btn btn-ghost" id="autoplay" type="button" aria-pressed="false">▶ Play it for me</button>
@@ -32,11 +37,6 @@
         <summary>Earlier tests <span id="history-count"></span></summary>
         <ul class="history-list" id="history"></ul>
       </details>
-      <nav class="top-links" aria-label="Other views">
-        <a id="link-shop" href="#" target="_blank" rel="noopener">Shop ↗</a>
-        <a id="link-flagsmith" href="#" target="_blank" rel="noopener">Flagsmith ↗</a>
-        <a id="link-console" href="/">Full console</a>
-      </nav>
     </div>
   </header>
 
@@ -50,7 +50,7 @@
     </section>
 
     <section class="panel versions-panel" id="versions-panel" aria-labelledby="versions-title">
-      <h2 class="eyebrow" id="versions-title">The versions <span class="card-meta">A is what everyone gets now</span></h2>
+      <h2 class="eyebrow" id="versions-title">The versions <span class="card-meta">A is live · click a preview to open it</span><span class="you-line" id="you"></span></h2>
       <div class="versions" id="versions"></div>
     </section>
 
@@ -60,6 +60,6 @@
     </section>
   </main>
 
-  <footer class="foot">Flagsmith decides; Turnout does no statistics of its own. Every shopper here is simulated. <a href="/setup">Setup check</a> · <a href="/flagsmith">What Turnout uses in Flagsmith</a></footer>
+  <footer class="foot">Flagsmith decides; Turnout does no statistics of its own. Every shopper here is simulated. <span data-private><a href="/setup">Setup check</a> · <a href="/flagsmith">What Turnout uses in Flagsmith</a></span></footer>
 </body>
 </html>

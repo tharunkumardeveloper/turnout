@@ -35,19 +35,19 @@ describe('console UI files', () => {
   });
 
   test('index.html has the landmarks and regions the console needs', () => {
-    for (const tag of ['<header', '<main', '<footer', '<dialog']) assert.ok(html.includes(tag), tag);
+    for (const tag of ['<header', '<main', '<nav', '<dialog']) assert.ok(html.includes(tag), tag);
     const ids = [
       'experiment-header', 'exp-name', 'exp-status', 'exp-hypothesis', 'exp-started', 'flag-name', 'flag-routing',
       'traffic', 'map', 'sampling', 'merged-badge',
       'results', 'results-asof', 'refresh-btn', 'refresh-status', 'winner', 'metrics', 'srm', 'events',
       'actions', 'ship-form', 'ship-choices', 'ship-btn', 'revert-btn', 'action-status',
-      'snapshots', 'snapshot-list', 'confirm-dialog', 'dialog-title', 'dialog-body', 'dialog-result', 'dialog-confirm', 'dialog-cancel',
+      'history-drop', 'snapshot-list', 'siding-list', 'confirm-dialog', 'dialog-title', 'dialog-body', 'dialog-result', 'dialog-confirm', 'dialog-cancel',
     ];
     for (const id of ids) assert.ok(html.includes(`id="${id}"`), `missing #${id}`);
     for (const id of ['action-status', 'refresh-status', 'dialog-result']) {
       assert.match(html, new RegExp(`id="${id}"[^>]*aria-live="polite"`), `#${id} should announce results`);
     }
-    assert.ok(html.includes("Flagsmith decides; Turnout never computes its own statistics. Every action is visible in Flagsmith's audit log."));
+    assert.ok(html.includes("As Flagsmith's results API returns them; Turnout never computes its own statistics."));
   });
 
   test('every element app.js looks up by id exists in index.html', () => {
@@ -111,8 +111,25 @@ describe('console UI files', () => {
     assert.match(read('app.js'), /prefers-reduced-motion: reduce/);
   });
 
-  test('the header links to judge mode', () => {
-    assert.match(html, /<a class="btn btn-small judge-link" href="\/judge">Judge mode<\/a>/);
+  test('the menu: judge mode, the console, setup, the feature map, every version, and the Flagsmith login', () => {
+    assert.match(html, /<link rel="stylesheet" href="\/menu\.css">/);
+    assert.match(html, /<a href="\/judge" data-page="judge">Judge mode<\/a>/);
+    assert.match(html, /<a href="\/" data-page="console" data-private>Console<\/a>/);
+    for (const id of ['menu', 'menu-versions', 'versions-list', 'menu-flagsmith', 'flagsmith-panel']) assert.ok(html.includes(`id="${id}"`), id);
+    assert.match(read('app.js'), /setupMenu\('console'\)/);
+  });
+
+  test('one screen, no page scroll: three columns, history in a drop-down', () => {
+    assert.match(html, /<body class="console-screen">/);
+    assert.match(read('style.css'), /body\.console-screen \{ height: 100vh; overflow: hidden;/);
+    assert.match(read('style.css'), /grid-template-areas: "site map results" "site decide results";/);
+    assert.match(html, /<details class="history-drop" id="history-drop">/);
+  });
+
+  test('where you land: /api/you, polled, and each version openable on its own', () => {
+    assert.match(read('app.js'), /api\('\/api\/you'/);
+    assert.ok(html.includes('id="you"') && html.includes('id="site-version-list"'));
+    assert.match(read('app.js'), /viewLink\(site\?\.url, v\.label\)/);
   });
 
   test('phones: 44 px touch targets, dialogs that fit, a compact traffic map', () => {
@@ -420,10 +437,9 @@ describe('demo controls: send visitors, swing back and forward', () => {
     for (const id of ['demo', 'visitors-form', 'visitors-count', 'visitors-btn', 'visitors-note', 'swing-back-btn', 'swing-forward-btn', 'swing-note', 'demo-progress', 'demo-status']) {
       assert.ok(html.includes(`id="${id}"`), `missing #${id}`);
     }
-    assert.match(html, /<section class="card demo-card" id="demo" aria-labelledby="demo-title" hidden>/);
-    assert.match(html, /id="visitors-count"[^>]*type="number" min="50" max="3000"/);
+    assert.match(html, /<div class="demo-card" id="demo" hidden>/);
+    assert.match(html, /id="visitors-count"[^>]*type="number" min="50" max="5000"/);
     assert.match(html, /id="demo-status"[^>]*aria-live="polite"/);
-    assert.match(read('style.css'), /"demo results"/);
   });
 
   test("app.js runs the console's judge jobs and follows them on GET /api/judge/job", () => {
@@ -504,10 +520,14 @@ test('new comparison: the exact turnout compare command, quoted, or what is miss
   assert.deepEqual(F.compareCommand({ a: 'localhost:3001', b: 'localhost:3002' }), { command: 'turnout compare localhost:3001 localhost:3002' });
   assert.deepEqual(F.compareCommand({ a: 'main', b: 'new-checkout', goal: 'post /signup 303', split: 10 }), { command: 'turnout compare main new-checkout --goal "post /signup 303" --split 10' });
   assert.deepEqual(F.compareCommand({ a: 'myapp:1.0', b: 'myapp:1.1', goal: 'header signup' }), { command: 'turnout compare myapp:1.0 myapp:1.1 --goal "header signup"' });
-  assert.match(F.compareCommand({ a: 'x', b: '' }).error, /both versions/);
+  assert.match(F.compareCommand({ a: 'x', b: '' }).error, /at least two versions/);
   assert.match(F.compareCommand({ a: 'x', b: 'x' }).error, /the same/);
+  // Three versions: an A/B/C test, each new one an even share unless a split is given.
+  assert.deepEqual(F.compareCommand({ a: 'a:1', b: 'a:2', more: 'a:3' }), { command: 'turnout compare a:1 a:2 a:3' });
+  assert.deepEqual(F.compareCommand({ a: 'a:1', b: 'a:2', more: ' a:3 ', split: '25' }), { command: 'turnout compare a:1 a:2 a:3 --split 25' });
+  assert.match(F.compareCommand({ a: 'a:1', b: 'a:2', more: 'a:3 a:4', split: '50' }).error, /4 versions, each new one can get 1 to 25%/);
   assert.match(F.compareCommand({ a: 'x', b: 'y; rm -rf /' }).error, /space/);
   assert.match(F.compareCommand({ a: 'x', b: 'y', goal: 'signup' }).error, /POST \/signup/);
-  assert.match(F.compareCommand({ a: 'x', b: 'y', split: 70 }).error, /1 to 50/);
+  assert.match(F.compareCommand({ a: 'x', b: 'y', split: 70 }).error, /1 to 50%/);
   assert.equal(F.compareCommand({ a: 'feature/x"$', b: 'y' }).command, 'turnout compare "feature/x\\"\\$" y');
 });

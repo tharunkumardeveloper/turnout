@@ -20,7 +20,9 @@ export function variantList(experiment) {
   // Control serves what the rollout says, not the flag's first value: each release moves control on. A later
   // preview re-points the v2 option at the next release, so the experiment's own name ("flag: v2 vs control") wins.
   const named = String(experiment.name ?? '').match(/: (.+) vs (.+)$/);
-  const options = (feature.multivariate_options ?? []).filter((o) => o?.key);
+  // v2, v3… in key order (an option created later can have a lower id): v2 is always B, v3 always C.
+  const num = (k) => Number(/^v(\d+)$/.exec(k)?.[1] ?? 999);
+  const options = (feature.multivariate_options ?? []).filter((o) => o?.key).sort((x, y) => num(x.key) - num(y.key));
   const controlLabel = experiment.experiment_rollout?.feature_state_value?.value || named?.[2] || feature.initial_value || CONTROL;
   const list = [{ key: CONTROL, label: controlLabel, id: null, isControl: true }];
   for (const o of options) {
@@ -567,20 +569,25 @@ export function goalFlag(key, codes = {}) {
 const SAFE_ARG = /^[A-Za-z0-9._:/@%+=,-]+$/;
 const shellArg = (s) => (SAFE_ARG.test(s) ? s : `"${String(s).replace(/(["\\$`])/g, '\\$1')}"`);
 /** `turnout compare <a> <b> [--goal "…"] [--split n]`, or { error } when something's missing. */
-export function compareCommand({ a, b, goal = '', split = 50 }) {
+export function compareCommand({ a, b, more = '', goal = '', split = 'even' }) {
   const live = String(a ?? '').trim();
   const next = String(b ?? '').trim();
-  if (!live || !next) return { error: 'Give both versions: two addresses, two images or two branches.' };
-  if (live === next) return { error: 'The two versions are the same.' };
+  if (!live || !next) return { error: 'Give at least two versions: addresses, images or branches.' };
   if (/\s/.test(live) || /\s/.test(next)) return { error: 'A version has a space in it: give an address, an image name or a branch name.' };
+  // Two versions make an A/B test, three an A/B/C test, and so on.
+  const versions = [live, next, ...String(more ?? '').trim().split(/\s+/).filter(Boolean)];
+  if (new Set(versions).size !== versions.length) return { error: 'Two of the versions are the same.' };
+  if (versions.length > 26) return { error: 'At most 26 versions (A to Z).' };
   const g = String(goal ?? '').trim();
   if (g && !/^(GET|POST|PUT|PATCH|DELETE)\s+\/\S*(\s+[1-5](xx|\d\d))?$/i.test(g) && !/^header\s+\S+$/i.test(g)) {
     return { error: 'A goal looks like "POST /signup" (optionally with a status, e.g. "POST /signup 303"), or leave it empty.' };
   }
-  const n = Math.round(Number(split));
-  if (!(n >= 1 && n <= 50)) return { error: 'The split is a share of visitors from 1 to 50%.' };
-  const parts = ['turnout', 'compare', shellArg(live), shellArg(next)];
+  const max = Math.floor(100 / versions.length);
+  const even = split === 'even' || split === '' || split == null;
+  const n = even ? max : Math.round(Number(split));
+  if (!(n >= 1 && n <= max)) return { error: `With ${versions.length} versions, each new one can get 1 to ${max}% of visitors.` };
+  const parts = ['turnout', 'compare', ...versions.map(shellArg)];
   if (g) parts.push('--goal', `"${g.replace(/\s+/g, ' ')}"`);
-  if (n !== 50) parts.push('--split', String(n));
+  if (!even && n !== max) parts.push('--split', String(n));
   return { command: parts.join(' ') };
 }

@@ -8,81 +8,148 @@
   <title>Turnout console</title>
   <link rel="icon" href="/favicon.svg" type="image/svg+xml">
   <link rel="stylesheet" href="/style.css">
+  <link rel="stylesheet" href="/menu.css">
   <script type="module" src="/app.js"></script>
   <script type="module" src="/guard.js"></script>
 </head>
-<body>
+<body class="console-screen">
   <a class="skip-link" href="#main">Skip to the console</a>
 
-  <header class="topbar" id="experiment-header">
-    <div class="brand">
+  <!-- One desktop screen, no scrolling: the menu, one line about the experiment, then three columns:
+       your site and the decision | the live traffic map | Flagsmith's results. Past experiments sit under History. -->
+  <header class="cbar">
+    <a class="brand" href="/" aria-label="Turnout console">
       <svg class="brand-mark" viewBox="0 0 32 32" aria-hidden="true" focusable="false">
         <path d="M3 16h10c5 0 6-8 13-8" />
         <path d="M13 16c5 0 6 8 13 8" />
         <circle cx="13" cy="16" r="3" />
       </svg>
       <span class="brand-name">Turnout</span>
-    </div>
+    </a>
+    <nav class="menu" id="menu" aria-label="Turnout">
+      <a href="/judge" data-page="judge">Judge mode</a>
+      <a href="/" data-page="console" data-private>Console</a>
+      <a href="/setup" data-private>Setup check</a>
+      <a href="/flagsmith" data-private>What we use</a>
+      <details class="menu-drop" id="menu-versions"><summary>Versions</summary><div class="menu-panel" id="versions-list"><p class="menu-note">Loading…</p></div></details>
+      <details class="menu-drop" id="menu-flagsmith" data-private><summary>Flagsmith</summary><div class="menu-panel" id="flagsmith-panel"><p class="menu-note">Loading…</p></div></details>
+    </nav>
+    <ul class="connections" aria-label="Connections">
+      <li id="conn-state" class="conn" data-state="pending"><span class="conn-dot" aria-hidden="true"></span><span class="conn-text">Flagsmith: connecting…</span></li>
+      <li id="conn-feed" class="conn" data-state="pending"><span class="conn-dot" aria-hidden="true"></span><span class="conn-text">Live feed: connecting…</span></li>
+    </ul>
+  </header>
 
-    <div class="experiment">
-      <div class="experiment-title">
-        <h1 id="exp-name">Loading experiment…</h1>
-        <span id="exp-status" class="pill" data-status="unknown">…</span>
-      </div>
-      <p class="hypothesis"><span class="hypothesis-label">Hypothesis</span> <span id="exp-hypothesis">—</span></p>
+  <div class="strip" id="experiment-header">
+    <div class="experiment-title">
+      <h1 id="exp-name">Loading experiment…</h1>
+      <span id="exp-status" class="pill" data-status="unknown">…</span>
     </div>
-
     <dl class="meta">
       <div><dt>Started</dt><dd id="exp-started">—</dd></div>
       <div><dt>Flag</dt><dd id="flag-name" class="mono">—</dd></div>
       <div class="meta-routing"><dt>Routing</dt><dd id="flag-routing">—</dd></div>
     </dl>
-
-    <div class="top-side">
-      <ul class="connections" aria-label="Connections">
-        <li id="conn-state" class="conn" data-state="pending"><span class="conn-dot" aria-hidden="true"></span><span class="conn-text">Flagsmith: connecting…</span></li>
-        <li id="conn-feed" class="conn" data-state="pending"><span class="conn-dot" aria-hidden="true"></span><span class="conn-text">Live feed: connecting…</span></li>
-      </ul>
-      <a class="btn btn-small judge-link" href="/judge">Judge mode</a>
-    </div>
-  </header>
+    <p class="hypothesis" title="The experiment's hypothesis"><span class="hypothesis-label">Hypothesis</span> <span id="exp-hypothesis">—</span></p>
+    <details class="history-drop" id="history-drop">
+      <summary>History</summary>
+      <div class="history-panel">
+        <h3 id="sidings-title" class="sidings-title">Past experiments on this flag</h3>
+        <ol id="siding-list" class="siding-list"></ol>
+        <h3 id="snapshots-title" class="sidings-title">Decision snapshots <span class="sidings-sub">Flagsmith's results, saved before anything moves</span></h3>
+        <ol id="snapshot-list" class="snapshot-list"></ol>
+      </div>
+    </details>
+  </div>
 
   <div id="banner" class="banner" role="alert" hidden></div>
 
-  <main id="main" class="layout">
+  <main id="main" class="cgrid">
     <section class="card site-card" id="site" aria-labelledby="site-title" hidden>
-      <div class="site-main">
-        <h2 id="site-title">Your site, through Turnout</h2>
-        <p class="site-how">Every new browser (or private window) is a new visitor: Turnout gives it one version and keeps it there. Flagsmith compares the versions below.</p>
-        <p class="site-goal" id="site-goal"></p>
+      <div class="card-head">
+        <h2 id="site-title">Your site</h2>
+        <a class="site-link" id="site-flagsmith" href="#" target="_blank" rel="noopener">Flagsmith ↗</a>
       </div>
-      <div class="site-side">
-        <a class="btn btn-primary btn-big" id="site-open" href="#" target="_blank" rel="noopener">Open your site</a>
-        <a class="site-link" id="site-flagsmith" href="#" target="_blank" rel="noopener">Flagsmith dashboard</a>
+      <a class="btn btn-primary btn-big" id="site-open" href="#" target="_blank" rel="noopener" title="Each new browser is a new visitor: Turnout gives it one version and keeps it there.">Open your site</a>
+      <div class="you" id="you" aria-live="polite"><p class="you-line">Checking where you land…</p></div>
+      <div class="site-versions" id="site-versions" hidden>
+        <h3>Each version on its own <span class="v-key">(never counted)</span></h3>
+        <ul id="site-version-list"></ul>
       </div>
+      <p class="site-goal" id="site-goal"></p>
       <div class="site-suggest" id="site-suggest" hidden>
         <h3>Requests that could count as success</h3>
-        <p class="card-sub">Seen while people use your site. A goal starts a new experiment (Flagsmith fixes an experiment's main metric when it starts), so run your compare command again with it.</p>
+        <p class="card-sub">A goal starts a new experiment, so run your compare command again with it.</p>
         <ul id="suggest-list" class="suggest-list"></ul>
       </div>
       <details class="site-new" id="site-new">
         <summary>New comparison</summary>
-        <p class="card-sub">Two versions, a goal and a split: this writes the command. Run it in your project's folder (the console runs inside Docker, so it can't start Docker on your machine itself).</p>
-        <form id="new-form" class="new-form" autocomplete="off">
-          <label>Current version <input id="new-a" name="a" placeholder="localhost:3001, myapp:1.0 or main" required></label>
-          <label>New version <input id="new-b" name="b" placeholder="localhost:3002, myapp:1.1 or new-checkout" required></label>
-          <label>Goal <input id="new-goal" name="goal" list="new-goals" placeholder="none: judged on page speed"></label>
-          <datalist id="new-goals"></datalist>
-          <label>New version gets
-            <select id="new-split" name="split"><option value="50" selected>50% of visitors</option><option value="25">25%</option><option value="10">10%</option></select>
-          </label>
-        </form>
-        <p id="new-error" class="new-error" role="alert" hidden></p>
-        <div class="new-out">
-          <code id="new-command" class="new-command"></code>
-          <button id="new-copy" class="btn btn-small" type="button">Copy</button>
+        <div class="site-new-panel">
+          <p class="card-sub">Two versions make an A/B test, three an A/B/C test. This writes the command: run it in your project's folder.</p>
+          <form id="new-form" class="new-form" autocomplete="off">
+            <label>A: current version <input id="new-a" name="a" placeholder="localhost:3001, myapp:1.0 or main" required></label>
+            <label>B: new version <input id="new-b" name="b" placeholder="localhost:3002, myapp:1.1 or new-checkout" required></label>
+            <label>C, D…: more new versions <input id="new-more" name="more" placeholder="optional, separated by spaces"></label>
+            <label>Goal <input id="new-goal" name="goal" list="new-goals" placeholder="none: judged on page speed"></label>
+            <datalist id="new-goals"></datalist>
+            <label>Each new version gets
+              <select id="new-split" name="split"><option value="even" selected>an even share of everyone</option><option value="25">25% of visitors</option><option value="10">10% of visitors</option></select>
+            </label>
+          </form>
+          <p id="new-error" class="new-error" role="alert" hidden></p>
+          <div class="new-out">
+            <code id="new-command" class="new-command"></code>
+            <button id="new-copy" class="btn btn-small" type="button">Copy</button>
+          </div>
         </div>
       </details>
+      <!-- The same jobs judge mode runs (POST /api/judge/run). Hidden when the console has no judge options. -->
+      <div class="demo-card" id="demo" hidden>
+        <form id="visitors-form" class="demo-row">
+          <label class="demo-label" for="visitors-count">Simulated visitors</label>
+          <input id="visitors-count" class="demo-count" type="number" min="50" max="5000" step="50" value="1500" inputmode="numeric" aria-describedby="visitors-note">
+          <button id="visitors-btn" class="btn btn-small" type="submit" disabled>Send</button>
+          <span id="swing-label" class="demo-label">Swing</span>
+          <button id="swing-back-btn" class="btn btn-small" type="button" disabled>Back</button>
+          <button id="swing-forward-btn" class="btn btn-small" type="button" disabled>Forward</button>
+          <progress id="demo-progress" class="demo-progress" max="1" value="0" hidden></progress>
+        </form>
+        <p id="visitors-note" class="action-note"></p>
+        <p id="swing-note" class="action-note"></p>
+        <p id="demo-status" class="action-status" role="status" aria-live="polite"></p>
+      </div>
+    </section>
+
+    <section class="card actions-card" id="actions" aria-labelledby="actions-title">
+      <div class="card-head">
+        <h2 id="actions-title">Decide</h2>
+        <p class="card-sub">You confirm each step; it shows its Flagsmith call first.</p>
+      </div>
+      <p id="swing-back" class="swing-back" role="note" hidden></p>
+      <form id="ship-form" class="actions-body">
+        <fieldset id="ship-fieldset" class="ship-choices">
+          <legend>Release to ship to everyone</legend>
+          <div id="ship-choices" class="choices"></div>
+        </fieldset>
+        <div class="action-row">
+          <button id="ship-btn" class="btn btn-ship" type="submit" disabled>Ship winner</button>
+          <button id="revert-btn" class="btn btn-revert" type="button" disabled>Revert</button>
+          <button id="keep-running-btn" class="btn btn-ghost" type="button" disabled>Keep running</button>
+        </div>
+        <div class="action-notes">
+          <p id="ship-note" class="action-note"></p>
+          <p id="recommendation-note" class="action-note"></p>
+          <p id="revert-note" class="action-note">Revert completes the experiment and drains the split: everyone gets control.</p>
+        </div>
+      </form>
+      <p id="action-status" class="action-status" role="status" aria-live="polite"></p>
+      <div id="guard" class="guard-card" hidden>
+        <p id="health-line" class="guard-line" aria-live="polite"></p>
+        <div class="guard-toggle">
+          <button id="guard-button" class="btn btn-small btn-secondary" type="button" aria-pressed="false" title="With the guard on, Turnout asks Flagsmith for fresh results every 5 minutes and reverts on its own when a guardrail's chance to win drops to 1% or below. It never ships on its own.">Turn the guard on</button>
+          <p id="guard-line" class="guard-line" aria-live="polite"></p>
+        </div>
+      </div>
     </section>
 
     <section class="card map-card" id="traffic" aria-labelledby="traffic-title">
@@ -102,57 +169,6 @@
         <li class="legend-note" id="traffic-note"></li>
         <li id="sampling" class="sampling"></li>
       </ul>
-      <div class="sidings" aria-labelledby="sidings-title">
-        <h3 id="sidings-title" class="sidings-title">Sidings <span class="sidings-sub">past experiments on this flag</span></h3>
-        <ol id="siding-list" class="siding-list"></ol>
-      </div>
-    </section>
-
-    <section class="card actions-card" id="actions" aria-labelledby="actions-title">
-      <div class="card-head">
-        <h2 id="actions-title">Decide</h2>
-        <p class="card-sub">Human-confirmed. Each step shows its Flagsmith API call before it runs.</p>
-      </div>
-      <p id="swing-back" class="swing-back" role="note" hidden></p>
-      <form id="ship-form" class="actions-body">
-        <fieldset id="ship-fieldset" class="ship-choices">
-          <legend>Release to ship to everyone</legend>
-          <div id="ship-choices" class="choices"></div>
-        </fieldset>
-        <div class="action-row">
-          <button id="ship-btn" class="btn btn-ship" type="submit" disabled>Ship winner</button>
-          <button id="revert-btn" class="btn btn-revert" type="button" disabled>Revert to control</button>
-          <button id="keep-running-btn" class="btn btn-ghost" type="button" disabled>Keep running</button>
-        </div>
-        <div class="action-notes">
-          <p id="ship-note" class="action-note"></p>
-          <p id="recommendation-note" class="action-note"></p>
-          <p id="revert-note" class="action-note">Revert completes the experiment and drains the split: everyone gets control.</p>
-        </div>
-      </form>
-      <p id="action-status" class="action-status" role="status" aria-live="polite"></p>
-    </section>
-
-    <!-- The same jobs judge mode runs (POST /api/judge/run). Hidden when the console has no judge options. -->
-    <section class="card demo-card" id="demo" aria-labelledby="demo-title" hidden>
-      <div class="card-head">
-        <h2 id="demo-title">Demo controls</h2>
-        <p class="card-sub">Simulated visitors and the swing, as in judge mode. One job runs at a time.</p>
-      </div>
-      <form id="visitors-form" class="demo-row">
-        <label class="demo-label" for="visitors-count">Send simulated visitors</label>
-        <input id="visitors-count" class="demo-count" type="number" min="50" max="3000" step="50" value="1500" inputmode="numeric" aria-describedby="visitors-note">
-        <button id="visitors-btn" class="btn" type="submit" disabled>Send visitors</button>
-      </form>
-      <p id="visitors-note" class="action-note"></p>
-      <div class="demo-row" role="group" aria-labelledby="swing-label">
-        <span id="swing-label" class="demo-label">Swing with one flag edit</span>
-        <button id="swing-back-btn" class="btn" type="button" disabled>Swing back</button>
-        <button id="swing-forward-btn" class="btn" type="button" disabled>Swing forward</button>
-      </div>
-      <p id="swing-note" class="action-note"></p>
-      <progress id="demo-progress" class="demo-progress" max="1" value="0" hidden></progress>
-      <p id="demo-status" class="action-status" role="status" aria-live="polite"></p>
     </section>
 
     <section class="card results-card" id="results" aria-labelledby="results-title">
@@ -160,7 +176,7 @@
         <h2 id="results-title">Flagsmith's results</h2>
         <button id="refresh-btn" class="btn btn-small" type="button">Refresh</button>
       </div>
-      <p class="provenance">As returned by Flagsmith's experiment results API. <span id="results-asof"></span></p>
+      <p class="provenance">As Flagsmith's results API returns them; Turnout never computes its own statistics. <span id="results-asof"></span></p>
       <div id="winner" class="winner" data-tone="neutral">
         <p class="winner-headline" id="winner-headline">Loading…</p>
         <p class="winner-detail" id="winner-detail"></p>
@@ -172,27 +188,7 @@
       </div>
       <p id="refresh-status" class="refresh-status" role="status" aria-live="polite"></p>
     </section>
-
-    <section class="card snapshots-card" id="snapshots" aria-labelledby="snapshots-title">
-      <div class="card-head">
-        <h2 id="snapshots-title">Decision snapshots</h2>
-        <p class="card-sub">Flagsmith's results, saved before anything moves</p>
-      </div>
-      <ol id="snapshot-list" class="snapshot-list"></ol>
-    </section>
-    <section id="guard" class="card guard-card" aria-labelledby="guard-title" hidden>
-      <div class="card-head"><h2 id="guard-title">Health and guard</h2></div>
-      <p class="card-sub">Turnout reports the release flag's health to <strong>Flagsmith's Feature Health</strong>: a losing guardrail tags the flag <em>Unhealthy</em> in Flagsmith's dashboard, with Flagsmith's numbers as the reason.</p>
-      <p id="health-line" class="guard-line" aria-live="polite"></p>
-      <div class="guard-toggle"><button id="guard-button" class="btn btn-secondary" type="button" aria-pressed="false">Turn the guard on</button></div>
-      <p class="card-sub">With the guard on, Turnout asks Flagsmith for fresh results every 5 minutes and <strong>reverts on its own</strong> when a guardrail's chance to win drops to 1% or below. It never ships on its own.</p>
-      <p id="guard-line" class="guard-line" aria-live="polite"></p>
-    </section>
   </main>
-
-  <footer class="footer">
-    <p>Flagsmith decides; Turnout never computes its own statistics. Every action is visible in Flagsmith's audit log.</p>
-  </footer>
 
   <dialog id="confirm-dialog" class="dialog" aria-labelledby="dialog-title" aria-describedby="dialog-intro">
     <form method="dialog" class="dialog-inner" id="dialog-form">
