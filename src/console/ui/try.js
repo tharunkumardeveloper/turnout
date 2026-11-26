@@ -301,10 +301,40 @@ function logText() {
   return [...$('try-log').querySelectorAll('.try-log-row')].map((r) => [...r.children].map((c) => c.textContent).join('  ')).join('\n');
 }
 
+// The cards are redrawn only when a step changes (their entrance animation played every poll: the box blinked); the
+// line under a running step (Docker's latest output) is updated in place.
+const progressView = { key: '' };
+function renderProgress(versions) {
+  const box = $('try-progress');
+  const key = JSON.stringify(versions.map((v) => [v.slot, v.name, v.stages.map((x) => x.status)]));
+  if (key === progressView.key) {
+    versions.forEach((v, i) => v.stages.forEach((x, k) => {
+      const li = box.children[i]?.querySelectorAll('.try-stage')[k];
+      const text = li?.querySelector('.try-stage-text');
+      if (!text) return;
+      let detail = text.querySelector('.try-stage-detail');
+      if (!x.detail) return void detail?.remove();
+      if (!detail) text.append((detail = h('span', { class: 'try-stage-detail' })));
+      if (detail.textContent !== x.detail) {
+        detail.textContent = x.detail;
+        detail.title = x.detail;
+      }
+    }));
+    return;
+  }
+  const first = !progressView.key;
+  progressView.key = key;
+  box.classList.toggle('steady', !first);
+  box.replaceChildren(...versions.map(versionCard));
+}
+
+const errorView = { key: '' };
 function renderError(st) {
   const err = $('try-error');
   err.hidden = st.status !== 'failed';
-  if (err.hidden) return;
+  if (err.hidden) return void (errorView.key = '');
+  if (errorView.key === String(st.error)) return; // the same error: no redraw (its shake played every poll)
+  errorView.key = String(st.error);
   const m = String(st.error ?? '').match(/^(.+?) \(version ([ABC])\): ([\s\S]*)$/);
   err.replaceChildren(
     h('strong', { class: 'try-error-title' }, m ? `Version ${m[2]} (${m[1]}) couldn't be built` : 'The build stopped'),
@@ -342,7 +372,7 @@ async function poll() {
     const [word, tone] = RUN_WORD[st.status] ?? ['', 'idle'];
     $('try-run-status').textContent = word;
     $('try-run-status').dataset.tone = tone;
-    $('try-progress').replaceChildren(...(st.versions ?? []).map(versionCard));
+    renderProgress(st.versions ?? []);
     renderLog(Array.isArray(st.log) ? st.log.filter((l) => l && typeof l === 'object') : []);
     renderError(st);
     const done = $('try-done');
@@ -407,6 +437,8 @@ async function build() {
   polling = 1;
   justBuilt = true;
   logView.first = '';
+  progressView.key = '';
+  errorView.key = '';
   built = true;
   go(3);
   kindLine();

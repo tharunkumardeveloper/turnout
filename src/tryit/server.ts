@@ -180,8 +180,18 @@ export function startTryit(o: TryitOptions) {
       const base = previewUpstream[label];
       if (!base) return void res.writeHead(503, { 'content-type': 'text/plain' }).end(`Version ${'ABC'[i]} isn't built.`);
       const target = new URL(req.url ?? '/', base);
-      const up = http.request(target, { method: req.method, headers: { ...req.headers, host: target.host } }, (answer) => {
-        res.writeHead(answer.statusCode ?? 502, answer.headers);
+      // No "has it changed?" questions either: the browser's copy may be another build's app.
+      const ask = { ...req.headers, host: target.host };
+      delete ask['if-none-match'];
+      delete ask['if-modified-since'];
+      const up = http.request(target, { method: req.method, headers: ask }, (answer) => {
+        // Never cached: every build puts different apps on these same addresses, and a browser kept the last build's
+        // page (an app's server sends Last-Modified and no Cache-Control), so A showed what B shows.
+        const headers = { ...answer.headers, 'cache-control': 'no-store, max-age=0' };
+        delete headers.etag;
+        delete headers['last-modified'];
+        delete headers.expires;
+        res.writeHead(answer.statusCode ?? 502, headers);
         answer.pipe(res);
       });
       up.on('error', (e) => (res.headersSent ? res.end() : res.writeHead(502, { 'content-type': 'text/plain' }).end(e.message)));

@@ -503,7 +503,9 @@ const ROLE_NAME = { goal: 'Goal', secondary: 'Secondary', guardrail: 'Guardrail'
 function metricsTable(metrics) {
   const hasData = (key) => metrics.some((m) => m.rows.some((r) => r.key === key && r.n != null));
   const any = metrics[0].rows.some((r) => r.key !== 'control' && hasData(r.key));
-  const columns = metrics[0].rows.filter((r) => r.key === 'control' || !any || hasData(r.key));
+  // Your app's console: only the versions you built (no empty C column in an A/B test).
+  const kept = new Set(F.built(app.state, metrics[0].rows.map((r) => ({ ...r, isControl: r.key === 'control' }))).map((r) => r.key));
+  const columns = metrics[0].rows.filter((r) => kept.has(r.key) && (r.key === 'control' || !any || hasData(r.key)));
   metrics = metrics.map((m) => ({ ...m, rows: m.rows.filter((r) => columns.some((c) => c.key === r.key)) }));
   return h(
     'table',

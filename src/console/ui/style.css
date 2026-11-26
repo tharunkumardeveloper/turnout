@@ -1280,3 +1280,6 @@ body.console-screen.judge-on { grid-template-rows: auto minmax(0, 1fr); }
 .cgrid .actions-card .card-head h2 { font-size: 14px; }
 .cgrid .actions-card p { margin: 0; line-height: 1.4; }
 .cgrid .actions-card .btn { min-height: 30px; padding: 4px 12px; font-size: 13px; }
+
+/* Try it, while building: the cards only enter once; later redraws (a step done) don't replay it. */
+.try-progress.steady .try-vcard { animation: none; }
