@@ -5,6 +5,7 @@
 #       <live>/<new>: two URLs (localhost:3001, http://localhost:3002), two Docker images (myapp:1.0), or two
 #       branches of the git project you're in (main new-checkout: each built from its Dockerfile; your .env is passed)
 #       --port: the port your app listens on in its container (default: the Dockerfile's EXPOSE, else 8080)
+#   turnout deploy [domain]: the Caddy or Nginx lines to put your web server in front of Turnout
 #   turnout open | status | down | reset [--yes]
 #
 # Same behaviour as bin/turnout (macOS, Linux). Files live in %USERPROFILE%\.turnout\projects\<this folder's name>.
@@ -215,10 +216,27 @@ function Invoke-Compare([string[]]$a) {
   Start-Process "http://127.0.0.1:$ConsolePort"
 }
 
+function Invoke-Deploy([string[]]$a) {
+  Read-Args | Out-Null
+  $h = if ($a.Count) { $a[0] } else { 'your-domain.example' }
+  $lines = @(
+    'Going live: run turnout compare on the server that will take the traffic (it already did, on this machine),',
+    'then put the web server you already have in front of Turnout. Pick one:', '',
+    '  Caddy (Caddyfile; it fetches the HTTPS certificate itself):', "    $h {", "        reverse_proxy 127.0.0.1:$ProxyPort", '    }', '',
+    "  Nginx (in the server { } block for ${h}):", '    location / {', "        proxy_pass http://127.0.0.1:$ProxyPort;",
+    '        proxy_set_header Host $host;', '        proxy_set_header X-Forwarded-Proto $scheme;   # Turnout marks its cookie Secure over https',
+    '        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;', '    }', '',
+    "  Visitors keep your address; Turnout picks their version. Turnout's port stays on 127.0.0.1.",
+    "  The console stays private too. From your laptop: ssh -L ${ConsolePort}:127.0.0.1:${ConsolePort} you@$h",
+    "  then open http://127.0.0.1:$ConsolePort")
+  $lines | ForEach-Object { Say $_ }
+}
+
 $cmd = if ($args.Count) { $args[0] } else { 'help' }
 $rest = if ($args.Count -gt 1) { [string[]]$args[1..($args.Count - 1)] } else { [string[]]@() }
 switch ($cmd) {
   'compare' { Invoke-Compare $rest }
+  'deploy' { Invoke-Deploy $rest }
   'open' { Read-Args | Out-Null; Start-Process "http://127.0.0.1:$ConsolePort"; Show-Banner }
   'status' { Read-Args | Out-Null; Need-Docker; Compose ps; Compose run --rm cli doctor | Select-Object -Last 1 }
   'down' { Read-Args | Out-Null; Need-Docker; Compose down; Say 'Stopped. turnout compare with the same arguments starts it again, with its data.' }
@@ -227,5 +245,5 @@ switch ($cmd) {
     if ($rest -notcontains '--yes') { $ok = Read-Host "Delete $Name's Turnout and Flagsmith data? [y/N]"; if ($ok -ne 'y') { exit 1 } }
     Compose down -v; Remove-Item -Recurse -Force $State; Say 'Wiped. turnout compare starts fresh.'
   }
-  default { Get-Content $PSCommandPath -TotalCount 9 | ForEach-Object { $_ -replace '^# ?', '' } }
+  default { Get-Content $PSCommandPath -TotalCount 10 | ForEach-Object { $_ -replace '^# ?', '' } }
 }
