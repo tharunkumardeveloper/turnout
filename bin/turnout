@@ -101,7 +101,7 @@ cmd_compare() {
 goal=$GOAL
 split=$SPLIT
 app_port=$APP_PORT"
-  if [ -f "$STATE/compare.args" ] && [ "$(sed '/_port=/d' "$STATE/compare.args")" = "$WANT" ]; then
+  if [ -f "$STATE/compare.args" ] && [ "$(sed -e '/^proxy_port=/d' -e '/^console_port=/d' "$STATE/compare.args")" = "$WANT" ]; then
     ports_from_state
     say "Resuming $NAME: $A vs $B."
   else
