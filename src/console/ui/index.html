@@ -232,33 +232,80 @@
 
   <!-- Try it with your app: one, two or three versions (Dockerfile, git repo or image), built and run here (try.js). -->
   <dialog id="try-dialog" class="dialog try-dialog" aria-labelledby="try-title">
-    <form method="dialog" class="dialog-inner try-inner">
-      <h2 id="try-title">Try Turnout with your app</h2>
-      <p class="dialog-intro">See Turnout split real visitors between versions of <strong>your</strong> app, on this machine.</p>
-      <ol class="try-steps">
-        <li><strong>Give each version.</strong> Choose its project folder (it needs a Dockerfile), or paste a Dockerfile, a GitHub link or an image name: Turnout works out which. One version is a fairness check (A/A), two an A/B test, three an A/B/C.</li>
-        <li><strong>Optional:</strong> a goal (what counts as a win) and settings your app needs, such as a database URL.</li>
-        <li><strong>Build and try.</strong> Turnout builds and starts each version, puts them behind its proxy, and opens a test page where one button sends visitors and Flagsmith picks the winner.</li>
-      </ol>
-      <div id="try-versions" class="try-versions"></div>
-      <label class="try-goal-label"><span>Goal <span class="card-sub">(optional)</span></span>
-        <input id="try-goal" class="try-text" spellcheck="false" placeholder="none: versions are compared on page speed · or e.g. POST /signup, GET /product/*">
-      </label>
-      <details class="try-env-box">
-        <summary>Settings for your app <span class="card-sub">(optional: a database URL, keys…)</span></summary>
-        <textarea id="try-env" class="try-env" rows="4" spellcheck="false" placeholder="KEY=value, one per line, passed to every version.&#10;Your machine is host.docker.internal, e.g. DATABASE_URL=postgresql://user:pass@host.docker.internal:5432/app"></textarea>
-      </details>
-      <p id="try-off" class="try-off" hidden></p>
-      <p id="try-kind" class="try-kindline"></p>
-      <ul id="try-progress" class="try-progress"></ul>
-      <p id="try-error" class="new-error" role="alert" hidden></p>
-      <div id="try-previews" class="try-previews"></div>
-      <div class="dialog-buttons">
-        <button class="btn btn-ghost" value="cancel" type="submit">Close</button>
-        <button id="try-example" class="btn btn-ghost" type="button" title="Two small self-contained Dockerfiles (nginx pages), so you can see it work without an app of your own">Use an example</button>
-        <a id="try-open-page" class="btn" href="/try" target="_blank" rel="noopener" hidden>Open the test page →</a>
-        <button id="try-build" class="btn btn-primary" type="button" disabled>Build and try</button>
+    <form method="dialog" class="try-inner">
+      <header class="try-head">
+        <div>
+          <h2 id="try-title">Try Turnout with your app</h2>
+          <p class="try-sub">Build up to three versions of your app on this machine, split visitors between them, and let Flagsmith pick the winner.</p>
+        </div>
+        <button class="try-close" value="cancel" type="submit" aria-label="Close">✕</button>
+      </header>
+
+      <div class="try-body">
+        <section class="try-sec" aria-labelledby="try-s1">
+          <div class="try-sec-head">
+            <span class="try-step">1</span>
+            <div>
+              <h3 id="try-s1">Your versions</h3>
+              <p class="try-hint">For each version, choose its project folder (with a Dockerfile), or paste a Dockerfile, a GitHub link or an image name. Turnout works out which. One version is a fairness check (A/A), two an A/B test, three an A/B/C.</p>
+            </div>
+          </div>
+          <div id="try-versions" class="try-versions"></div>
+        </section>
+
+        <section class="try-sec" aria-labelledby="try-s2">
+          <div class="try-sec-head">
+            <span class="try-step">2</span>
+            <div>
+              <h3 id="try-s2">Options <span class="try-opt">optional</span></h3>
+              <p class="try-hint">Without a goal, versions are compared on page speed and errors.</p>
+            </div>
+          </div>
+          <div class="try-options">
+            <label class="try-field-label">
+              <span>Goal: what counts as a win</span>
+              <input id="try-goal" class="try-text" spellcheck="false" placeholder="e.g. POST /signup  or  GET /product/*">
+            </label>
+            <label class="try-field-label">
+              <span>Settings for your app <small>KEY=value, one per line</small></span>
+              <textarea id="try-env" class="try-env" rows="3" spellcheck="false" placeholder="DATABASE_URL=postgresql://user:pass@host.docker.internal:5432/app&#10;(host.docker.internal is your machine)"></textarea>
+            </label>
+          </div>
+        </section>
+
+        <section id="try-run" class="try-sec" aria-labelledby="try-s3" hidden>
+          <div class="try-sec-head">
+            <span class="try-step">3</span>
+            <div>
+              <h3 id="try-s3">Build <span id="try-run-status" class="try-pill"></span></h3>
+              <p class="try-hint">Each version is built and started with Docker, then put behind Turnout's proxy on its own flag, <code>tryit_release</code>.</p>
+            </div>
+          </div>
+          <ul id="try-progress" class="try-progress"></ul>
+          <div id="try-error" class="try-error" role="alert" hidden></div>
+          <div class="try-log-box">
+            <div class="try-log-bar">
+              <span>Build log</span>
+              <span class="try-log-tools">
+                <label><input id="try-log-follow" type="checkbox" checked> Follow</label>
+                <button id="try-log-copy" class="try-log-btn" type="button">Copy</button>
+              </span>
+            </div>
+            <div id="try-log" class="try-log" role="log" aria-live="off" tabindex="0"></div>
+          </div>
+          <div id="try-previews" class="try-previews"></div>
+        </section>
       </div>
+
+      <footer class="try-foot">
+        <p id="try-off" class="try-off" hidden></p>
+        <p id="try-kind" class="try-kindline"></p>
+        <div class="try-actions">
+          <button id="try-example" class="btn btn-ghost" type="button" title="Two small self-contained Dockerfiles (nginx pages), so you can see it work without an app of your own">Use an example</button>
+          <a id="try-open-page" class="btn" href="/try" hidden>Open the test page →</a>
+          <button id="try-build" class="btn btn-primary" type="button" disabled>Build and try</button>
+        </div>
+      </footer>
     </form>
   </dialog>
 

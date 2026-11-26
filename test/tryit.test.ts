@@ -125,3 +125,9 @@ test("a git URL without a branch builds the repository's default branch, not Doc
   assert.equal(defaultBranch('https://github.com/acme/web.git#main'), 'https://github.com/acme/web.git#main');
   assert.match(gitBuildError("error fetching: fatal: couldn't find remote ref dev"), /that branch doesn't exist/);
 });
+
+test('build output becomes clean log lines: colour codes and progress-bar rewrites dropped', async () => {
+  const { cleanLines, gitBuildError } = await import('../src/tryit/server.ts');
+  assert.deepEqual(cleanLines('\x1b[32mStep 1/4 : FROM nginx\x1b[0m\r\n\nDownloading 10%\rDownloading 100%\n'), ['Step 1/4 : FROM nginx', 'Downloading 100%']);
+  assert.match(gitBuildError('When using COPY with more than one source file, the destination must be a directory and end with a /'), /repository's own Dockerfile has a mistake/);
+});

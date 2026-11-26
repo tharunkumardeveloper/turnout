@@ -202,10 +202,61 @@ async function versionFor(r, i) {
   return { kind: d.kind, value: d.value, ...extra };
 }
 
-function stageList(v) {
-  return h('li', {}, h('strong', {}, `${v.slot.toUpperCase()} · ${v.name}`),
-    ...v.stages.map((s) => h('span', { class: 'try-stage', 'data-status': s.status }, ` ${s.status === 'done' ? '✓' : s.status === 'running' ? '…' : s.status === 'failed' ? '✗' : '·'} ${s.title}${s.detail ? ` (${s.detail})` : ''}`)));
+// ---- step 3: one card per version (its stages), the build log, and what stopped it ----------------------------
+const STAGE_ICON = { done: '✓', running: '', failed: '✕', todo: '' };
+function versionCard(v, i) {
+  const failed = v.stages.some((s) => s.status === 'failed');
+  const done = v.stages.every((s) => s.status === 'done');
+  const running = v.stages.some((s) => s.status === 'running');
+  const [word, tone] = failed ? ['Failed', 'bad'] : done ? ['Running', 'good'] : running ? ['Building', 'busy'] : ['Waiting', 'idle'];
+  return h('li', { class: 'try-vcard', 'data-i': String(i), 'data-tone': tone },
+    h('div', { class: 'try-vcard-head' },
+      h('span', { class: 'try-letter' }, LETTERS[i]),
+      h('strong', { class: 'try-vcard-name', title: v.name }, v.name),
+      h('span', { class: 'try-pill', 'data-tone': tone }, word)),
+    h('ol', { class: 'try-stages' },
+      ...v.stages.map((s) => h('li', { class: 'try-stage', 'data-status': s.status },
+        h('span', { class: 'try-stage-icon', 'aria-hidden': 'true' }, STAGE_ICON[s.status] ?? ''),
+        h('span', { class: 'try-stage-text' }, s.title,
+          s.detail ? h('span', { class: 'try-stage-detail', title: s.detail }, s.detail) : null)))));
 }
+
+// The log is appended to, never redrawn: what you selected or scrolled to stays put.
+const logView = { first: '', count: 0 };
+const clock = (iso) => new Date(iso).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false });
+function renderLog(lines) {
+  const box = $('try-log');
+  const first = lines[0]?.at ?? '';
+  if (first !== logView.first || lines.length < logView.count) {
+    box.replaceChildren();
+    logView.first = first;
+    logView.count = 0;
+  }
+  const fresh = lines.slice(logView.count);
+  if (!fresh.length) return;
+  box.append(...fresh.map((l) => h('div', { class: 'try-log-row', 'data-level': l.level },
+    h('time', { class: 'try-log-time' }, clock(l.at)),
+    h('span', { class: 'try-log-from', 'data-from': l.from }, l.from),
+    h('span', { class: 'try-log-text' }, l.text))));
+  logView.count = lines.length;
+  if (/** @type {HTMLInputElement} */ ($('try-log-follow')).checked) box.scrollTop = box.scrollHeight;
+}
+function logText() {
+  return [...$('try-log').querySelectorAll('.try-log-row')].map((r) => [...r.children].map((c) => c.textContent).join('  ')).join('\n');
+}
+
+function renderError(st) {
+  const err = $('try-error');
+  err.hidden = st.status !== 'failed';
+  if (err.hidden) return;
+  const m = String(st.error ?? '').match(/^(.+?) \(version ([ABC])\): ([\s\S]*)$/);
+  err.replaceChildren(
+    h('strong', { class: 'try-error-title' }, m ? `Version ${m[2]} (${m[1]}) couldn't be built` : 'The build stopped'),
+    h('p', { class: 'try-error-text' }, m ? m[3] : st.error),
+    h('p', { class: 'try-error-hint' }, 'The full output is in the build log below. Fix the version and press Build and try again.'));
+}
+
+const RUN_WORD = { building: ['Building…', 'busy'], ready: ['Ready', 'good'], failed: ['Stopped', 'bad'] };
 
 function previews(state) {
   const shop = String(state.shop ?? '').replace(/\/$/, '');
@@ -229,11 +280,13 @@ async function poll() {
       return kindLine();
     }
     if (!res.ok) throw new Error(st.error ?? `HTTP ${res.status}`);
-    const last = st.status === 'building' ? (st.log ?? []).filter((l) => !l.startsWith('  ')).at(-1) : null;
-    $('try-progress').replaceChildren(...(st.versions ?? []).map(stageList), ...(last ? [h('li', { class: 'try-now' }, last)] : []));
-    const err = $('try-error');
-    err.hidden = st.status !== 'failed';
-    err.textContent = st.status === 'failed' ? `Stopped: ${st.error}` : '';
+    $('try-run').hidden = !(st.versions ?? []).length;
+    const [word, tone] = RUN_WORD[st.status] ?? ['', 'idle'];
+    $('try-run-status').textContent = word;
+    $('try-run-status').dataset.tone = tone;
+    $('try-progress').replaceChildren(...(st.versions ?? []).map(versionCard));
+    renderLog(Array.isArray(st.log) ? st.log.filter((l) => l && typeof l === 'object') : []);
+    renderError(st);
     if (st.status === 'ready') {
       const fresh = !$('try-previews').childElementCount;
       $('try-previews').replaceChildren(...previews(st));
@@ -251,9 +304,8 @@ async function poll() {
     else polling = 0;
   } catch (error) {
     polling = 0;
-    const err = $('try-error');
-    err.hidden = false;
-    err.textContent = error.message;
+    renderError({ status: 'failed', error: error.message });
+    $('try-run').hidden = false;
   }
   kindLine();
 }
@@ -264,8 +316,8 @@ async function build() {
     versions = [];
     for (const [i, r] of filled().entries()) versions.push(await versionFor(r, i));
   } catch (error) {
-    $('try-error').hidden = false;
-    $('try-error').textContent = error.message;
+    renderError({ status: 'failed', error: error.message });
+    $('try-run').hidden = false;
     return kindLine();
   }
   const rates = filled().map((r) => Math.min(100, Math.max(0, Number(r.rate) || 0)) / 100);
@@ -275,12 +327,15 @@ async function build() {
   const res = await api('/api/try/build', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ versions, goal: /** @type {HTMLInputElement} */ ($('try-goal')).value, rates, env: /** @type {HTMLTextAreaElement} */ ($('try-env')).value }) });
   const body = await res.json().catch(() => ({}));
   if (!res.ok) {
-    $('try-error').hidden = false;
-    $('try-error').textContent = body.error ?? `HTTP ${res.status}`;
+    renderError({ status: 'failed', error: body.error ?? `HTTP ${res.status}` });
+    $('try-run').hidden = false;
     return;
   }
   polling = 1;
   justBuilt = true;
+  logView.first = '';
+  $('try-run').hidden = false;
+  $('try-run').scrollIntoView({ block: 'start', behavior: 'smooth' });
   kindLine();
   void poll();
 }
@@ -328,6 +383,16 @@ export async function setupTry() {
     if (offline) return;
     ready = '';
     void build();
+  });
+  $('try-log-copy').addEventListener('click', async () => {
+    const btn = $('try-log-copy');
+    try {
+      await navigator.clipboard.writeText(logText());
+      btn.textContent = 'Copied';
+    } catch {
+      btn.textContent = 'Copy failed';
+    }
+    setTimeout(() => (btn.textContent = 'Copy'), 1500);
   });
   $('try-example').addEventListener('click', () => {
     for (const r of rows) Object.assign(r, { folder: null, file: null, text: '' });

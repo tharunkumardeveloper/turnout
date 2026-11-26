@@ -40,11 +40,23 @@ export const UPLOAD_ID = /^[a-f0-9]{24}$/;
 export const MAX_UPLOAD = 2 * 1024 ** 3;
 export type BuildRequest = { versions: VersionSource[]; goal?: string; rates?: number[]; env?: string };
 type Stage = { title: string; status: 'todo' | 'running' | 'done' | 'failed'; detail?: string };
+/** One line of the build log: when, from whom (a version's letter, or Turnout / Flagsmith), how it reads. */
+export type LogLine = { at: string; from: string; level: 'info' | 'step' | 'ok' | 'error'; text: string };
+
+/** Docker's output as log lines: colour codes and carriage-return progress bars removed, one entry per line. */
+export function cleanLines(text: string): string[] {
+  return text
+    .replace(/\x1b\[[0-9;]*[A-Za-z]/g, '')
+    .split(/\r?\n/)
+    .map((l) => l.replace(/^.*\r/, '').trimEnd())
+    .filter((l) => l.trim());
+}
+
 export type BuildState = {
   status: 'idle' | 'building' | 'ready' | 'failed';
   kind: string | null; // "A/A", "A/B", "A/B/C"
   versions: { slot: string; label: string; name: string; source: VersionSource['kind']; port: number | null; stages: Stage[] }[];
-  log: string[];
+  log: LogLine[];
   error: string | null;
   shop: string; // the try proxy, for previews and "be a visitor"
   goal: string | null;
@@ -102,6 +114,7 @@ export function gitBuildError(message: string): string {
   if (/locate specified Dockerfile|Dockerfile.*no such file|failed to read dockerfile/i.test(message)) {
     return 'this repository has no Dockerfile at its root (or at the folder after the colon in repo.git#branch:folder). Turnout runs any app that has a working Dockerfile: add one to the repository, or build the image yourself and paste its name instead.';
   }
+  if (/COPY with more than one source file/i.test(message)) return `the repository's own Dockerfile has a mistake: ${message.trim()} (a COPY of several files must end its destination with /, e.g. COPY a b /app/). Fix that line in the repository; the build log shows which step.`;
   if (/couldn't find remote ref/i.test(message)) return `that branch doesn't exist in the repository (${message.trim()}). Leave the branch out to use the repository's default one.`;
   if (/repository not found|could not read Username|authentication|not found/i.test(message)) {
     return `Docker couldn't fetch the repository (${message}). It must be a public git URL.`;
@@ -182,9 +195,9 @@ export function startTryit(o: TryitOptions) {
     pruneUploads();
     return { id, size };
   }
-  const note = (line: string) => {
-    state.log.push(line);
-    if (state.log.length > 200) state.log.splice(0, state.log.length - 200);
+  const note = (text: string, from = 'Turnout', level: LogLine['level'] = 'info') => {
+    for (const line of cleanLines(text)) state.log.push({ at: new Date().toISOString(), from, level, text: line.slice(0, 4000) });
+    if (state.log.length > 600) state.log.splice(0, state.log.length - 600);
   };
 
   // The proxy for the built versions: rebuilt after each build, on the same port.
@@ -233,10 +246,11 @@ export function startTryit(o: TryitOptions) {
         const [get, run] = slot.stages;
         let image = v.kind === 'image' ? v.value.trim() : `turnout-try-${slot.slot}:latest`;
         get!.status = 'running';
-        note(`${slot.name}: ${get!.title.toLowerCase()}…`);
+        note(`${get!.title} (${slot.name})`, slot.slot.toUpperCase(), 'step');
         const onLog = (l: string) => {
-          get!.detail = l.slice(0, 160);
-          note(`  ${slot.slot.toUpperCase()}: ${l.slice(0, 200)}`);
+          const last = cleanLines(l).at(-1);
+          if (last) get!.detail = last.length > 90 ? `${last.slice(0, 89)}…` : last;
+          note(l, slot.slot.toUpperCase());
         };
         if (v.kind === 'image') await o.docker.pull(image, onLog).catch(async (error) => {
           if (!(await o.docker.imageExists(image))) throw error; // a local-only image is fine
@@ -263,7 +277,7 @@ export function startTryit(o: TryitOptions) {
         run!.status = 'done';
         run!.detail = `answering on port ${port}`;
         upstream[slot.label] = `http://try-${slot.slot}:${port}`;
-        note(`${slot.name}: running on port ${port}.`);
+        note(`${slot.name} is running, answering on port ${port}`, slot.slot.toUpperCase(), 'ok');
       }
       for (const slot of SLOTS.slice(versions.length)) await o.docker.remove(`turnout-try-${slot}`);
       if (versions.length === 1) upstream[LABELS[1]!] = upstream[LABELS[0]!]!.replace('try-a', 'try-b');
@@ -279,11 +293,11 @@ export function startTryit(o: TryitOptions) {
         traffic: 100,
       };
       const initConfig = parseConfig(raw);
-      note('Setting up the flag tryit_release in Flagsmith…');
+      note('Setting up the flag tryit_release and its metrics', 'Flagsmith', 'step');
       const env = await api.get<{ project: number }>(`/api/v1/environments/${o.envKey}/`);
       await runInit({
         apiUrl: o.apiUrl, dashboardUrl: o.dashboardUrl, config: initConfig, adminKey: o.adminKey, serverKey: o.serverKey,
-        envFile: join(o.stateDir, 'init.env'), project: String(env.project), environment: o.envKey, log: (l) => note(`  ${l}`),
+        envFile: join(o.stateDir, 'init.env'), project: String(env.project), environment: o.envKey, log: (l) => note(l, 'Flagsmith'),
       });
       // The proxy routes only the versions built now.
       const config = parseConfig({ ...raw, releases: Object.fromEntries(releases.map((l) => [l, upstream[l]!])) });
@@ -320,18 +334,18 @@ export function startTryit(o: TryitOptions) {
       );
       // init leaves an experiment over every slot; start the one that matches what was built: 1 version → A/A,
       // 2 → A/B, 3 → A/B/C, so no visitor is ever routed to a slot with nothing behind it.
-      note(`Starting the ${state.kind} test in Flagsmith…`);
+      note(`Starting the ${state.kind} test`, 'Flagsmith', 'step');
       const ran = await judge.run({ action: 'start', arms: versions.length === 1 ? 1 : versions.length });
       if (ran.status !== 202) throw new Error(`Couldn't start the ${state.kind} test: ${(ran.body as { error?: string })?.error ?? ran.status}`);
       for (let i = 0; i < 120 && judge.job()?.status === 'running'; i++) await new Promise((r) => setTimeout(r, 500));
       if (judge.job()?.status === 'failed') throw new Error(`Couldn't start the ${state.kind} test: ${judge.job()?.error}`);
       state.status = 'ready';
-      note(`Ready: ${state.kind} test on ${Object.values(names).join(', ')}.`);
+      note(`Ready: the ${state.kind} test is running on ${Object.values(names).join(', ')}`, 'Turnout', 'ok');
     } catch (error) {
       state.status = 'failed';
       state.error = (error as Error).message;
       for (const v of state.versions) for (const s of v.stages) if (s.status === 'running') s.status = 'failed';
-      note(`Failed: ${state.error}`);
+      note(state.error ?? 'failed', 'Turnout', 'error');
       log(`tryit: build failed: ${state.error}`);
     }
   }
