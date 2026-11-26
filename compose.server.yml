@@ -98,11 +98,14 @@ services:
       # Blind rounds: each experiment's true order rates are drawn at random and hidden until the round is decided,
       # so Flagsmith has to find the winner (or say there is none); the page keeps a scoreboard.
       TURNOUT_BLIND: ${TURNOUT_BLIND:-on}
+      # One read of the judge state, shared by every viewer for 3 s (1.5 s locally): half the Flagsmith reads.
+      TURNOUT_STATE_CACHE_MS: ${TURNOUT_STATE_CACHE_MS:-3000}
       TURNOUT_LIVE_FLAG: shop_release_live # turnout.live.yml: real visitors, shown next to the simulated story
-      TURNOUT_AUTOPILOT_VISITORS: ${TURNOUT_AUTOPILOT_VISITORS:-}
+      # 1,200 per round: enough for Flagsmith to call a 60% lift on its first look, light enough for 2 vCPUs.
+      TURNOUT_AUTOPILOT_VISITORS: ${TURNOUT_AUTOPILOT_VISITORS:-1200}
       TURNOUT_AUTOPILOT_PAUSE: ${TURNOUT_AUTOPILOT_PAUSE:-}
       # Simulated visitors in flight. 25 here (50 locally): on 2 vCPUs Flagsmith runs on the same machine and needs room.
-      TURNOUT_DEMO_CONCURRENCY: ${TURNOUT_DEMO_CONCURRENCY:-25}
+      TURNOUT_DEMO_CONCURRENCY: ${TURNOUT_DEMO_CONCURRENCY:-15}
     ports: !override
       - 127.0.0.1:8090:8090
       - 127.0.0.1:8091:8091

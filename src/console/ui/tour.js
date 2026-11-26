@@ -656,7 +656,8 @@ export function createTour(app) {
     // Flagsmith's Feature Health reports on its own tick: say so until it has, and drop the beat if it never does.
     const health = b.id.startsWith('health:');
     await swap(() => {
-      setSize('compact');
+      // Heading and text together from the start: the page's "look here" animation plays alongside, never instead.
+      setSize('full');
       title.textContent = health ? 'Waiting for Flagsmith Feature Health…' : b.title;
       body.textContent = b.body;
       work.hidden = true;
@@ -686,7 +687,7 @@ export function createTour(app) {
       title.textContent = b.title;
     }
 
-    // SHOW: the page demonstrates the target while the bubble only says where to look.
+    // SHOW: the page demonstrates the target (the bubble already shows the whole beat).
     const btn = b.action && !b.bubbleAction ? el : null;
     const min = reduced.matches ? 700 : P.showMs(b);
     const shown = Promise.all([wait(min), runDemo(b, el), hoverDemo(btn, seq)]);
@@ -694,8 +695,7 @@ export function createTour(app) {
     t.skipShow = null;
     if (seq !== t.seq || t.phase !== 'show') return;
 
-    // EXPLAIN: the bubble opens to the full text.
-    setSize('full');
+    // EXPLAIN: what follows the demonstration (a click to make, a step to wait for, or the reading time).
     if (b.watchJob) {
       // A step the autopilot runs: its live stages here; the next beat comes when it ends.
       setPhase('waiting');

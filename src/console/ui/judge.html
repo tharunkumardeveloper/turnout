@@ -133,34 +133,23 @@
           </article>
         </section>
 
-        <section id="showdown-card" class="card showdown-card" aria-labelledby="showdown-title" hidden>
-          <div class="card-head">
-            <svg class="ic" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M4 4h6v16H4zM14 4h6v16h-6z" /></svg>
-            <h2 id="showdown-title">The showdown</h2>
-            <span class="fs-tag"><span class="fs-dot" aria-hidden="true"></span>winner from Flagsmith</span>
+        <!-- The round: the two versions under test, Flagsmith's confidence, the hidden truth and the scoreboard. -->
+        <section id="showdown-card" class="card contest" aria-labelledby="showdown-head" hidden>
+          <div class="contest-top">
+            <div class="contest-title">
+              <p id="contest-kicker" class="contest-kicker"></p>
+              <h2 id="showdown-head" class="contest-head" aria-live="polite"></h2>
+              <p id="showdown-last" class="contest-last" hidden></p>
+            </div>
+            <div id="sd-score" class="contest-score" aria-label="Scoreboard"></div>
           </div>
-          <p id="showdown-head" class="showdown-head" aria-live="polite"></p>
           <div class="showdown-grid">
             <div class="sd-side" id="sd-control"></div>
             <div class="sd-vs" id="sd-vs" aria-hidden="true">VS</div>
             <div class="sd-side" id="sd-v2"></div>
           </div>
-        </section>
-
-        <section id="round-card" class="card round-card" aria-labelledby="round-title" hidden>
-          <div class="card-head">
-            <svg class="ic" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M4 19h16M5 16l4-5 4 3 6-8" /></svg>
-            <h2 id="round-title">This round <span class="round-sim">· simulated visitors</span></h2>
-            <span class="fs-tag"><span class="fs-dot" aria-hidden="true"></span>numbers from Flagsmith</span>
-          </div>
-          <div class="round-grid">
-            <div class="round-reveal" id="round-reveal" aria-live="polite"></div>
-            <figure class="round-chart">
-              <figcaption>Flagsmith's chance that the new release is better, one point per results refresh (at most every 5 minutes)</figcaption>
-              <div id="round-chart" class="round-chart-box"></div>
-            </figure>
-            <div class="round-score" id="round-score"></div>
-          </div>
+          <div id="sd-meter" class="contest-meter" role="group" aria-label="Flagsmith's confidence"></div>
+          <p id="sd-truth" class="contest-truth" aria-live="polite"></p>
         </section>
 
         <section id="visitor-card" class="card visitor-card" aria-labelledby="visitor-title" hidden>

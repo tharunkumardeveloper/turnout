@@ -690,3 +690,15 @@ test('showdown: the last round stays readable once the next one starts', () => {
   assert.equal(J.showdown(s).last, 'Last round: shop:1.5 won and was shipped to everyone (replacing shop:1.4).');
   assert.equal(J.showdown({ ...s, ledger: [] }).last, null);
 });
+
+test('the confidence meter: zone, marker and earlier readings', () => {
+  const p = (c: number, n = 600) => ({ asOf: 'x', chanceToWin: c, low: null, high: null, identities: n });
+  assert.equal(J.meterModel([]).zone, 'wait');
+  const m = J.meterModel([p(0.3), p(0.62, 2000)]);
+  assert.deepEqual([m.pct, m.zone, m.ticks, m.label], [62, 'keep', [30], 'Not sure yet: keep running']);
+  assert.match(m.sub, /62% chance the new version is better · Flagsmith, after 2,000 visitors/);
+  assert.equal(J.meterModel([p(0.97)]).zone, 'ship');
+  assert.equal(J.meterModel([p(0.02)]).zone, 'revert');
+  assert.equal(J.roundNumber({ score: { rounds: 55 }, round: { hidden: true } }), 56);
+  assert.equal(J.roundNumber({ score: { rounds: 56 }, round: { hidden: false } }), 56);
+});

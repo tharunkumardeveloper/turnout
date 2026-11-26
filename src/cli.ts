@@ -457,6 +457,7 @@ const commands: Record<string, () => Promise<void>> = {
       shopUrl: process.env.TURNOUT_PUBLIC_SHOP_URL || 'http://127.0.0.1:8080',
       dashboardUrl: process.env.FLAGSMITH_DASHBOARD_URL || 'http://127.0.0.1:8000',
       rates: parseRates(process.env.TURNOUT_DEMO_RATES || DEFAULT_RATES),
+      ...(Number(process.env.TURNOUT_STATE_CACHE_MS) >= 250 ? { stateCacheMs: Math.min(30_000, Number(process.env.TURNOUT_STATE_CACHE_MS)) } : {}),
       // Blind rounds: hidden random rates per experiment (TURNOUT_BLIND=on; server mode turns it on). The store also
       // keeps Flagsmith's chance-to-win history for the page's chart. The demo's deliberately slow release is 1.6.
       blind: {

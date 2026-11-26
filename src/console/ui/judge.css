@@ -815,31 +815,6 @@ body.welcome-open { overflow: hidden; }
 @media (prefers-reduced-motion: reduce) { .autopilot-line::before { animation: none; } }
 .welcome-live { margin: 0; padding: 10px 12px; border-radius: 10px; background: color-mix(in srgb, var(--treatment, #2f9e6b) 12%, transparent); font-size: 14px; }
 
-/* ---- this round: the blind reveal, Flagsmith's chance to win over time, the scoreboard ------------------------ */
-.round-card[hidden] { display: none; }
-.round-grid { display: grid; gap: 14px; grid-template-columns: minmax(0, 1fr); }
-@media (min-width: 900px) { .round-grid { grid-template-columns: minmax(0, 1.1fr) minmax(0, 1fr); } .round-reveal { grid-column: 1 / -1; } }
-.round-reveal { padding: 12px 14px; border-radius: 12px; border: 1px solid var(--border); }
-.round-reveal h3 { margin: 0 0 4px; font-size: 16px; }
-.round-reveal p { margin: 0; font-size: 14px; line-height: 1.5; }
-.round-reveal[data-kind='right'] { border-color: color-mix(in srgb, #2f9e6b 60%, transparent); background: color-mix(in srgb, #2f9e6b 10%, transparent); }
-.round-reveal[data-kind='wrong'] { border-color: color-mix(in srgb, #d14343 60%, transparent); background: color-mix(in srgb, #d14343 10%, transparent); }
-.round-reveal[data-kind='hidden'] h3::before { content: '\1F512  '; }
-.round-chart { margin: 0; }
-.round-chart figcaption { font-size: 13px; color: var(--muted); margin-bottom: 6px; }
-.round-chart-box svg { width: 100%; height: auto; display: block; }
-.round-chart-box .grid-line { stroke: var(--border); stroke-width: 1; }
-.round-chart-box .ship-line { stroke: #2f9e6b; stroke-width: 1; stroke-dasharray: 4 3; }
-.round-chart-box .chance-line { fill: none; stroke: var(--treatment, #2f9e6b); stroke-width: 2.5; stroke-linejoin: round; }
-.round-chart-box .chance-dot { fill: var(--treatment, #2f9e6b); }
-.round-chart-box text { font: 11px var(--sans, system-ui); fill: var(--muted); }
-.round-empty { font-size: 13px; color: var(--muted); padding: 22px 8px; text-align: center; border: 1px dashed var(--border); border-radius: 10px; margin: 0; }
-.round-score .score-head { margin: 0; font-size: 17px; font-weight: 700; }
-.round-score .score-sub { margin: 4px 0 8px; font-size: 13px; color: var(--muted); }
-.score-rounds { list-style: none; margin: 0; padding: 0; display: flex; flex-wrap: wrap; gap: 6px; }
-.score-rounds li { font-size: 12px; padding: 3px 8px; border-radius: 999px; border: 1px solid var(--border); }
-.score-rounds li[data-outcome='right'] { border-color: #2f9e6b; }
-.score-rounds li[data-outcome='wrong'] { border-color: #d14343; }
 
 /* The public page's first screen: the story, the round and the track. Everything else behind "Show details". */
 .details-toggle[hidden] { display: none; }
@@ -859,16 +834,6 @@ body.welcome-open { overflow: hidden; }
 .visitor-arms li[data-you='true'] { font-weight: 700; }
 .visitor-arms li[data-you='true'] .visitor-label::after { content: '  ← you'; color: var(--treatment, #2f9e6b); }
 .visitor-note { margin-top: 8px; }
-/* Focus view order: what is happening (the stage), the round, who gets which release, then you as a visitor. */
-.focus-view .col-main > * { order: 5; }
-.focus-view .col-main > #stage { order: 1; }
-.focus-view .col-main > #round-card { order: 2; }
-.focus-view .col-main > #track-card { order: 3; }
-.focus-view .col-main > #visitor-card { order: 4; }
-.visitor-arms { margin-bottom: 4px; }
-.visitor-note { margin-top: 12px !important; }
-.round-sim { font-weight: 500; color: var(--muted); font-size: 0.85em; }
-.round-chart-box text { font-size: 13px; }
 
 /* Anything still loading says so: three dots that pulse (still under reduced motion: no pulse). */
 .loading-dots::after { content: '…'; display: inline-block; animation: dots-pulse 1.2s ease-in-out infinite; }
@@ -880,16 +845,6 @@ body.welcome-open { overflow: hidden; }
 .view-btn { text-decoration: none; }
 .view-btn[aria-current='true'] { border-color: var(--treatment, #2f9e6b); font-weight: 700; }
 
-/* The chance chart: a headline in words, a labelled axis, a shaded ship zone */
-.chance-head { margin: 0 0 8px; font-size: 15px; line-height: 1.4; }
-.chance-big { font-size: 28px; font-weight: 800; margin-right: 4px; vertical-align: -3px; }
-.chance-head[data-tone='good'] .chance-big { color: #2f9e6b; }
-.chance-head[data-tone='bad'] .chance-big { color: #d14343; }
-.chance-n { color: var(--muted); font-size: 13px; }
-.round-chart-box .ship-zone { fill: color-mix(in srgb, #2f9e6b 12%, transparent); }
-.round-chart-box .chance-area { fill: color-mix(in srgb, var(--treatment, #2f9e6b) 14%, transparent); }
-.round-chart-box text.axis { font-size: 12px; fill: var(--muted); }
-.round-chart-box text.zone-label { font-size: 11px; fill: #2f9e6b; font-weight: 700; }
 
 /* The step rail on the stage card: done, now (pulsing while the step runs), next. */
 .stage-rail { list-style: none; margin: 0 0 14px; padding: 0; display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 4px; position: relative; }
@@ -908,52 +863,112 @@ body.welcome-open { overflow: hidden; }
 /* The stage text eases in when the step changes, instead of jumping. */
 .stage-title, .stage-text { transition: opacity .25s; }
 
-/* ---- the showdown: two versions under test, side by side, and the winner ------------------------------------- */
-.showdown-card[hidden] { display: none; }
-.showdown-head { margin: 0 0 12px; font-size: 16px; font-weight: 700; }
-.showdown-grid { display: grid; grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr); gap: 14px; align-items: stretch; }
+/* ---- the round: two versions under test, Flagsmith's confidence, the hidden truth, the scoreboard ------------ */
+.contest { display: grid; gap: 16px; }
+.contest[hidden] { display: none; }
+.contest-top { display: flex; justify-content: space-between; align-items: flex-start; gap: 16px; }
+.contest-title { min-width: 0; display: grid; gap: 2px; }
+.contest-kicker { margin: 0; font-size: 12px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: var(--muted); }
+.contest-head { margin: 0; font-size: 19px; line-height: 1.3; font-weight: 750; letter-spacing: -.01em; }
+.contest[data-phase='shipped'] .contest-head, .contest[data-phase='kept'] .contest-head { color: var(--good); }
+.contest-last { margin: 2px 0 0; font-size: 13px; color: var(--muted); }
+.contest-score { flex: none; display: grid; justify-items: end; gap: 2px; text-align: right; }
+.score-big { font-size: 22px; font-weight: 800; font-variant-numeric: tabular-nums; line-height: 1; }
+.score-line { font-size: 12px; color: var(--muted); }
+.score-dots { display: flex; gap: 3px; margin-top: 4px; }
+.score-dots i { width: 8px; height: 8px; border-radius: 50%; background: var(--faint); }
+.score-dots i[data-outcome='right'] { background: var(--good); }
+.score-dots i[data-outcome='wrong'] { background: var(--bad); }
 
-.sd-vs { align-self: center; font: 800 20px var(--sans, system-ui); color: var(--muted); display: grid; place-items: center; gap: 2px; text-align: center; }
-.sd-vs small { font-size: 12px; font-weight: 600; }
-.sd-side { border: 2px solid var(--border); border-radius: 14px; padding: 10px; display: grid; gap: 8px; transition: border-color .5s, opacity .5s, transform .5s, box-shadow .5s; position: relative; }
-.sd-side[data-state='testing'] { border-color: color-mix(in srgb, var(--treatment, #2f9e6b) 35%, var(--border)); }
-.sd-side[data-state='winner'] { border-color: #2f9e6b; box-shadow: 0 10px 30px -12px #2f9e6b; transform: translateY(-3px); }
-.sd-side[data-state='retired'] { opacity: .45; filter: grayscale(.6); }
-.sd-top { display: flex; justify-content: space-between; align-items: center; gap: 8px; }
-.sd-name { font-weight: 800; font-size: 15px; }
-.sd-name code { font-size: 13px; color: var(--muted); font-weight: 600; margin-left: 6px; }
-.sd-badge { font-size: 12px; font-weight: 800; padding: 3px 10px; border-radius: 999px; background: var(--surface-2, #f1f5f9); color: var(--muted); white-space: nowrap; }
-.sd-side[data-state='testing'] .sd-badge::before { content: ''; display: inline-block; width: 7px; height: 7px; border-radius: 50%; background: var(--treatment, #2f9e6b); margin-right: 6px; animation: autopilot-blink 1.2s ease-in-out infinite; }
-.sd-side[data-state='winner'] .sd-badge { background: #2f9e6b; color: #fff; }
-.sd-frame { position: relative; overflow: hidden; border-radius: 10px; border: 1px solid var(--border); aspect-ratio: 16 / 10; background: var(--surface-2, #f8fafc); }
-.sd-frame iframe { position: absolute; top: 0; left: 0; width: 1280px; height: 800px; border: 0; transform-origin: 0 0; pointer-events: none; }
-.sd-stats { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 6px; text-align: center; }
-.sd-stat b { display: block; font-size: 20px; font-variant-numeric: tabular-nums; }
-.sd-stat span { font-size: 11.5px; color: var(--muted); }
-.sd-crown { position: absolute; top: -14px; left: 50%; transform: translateX(-50%); background: #2f9e6b; color: #fff; font: 800 12px var(--sans, system-ui); padding: 4px 12px; border-radius: 999px; letter-spacing: .04em; animation: sd-pop .5s ease-out; }
-@keyframes sd-pop { from { transform: translateX(-50%) scale(.6); opacity: 0; } to { transform: translateX(-50%) scale(1); opacity: 1; } }
-@media (prefers-reduced-motion: reduce) { .sd-side, .sd-crown { transition: none; animation: none; } }
-.focus-view .col-main > #showdown-card { order: 2; }
-.focus-view .col-main > #round-card { order: 3; }
-.focus-view .col-main > #track-card { order: 4; }
-.focus-view .col-main > #visitor-card { order: 5; }
-
-.sd-last { display: block; margin-top: 4px; font-size: 13px; font-weight: 600; color: #2f9e6b; }
-
-/* Showdown layout fixes: columns may shrink (grid items default to their content's width), stack under 900 px,
-   names and badges wrap, numbers stay on one line. */
-.showdown-grid { grid-template-columns: minmax(0, 1fr) 72px minmax(0, 1fr); }
-.sd-side { min-width: 0; grid-template-columns: minmax(0, 1fr); }
+/* The two versions: the same structure, aligned, so the eye compares like with like. */
+.showdown-grid { display: grid; grid-template-columns: minmax(0, 1fr) 40px minmax(0, 1fr); gap: 12px; align-items: stretch; }
+.sd-vs { align-self: center; justify-self: center; font: 800 14px var(--sans); letter-spacing: .08em; color: var(--faint); }
+.sd-side { min-width: 0; display: grid; grid-template-columns: minmax(0, 1fr); gap: 10px; padding: 12px; border: 1px solid var(--border); border-radius: 12px; background: var(--surface);
+  transition: border-color .4s var(--ease), box-shadow .4s var(--ease), opacity .4s var(--ease); }
 .sd-side > * { min-width: 0; }
-.sd-top { flex-wrap: wrap; row-gap: 4px; }
-.sd-name { min-width: 0; overflow-wrap: anywhere; }
-.sd-stat b { font-size: clamp(16px, 2.2vw, 20px); white-space: nowrap; }
-.sd-stat span { display: block; line-height: 1.3; }
-.sd-stat small { display: block; font-size: 10.5px; color: var(--muted); line-height: 1.3; }
-.sd-vs small { max-width: 72px; line-height: 1.3; }
-@media (max-width: 900px) { .showdown-grid { grid-template-columns: minmax(0, 1fr) 56px minmax(0, 1fr); gap: 8px; } .sd-vs { font-size: 16px; } .sd-vs small { max-width: 56px; font-size: 11px; } .sd-side { padding: 8px; } .sd-stat span, .sd-stat small { font-size: 10.5px; } }
+.sd-side#sd-control { border-top: 3px solid var(--control); }
+.sd-side#sd-v2 { border-top: 3px solid var(--treatment); }
+.sd-side[data-state='winner'] { border-color: var(--good); box-shadow: 0 0 0 3px color-mix(in srgb, var(--good) 22%, transparent); }
+.sd-side[data-state='retired'] { opacity: .5; }
+.sd-top { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: baseline; gap: 8px; }
+.sd-role { font-size: 11px; font-weight: 800; letter-spacing: .07em; text-transform: uppercase; color: var(--muted); }
+.sd-name { min-width: 0; font-weight: 750; font-size: 15px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.sd-name code { font: 600 12.5px var(--mono); color: var(--muted); margin-left: 6px; }
+.sd-badge { font-size: 12px; font-weight: 700; color: var(--muted); white-space: nowrap; }
+.sd-side[data-state='testing'] .sd-badge::before { content: ""; display: inline-block; width: 6px; height: 6px; border-radius: 50%; background: var(--treatment); margin-right: 6px; vertical-align: 2px; animation: autopilot-blink 1.4s ease-in-out infinite; }
+.sd-side[data-state='winner'] .sd-badge { color: var(--good); }
+.sd-frame { position: relative; overflow: hidden; border-radius: 8px; border: 1px solid var(--border); aspect-ratio: 16 / 10; background: var(--surface-2); }
+.sd-frame iframe { position: absolute; top: 0; left: 0; width: 1280px; height: 800px; border: 0; transform-origin: 0 0; pointer-events: none; }
+.sd-stats { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); border-top: 1px solid var(--border); padding-top: 10px; }
+.sd-stat { display: grid; gap: 2px; padding: 0 8px; }
+.sd-stat + .sd-stat { border-left: 1px solid var(--border); }
+.sd-stat b { font-size: 20px; font-weight: 750; font-variant-numeric: tabular-nums; line-height: 1.1; white-space: nowrap; }
+.sd-stat span { font-size: 11.5px; color: var(--muted); line-height: 1.3; }
+.sd-stat-fs b { color: var(--fs-text); }
+
+/* Flagsmith's confidence: one bar, three zones, a marker that glides to each new reading. */
+.contest-meter { display: grid; gap: 8px; padding: 14px 16px; border-radius: 12px; background: var(--surface-2); border: 1px solid var(--border); }
+.meter-head { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 4px 12px; }
+.meter-label { font-size: 15px; }
+.contest-meter[data-zone='ship'] .meter-label { color: var(--good); }
+.contest-meter[data-zone='revert'] .meter-label { color: var(--bad); }
+.meter-sub { font-size: 12.5px; color: var(--muted); }
+.meter-track { position: relative; display: grid; grid-template-columns: 5fr 90fr 5fr; height: 28px; border-radius: 8px; }
+.meter-zone { display: grid; place-items: center; font-size: 11px; font-weight: 700; color: var(--muted); overflow: hidden; white-space: nowrap; }
+.meter-zone.z-revert { background: color-mix(in srgb, var(--bad) 16%, var(--surface)); border-radius: 8px 0 0 8px; color: transparent; }
+.meter-zone.z-keep { background: var(--bar-bg); }
+.meter-zone.z-ship { background: color-mix(in srgb, var(--good) 20%, var(--surface)); border-radius: 0 8px 8px 0; color: transparent; }
+.meter-tick { position: absolute; top: 6px; bottom: 6px; left: var(--at); width: 2px; margin-left: -1px; background: color-mix(in srgb, var(--text) 25%, transparent); border-radius: 1px; }
+.meter-mark { position: absolute; top: 50%; left: var(--at, 50%); transform: translate(-50%, -50%); transition: left .9s var(--ease); }
+.meter-mark b { display: grid; place-items: center; min-width: 40px; height: 26px; padding: 0 8px; border-radius: 13px; font-size: 12.5px; font-weight: 800; color: #fff; background: var(--text); box-shadow: 0 2px 6px rgb(0 0 0 / .18); font-variant-numeric: tabular-nums; }
+.contest-meter[data-zone='ship'] .meter-mark b { background: var(--good); }
+.contest-meter[data-zone='revert'] .meter-mark b { background: var(--bad); }
+.meter-scale { position: relative; height: 14px; font-size: 11px; color: var(--muted); }
+.meter-scale span { position: absolute; transform: translateX(-50%); }
+.meter-scale span:first-child { left: 0; transform: none; }
+.meter-scale span:last-child { right: 0; transform: none; }
+.meter-scale .ms-5 { left: 5%; }
+.meter-scale .ms-95 { left: 95%; }
+.meter-legend { display: flex; flex-wrap: wrap; gap: 4px 14px; font-size: 11.5px; color: var(--muted); }
+.meter-legend i { display: inline-block; width: 10px; height: 10px; border-radius: 3px; margin-right: 5px; vertical-align: -1px; }
+.meter-legend .lg-revert { background: color-mix(in srgb, var(--bad) 40%, var(--surface)); }
+.meter-legend .lg-keep { background: var(--bar-bg); border: 1px solid var(--border-strong); }
+.meter-legend .lg-ship { background: color-mix(in srgb, var(--good) 45%, var(--surface)); }
+
+/* The hidden truth: one plain line, locked, then revealed next to Flagsmith's call. */
+.contest-truth { margin: 0; font-size: 14px; line-height: 1.5; padding-left: 12px; border-left: 3px solid var(--border-strong); color: color-mix(in srgb, var(--text) 85%, var(--muted)); }
+.contest-truth[data-kind='right'] { border-left-color: var(--good); }
+.contest-truth[data-kind='wrong'] { border-left-color: var(--bad); }
+
+@media (max-width: 900px) { .showdown-grid { gap: 8px; grid-template-columns: minmax(0, 1fr) 28px minmax(0, 1fr); } .sd-side { padding: 10px; } .sd-stat b { font-size: 17px; } .sd-stat { padding: 0 4px; } }
 @media (max-width: 640px) {
-  .showdown-grid { grid-template-columns: minmax(0, 1fr); gap: 10px; }
-  .sd-vs { display: flex; justify-content: center; align-items: baseline; gap: 8px; }
-  .sd-vs small { max-width: none; }
+  .contest-top { flex-direction: column; }
+  .contest-score { justify-items: start; text-align: left; }
+  .showdown-grid { grid-template-columns: minmax(0, 1fr); }
+  .sd-vs { padding: 2px 0; }
 }
+@media (prefers-reduced-motion: reduce) { .meter-mark, .sd-side { transition: none; } .sd-side[data-state='testing'] .sd-badge::before { animation: none; } }
+
+/* ---- the public page's first screen: one column, in reading order ------------------------------------------- */
+.focus-view .col-main > * { order: 9; }
+.focus-view .col-main > #stage { order: 1; }
+.focus-view .col-main > #showdown-card { order: 2; }
+.focus-view .col-main > #track-card { order: 3; }
+.focus-view .col-main > #visitor-card { order: 4; }
+/* The Flagsmith breadcrumbs point at a dashboard the public can't open; the step rail already says where we are. */
+.focus-view #stage-where, .focus-view .stage-icon { display: none !important; }
+
+/* ---- the full dashboard's middle column, in reading order: the overview, what to do now, the round, the map ---- */
+.col-main > #flowline { order: 1; }
+.col-main > #stage { order: 2; }
+.col-main > #showdown-card { order: 3; }
+.col-main > #visitor-card { order: 4; }
+.col-main > #track-card { order: 5; }
+.col-main > #kpis { order: 6; }
+.col-main > .dock-wrap { order: 7; }
+
+/* The step rail is the public page's progress; the full dashboard already has the steps column and the phase line. */
+.judge:not(.focus-view) .stage-rail { display: none; }
+/* The marker stays inside the bar at 0% and 100%; the scale names only the two lines that decide: 5% and 95%. */
+.meter-mark { left: clamp(22px, var(--at, 50%), calc(100% - 22px)); }
+.meter-scale span:first-child, .meter-scale span:last-child { display: none; }

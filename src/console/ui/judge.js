@@ -346,7 +346,6 @@ function render() {
   renderKpis(s);
   renderRail(s);
   renderShowdown(s);
-  renderRound(s);
   renderVisitor(s);
   renderTrack(s);
   renderStage(s);
@@ -392,32 +391,84 @@ function renderShowdown(s) {
   card.hidden = !v;
   if (!v) return;
   if (sd.exp !== s.experiment.id) { sd.exp = s.experiment.id; sd.counts = {}; }
-  setSlot($('showdown-head'), JSON.stringify([v.headline, v.last, v.phase]), () => [
-    v.headline,
-    v.last && v.phase === 'testing' ? h('span', { class: 'sd-last' }, v.last) : null,
-  ]);
-  setSlot($('sd-vs'), JSON.stringify(v.chance), () => [
-    'VS',
-    v.chance === null ? null : h('small', {}, `${Math.round(v.chance * 100)}% that ${v.sides[1].release} is better`),
-  ]);
+  card.dataset.phase = v.phase;
+
+  // The round, numbered: a new round reads as the next one, not as the page starting over.
+  const blind = s.blind;
+  const round = J.roundNumber(blind);
+  setText($('contest-kicker'), `Round ${round}${blind?.enabled ? ' · blind' : ''} · simulated visitors`);
+  setText($('showdown-head'), v.headline);
+  const lastEl = $('showdown-last');
+  lastEl.hidden = !(v.last && v.phase === 'testing');
+  setText(lastEl, v.last ?? '');
+
+  // Scoreboard: one line and a dot per recent round (newest last).
+  const score = blind?.score;
+  setSlot($('sd-score'), JSON.stringify([score, blind?.recent]), () => {
+    if (!score?.rounds) return [h('span', { class: 'score-line' }, 'First round')];
+    const recent = [...(blind?.recent ?? [])].reverse();
+    return [
+      h('span', { class: 'score-big' }, `${score.right}/${score.rounds}`),
+      h('span', { class: 'score-line' }, 'rounds Flagsmith called right'),
+      h('span', { class: 'score-dots', 'aria-hidden': 'true' }, ...recent.map((r) =>
+        h('i', { 'data-outcome': r.outcome, title: `Round with ${r.v2} vs ${r.control}: ${r.outcome === 'right' ? 'right' : r.outcome === 'wrong' ? 'wrong' : 'no clear call'}` }))),
+    ];
+  });
+
+  setSlot($('sd-vs'), JSON.stringify(v.phase), () => [v.phase === 'testing' ? 'VS' : '→']);
   for (const side of v.sides) {
     const el = $(side.key === 'control' ? 'sd-control' : 'sd-v2');
     el.dataset.state = side.state;
     el.dataset.release = side.release;
     // The frame is built once per release, so it doesn't reload on every state poll.
-    setSlot(el, JSON.stringify([side.release, side.state]), () => [
-      side.state === 'winner' ? h('span', { class: 'sd-crown' }, v.phase === 'shipped' ? 'WINNER · SHIPPED' : 'KEPT · EVERYONE GETS IT') : null,
+    setSlot(el, JSON.stringify([side.release, side.state, side.flagsmith]), () => [
       h('div', { class: 'sd-top' },
+        h('span', { class: 'sd-role' }, side.key === 'v2' ? 'New' : 'Current'),
         h('span', { class: 'sd-name' }, side.name || side.release, h('code', {}, side.release)),
-        h('span', { class: 'sd-badge' }, side.state === 'testing' ? (side.key === 'v2' ? 'new · being tested' : 'current · being tested') : side.state === 'winner' ? 'everyone gets this' : v.phase === 'shipped' ? 'retired' : 'rolled back')),
+        h('span', { class: 'sd-badge' }, side.state === 'testing' ? 'being tested' : side.state === 'winner' ? (v.phase === 'shipped' ? 'Winner · shipped' : 'Kept · everyone gets it') : v.phase === 'shipped' ? 'retired' : 'rolled back')),
       h('div', { class: 'sd-frame' },
         h('iframe', { src: `${s.links.shop.replace(/\/$/, '')}/?__turnout_view=${encodeURIComponent(side.release)}`, title: `Preview of ${side.release}`, loading: 'lazy', tabindex: '-1', 'aria-hidden': 'true', on: { load: fitFrames } })),
       h('div', { class: 'sd-stats' },
-        h('div', { class: 'sd-stat' }, h('b', { 'data-k': 'pages' }, '0'), h('span', {}, 'page views now')),
-        h('div', { class: 'sd-stat' }, h('b', { 'data-k': 'orders' }, '0'), h('span', {}, 'orders now')),
-        h('div', { class: 'sd-stat' }, h('b', {}, side.flagsmith ? `${(side.flagsmith.rate * 100).toFixed(1)}%` : '—'), h('span', {}, side.flagsmith ? 'ordered' : 'no result yet'), h('small', {}, side.flagsmith ? `Flagsmith · ${side.flagsmith.n.toLocaleString('en-GB')} visitors` : 'from Flagsmith'))),
+        h('div', { class: 'sd-stat' }, h('b', { 'data-k': 'pages' }, '0'), h('span', {}, 'page views')),
+        h('div', { class: 'sd-stat' }, h('b', { 'data-k': 'orders' }, '0'), h('span', {}, 'orders')),
+        h('div', { class: 'sd-stat sd-stat-fs' }, h('b', {}, side.flagsmith ? `${(side.flagsmith.rate * 100).toFixed(1)}%` : '—'), h('span', {}, side.flagsmith ? `ordered · ${side.flagsmith.n.toLocaleString('en-GB')} visitors` : 'order rate, from Flagsmith'))),
     ]);
   }
+
+  // Flagsmith's confidence: one bar with the revert / keep running / ship zones and a marker that slides.
+  const m = J.meterModel(s.history);
+  const meter = $('sd-meter');
+  meter.dataset.zone = m.zone;
+  setSlot(meter, JSON.stringify([m.label, m.ticks, m.pct === null]), () => [
+    h('div', { class: 'meter-head' }, h('strong', { class: 'meter-label' }, m.pct === null ? h('span', { class: 'loading-dots' }, m.label) : m.label), h('span', { class: 'meter-sub' }, m.sub)),
+    h('div', { class: 'meter-track' },
+      h('span', { class: 'meter-zone z-revert' }, 'Revert'),
+      h('span', { class: 'meter-zone z-keep' }, 'Keep running'),
+      h('span', { class: 'meter-zone z-ship' }, 'Ship'),
+      ...m.ticks.map((t) => h('i', { class: 'meter-tick', vars: { '--at': `${t}%` }, title: `earlier: ${t}%` })),
+      h('span', { class: 'meter-mark', hidden: m.pct === null }, h('b', { class: 'meter-pct' }, ''))),
+    h('div', { class: 'meter-scale', 'aria-hidden': 'true' }, h('span', {}, '0%'), h('span', { class: 'ms-5' }, '5%'), h('span', { class: 'ms-95' }, '95%'), h('span', {}, '100%')),
+    h('div', { class: 'meter-legend' },
+      h('span', {}, h('i', { class: 'lg-revert' }), 'under 5%: keep the current version'),
+      h('span', {}, h('i', { class: 'lg-keep' }), 'not sure: keep running'),
+      h('span', {}, h('i', { class: 'lg-ship' }), 'over 95%: ship the new one')),
+  ]);
+  // The marker moves without rebuilding the bar, so it glides from one reading to the next.
+  if (m.pct !== null) {
+    meter.querySelector('.meter-mark')?.style.setProperty('--at', `${m.pct}%`);
+    const pct = meter.querySelector('.meter-pct');
+    if (pct) setText(pct, `${Math.round(m.pct)}%`);
+    const sub = meter.querySelector('.meter-sub');
+    if (sub) setText(sub, m.sub);
+  }
+
+  // The hidden truth: locked while the round runs, revealed next to Flagsmith's call when it's decided.
+  const reveal = J.revealText(blind);
+  const truth = $('sd-truth');
+  truth.dataset.kind = reveal?.kind ?? 'none';
+  setSlot(truth, JSON.stringify(reveal), () => reveal ? [h('strong', {}, reveal.head), ' ', reveal.text] : []);
+  truth.hidden = !reveal;
+
   paintShowdownCounts();
   fitFrames();
 }
@@ -433,72 +484,6 @@ function renderRail(s) {
         h('span', { class: 'srail-dot', 'aria-hidden': 'true' }, st.status === 'done' ? '✓' : String(i + 1)),
         h('span', { class: 'srail-label' }, st.title))),
   );
-}
-
-// ---- this round: blind reveal, chance-to-win line, scoreboard ------------------------------------------------------
-const SVG_NS = 'http://www.w3.org/2000/svg';
-function svg(tag, attrs = {}, ...children) {
-  const node = document.createElementNS(SVG_NS, tag);
-  for (const [k, v] of Object.entries(attrs)) node.setAttribute(k, String(v));
-  for (const c of children) node.append(c instanceof Node ? c : document.createTextNode(String(c)));
-  return node;
-}
-
-function renderRound(s) {
-  const card = $('round-card');
-  const reveal = J.revealText(s.blind);
-  const history = s.history ?? [];
-  card.hidden = !s.blind && !history.length;
-  if (card.hidden) return;
-  setSlot($('round-reveal'), JSON.stringify(reveal), () => {
-    $('round-reveal').dataset.kind = reveal?.kind ?? 'none';
-    return reveal
-      ? [h('h3', {}, reveal.head), h('p', {}, reveal.text)]
-      : [h('h3', {}, 'Live experiment'), h('p', {}, "Flagsmith's chance to win, each time it refreshes its results.")];
-  });
-  // Flagsmith's chance over time: a headline in words, then a chart with a labelled axis and a shaded "ship" zone.
-  const head = J.chanceHeadline(history);
-  const W = 640, H = 210, L = 46, T = 10, B = 26;
-  const chart = J.chanceChart(history, W - L, H - B + T, T);
-  setSlot($('round-chart'), JSON.stringify([chart.dots, head]), () => {
-    const headline = h('p', { class: 'chance-head', 'data-tone': head.tone },
-      head.pct === null ? h('span', { class: 'loading-dots' }, head.verdict) : [h('strong', { class: 'chance-big' }, `${head.pct}%`), ` chance the new version is better: ${head.verdict}`],
-      head.visitors ? h('span', { class: 'chance-n' }, ` · after ${head.visitors} visitors`) : null);
-    if (chart.empty) return [headline, h('p', { class: 'round-empty' }, 'The line starts with Flagsmith\'s first results. It recomputes them at most every 5 minutes.')];
-    const y = (v) => T + (1 - v) * (H - B - T);
-    const g = svg('svg', { viewBox: `0 0 ${W} ${H}`, role: 'img', 'aria-label': `Chance to win at each refresh: ${chart.dots.map((d) => `${Math.round(d.chance * 100)}%`).join(', ')}` });
-    g.append(svg('rect', { class: 'ship-zone', x: L, y: y(1), width: W - L - 4, height: y(0.95) - y(1) }));
-    for (const [v, label] of [[0.95, '95%'], [0.5, '50%'], [0, '0%']]) {
-      g.append(
-        svg('line', { class: v === 0.95 ? 'ship-line' : 'grid-line', x1: L, x2: W - 4, y1: y(v), y2: y(v) }),
-        svg('text', { class: 'axis', x: L - 8, y: y(v) + 4, 'text-anchor': 'end' }, label),
-      );
-    }
-    g.append(svg('text', { class: 'zone-label', x: W - 10, y: y(0.975) + 4, 'text-anchor': 'end' }, 'ship zone'));
-    const pts = chart.dots.map((d) => ({ ...d, x: d.x + L }));
-    if (pts.length > 1) {
-      g.append(svg('polygon', { class: 'chance-area', points: `${pts[0].x},${y(0)} ${pts.map((p) => `${p.x},${p.y}`).join(' ')} ${pts[pts.length - 1].x},${y(0)}` }));
-      g.append(svg('polyline', { class: 'chance-line', points: pts.map((p) => `${p.x},${p.y}`).join(' ') }));
-    }
-    for (const p of pts) {
-      g.append(
-        svg('circle', { class: 'chance-dot', cx: p.x, cy: p.y, r: 5 }, svg('title', {}, `${(p.chance * 100).toFixed(1)}% after ${p.identities} visitors`)),
-        svg('text', { class: 'axis', x: p.x, y: H - 6, 'text-anchor': 'middle' }, `${p.identities}`),
-      );
-    }
-    g.append(svg('text', { class: 'axis', x: L, y: H - 6, 'text-anchor': 'start' }, 'visitors:'));
-    return [headline, g];
-  });
-  const score = J.scoreText(s.blind?.score);
-  const recent = s.blind?.recent ?? [];
-  setSlot($('round-score'), JSON.stringify([s.blind?.score, recent]), () => [
-    h('p', { class: 'score-head' }, score.head),
-    h('p', { class: 'score-sub' }, score.sub),
-    recent.length
-      ? h('ul', { class: 'score-rounds', 'aria-label': 'Recent rounds' }, ...recent.map((r) =>
-          h('li', { 'data-outcome': r.outcome }, `#${r.experimentId} ${r.v2} vs ${r.control}: ${r.outcome === 'right' ? '✓' : r.outcome === 'wrong' ? '✗' : '…'}`)))
-      : null,
-  ]);
 }
 
 // ---- be a visitor: this browser's own assignment in the live experiment -------------------------------------------
@@ -865,11 +850,17 @@ function renderStage(s) {
   const done = s.current === 'reset';
   const step = steps.find((x) => x.id === s.current);
   const guide = done ? null : J.stepGuide(s.current, s);
-  const kicker = done ? 'All steps done' : `${J.progressText(s)} · ${P.PHASES.find((p) => p.id === P.phaseOf(s.current))?.label ?? ''}`;
-  const heading = done ? 'The loop is complete' : step ? stepTitle(s, step) : '';
+  // On the public page the story runs in rounds: the end of one is the start of the next, never "starting over".
+  const round = s.blind ? J.roundNumber(s.blind) : null;
+  const kicker = done ? (READONLY && round ? `Round ${round} done` : 'All steps done') : `${J.progressText(s)} · ${P.PHASES.find((p) => p.id === P.phaseOf(s.current))?.label ?? ''}`;
+  const heading = done ? (READONLY ? 'Next round in a moment' : 'The loop is complete') : step ? stepTitle(s, step) : '';
   setText($('stage-kicker'), kicker);
   setText($('stage-title'), heading);
-  setText($('stage-text'), done ? "Every decision is in the release history, with Flagsmith's numbers. Start over to run it again." : guide ? `${guide.you} ${guide.proves}` : '');
+  setText($('stage-text'), done
+    ? READONLY
+      ? "Both releases were decided and every decision is in the release history. The next round puts everyone back on the first release and draws new hidden rates, so Flagsmith has to find the winner again."
+      : "Every decision is in the release history, with Flagsmith's numbers. Start over to run it again."
+    : guide ? `${guide.you} ${guide.proves}` : '');
   $('stage-where').hidden = !guide?.where;
   setText($('stage-where'), guide?.where ?? '');
 

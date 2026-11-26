@@ -502,7 +502,7 @@ const ACTION_TEXT = {
   'swing-forward': 'Swinging forward again',
   preview: 'Turning on the preview',
   release: 'Starting the next experiment',
-  reset: 'Starting over',
+  reset: 'Starting the next round',
 };
 
 export const JOB_STEP = {
@@ -889,4 +889,31 @@ export function showdown(s) {
           ? `${e.v2} won: shipped to everyone`
           : `${e.control} stays: ${e.v2} was rolled back`,
   };
+}
+
+// ---- the round's confidence meter: one bar from 0 to 100% with Flagsmith's chance on it -----------------------------
+/**
+ * Where Flagsmith's chance sits on the meter: the zone (revert under 5%, keep running, ship from 95%), the marker's
+ * position, earlier readings as faint ticks, and the reading in words. `points` is the round's history.
+ */
+export function meterModel(points) {
+  const readings = (points ?? []).filter((p) => typeof p.chanceToWin === 'number');
+  const last = readings.at(-1);
+  if (!last) return { pct: null, zone: 'wait', ticks: [], label: "Waiting for Flagsmith's first results", sub: 'Flagsmith computes them after the first visitors (at most every 5 minutes).' };
+  const pct = Math.round(last.chanceToWin * 1000) / 10;
+  const zone = last.chanceToWin >= 0.95 ? 'ship' : last.chanceToWin <= 0.05 ? 'revert' : 'keep';
+  const label = zone === 'ship' ? 'Clearly better: ship it' : zone === 'revert' ? 'Clearly worse: keep the current one' : 'Not sure yet: keep running';
+  return {
+    pct,
+    zone,
+    ticks: readings.slice(0, -1).map((p) => Math.round(p.chanceToWin * 1000) / 10),
+    label,
+    sub: `${pct}% chance the new version is better · Flagsmith, after ${Number(last.identities ?? 0).toLocaleString('en-GB')} visitors`,
+  };
+}
+
+/** The round number while it runs (rounds decided so far + 1), or the decided round's number. */
+export function roundNumber(blind) {
+  const n = blind?.score?.rounds ?? 0;
+  return blind?.round && !blind.round.hidden ? n : n + 1;
 }

@@ -54,7 +54,7 @@ const TITLES: Record<JudgeAction, string> = {
   'swing-forward': 'Swing forward',
   preview: 'Preview the next release',
   release: 'Release the next release',
-  reset: 'Start the story again',
+  reset: 'Start the next round',
 };
 
 /**

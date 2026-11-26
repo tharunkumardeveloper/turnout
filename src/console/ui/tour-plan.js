@@ -640,7 +640,7 @@ const WATCH_JOB_TEXT = {
   verify: '50 brand-new visitors arrive. Every one of them should get the decided release, and no experiment split should be left on the flag.',
   preview: 'A Flagsmith segment override gives the next release only to the team (a private preview link). Nobody else sees it.',
   release: 'A new Flagsmith experiment starts on the same flag: the next release against the live one. No app code changes.',
-  reset: 'The story starts again: everyone goes back to the first release and a fresh experiment starts in Flagsmith.',
+  reset: 'The next round: everyone goes back to the first release, new hidden rates are drawn, and a fresh experiment starts in Flagsmith.',
 };
 
 /** The watch tour's opening: the idea, the page's parts, and that it runs by itself. */
@@ -670,7 +670,7 @@ export function watchJobBeat(job, s) {
   return { id: `watch-job:${job?.id ?? ''}`, tab: 'story', target: '#stage', title: `Now: ${step && step.action === job?.action ? step.title : (WATCH_JOB_TEXT[job?.action] ? labelOf(job.action) : 'a step')}`, body, watchJob: true };
 }
 
-const LABELS = { visitors: 'sending visitors', score: "getting Flagsmith's results", ship: 'shipping the winner', revert: 'reverting', 'keep-running': 'keep running', verify: 'checking everyone got it', preview: 'a team preview', release: 'releasing the next version', reset: 'starting again' };
+const LABELS = { visitors: 'sending visitors', score: "getting Flagsmith's results", ship: 'shipping the winner', revert: 'reverting', 'keep-running': 'keep running', verify: 'checking everyone got it', preview: 'a team preview', release: 'releasing the next version', reset: 'starting the next round' };
 const labelOf = (action) => LABELS[action] ?? action;
 
 /** After a step: where to look, without Flagsmith links, the preview view or Feature Health's wait. */
@@ -717,10 +717,10 @@ export function publicTour(s, flavor = 'quick') {
   const beats = [
     { id: 'pub:what', tab: 'story', details: false, target: '#stage', demo: 'stage-pulse', title: 'Every release becomes a Flagsmith experiment',
       body: `Turnout stands in front of a website. For each visitor it asks Flagsmith which version to show, sends them there, and reports what they do. Flagsmith decides which version is better. This page runs on its own, round after round.${now}` },
-    { id: 'pub:round', tab: 'story', details: false, target: '#round-card', title: 'A blind round',
-      body: "Each round, the true order rates are drawn at random and hidden: the new release is better, worse, or no different. Only the (simulated) traffic reaches Flagsmith. When the round is decided, this card reveals the truth next to Flagsmith's call, and the scoreboard counts how often Flagsmith was right." },
-    { id: 'pub:chart', tab: 'story', details: false, target: '#round-chart', title: "Flagsmith's confidence, over time",
-      body: "Each point is Flagsmith's chance that the new release is better, at one of its results refreshes (at most every 5 minutes). Above the dashed 95% line, with its interval clear of zero, Turnout ships. Around 50%, it's a coin flip: keep running." },
+    { id: 'pub:round', tab: 'story', details: false, target: '#showdown-card', title: 'The round: two versions, one winner',
+      body: "The current version on the left, the new one on the right, live: each preview is the real page, and the numbers under it are its visitors right now. Each round is blind: the true order rates are drawn at random and hidden, so Flagsmith has to find the winner, or say there is none. The scoreboard counts how often it's right." },
+    { id: 'pub:chart', tab: 'story', details: false, target: '#sd-meter', title: "Flagsmith's confidence",
+      body: "The marker is Flagsmith's chance that the new version is better. Past 95% (green), Turnout ships it. Under 5% (red), it keeps the current one. In between, it keeps the experiment running and sends more visitors. The faint ticks are earlier readings." },
     { id: 'pub:track', tab: 'story', details: false, target: '#track-card', demo: 'track-burst', title: 'Who gets which version, live',
       body: `Every dot is a request Turnout routed. The lanes are Flagsmith's rules: the experiment's split${v.v2 ? ` between ${v.control} and ${v.v2}` : ''}, a preview for the team, and everyone else on the live release.` },
   ];
@@ -744,7 +744,7 @@ export function publicTour(s, flavor = 'quick') {
   beats.push(
     { id: 'pub:visitor', tab: 'story', details: false, target: '#visitor-card', title: 'Your turn: be a visitor',
       body: "Press \"Be a visitor\": the shop opens and Turnout gives you one version, for real, and keeps you on it. Your visit counts in a separate live experiment, never mixed with the simulated one. Back here, the card says which version you got. Open it in a private window too: you may get the other one." },
-    { id: 'pub:end', tab: 'story', details: false, target: '#round-card', title: "That's the tour",
+    { id: 'pub:end', tab: 'story', details: false, target: '#sd-truth', title: "That's the tour",
       body: 'The autopilot keeps going: when this round is decided, the card above reveals the truth. Use it with your own website: one command, turnout compare, then two addresses. The README says how.' },
   );
   return beats;
