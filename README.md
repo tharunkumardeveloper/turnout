@@ -138,15 +138,17 @@ The first run builds Turnout's image from your checkout (about a minute, once).
 turnout demo
 ```
 
-Your browser opens judge mode at <http://127.0.0.1:8090/judge>. Follow the tour, or:
+Your browser opens the console at <http://127.0.0.1:8090>. Turn on the **Judge mode** switch (next to **Tour**) for the step-by-step view, then follow the tour, or:
 
 1. Pick **A/A**, **A/B** or **A/B/C** at the top. You see a preview of the versions first; nothing starts yet.
 2. Press the green button in each step: **Start**, **Send shoppers**, **Ask Flagsmith**, then **Ship** or **Roll back**.
-3. Open the **In Flagsmith** tab to see the flag, the split and the login for Flagsmith's own dashboard (<http://127.0.0.1:8000>).
+3. Open the **In Flagsmith** tab to see the flag, the split and the login for Flagsmith's own dashboard. At <http://127.0.0.1:8001> that dashboard has Turnout's tour on top: press **✦ Turnout tour**.
 4. Press **Be a visitor** to get a version yourself, or **Pin my browser** to always get one (a Flagsmith identity override).
 
-The full console is at <http://127.0.0.1:8090>: pick A/A, A/B or A/B/C in **Run a test** and press its one button (it starts the test, sends simulated shoppers and asks Flagsmith for the results). `turnout demo stop` stops it; `turnout demo reset` starts from scratch.
+With the switch off, the console: pick A/A, A/B or A/B/C in **Run a test** and press its one button (it starts the test, sends simulated shoppers and asks Flagsmith for the results). `turnout demo stop` stops it; `turnout demo reset` starts from scratch.
 </details>
+
+**Step by step in a terminal:** [docs/TERMINAL.md](docs/TERMINAL.md). **Everything to check, UI and terminal:** [docs/TESTING.md](docs/TESTING.md).
 
 <details>
 <summary><b>2½. Try it with your app, from the console (no command line)</b></summary>
@@ -159,7 +161,7 @@ Try it starts with everything else (`turnout.bat` / `sh turnout.sh`), **on your 
 
 The only thing your app needs is a working Dockerfile. Turnout never asks you to change your app or convert it to a format of its own.
 
-One version makes an A/A test (the same app twice, a fairness check), two an A/B test, three an A/B/C test. Turnout builds them on your machine, runs them behind a proxy of its own on a flag of its own (`tryit_release`), shows a live preview of each, and opens judge mode for them at <http://127.0.0.1:8090/try>, where **Play it for me** runs the whole test. Optional: a goal (`POST /signup`, `GET /pricing.html`), the conversion rate simulated visitors use per version, and **settings for your app** (`KEY=value` lines, such as a database URL; your machine is `host.docker.internal`). **Use an example** fills in two small pages, so you can watch it work without an app of your own. Local only: it builds and runs code, so it never exists on a public server.
+One version makes an A/A test (the same app twice, a fairness check), two an A/B test, three an A/B/C test. Turnout builds them on your machine, runs them behind a proxy of its own on a flag of its own (`tryit_release`), shows a live preview of each, and opens **your app's console** at <http://127.0.0.1:8090/app>: the same console (traffic, Flagsmith's results, Run a test, Decide) for your versions. Each version is also on its own preview address (A `:8086`, B `:8087`, C `:8088`), never counted. Optional: a goal (`POST /signup`, `GET /pricing.html`), the conversion rate simulated visitors use per version, and **settings for your app** (`KEY=value` lines, such as a database URL; your machine is `host.docker.internal`). **Use an example** fills in two small pages, so you can watch it work without an app of your own. Local only: it builds and runs code, so it never exists on a public server.
 </details>
 
 <details>
