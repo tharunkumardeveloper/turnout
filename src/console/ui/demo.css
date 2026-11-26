@@ -91,7 +91,7 @@ button { font: inherit; }
   grid-template-areas: "steps versions" "steps results";
 }
 .panel { min-height: 0; background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 14px 16px; }
-.steps-panel { grid-area: steps; overflow: auto; display: flex; flex-direction: column; }
+.steps-panel { grid-area: steps; overflow-y: auto; overflow-x: hidden; display: flex; flex-direction: column; }
 .versions-panel { grid-area: versions; display: flex; flex-direction: column; }
 .results-panel { grid-area: results; }
 .eyebrow { margin: 0 0 8px; font-size: 12px; font-weight: 700; letter-spacing: .07em; text-transform: uppercase; color: var(--muted); }
@@ -167,7 +167,7 @@ a.card-meta { text-decoration: underline; }
 .change { margin: 2px 0 0; display: grid; gap: 2px; }
 .change div { display: grid; grid-template-columns: 52px minmax(0, 1fr); gap: 6px; }
 .change dt { color: var(--muted); font-weight: 650; }
-.change dd { margin: 0; font-family: var(--mono); font-size: 12.5px; }
+.change dd { margin: 0; font-family: var(--mono); font-size: 12.5px; overflow-wrap: anywhere; min-width: 0; }
 .check { color: var(--good); }
 .check[data-ok='false'] { color: var(--bad); }
 .next { margin-top: auto; padding-top: 12px; border-top: 1px dashed var(--border); }
@@ -213,7 +213,7 @@ a.version-frame:hover { border-color: var(--go); box-shadow: 0 0 0 2px color-mix
 a.version-frame::after { content: "Open on its own ↗"; position: absolute; right: 6px; bottom: 6px; padding: 2px 8px; border-radius: 6px; font-size: 11.5px; font-weight: 650; color: #fff; background: rgb(15 23 42 / .75); opacity: 0; transition: opacity .2s; }
 a.version-frame:hover::after, a.version-frame:focus-visible::after { opacity: 1; }
 .autopilot { margin: 0; padding: 8px 10px; border-radius: 8px; background: var(--wait-bg); color: var(--text); font-size: 13.5px; }
-.kind:disabled { cursor: default; opacity: .75; }
+.kind:disabled { cursor: not-allowed; opacity: .5; }
 .kind[aria-pressed='true']:disabled { opacity: 1; }
 
 /* ---- the kind of test: A/A, A/B, A/B/C… ---- */

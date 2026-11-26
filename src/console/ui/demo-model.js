@@ -288,11 +288,14 @@ export function model(s, opts = {}) {
   out.letters = aa ? 'A/A' : list.map((x) => x.letter).join('/');
   const done = e.status === 'completed';
   const decision = done ? decisionOf(s) : null;
-  const shippedArm = done && !isAA(s) ? list.slice(1).find((x) => x.release === s.live) ?? null : null;
+  // The recorded decision first: while the next test starts, the flag is briefly back on A, and reading the live flag
+  // turned a shipped B into "Rolled back". The live flag only for a decision with no record (made in Flagsmith).
+  const recorded = decision?.decision === 'shipped' ? list.slice(1).find((x) => x.key === decision.variant || x.release === decision.release) ?? null : null;
+  const shippedArm = done && !isAA(s) ? (decision ? recorded : list.slice(1).find((x) => x.release === s.live) ?? null) : null;
   const armPct = (key) => s.routing?.experiment?.arms?.find((x) => x.key === key)?.pct;
 
   out.now = done
-    ? `Everyone gets ${list.find((x) => x.release === s.live)?.name ?? label(s.live)}. No test is running.`
+    ? `Everyone gets ${(shippedArm ?? (decision ? list[0] : list.find((x) => x.release === s.live)))?.name ?? label(s.live)}. No test is running.`
     : aa
       ? `An A/A test: both sides get ${list[0].name}. Flagsmith counts each new shopper on one side.`
       : `Flagsmith is testing ${list.slice(1).map((x) => x.name).join(' and ')} against ${list[0].name}. Each new shopper gets one of them.`;

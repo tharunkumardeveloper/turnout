@@ -192,6 +192,11 @@ describe('demo-model.js: what the simple judge page says', () => {
     const reverted = M.model(base({ experiment: { ...base().experiment, status: 'completed' }, live: 'shop:1.4', results: abcResults, ledger: [{ ...ledger[0], decision: 'reverted', release: 'shop:1.4' }] }));
     assert.equal(reverted.outcome.title, 'Everyone stays on A · 1.4 Classic');
     assert.deepEqual(reverted.versions.map((v: any) => v.badge), ['Kept', 'Rolled back', 'Rolled back']);
+
+    // The next test starting puts the flag back on A for a moment: the shipped test still reads as shipped.
+    const starting = M.model(base({ experiment: { ...base().experiment, status: 'completed' }, live: 'shop:1.4', results: abcResults, ledger }));
+    assert.equal(starting.now, 'Everyone gets B · 1.5 Express. No test is running.');
+    assert.deepEqual(starting.versions.map((v: any) => v.badge), ['Replaced', 'Shipped', 'Not shipped']);
   });
 
   test('no experiment yet: start the kind picked, an A/B/C test by default (A/B with only two releases)', () => {

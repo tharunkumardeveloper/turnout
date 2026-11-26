@@ -273,8 +273,9 @@ function renderKinds(s, kind) {
     h('span', { class: 'kinds-label' }, 'Test'),
     ...options.map((o) => h('button', {
       class: 'kind', type: 'button',
-      title: LOCKED ? `${o.blurb} On this public page the autopilot picks the test.` : `${o.blurb} Click to preview it; Start runs it.`,
-      'aria-pressed': String(o.arms === (ui.plan ?? ui.pendingKind ?? kind)), 'data-running': o.arms === current ? 'true' : null,
+      title: LOCKED ? `${o.blurb} On this public page the autopilot picks the test.` : busy ? `A step is running: pick another test when it finishes.` : `${o.blurb} Click to preview it; Start runs it.`,
+      // Pressed: the test on screen (a picked plan, else the running test, else the last pick), never a stale pick.
+      'aria-pressed': String(o.arms === (ui.plan ?? ui.pendingKind ?? current ?? kind)), 'data-running': o.arms === current ? 'true' : null,
       disabled: LOCKED || busy,
       on: { click: () => pickKind(o.arms) },
     }, o.label)));

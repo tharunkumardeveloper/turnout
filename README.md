@@ -18,7 +18,7 @@
 
 [**Live demo**](https://172-198-62-67.sslip.io) · [Quick start](#quick-start) · [Step-by-step setup](#step-by-step-setup) · [How Flagsmith is used](#how-flagsmith-is-used)
 
-<img src="docs/images/judge-ship.gif" width="860" alt="Guided demo: an A/B/C test on the demo shop. Shoppers go through, Flagsmith's results arrive, B ships and C is stopped by its slower pages">
+<img src="docs/images/judge-ship.gif" width="860" alt="The live demo, guided: a visitor runs an A/B/C test. 2,100 shoppers go through, Flagsmith is not sure B beats A and flags C's pages as 8.6× slower; keeping A reveals the blind round: identical on orders, so Flagsmith got it right (96 of 98)">
 
 </div>
 
