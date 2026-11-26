@@ -4,3 +4,5 @@ bin/turnout text eol=lf
 *.ps1 text eol=crlf
 *.cmd text eol=crlf
 install.sh text eol=lf
+deploy/*.sh text eol=lf
+deploy/*.py text eol=lf

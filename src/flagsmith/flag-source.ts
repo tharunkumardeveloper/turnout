@@ -17,7 +17,11 @@ export function eventsApiUrlFor(apiUrl: string): string {
 }
 
 export const MAX_EVENT_BUFFER = 7000;
-export const HOLD_AT = MAX_EVENT_BUFFER - 500; // Turnout's own events wait above this; the rest is room for exposures
+// Turnout's own events wait above this many in the SDK's buffer. The SDK sends its whole buffer as one batch, so this
+// also caps a batch near 2,000 events: one that posts in a few seconds even when Flagsmith is busy. Measured on a
+// 2-vCPU VM: 7,000-event batches took over 15 s under load, timed out, and the SDK's retries kept Flagsmith overloaded.
+// The other 5,000 places are room for the exposures the SDK records itself.
+export const HOLD_AT = 2000;
 export const QUEUE_CAP = 100_000;
 
 // The SDK reports events it drops (a full buffer while a batch is in flight) only as log warnings. This logger counts
@@ -62,7 +66,7 @@ export function createFlagSource(opts: Options): FlagSource & { close(): Promise
     // drops its oldest events. Flush every second so batches stay small; the buffer is capped by Flagsmith's 2 MiB body
     // limit (experimentation/constants.py:39), since the SDK never splits a batch: 7,000 events of the largest kind
     // Turnout sends (a 100-character event name, 281 bytes) are 1.97 MB. Drops are counted (dropLogger below).
-    eventProcessorConfig: { eventsApiUrl: eventsApiUrlFor(opts.apiUrl), flushInterval: 1000, maxBuffer: MAX_EVENT_BUFFER, requestTimeoutMs: 15_000 },
+    eventProcessorConfig: { eventsApiUrl: eventsApiUrlFor(opts.apiUrl), flushInterval: 1000, maxBuffer: MAX_EVENT_BUFFER, requestTimeoutMs: 30_000 },
     logger: dropLogger(receipts) as unknown as FlagsmithConfig['logger'],
     fetch: receiptFetch(receipts, opts.fetch ?? fetch),
     onEnvironmentChange: (error) => {

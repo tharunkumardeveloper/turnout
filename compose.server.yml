@@ -101,7 +101,8 @@ services:
       TURNOUT_LIVE_FLAG: shop_release_live # turnout.live.yml: real visitors, shown next to the simulated story
       TURNOUT_AUTOPILOT_VISITORS: ${TURNOUT_AUTOPILOT_VISITORS:-}
       TURNOUT_AUTOPILOT_PAUSE: ${TURNOUT_AUTOPILOT_PAUSE:-}
-      TURNOUT_DEMO_CONCURRENCY: ${TURNOUT_DEMO_CONCURRENCY:-} # default 20; 20, 50 and 200 lost no events on a 2-vCPU VM (spikes/RESULTS.md)
+      # Simulated visitors in flight. 25 here (50 locally): on 2 vCPUs Flagsmith runs on the same machine and needs room.
+      TURNOUT_DEMO_CONCURRENCY: ${TURNOUT_DEMO_CONCURRENCY:-25}
     ports: !override
       - 127.0.0.1:8090:8090
       - 127.0.0.1:8091:8091
@@ -151,6 +152,23 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
+
+  # The demo's experiments, bounded (deploy/housekeeping.sh): the autopilot starts ~40 an hour, and each leaves a
+  # rollout segment in the environment document every proxy fetches every 5 s. Flagsmith's image and its own code.
+  flagsmith-housekeeping:
+    extends: { file: compose.flagsmith.yml, service: flagsmith-task-processor }
+    <<: *restart
+    environment:
+      <<: *flagsmith-secrets
+      AUTOPILOT: ${TURNOUT_AUTOPILOT:-on}
+      KEEP: '10'
+    entrypoint: ['/bin/sh', '/housekeeping.sh']
+    command: []
+    healthcheck: { disable: true }
+    volumes:
+      - ./deploy/housekeeping.sh:/housekeeping.sh:ro
+      - ./deploy/housekeeping.py:/housekeeping.py:ro
+      - ./.turnout/snapshots:/snapshots:ro
 
   shop-1-4: *shop-frames
   shop-1-5: *shop-frames
