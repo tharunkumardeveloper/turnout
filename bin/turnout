@@ -34,74 +34,89 @@ die() { printf 'turnout: %s\n' "$*" >&2; exit 1; }
 compose() { docker compose -p "$PROJECT" --project-directory "$STATE" -f "$STATE/turnout.compose.yml" "$@"; }
 
 # ---- the look: banner, colours, help ------------------------------------------------------------------------------
-# Colours only on a terminal that shows them (not when piped, not with NO_COLOR).
+# Colours only on a terminal that shows them (not when piped, not with NO_COLOR); 256 colours for the logo's gradient.
 if [ -t 1 ] && [ -z "${NO_COLOR:-}" ]; then
   C_B=$(printf '\033[1m'); C_D=$(printf '\033[2m'); C_G=$(printf '\033[32m'); C_C=$(printf '\033[36m'); C_Y=$(printf '\033[33m'); C_R=$(printf '\033[31m'); C_0=$(printf '\033[0m')
+  C_P=$(printf '\033[38;5;99m')
+  L1=$(printf '\033[38;5;33m'); L2=$(printf '\033[38;5;39m'); L3=$(printf '\033[38;5;43m'); L4=$(printf '\033[38;5;41m'); L5=$(printf '\033[38;5;178m')
 else
-  C_B=; C_D=; C_G=; C_C=; C_Y=; C_R=; C_0=
+  C_B=; C_D=; C_G=; C_C=; C_Y=; C_R=; C_0=; C_P=; L1=; L2=; L3=; L4=; L5=
 fi
 
 logo() {
-  printf '%s' "$C_C"
-  cat <<'ART'
-
-   _____ _   _ ____  _   _  ___  _   _ _____
-  |_   _| | | |  _ \| \ | |/ _ \| | | |_   _|
-    | | | | | | |_) |  \| | | | | | | | | |
-    | | | |_| |  _ <| |\  | |_| | |_| | | |
-    |_|  \___/|_| \_\_| \_|\___/ \___/  |_|
-ART
-  printf '%s' "$C_0"
-  say "  ${C_B}Every release becomes a Flagsmith experiment. No app code.${C_0}"
-  say "  ${C_D}built by Tharun Kumar${C_0}"
+  say ""
+  say "${L1}   ████████ ██    ██ ██████  ███    ██  ██████  ██    ██ ████████${C_0}"
+  say "${L2}      ██    ██    ██ ██   ██ ████   ██ ██    ██ ██    ██    ██${C_0}"
+  say "${L3}      ██    ██    ██ ██████  ██ ██  ██ ██    ██ ██    ██    ██${C_0}"
+  say "${L4}      ██    ██    ██ ██   ██ ██  ██ ██ ██    ██ ██    ██    ██${C_0}"
+  say "${L5}      ██     ██████  ██   ██ ██   ████  ██████   ██████     ██${C_0}"
+  say ""
+  say "   ${C_B}Every release becomes a Flagsmith experiment.${C_0} ${C_D}No app code. One click to ship or roll back.${C_0}"
+  say "   ${C_D}v$(version_of) · built by Tharun Kumar · powered by${C_0} ${C_P}${C_B}Flagsmith${C_0}"
   say ""
 }
+
+version_of() { sed -n 's/.*"version": *"\([^"]*\)".*/\1/p' "$HOME_DIR/package.json" 2>/dev/null | head -1; }
+
+# One section of the help: a title with a rule under it.
+section() { say "  ${C_B}$1${C_0} ${C_D}$(printf '%*s' $((60 - ${#1})) '' | sed 's/ /─/g')${C_0}"; }
+# One command: the command in colour, padded, and what it does.
+cmd() { printf '    %s%-34s%s %s\n' "$C_C" "$1" "$C_0" "$2"; }
+opt() { printf '    %s  %-32s %s%s\n' "$C_D" "$1" "$2" "$C_0"; }
 
 # What this machine has: Docker (installed, running), Git. Prints a line each.
 machine_check() {
   ok=0
   if command -v docker >/dev/null 2>&1; then
-    if docker info >/dev/null 2>&1; then say "  ${C_G}[ok]${C_0} Docker is installed and running"
-    else say "  ${C_Y}[!!]${C_0} Docker is installed but not running: start Docker Desktop (or: sudo systemctl start docker)"; ok=1; fi
-  else say "  ${C_R}[no]${C_0} Docker isn't installed: https://docs.docker.com/get-docker/"; ok=1; fi
-  if command -v git >/dev/null 2>&1; then say "  ${C_G}[ok]${C_0} Git is installed"
-  else say "  ${C_Y}[--]${C_0} Git isn't installed (needed for turnout update and comparing branches): https://git-scm.com/downloads"; fi
+    if docker info >/dev/null 2>&1; then say "    ${C_G}✓${C_0} Docker is installed and running"
+    else say "    ${C_Y}!${C_0} Docker is installed but not running: start Docker Desktop (or: sudo systemctl start docker)"; ok=1; fi
+  else say "    ${C_R}✕${C_0} Docker isn't installed: https://docs.docker.com/get-docker/"; ok=1; fi
+  if command -v git >/dev/null 2>&1; then say "    ${C_G}✓${C_0} Git is installed"
+  else say "    ${C_Y}–${C_0} Git isn't installed (needed for turnout update and comparing branches): https://git-scm.com/downloads"; fi
   return $ok
 }
 
 help_screen() {
   logo
-  say "${C_B}WHAT YOU NEED${C_0}"
+  section 'WHAT YOU NEED'
   machine_check || true
-  say "  ${C_D}About 4 GB of memory for Docker. Flagsmith comes with Turnout: nothing else to install.${C_0}"
+  say "    ${C_D}About 4 GB of memory for Docker. Flagsmith comes with Turnout: nothing else to install.${C_0}"
   say ""
-  say "${C_B}TRY IT${C_0}"
-  say "  ${C_C}turnout demo${C_0}                          the demo shop and judge mode, with a guided tour"
+  section 'START HERE'
+  cmd 'turnout demo' 'the demo shop: console, Judge mode, Try it, the tours'
+  cmd 'turnout demo stop' 'stop it (data kept)'
   say ""
-  say "${C_B}YOUR OWN WEBSITE${C_0}   ${C_D}(run these in your project's folder)${C_0}"
-  say "  ${C_C}turnout compare localhost:3001 localhost:3002${C_0}   two versions you have running: an A/B test"
-  say "  ${C_C}turnout compare myapp:1.0 myapp:1.1 myapp:1.2${C_0}    three Docker images: an A/B/C test"
-  say "  ${C_C}turnout compare main new-design${C_0}                 git branches (built from your Dockerfile)"
-  say "      ${C_D}the first version is A, what everyone gets now; add as many new ones as you like${C_0}"
-  say "      ${C_D}--goal \"POST /signup\"   count a conversion (no goal: judged on page speed)${C_0}"
-  say "      ${C_D}--split 10              10% of visitors get each new version${C_0}"
-  say "      ${C_D}--port 3000             the port your images listen on${C_0}"
-  say "      ${C_D}--env-file .env.turnout your app's settings for the versions Turnout starts (default: ./.env)${C_0}"
-  say "  ${C_C}turnout simulate${C_0}                      pretend visitors, so results show in minutes (kept apart)"
-  say "  ${C_C}turnout open${C_0}                          reopen the results page: Ship winner or Revert there"
-  say "  ${C_C}turnout status${C_0}                        what's running, and a full check"
+  section 'TEST YOUR APP   (in your project folder)'
+  cmd 'turnout compare <A> <B> [<C>]' 'put Turnout in front of your versions: A/B, A/B/C'
+  opt 'A, B: localhost:3001, myapp:1.1' 'URLs, Docker images or git branches'
+  opt '--goal "POST /signup"' 'what counts as a win (none: page speed)'
+  opt '--split 10' '% of visitors on each new version'
+  opt '--port 3000' 'the port your images listen on'
+  opt '--env-file .env.turnout' "your app's settings (default ./.env)"
+  cmd 'turnout simulate [--visitors 500]' 'pretend visitors, so results show in minutes'
+  cmd 'turnout open' 'the console: traffic, results, Ship or Revert'
   say ""
-  say "${C_B}GO LIVE${C_0}"
-  say "  ${C_C}turnout deploy yourdomain.com${C_0}         the lines to put your web server (Nginx, Caddy) in front"
+  section 'DECIDE   (Flagsmith decides; you confirm)'
+  cmd 'turnout results' "Flagsmith's results, in the terminal"
+  cmd 'turnout ship [v2]' 'move everyone to the winner (asks first)'
+  cmd 'turnout revert' 'move everyone back to A (asks first)'
   say ""
-  say "${C_B}LOOK AFTER IT${C_0}"
-  say "  ${C_C}turnout down${C_0}  stop (data kept)    ${C_C}turnout reset${C_0}  wipe    ${C_C}turnout update${C_0}  get the latest Turnout"
+  section 'GO LIVE'
+  cmd 'turnout deploy yourdomain.com' 'the Nginx or Caddy lines to put Turnout in front'
   say ""
-  say "${C_D}How it works: visitors reach Turnout, Turnout asks Flagsmith which version each one gets and sends them there,"
-  say "Flagsmith scores every version, and one click moves everyone to the winner. More: README.md in $HOME_DIR${C_0}"
+  section 'LOOK AFTER IT'
+  cmd 'turnout status' "what's running, and a full check"
+  cmd 'turnout logs [proxy|console]' "follow Turnout's logs"
+  cmd 'turnout down | reset' 'stop (data kept) | wipe and start fresh'
+  cmd 'turnout update | version' 'get the latest | which one you have'
+  say ""
+  say "  ${C_D}How it works: visitors reach Turnout, Flagsmith picks each one's version, Turnout sends them there and"
+  say "  reports what they did; Flagsmith scores every version; one click moves everyone to the winner.${C_0}"
+  say "  ${C_D}More: ${C_0}turnout help${C_D} · README.md in $HOME_DIR${C_0}"
 }
 
-step() { say "${C_C}==>${C_0} ${C_B}$*${C_0}"; }
+step() { say "${C_C}▸${C_0} ${C_B}$*${C_0}"; }
+ok() { say "  ${C_G}✓${C_0} $*"; }
 
 
 need_docker() {
@@ -395,6 +410,11 @@ case "$cmd" in
   simulate) cmd_simulate "$@" ;;
   demo) need_docker; cd "$HOME_DIR" && exec sh turnout.sh "${1:-start}" ;;   # start (opens judge mode), or: stop, status, reset
   update) cd "$HOME_DIR" && git pull --ff-only && say "Up to date. The next turnout compare or turnout demo uses it." ;;
+  results) need_state; need_docker; compose run --rm cli status ;;
+  ship) need_state; need_docker; compose run --rm -it cli ship ${1:+--winner "$1"} ;;
+  revert) need_state; need_docker; compose run --rm -it cli revert ;;
+  logs) need_state; need_docker; svc=${1:-}; [ "$svc" = proxy ] && svc=turnout; compose logs -f --tail 50 $svc ;;
+  version|--version|-v) say "turnout $(version_of)" ;;
   open) need_state; open_url "http://127.0.0.1:$CONSOLE_PORT"; banner ;;
   status) need_state; need_docker; compose ps; compose run --rm cli doctor | tail -1 ;;
   down) need_state; need_docker; step "Stopping $NAME"; compose --profile sim down >/dev/null 2>&1; say "Stopped. turnout compare with the same arguments starts it again, with its data." ;;

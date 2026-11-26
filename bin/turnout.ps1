@@ -1,4 +1,4 @@
-# turnout (Windows): put Turnout in front of two or more versions of your app and watch Flagsmith compare them.
+﻿# turnout (Windows): put Turnout in front of two or more versions of your app and watch Flagsmith compare them.
 #
 #   turnout compare <live> <new> [<new2> …] [--goal "POST /signup"] [--split 50] [--port 3000] [--env-file .env]
 #       Two versions make an A/B test, three an A/B/C test, and so on: <live> is A, the others are tested against it.
@@ -69,66 +69,78 @@ function Read-Args {
 
 # ---- the look: logo, colours, help -------------------------------------------------------------------------------
 function Show-Logo {
-  $art = @'
-
-   _____ _   _ ____  _   _  ___  _   _ _____
-  |_   _| | | |  _ \| \ | |/ _ \| | | |_   _|
-    | | | | | | |_) |  \| | | | | | | | | |
-    | | | |_| |  _ <| |\  | |_| | |_| | | |
-    |_|  \___/|_| \_\_| \_|\___/ \___/  |_|
-'@
-  Write-Host $art -ForegroundColor Cyan
-  Write-Host '  Every release becomes a Flagsmith experiment. No app code.' -ForegroundColor White
-  Write-Host '  built by Tharun Kumar' -ForegroundColor DarkGray
+  # Block letters need UTF-8 output (Windows Terminal and PowerShell 7 have it; this sets it for the old console too).
+  try { [Console]::OutputEncoding = [System.Text.Encoding]::UTF8 } catch { }
+  Write-Host ''
+  Write-Host '   ████████ ██    ██ ██████  ███    ██  ██████  ██    ██ ████████' -ForegroundColor Blue
+  Write-Host '      ██    ██    ██ ██   ██ ████   ██ ██    ██ ██    ██    ██' -ForegroundColor Cyan
+  Write-Host '      ██    ██    ██ ██████  ██ ██  ██ ██    ██ ██    ██    ██' -ForegroundColor DarkCyan
+  Write-Host '      ██    ██    ██ ██   ██ ██  ██ ██ ██    ██ ██    ██    ██' -ForegroundColor Green
+  Write-Host '      ██     ██████  ██   ██ ██   ████  ██████   ██████     ██' -ForegroundColor Yellow
+  Write-Host ''
+  Write-Host '   Every release becomes a Flagsmith experiment. ' -ForegroundColor White -NoNewline
+  Write-Host 'No app code. One click to ship or roll back.' -ForegroundColor DarkGray
+  Write-Host "   v$(Get-Version) · built by Tharun Kumar · powered by " -ForegroundColor DarkGray -NoNewline
+  Write-Host 'Flagsmith' -ForegroundColor Magenta
   Write-Host ''
 }
-function Step([string]$m) { Write-Host '==> ' -ForegroundColor Cyan -NoNewline; Write-Host $m -ForegroundColor White }
-function Show-Cmd([string]$cmd, [string]$what) { Write-Host ('  ' + $cmd.PadRight(50)) -ForegroundColor Cyan -NoNewline; Write-Host $what }
-function Show-Head([string]$t, [string]$note = '') { Write-Host $t -ForegroundColor White -NoNewline; if ($note) { Write-Host "   $note" -ForegroundColor DarkGray } else { Write-Host '' } }
+function Get-Version {
+  try { return (Get-Content (Join-Path $HomeDir 'package.json') -Raw | ConvertFrom-Json).version } catch { return '?' }
+}
+function Step([string]$m) { Write-Host '▸ ' -ForegroundColor Cyan -NoNewline; Write-Host $m -ForegroundColor White }
+function Show-Section([string]$t) { Write-Host "  $t " -ForegroundColor White -NoNewline; Write-Host ('─' * [Math]::Max(4, 60 - $t.Length)) -ForegroundColor DarkGray }
+function Show-Cmd([string]$cmd, [string]$what) { Write-Host ('    ' + $cmd.PadRight(35)) -ForegroundColor Cyan -NoNewline; Write-Host $what }
+function Show-Opt([string]$opt, [string]$what) { Write-Host ('      ' + $opt.PadRight(33) + $what) -ForegroundColor DarkGray }
 
 function Test-Machine {
   $ok = $true
   if (Get-Command docker -ErrorAction SilentlyContinue) {
     docker info *> $null
-    if ($LASTEXITCODE -eq 0) { Write-Host '  [ok] ' -ForegroundColor Green -NoNewline; Write-Host 'Docker is installed and running' }
-    else { Write-Host '  [!!] ' -ForegroundColor Yellow -NoNewline; Write-Host 'Docker is installed but not running: start Docker Desktop'; $ok = $false }
-  } else { Write-Host '  [no] ' -ForegroundColor Red -NoNewline; Write-Host "Docker isn't installed: https://docs.docker.com/desktop/setup/install/windows-install/"; $ok = $false }
-  if (Get-Command git -ErrorAction SilentlyContinue) { Write-Host '  [ok] ' -ForegroundColor Green -NoNewline; Write-Host 'Git is installed' }
-  else { Write-Host '  [--] ' -ForegroundColor Yellow -NoNewline; Write-Host "Git isn't installed (needed for turnout update and comparing branches): https://git-scm.com/downloads" }
+    if ($LASTEXITCODE -eq 0) { Write-Host '    ✓ ' -ForegroundColor Green -NoNewline; Write-Host 'Docker is installed and running' }
+    else { Write-Host '    ! ' -ForegroundColor Yellow -NoNewline; Write-Host 'Docker is installed but not running: start Docker Desktop'; $ok = $false }
+  } else { Write-Host '    ✕ ' -ForegroundColor Red -NoNewline; Write-Host "Docker isn't installed: https://docs.docker.com/desktop/setup/install/windows-install/"; $ok = $false }
+  if (Get-Command git -ErrorAction SilentlyContinue) { Write-Host '    ✓ ' -ForegroundColor Green -NoNewline; Write-Host 'Git is installed' }
+  else { Write-Host '    – ' -ForegroundColor Yellow -NoNewline; Write-Host "Git isn't installed (needed for turnout update and comparing branches): https://git-scm.com/downloads" }
   return $ok
 }
 
 function Show-Help {
   Show-Logo
-  Show-Head 'WHAT YOU NEED'
+  Show-Section 'WHAT YOU NEED'
   Test-Machine | Out-Null
-  Write-Host '  About 4 GB of memory for Docker. Flagsmith comes with Turnout: nothing else to install.' -ForegroundColor DarkGray
+  Write-Host '    About 4 GB of memory for Docker. Flagsmith comes with Turnout: nothing else to install.' -ForegroundColor DarkGray
   Write-Host ''
-  Show-Head 'TRY IT'
-  Show-Cmd 'turnout demo' 'the demo shop and judge mode, with a guided tour'
+  Show-Section 'START HERE'
+  Show-Cmd 'turnout demo' 'the demo shop: console, Judge mode, Try it, the tours'
+  Show-Cmd 'turnout demo stop' 'stop it (data kept)'
   Write-Host ''
-  Show-Head 'YOUR OWN WEBSITE' "(run these in your project's folder)"
-  Show-Cmd 'turnout compare localhost:3001 localhost:3002' 'two versions you have running: an A/B test'
-  Show-Cmd 'turnout compare myapp:1.0 myapp:1.1 myapp:1.2' 'three Docker images: an A/B/C test'
-  Show-Cmd 'turnout compare main new-design' 'git branches (built from your Dockerfile)'
-  Write-Host '      --goal "POST /signup"   count a conversion (no goal: judged on page speed)' -ForegroundColor DarkGray
-  Write-Host '      --split 10              10% of visitors get each new version' -ForegroundColor DarkGray
-  Write-Host '      --port 3000             the port your images listen on' -ForegroundColor DarkGray
-  Write-Host '      --env-file .env.turnout your app''s settings for the versions Turnout starts (default: .env)' -ForegroundColor DarkGray
-  Show-Cmd 'turnout simulate' 'pretend visitors, so results show in minutes (kept apart)'
-  Show-Cmd 'turnout open' 'reopen the results page: Ship winner or Revert there'
+  Show-Section 'TEST YOUR APP   (in your project folder)'
+  Show-Cmd 'turnout compare <A> <B> [<C>]' 'put Turnout in front of your versions: A/B, A/B/C'
+  Show-Opt 'A, B: localhost:3001, myapp:1.1' 'URLs, Docker images or git branches'
+  Show-Opt '--goal "POST /signup"' 'what counts as a win (none: page speed)'
+  Show-Opt '--split 10' '% of visitors on each new version'
+  Show-Opt '--port 3000' 'the port your images listen on'
+  Show-Opt '--env-file .env.turnout' "your app's settings (default .env)"
+  Show-Cmd 'turnout simulate [--visitors 500]' 'pretend visitors, so results show in minutes'
+  Show-Cmd 'turnout open' 'the console: traffic, results, Ship or Revert'
+  Write-Host ''
+  Show-Section 'DECIDE   (Flagsmith decides; you confirm)'
+  Show-Cmd 'turnout results' "Flagsmith's results, in the terminal"
+  Show-Cmd 'turnout ship [v2]' 'move everyone to the winner (asks first)'
+  Show-Cmd 'turnout revert' 'move everyone back to A (asks first)'
+  Write-Host ''
+  Show-Section 'GO LIVE'
+  Show-Cmd 'turnout deploy yourdomain.com' 'the Nginx or Caddy lines to put Turnout in front'
+  Write-Host ''
+  Show-Section 'LOOK AFTER IT'
   Show-Cmd 'turnout status' "what's running, and a full check"
+  Show-Cmd 'turnout logs [proxy|console]' "follow Turnout's logs"
+  Show-Cmd 'turnout down | reset' 'stop (data kept) | wipe and start fresh'
+  Show-Cmd 'turnout update | version' 'get the latest | which one you have'
   Write-Host ''
-  Show-Head 'GO LIVE'
-  Show-Cmd 'turnout deploy yourdomain.com' 'the lines to put your web server (Nginx, Caddy) in front'
-  Write-Host ''
-  Show-Head 'LOOK AFTER IT'
-  Show-Cmd 'turnout down' 'stop (data kept)'
-  Show-Cmd 'turnout reset' 'wipe'
-  Show-Cmd 'turnout update' 'get the latest Turnout'
-  Write-Host ''
-  Write-Host "How it works: visitors reach Turnout, Turnout asks Flagsmith which version each one gets and sends them there," -ForegroundColor DarkGray
-  Write-Host "Flagsmith scores every version, and one click moves everyone to the winner. More: README.md in $HomeDir" -ForegroundColor DarkGray
+  Write-Host '  How it works: visitors reach Turnout, Flagsmith picks each one''s version, Turnout sends them there and' -ForegroundColor DarkGray
+  Write-Host '  reports what they did; Flagsmith scores every version; one click moves everyone to the winner.' -ForegroundColor DarkGray
+  Write-Host "  More: turnout help · README.md in $HomeDir" -ForegroundColor DarkGray
 }
 
 function Show-Result([string]$proxy, [string]$console) {
@@ -382,6 +394,11 @@ switch ($cmd) {
     Push-Location $HomeDir; try { & cmd /c "turnout.bat $what" } finally { Pop-Location }
   }
   'update' { Push-Location $HomeDir; try { git pull --ff-only; if ($LASTEXITCODE -eq 0) { Say 'Up to date. The next turnout compare or turnout demo uses it.' } } finally { Pop-Location } }
+  'results' { Read-Args | Out-Null; Need-Docker; Compose run --rm cli status }
+  'ship' { Read-Args | Out-Null; Need-Docker; if ($rest.Count) { Compose run --rm -it cli ship --winner $rest[0] } else { Compose run --rm -it cli ship } }
+  'revert' { Read-Args | Out-Null; Need-Docker; Compose run --rm -it cli revert }
+  'logs' { Read-Args | Out-Null; Need-Docker; $svc = if ($rest.Count) { $rest[0] } else { '' }; if ($svc -eq 'proxy') { $svc = 'turnout' }; if ($svc) { Compose logs -f --tail 50 $svc } else { Compose logs -f --tail 50 } }
+  { $_ -in 'version', '--version', '-v' } { Say "turnout $(Get-Version)" }
   'open' { Read-Args | Out-Null; Start-Process "http://127.0.0.1:$ConsolePort"; Show-Banner }
   'status' { Read-Args | Out-Null; Need-Docker; Compose ps; Compose run --rm cli doctor | Select-Object -Last 1 }
   'down' { Read-Args | Out-Null; Need-Docker; Step "Stopping $Name"; Compose --profile sim down *> $null; Say 'Stopped. turnout compare with the same arguments starts it again, with its data.' }
