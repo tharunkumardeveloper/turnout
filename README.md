@@ -16,7 +16,7 @@
 [![Tests](https://img.shields.io/badge/tests-650%2B%20passing-15803d)](#development)
 [![License: BSD-3-Clause](https://img.shields.io/badge/license-BSD--3--Clause-blue)](LICENSE)
 
-[**Live demo**](https://172-198-62-67.sslip.io/judge) · [Quick start](#quick-start) · [Step-by-step setup](#step-by-step-setup) · [How Flagsmith is used](#how-flagsmith-is-used)
+[**Live demo**](https://172-198-62-67.sslip.io) · [Quick start](#quick-start) · [Step-by-step setup](#step-by-step-setup) · [How Flagsmith is used](#how-flagsmith-is-used)
 
 <img src="docs/images/judge-ship.gif" width="860" alt="Guided demo: an A/B/C test on the demo shop. Shoppers go through, Flagsmith's results arrive, B ships and C is stopped by its slower pages">
 
@@ -88,15 +88,15 @@ Raw logs and numbers: [spikes/RESULTS.md](spikes/RESULTS.md). Not claimed: produ
 
 ## See it in 2 minutes
 
-Open the **[live demo](https://172-198-62-67.sslip.io/judge)**: it runs real Flagsmith experiments by itself on a demo shop with three versions (1.4 Classic, 1.5 Express with a one-page checkout, 1.6 Bold with deliberately slower pages). Simulated shoppers are always labelled.
+Open the **[live demo](https://172-198-62-67.sslip.io)**: a demo shop with three versions (1.4 Classic, 1.5 Express with a one-page checkout, 1.6 Bold with deliberately slower pages), and real Flagsmith experiments on it. Simulated shoppers are always labelled.
 
-- **Watch a test happen:** start, send shoppers, ask Flagsmith, decide, in four steps on one screen.
-- **Blind rounds:** each round's true order rates are drawn at random and hidden (better, worse or the same). After the decision the page reveals them next to Flagsmith's call, and a scoreboard counts how often Flagsmith was right. When 1.6 is tested, its slower pages trip the safety check.
+- **Run a test yourself:** pick A/A, A/B or A/B/C, then Start, Send shoppers, Ask Flagsmith and Ship, one button at a time. When nobody is clicking, the autopilot runs tests by itself.
+- **Blind rounds:** each autopilot round's true order rates are drawn at random and hidden (better, worse or the same). After the decision the page reveals them next to Flagsmith's call, and a scoreboard counts how often Flagsmith was right. When 1.6 is tested, its slower pages trip the safety check.
 - **Look inside Flagsmith:** the *In Flagsmith* tab shows the flag, its split and the route each shopper takes.
-- **Be a visitor:** press it, and Flagsmith gives you a version like any shopper. The route marks where you landed.
-- **The console, read-only:** [/judge/console](https://172-198-62-67.sslip.io/judge/console?mode=console) shows the live traffic map, Flagsmith's results and the decisions the autopilot makes.
+- **Be a visitor:** opens [the shop](https://shop.172-198-62-67.sslip.io) the way a real shopper gets it: Flagsmith gives you a version, and the page says which.
+- **Use it on your app:** the third tab has the three commands to install Turnout and run it on your own site.
 
-On your own machine, guided demo is interactive: a guided tour tells you what to click at each step.
+On your own machine you also get **Try it with your app** (paste a GitHub link) and the full console.
 
 ## Quick start
 
