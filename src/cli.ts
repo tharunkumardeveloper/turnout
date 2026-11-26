@@ -450,6 +450,7 @@ const commands: Record<string, () => Promise<void>> = {
       shopUrl: process.env.TURNOUT_PUBLIC_SHOP_URL || 'http://127.0.0.1:8080',
       dashboardUrl: process.env.FLAGSMITH_DASHBOARD_URL || 'http://127.0.0.1:8000',
       rates: parseRates(process.env.TURNOUT_DEMO_RATES || DEFAULT_RATES),
+      ...(Number(process.env.TURNOUT_DEMO_CONCURRENCY) >= 1 ? { concurrency: Math.min(200, Math.floor(Number(process.env.TURNOUT_DEMO_CONCURRENCY))) } : {}),
       ...(previewToken ? { previewToken } : {}),
       ...(consoleServerKey ? { serverKey: consoleServerKey } : {}),
     };

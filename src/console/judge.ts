@@ -171,6 +171,7 @@ export type JudgeOptions = {
   proxyUrl: string; // where simulated visitors go, e.g. http://turnout:8080
   shopUrl: string; // the URL a judge's browser uses for the shop
   dashboardUrl: string; // Flagsmith's UI
+  concurrency?: number; // simulated visitors in flight at once; default 20 (server mode: 5, TURNOUT_DEMO_CONCURRENCY)
   previewToken?: string; // also the proxy's debug token: the simulator reads the routing headers with it
   serverKey?: string; // for verify's leftover-split check
   rates: Record<string, number>; // true conversion rate per RELEASE (inputs, not evidence)
@@ -796,7 +797,7 @@ export function createJudge(opts: JudgeOptions, ctx: JudgeContext) {
       target: opts.proxyUrl,
       visitors: n,
       rates,
-      concurrency: 20,
+      concurrency: opts.concurrency ?? 20,
       seed: deps.now() >>> 0,
       debugToken: opts.previewToken,
       log: (line) => {

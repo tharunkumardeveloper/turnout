@@ -19,6 +19,17 @@ x-flagsmith-secrets: &flagsmith-secrets
   DJANGO_SECRET_KEY: ${FLAGSMITH_DJANGO_SECRET_KEY:?run sh turnout.sh server <hostname> (it writes random secrets)}
   WAREHOUSE_CREDENTIALS_SECRET: ${FLAGSMITH_WAREHOUSE_SECRET:?run sh turnout.sh server <hostname> (it writes random secrets)}
 
+# The image's own health check starts a full Python/Django process (`flagsmith healthcheck tcp`) every 2 s with a
+# 2 s timeout. Measured on a 2-vCPU VM: that alone took most of a CPU, and it timed out (container "unhealthy") whenever
+# Flagsmith was busy. Same check, run every 30 s with time to answer; every 3 s while starting, so start-up isn't slower.
+x-flagsmith-health: &flagsmith-health
+  test: ['CMD-SHELL', 'flagsmith healthcheck tcp']
+  interval: 30s
+  timeout: 15s
+  retries: 3
+  start_period: 120s
+  start_interval: 3s
+
 # The shops answer only frames from their own origin: the public judge view is https://<hostname>/judge, same origin.
 x-shop-frames: &shop-frames
   <<: *restart
@@ -69,6 +80,9 @@ services:
       TURNOUT_AUTOPILOT: ${TURNOUT_AUTOPILOT:-on}
       TURNOUT_AUTOPILOT_VISITORS: ${TURNOUT_AUTOPILOT_VISITORS:-}
       TURNOUT_AUTOPILOT_PAUSE: ${TURNOUT_AUTOPILOT_PAUSE:-}
+      # Simulated visitors in flight at once. 20 (local default) on a 2-vCPU VM made Flagsmith's events endpoint
+      # time out (over 1,000 events lost per 600-visitor batch); 5 is gentler. Raise it on a bigger machine.
+      TURNOUT_DEMO_CONCURRENCY: ${TURNOUT_DEMO_CONCURRENCY:-5}
     ports: !override
       - 127.0.0.1:8090:8090
       - 127.0.0.1:8091:8091
@@ -92,12 +106,15 @@ services:
   flagsmith:
     <<: *restart
     environment: *flagsmith-secrets
+    healthcheck: *flagsmith-health
   flagsmith-task-processor:
     <<: *restart
     environment: *flagsmith-secrets
+    healthcheck: *flagsmith-health
 
   # Housekeeping for the always-on demo: the autopilot sends simulated visitors forever, and Flagsmith's SDK event
-  # table (experimentation_sdkexperimentationevent) only grows. Measured on a 2-vCPU VM: 530,000 events (228 MB) after
+  # table (experimentation_sdkexperimentationevent) only grows (Flagsmith's docs: it "never deletes events"; manage
+  # retention yourself). Measured on a 2-vCPU VM: 530,000 events (228 MB) after
   # 10 hours made Flagsmith's results queries take 37 s and its health check time out. Every hour this deletes events
   # older than TURNOUT_EVENT_RETENTION_HOURS (default 6, several story loops), so finished experiments' raw events go;
   # their results are kept in Turnout's decision snapshots and ledger. TURNOUT_EVENT_RETENTION_HOURS=0 turns it off.
