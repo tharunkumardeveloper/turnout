@@ -49,6 +49,31 @@ It works for any website in any language: a shop, a sign-up page, a dashboard. Y
 
 **Why not just Flagsmith?** Flagsmith decides who sees what and does the maths, but normally your app's code has to ask it, which works for one button, not for two whole releases. Turnout is that missing front door. **Why not a canary tool?** Tools like Argo Rollouts or Flagger shift traffic to protect uptime and judge a release on errors. Turnout asks a product question, *does the new release get more sign-ups?*, and keeps errors and speed as safety checks.
 
+## See it in action
+
+<table>
+<tr>
+<td width="50%" valign="top">
+<img src="docs/images/try-it.gif" alt="Try it with your app: two GitHub links (Heroku's Node.js and Python getting-started apps, neither with a Dockerfile) pasted as versions A and B; Turnout clones them, writes a Dockerfile for each, starts them and opens the A/B test with both live side by side">
+<p><b>Your app from a GitHub link.</b> Paste two versions, no Dockerfile needed: Turnout builds them, starts them and puts the A/B test in Flagsmith. Here: Heroku's Node.js and Python apps.</p>
+</td>
+<td width="50%" valign="top">
+<img src="docs/images/traffic.gif" alt="The traffic map: every visitor passes through the Turnout proxy, the Flagsmith flag sends each one down the blue (A) or green (B) track, 50/50, and the counters per version climb">
+<p><b>Every visitor, live.</b> Each dot is a request through the proxy; the Flagsmith flag's weights decide its track. One flag change moves the whole stream.</p>
+</td>
+</tr>
+<tr>
+<td width="50%" valign="top">
+<img src="docs/images/flagsmith-tour.gif" alt="Turnout's tour inside Flagsmith's own dashboard: the release flag, the experiments list, an experiment's results and the metrics, each highlighted with what Turnout does there">
+<p><b>Inside Flagsmith's own dashboard.</b> Turnout's tour walks through the flag, the experiments, the results and the metrics: everything it does is a real Flagsmith object.</p>
+</td>
+<td width="50%" valign="top">
+<img src="docs/images/judge-ship.gif" alt="The guided demo on the live site: an A/B/C test, 2,100 shoppers, Flagsmith's verdict and the blind round revealed">
+<p><b>The guided demo, on the <a href="https://172-198-62-67.sslip.io">live site</a>.</b> Start, shoppers, Flagsmith's call, decide. Blind rounds hide the true rates until the end: Flagsmith right in 96 of 98.</p>
+</td>
+</tr>
+</table>
+
 ## Why this exists (Track 03)
 
 Turnout is what I wished existed while setting up Flagsmith's Experimentation on my own server. Each piece answers a problem I hit:
@@ -81,7 +106,7 @@ Turnout is what I wished existed while setting up Flagsmith's Experimentation on
 | Flagsmith down | 100 of 100 pages still served, 86 ms average |
 | Under load | 0 of 121,678 events lost at up to 200 visitors at once |
 | Any app, automatically | 12 sample apps (HTML, Vite, Next.js ×2, Express, Flask, Django, Go, PHP, no Dockerfile, needs a database, needs a setting): builds 12/12, goals 11/12, counts match Flagsmith 12/12, ships 12/12 (`npm run scoreboard`, [scoreboard/](scoreboard/README.md)) |
-| Real GitHub repos, pasted as links | 21 public repos: Heroku's Node, Python, Go, PHP, Ruby on Rails and Java (Spring Boot) samples, DigitalOcean's Node, PHP, Django and Flask samples, Render's Express, Flask, FastAPI, Django, Gin, SvelteKit and Create React App examples, Docker's two tutorial apps, an Express + MongoDB app and Flask Microblog. **20 of 21** build, start, serve real pages (each home page is checked, not just "it answered"), get Flagsmith results with matching counts, and ship. Most have no Dockerfile; three need Postgres or MongoDB, given as a throwaway one. Microblog's own Dockerfile fails to install its pinned packages. ([github-run.json](scoreboard/github-run.json)) |
+| Real GitHub repos, pasted as links | 23 public repos: Heroku's Node, Python, Go, PHP, Ruby on Rails and Java (Spring Boot) samples, DigitalOcean's Node, PHP, Django and Flask samples, Render's Express, Flask, FastAPI, Django, Gin, SvelteKit and Create React App examples, Docker's two tutorial apps, an Express + MongoDB app, a gallery of static HTML pages, a CSS library and Flask Microblog. **22 of 23** build, start, serve real pages (each home page is checked, not just "it answered"), get Flagsmith results with matching counts, and ship. Most have no Dockerfile; three need Postgres or MongoDB, given as a throwaway one. Microblog's own Dockerfile fails to install its pinned packages. ([github-run.json](scoreboard/github-run.json)) |
 | A server, rebooted | back by itself in 50 s, every check passing |
 
 Raw logs and numbers: [spikes/RESULTS.md](spikes/RESULTS.md). Not claimed: production users, or any simulated number as evidence about real people.
@@ -283,6 +308,29 @@ or, for Caddy, `reverse_proxy 127.0.0.1:8080`. Visitors keep your domain; the co
 - **Page-level:** a single-page app's in-browser navigations aren't new visits; put the goal on an API call or the `X-Turnout-Event` header.
 - **One experiment per flag at a time** (Flagsmith's rule). **Built on a beta**: versions are pinned.
 - **A new hop in your traffic path**, and a first-party id cookie (a cookie notice may apply in the EU).
+
+## Tech stack
+
+<p>
+<img src="https://img.shields.io/badge/Flagsmith-2.291_self--hosted-6633ff?style=for-the-badge" alt="Flagsmith">
+<img src="https://img.shields.io/badge/Node.js-24-5fa04e?style=for-the-badge&logo=nodedotjs&logoColor=white" alt="Node.js 24">
+<img src="https://img.shields.io/badge/TypeScript-no_build_step-3178c6?style=for-the-badge&logo=typescript&logoColor=white" alt="TypeScript">
+<img src="https://img.shields.io/badge/Docker-Compose-2496ed?style=for-the-badge&logo=docker&logoColor=white" alt="Docker Compose">
+<img src="https://img.shields.io/badge/PostgreSQL-event_store-4169e1?style=for-the-badge&logo=postgresql&logoColor=white" alt="PostgreSQL">
+<img src="https://img.shields.io/badge/Caddy-HTTPS-1f88c0?style=for-the-badge&logo=caddy&logoColor=white" alt="Caddy">
+<img src="https://img.shields.io/badge/GitHub_Actions-CI_%2B_Action-2088ff?style=for-the-badge&logo=githubactions&logoColor=white" alt="GitHub Actions">
+<img src="https://img.shields.io/badge/Azure-live_demo_VM-0078d4?style=for-the-badge" alt="Azure VM">
+</p>
+
+| Part | Built with |
+|---|---|
+| Proxy, console, CLI | Node.js 24 running TypeScript directly (type stripping, no build step), `node:http`, the Flagsmith Node SDK with local evaluation; two runtime dependencies (`@flagsmith/nodejs`, `yaml`) |
+| Experiments and statistics | Flagsmith 2.291 self-hosted: multivariate flag, experiments, metrics, Bayesian results, Feature Health, identities, segments, Code References |
+| Events | Flagsmith's own event store on PostgreSQL |
+| Console | Plain HTML, CSS and JavaScript modules: no framework, no bundler; SVG traffic map |
+| Try it with your app | Docker Engine API over the socket, shallow `git` clones, generated Dockerfiles for Node, Python, Go, PHP, Ruby, Java and static sites |
+| Live demo | Docker Compose on an Azure VM, Caddy with automatic HTTPS, `sslip.io` hostnames |
+| Quality | 668 tests on Node's built-in test runner, `tsc` typecheck, GitHub Actions CI (including the full server stack), a scoreboard of 12 sample apps and 23 real GitHub repos |
 
 ## Development
 

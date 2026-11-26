@@ -287,10 +287,17 @@ export function startTryit(o: TryitOptions) {
       const up = http.request(target, { method: req.method, headers: ask }, (answer) => {
         // Never cached: every build puts different apps on these same addresses, and a browser kept the last build's
         // page (an app's server sends Last-Modified and no Cache-Control), so A showed what B shows.
-        const headers = { ...answer.headers, 'cache-control': 'no-store, max-age=0' };
+        const headers: http.OutgoingHttpHeaders = { ...answer.headers, 'cache-control': 'no-store, max-age=0' };
         delete headers.etag;
         delete headers['last-modified'];
         delete headers.expires;
+        // Shown inside the console: an app's "never in a frame" (Django's X-Frame-Options: DENY by default) would
+        // leave its preview blank. Only these preview addresses, on this machine; real visitors' pages are untouched.
+        delete headers['x-frame-options'];
+        for (const name of ['content-security-policy', 'content-security-policy-report-only']) {
+          const csp = headers[name];
+          if (typeof csp === 'string') headers[name] = csp.split(';').filter((d) => !/^\s*frame-ancestors\b/i.test(d)).join(';');
+        }
         res.writeHead(answer.statusCode ?? 502, headers);
         answer.pipe(res);
       });
