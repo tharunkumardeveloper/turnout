@@ -41,7 +41,7 @@ Port 9100 isn't published by the official compose, so the console reads it over 
 | **B, after one environment-default edit back to control** | **control 300** |
 
 - Spike 7 (the problem) and spike 8 (the drain) hold on the real instance.
-- Spike 9 holds through the API, and since 2026-11-18 through Flagsmith's own flag editor too (see "Spike 9 through Flagsmith's own flag editor" below).
+- Spike 9 holds through the API, and since 2026-11-27 through Flagsmith's own flag editor too (see "Spike 9 through Flagsmith's own flag editor" below).
 - The spike's flags (`spike_documented_*`, `spike_turnout_*`) stay in the demo project.
 
 ## 6 and 10. Results show a leader; the sample-ratio check stays empty (2026-11-17)
@@ -58,7 +58,7 @@ sample-ratio check: not computed
 - **Spike 6:** results compute once a refresh has run, and the winner rule picks v2 (55%).
 - **Spike 10:** the sample-ratio result is `null` with 222 identities, above the 100 it needs. Confirmed live.
 - **Direction DOWN works:** v2's seeded latency gives it only a 1.1% chance to win on latency.
-- **Confirmed in source (2026-11-18):** Mean metrics are averaged over every exposed identity, with no-event identities counting as 0. Each identity's value is `avg_if` over its post-exposure events (`experimentation/results_query.py:123-124`), which returns 0 when there are none (`experimentation/warehouses/dialect.py:39-41`); `n` counts every non-quarantined exposed identity (`results_query.py:184-196`) and the arm's mean is `sum / n` (`experimentation/stats.py:35-36`). Spike 4's 200 SDK-only identities sent no latency events, so the mean latency is diluted (control 0.3 ms). Through the proxy every visitor sends latency, so the demo isn't affected. Turnout labels these figures "mean per exposed identity".
+- **Confirmed in source (2026-11-27):** Mean metrics are averaged over every exposed identity, with no-event identities counting as 0. Each identity's value is `avg_if` over its post-exposure events (`experimentation/results_query.py:123-124`), which returns 0 when there are none (`experimentation/warehouses/dialect.py:39-41`); `n` counts every non-quarantined exposed identity (`results_query.py:184-196`) and the arm's mean is `sum / n` (`experimentation/stats.py:35-36`). Spike 4's 200 SDK-only identities sent no latency events, so the mean latency is diluted (control 0.3 ms). Through the proxy every visitor sends latency, so the demo isn't affected. Turnout labels these figures "mean per exposed identity".
 - **Observation:** a Mean 0/1 guardrail with no errors at all shows "collecting data" indefinitely. Flagsmith's statistics return no inference when control's mean is 0 (`experimentation/stats.py:60-61`). The console should say "no errors in either release" instead.
 
 ## Full demo from scratch, through Docker Compose (2026-11-17)
@@ -126,11 +126,11 @@ After `docker compose --profile tools down -v`, following the README's quick sta
 - **Compose found two default files** (`compose.yaml` and Flagsmith's `docker-compose.yml`); the latter is now `compose.flagsmith.yml`.
 
 ## 12. Not run yet
-- ~~The swing-back made by hand in Flagsmith's own flag editor (spike 9 via the UI).~~ Done 2026-11-18, see below.
+- ~~The swing-back made by hand in Flagsmith's own flag editor (spike 9 via the UI).~~ Done 2026-11-27, see below.
 - The GitHub Release writer against a real repository (tested against a stub of GitHub's API).
 - The CI workflow's smoke job on GitHub's Linux runners.
 
-## Judge mode, live (2026-11-17)
+## Judge mode, live (2026-11-26)
 `/judge` drives the real stack through `/api/judge/*`. A full loop from **Start over**: reset → 1,500 visitors → results → Ship → verify → preview → release → 1,500 visitors → results → Revert → verify took about three minutes.
 - Experiment 7 (shop:1.5 vs shop:1.4): Flagsmith counted 776 + 724 = 1,500 identities; v2 99.9% chance to win on `order_placed`. Ship; 50 of 50 new visitors on shop:1.5; `check` clean.
 - Experiment 8 (shop:1.6 vs shop:1.5, seeded 60 ms delay, input rate 17%): 734 + 766 = 1,500 identities; `order_placed` v2 93.1%; **`doc_latency_ms` 79 ms vs 13 ms, under 0.1% chance to win**. The decision step offered Revert as the primary action; Revert completed; 50 of 50 on shop:1.5; `check` clean.
@@ -144,7 +144,7 @@ After `docker compose --profile tools down -v`, following the README's quick sta
 - **The full console labelled control by the flag's first value** (shop:1.4) instead of the release the rollout serves; fixed (`format.js` `variantList`).
 - **The demo rates made shop:1.6's goal inconclusive** (14% vs 13.5%); shop:1.6 now converts at 17%, so it leads on orders while losing the latency guardrail.
 
-## Feature Health and the guard, live (2026-11-17)
+## Feature Health and the guard, live (2026-11-26)
 - **Feature Health is in the open-source image.** It has a generic Webhook provider (`features/feature_health/providers/webhook/types.py`), created with `POST /api/v1/projects/<id>/feature-health/providers/ {"name":"Webhook"}`, which returns a `webhook_url` with a secret path.
 - Posting `{"feature":"shop_release","environment":"Production","status":"unhealthy","reason":{text_blocks,url_blocks}}` to that URL records a `FeatureHealthEvent` and adds Flagsmith's system tag **"Unhealthy"** (`#FFC0CB`) to the flag. A `"healthy"` post removes the tag.
 - Webhook URLs *into* Flagsmith are fine; only Flagsmith's outgoing webhooks refuse private addresses.
@@ -157,7 +157,7 @@ After `docker compose --profile tools down -v`, following the README's quick sta
   - It reported "healthy", so the Unhealthy tag was removed, and 30 of 30 new visitors got shop:1.5.
 - **Hurdle:** a guard that refreshes results the moment an experiment starts would use up Flagsmith's one refresh per 5 minutes before any traffic arrives, locking out a person's refresh. It now waits until the experiment has run for 5 minutes.
 
-## First-ever start and reset with the Windows launcher, in a separate Compose project (2026-11-18)
+## First-ever start and reset with the Windows launcher, in a separate Compose project (2026-11-26)
 Docker Desktop 29.9.3 (Compose 5.7.0), Windows 11. The demo instance was kept: `.env` and `.turnout/` were copied to a backup and checked file by file (24 files, equal SHA-256), then the main stack was stopped with `docker compose --profile tools stop` (volumes kept). Every command below ran with `COMPOSE_PROJECT_NAME=sytest`, so it got its own containers, networks and volumes.
 
 To look like a fresh clone, `.env` was replaced by `.env.example` and `.turnout/` was removed. The Docker images (Flagsmith, Postgres, `node:24-alpine`) and the build cache were already on this machine, so the times below leave out the image downloads a new user also waits for.
@@ -183,7 +183,7 @@ To look like a fresh clone, `.env` was replaced by `.env.example` and `.turnout/
 - **On a fresh stack, the first experiment's latency guardrail read as losing.** `doc_latency_ms`: shop:1.5 11.9 ms against shop:1.4 11.2 ms, a 3.0% chance to win. Turnout treats a guardrail under 5% as losing (`src/flagsmith/experiments.ts:88`), so judge mode's Ship was refused until the loss was accepted. Flagsmith's statistic is fine. A 0.7 ms difference across 1,500 visitors was enough to be detectable. The judge story expects the first experiment to ship cleanly.
 - **The console container doesn't stop on SIGTERM.** `docker compose stop` ended it with exit 137 after Docker's 10 s timeout. The proxy has a SIGTERM handler (`src/cli.ts:227`), and the console has none.
 
-## setup.sh and turnout.sh in a Linux userland (2026-11-18)
+## setup.sh and turnout.sh in a Linux userland (2026-11-26)
 Both scripts ran in `docker:29-cli` (Alpine Linux, BusyBox, Docker CLI 29.10.0, Compose 5.7.1) with the host's Docker socket. This is a real Linux shell and toolset, not macOS. Homebrew, apt/dnf with sudo, `open -a Docker` and xdg-open still haven't run.
 
 **Against the running demo (read-only):** the project folder was mounted at the path Docker Desktop's engine uses for it (`/run/desktop/mnt/host/c/...`), so Compose's relative bind mounts resolve to the real files.
@@ -210,7 +210,7 @@ Both scripts ran in `docker:29-cli` (Alpine Linux, BusyBox, Docker CLI 29.10.0, 
   - The real `lsof` (`apk add lsof`): 8080 "used by nc (PID 23)".
 - Regression test: `test/ops.test.ts`, "sh setup.sh: a BusyBox lsof…".
 
-## Seconds from a flag change to new routing (2026-11-18)
+## Seconds from a flag change to new routing (2026-11-27)
 Measured on the demo stack after a judge Reset (experiment 22, shop:1.5 vs shop:1.4). Script: `latency.mjs` in the session scratchpad.
 - **Probe:** while a judge action ran, a fresh visitor (no cookies, two page loads, like judge mode's verify) went through the proxy at `127.0.0.1:8080` every ~150 ms. It read the `x-turnout-release` debug header.
 - **Timing:** each job log line was timed when it first appeared to a 100 ms poll of `/api/judge/job`. All times are on this machine's clock.
@@ -240,7 +240,7 @@ Measured on the demo stack after a judge Reset (experiment 22, shop:1.5 vs shop:
 - **Reproduced from inside the console container:** 6 parallel `fetch('http://flagsmith:8000/api/v1/')` calls after a 2.0–3.8 s idle gap, 70 rounds. **49 of 420 failed** (38 `ECONNRESET`, 11 `UND_ERR_SOCKET`). Every failure followed a gap of 2.0–2.9 s. With gaps of about 2 s from a single connection, 80 of 80 succeeded.
 - **Likely cause:** Flagsmith's gunicorn closes an idle keep-alive connection after `GUNICORN_KEEP_ALIVE`, 2 s by default (`/usr/local/lib/python3.13/site-packages/common/gunicorn/utils.py:26` in the `flagsmith` container). Node's `fetch` keeps idle connections for 4 s and may reuse one just as the server closes it. The image runs 3 workers × 2 threads (`GUNICORN_WORKERS=3`, `GUNICORN_THREADS=2` in the container's environment).
 - **Possible fixes on Turnout's side:** retry a request once when it fails with `ECONNRESET` or `UND_ERR_SOCKET` before any response, at least for GETs. Or set `GUNICORN_KEEP_ALIVE` above 4 in compose.
-- **Fixed (2026-11-18), both ways:** `compose.flagsmith.yml` sets `GUNICORN_KEEP_ALIVE: 5` on the API (a marked edit), so the server no longer closes an idle connection before Node does; and `AdminClient` sends a GET once more when it fails with `ECONNRESET`, `UND_ERR_SOCKET` or `EPIPE` (`src/flagsmith/admin.ts`, tested in `test/admin.test.ts`). Writes are never sent twice.
+- **Fixed (2026-11-27), both ways:** `compose.flagsmith.yml` sets `GUNICORN_KEEP_ALIVE: 5` on the API (a marked edit), so the server no longer closes an idle connection before Node does; and `AdminClient` sends a GET once more when it fails with `ECONNRESET`, `UND_ERR_SOCKET` or `EPIPE` (`src/flagsmith/admin.ts`, tested in `test/admin.test.ts`). Writes are never sent twice.
 
 **Also seen: the proxy's environment refreshes time out under load.**
 - The proxy asks for the environment document with a 2 s timeout and no retries (`src/flagsmith/flag-source.ts:31-32`).
@@ -250,7 +250,7 @@ Measured on the demo stack after a judge Reset (experiment 22, shop:1.5 vs shop:
 - **Timing the endpoint directly:** `GET /api/v1/environment-document/` (7.2 KB) from this machine, 20 times at 1 s intervals, took a median of 108 ms. One request took 3.6 s, past the proxy's 2 s limit.
 - **A possible fix:** with local evaluation, no visitor request waits on this fetch, so a longer timeout just for the environment refresh wouldn't slow visitors. The 2 s limit is the SDK's `requestTimeoutSeconds` (`src/flagsmith/flag-source.ts:31`). The event processor has its own 15 s limit (`:39`).
 
-## Spike 9 through Flagsmith's own flag editor: yes (2026-11-18)
+## Spike 9 through Flagsmith's own flag editor: yes (2026-11-26)
 Headless Chrome was driven through the DevTools protocol (`cdo.mjs` and `netsave.mjs` in the session scratchpad). The admin login was read from `.env` and typed into the form, never printed. The demo had shipped experiment 22, so v2 (shop:1.5) was at 100% in Production.
 1. **Opened the flag:** logged in at `http://127.0.0.1:8000`, then went to Features → `shop_release`. The **Edit Feature** panel opened on its Value tab: Control Value `shop:1.4` (0%), variant `v2` = `shop:1.5`, Environment Weight 100%.
 2. **Swung back from the dashboard:** set v2's Environment Weight to 0 and clicked **Update Feature Value**. The toast said "Success / Updated Feature".
@@ -263,7 +263,7 @@ Headless Chrome was driven through the DevTools protocol (`cdo.mjs` and `netsave
 
 The dashboard didn't block automation. Its inputs carry `data-test` attributes (for example `featureVariationWeightshop:1.5`), and the save button has the id `update-feature-btn`. The screenshot, `spikes/spike9-flag-editor.png`, shows the editor after the swing-back: weight 0 and the success toast.
 
-## README media, captured from the live stack (2026-11-18)
+## README media, captured from the live stack (2026-11-26)
 - **How they were taken:** headless Chrome through the DevTools protocol, at a 1440×900 viewport, after a judge Reset.
   - **The CDP client stays attached for the whole capture.** With no client attached, the page's animation frames stopped. The track's dots then piled up at their start, and a new connection redrew the track.
   - **Judge mode's own API sends the visitors**, because the proxy treats headless Chrome as a bot.
@@ -287,7 +287,7 @@ The dashboard didn't block automation. Its inputs carry `data-test` attributes (
 
 **Observed while capturing:** with 18,000 visitors in experiment 23, `doc_latency_ms` read as losing for shop:1.5 (lift 1.4%, 2.6% chance to win). With more visitors, the small real difference between shop:1.4 and shop:1.5 becomes detectable. At this point the first experiment's latency guardrail had read as losing in 2 of 4 runs: 1,500 visitors on a fresh stack, and 18,000 here. Recount after the timed tour below: 2 of 5 (losing: the fresh Windows stack, 3.0%, and experiment 23, 2.6%; inconclusive: the Linux run, 21.5%; not losing: the tour; not recorded: the experiment 22 timing runs).
 
-## Judge tour, played for you, timed (2026-11-18)
+## Judge tour, played for you, timed (2026-11-26)
 Headless Chrome at 1440×900 through the DevTools protocol (`autoplay-time.mjs` in the session scratchpad). It chose **Play it for me** on the welcome screen, clicked **Start the judge tour**, and logged the time at each new bubble title. No screenshots and no bubble text were kept, because the sign-in beat can show the admin password. The demo was reset to Step 1 first (experiment 28) and again afterwards.
 - **From the click to the last beat ("That's the whole loop"): 531 s (8 min 51 s)**, 42 beats, n = 1.
 - The longest waits were the jobs: 3,000 visitors took about 35 s and 41 s, each "Ask Flagsmith who won" about 28 s, Ship about 34 s and Revert about 21 s, each until the next beat.
@@ -295,14 +295,14 @@ Headless Chrome at 1440×900 through the DevTools protocol (`autoplay-time.mjs` 
 - One `GET /api/judge/state` answered 500 during the run (the "fetch failed" issue in the section on routing latency); the page's next poll succeeded and the tour carried on.
 - An earlier attempt was discarded: the machine slept part-way through, so its times weren't valid.
 
-## Demo left at Step 1 (2026-11-18)
+## Demo left at Step 1 (2026-11-27)
 - Judge Reset after the media capture: experiment 25 was reverted, and experiment 26 (shop:1.5 vs shop:1.4) is running.
 - `/judge` shows "Step 1 of 7 · Split, Send simulated visitors".
 - Doctor: 29 ok, 0 warnings, 0 failing. The release history has 25 decisions.
 - The `turnout-preview` segment override still serves shop:1.5 to preview browsers. Reset doesn't clear it, and Preview at step 6 sets it again.
 - After the timed tour above, Judge Reset again: experiment 30 (shop:1.5 vs shop:1.4) is running, at Step 1.
 
-## Review fixes, checked on the live stack (2026-11-18)
+## Review fixes, checked on the live stack (2026-11-27)
 After `docker compose up -d --build --wait`, which recreated Flagsmith's API with `GUNICORN_KEEP_ALIVE=5` and the proxy and console from the current `turnout:local` image.
 - **Idle keep-alive probe, repeated:** from inside the console container, 6 parallel `fetch('http://flagsmith:8000/api/v1/')` calls after a 2.0–3.8 s idle gap, 20 rounds, with no retry: **0 of 120 failed**. Before the change: 49 of 420.
 - **Host header on the other-devices port:** from inside the proxy container, `GET http://console:8091/judge` with `Host: 127.0.0.1:8090` answered **403** with no page token. From this machine, `127.0.0.1:8090/judge` answered 200 and `127.0.0.1:8091/judge` 403 (no judge cookie).
@@ -310,7 +310,7 @@ After `docker compose up -d --build --wait`, which recreated Flagsmith's API wit
 - **Console log:** no `key=` line with `TURNOUT_CONSOLE_HOSTS` empty.
 - Doctor: 29 ok, 0 warnings, 0 failing (the first run right after the restart warned once, as noted in docs/SETUP.md). Judge mode still at Step 1 (experiment 30 running).
 
-## A second app: the landing page, live end to end (2026-11-23)
+## A second app: the landing page, live end to end (2026-11-26)
 The landing example ([examples/landing](../examples/landing/README.md)): a static page with a Sign up button, `landing:1` and `landing:2` as two containers, success = `POST /signup` 2xx. Its config was written by `turnout new`. It ran on the same Flagsmith as the shop demo, in its own organisation, project and environment, with `.env` and `.turnout/` backed up first and restored afterwards.
 - **Your own project, not ours.** The demo's organisation couldn't take a second project: a free-plan organisation holds one (`MAX_PROJECTS_IN_FREE_PLAN = 1`, `app/settings/common.py:69`; `projects/permissions.py:31-38` of the pinned 2.291.0 image; the Organisation API key got 403). So, as a user would in the dashboard, the admin user created organisation "Landing Co", project "Landing" (id 2), environment "Production", and an Organisation API key for it.
 - **`init --project Landing --environment Production`:** "nothing created at that level"; it created a server-side key, connected the event store, created `landing_release` (tagged `release`) with v2 → `landing:2`, the metrics `signup`, `doc_latency_ms`, `server_error`, and started experiment 33 on 100% of identities, v2 50%. No Feature Health provider was added (the project has none, and init says so).
@@ -322,7 +322,7 @@ The landing example ([examples/landing](../examples/landing/README.md)): a stati
 - Afterwards: `.env` and `.turnout/` restored from the backup, the landing containers removed, the shop stack rebuilt and restarted with the default config.
 - The shop's own judge story was at step 4 (experiment "shop:1.6 vs shop:1.5" completed) before and after; judge mode's Reset started "shop:1.5 vs shop:1.4" (running), so `/judge` is at **Step 1 of 7**. Doctor: 29 ok, 0 warnings, 0 failing (one warning on the run straight after the restart, gone on the next).
 
-## Server-mode stress tests on the VM (2026-11-24)
+## Server-mode stress tests on the VM (2026-11-26)
 
 Azure VM, 2 vCPU, 7.7 GiB RAM, Ubuntu, Docker 29.10.0, Compose v5.8.0; Flagsmith 2.291.0; public at https://172-198-62-67.sslip.io with the autopilot on. All times UTC.
 
@@ -348,7 +348,7 @@ Azure VM, 2 vCPU, 7.7 GiB RAM, Ubuntu, Docker 29.10.0, Compose v5.8.0; Flagsmith
 
 Not done here (needs people): the 10-developer cold-start test against docs/PLUG_AND_PLAY.md.
 
-## Event loss under load: the cause, the fix, and the measured result (2026-11-24)
+## Event loss under load: the cause, the fix, and the measured result (2026-11-26)
 
 Same VM (2 vCPU). Each run: 3,000 simulated visitors via `turnout demo --concurrency N`, autopilot off. Ground truth, not log lines: the proxy counts every event it hands to the SDK, by name (`/__turnout/health` with the debug token), and the run's rows in Flagsmith's `experimentation_sdkexperimentationevent` are counted per event, with duplicates (same identifier, event, timestamp and value).
 
@@ -364,7 +364,7 @@ Same VM (2 vCPU). Each run: 3,000 simulated visitors via `turnout demo --concurr
 
 Unit test: a real SDK against an events endpoint that holds a batch for 1.5 s while 25,000 events are tracked: all 25,000 arrive; with the hold-back disabled the same test fails.
 
-## `turnout compare` end to end (2026-11-24)
+## `turnout compare` end to end (2026-11-26)
 
 Windows 11, Docker Desktop 29.9.3, the demo stack already running (ports 8000, 8080, 8090, 8091 taken). Two nginx sites ("Version ONE" on :3001, "Version TWO" on :3002). From an empty folder: `turnout compare localhost:3001 localhost:3002`, no questions.
 
@@ -380,7 +380,7 @@ Windows 11, Docker Desktop 29.9.3, the demo stack already running (ports 8000, 8
 
 Bugs the end-to-end run found and fixed: PowerShell 5.1 made git's stderr fatal; `$A` overwrote the argument list `$a` (PowerShell names ignore case); `-w /work` broke the image's start (also in README and SETUP); a stale `turnout:local` was reused (now always rebuilt, cached); `--split 50` put only 25% on the new version; doctor expected a count-up goal for a speed-only experiment; the "Check:" line was blank.
 
-### The split, checked at scale (2026-11-24)
+### The split, checked at scale (2026-11-26)
 
 2,000 new visitors per run through `turnout compare` on Windows (each without a cookie, browser user agent):
 
@@ -393,6 +393,6 @@ Bugs the end-to-end run found and fixed: PowerShell 5.1 made git's stderr fatal;
 
 The earlier 86 / 114 (200 visitors) was chance: z ≈ 2.0. The bug it led to was real: changing `--split` (or the goal) on an existing setup didn't reach the running experiment. Now different versions or settings start a new experiment from scratch, with a message saying the previous data is discarded, and `init` warns when a running experiment's split differs from the config.
 
-## Flagsmith Node SDK: events lost faster than one batch round-trip (2026-11-24)
+## Flagsmith Node SDK: events lost faster than one batch round-trip (2026-11-26)
 
 SDK-only reproduction, no Turnout: [`sdk-buffer-repro/repro.mjs`](sdk-buffer-repro/repro.mjs), results in [`results.jsonl`](sdk-buffer-repro/results.jsonl), and a draft upstream issue in [`ISSUE.md`](sdk-buffer-repro/ISSUE.md) (not posted). With the SDK's defaults, 300 events/s and a 5 s batch round-trip lost 28.4%; a 20,000-event buffer lost 92.5% (two batches over Flagsmith's 2 MiB limit refused whole with 413). Every drop is logged as an SDK warning; nothing reaches the app programmatically.

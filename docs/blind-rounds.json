@@ -1,9 +1,9 @@
 {
- "source": "the live demo (server mode), blind.json from the console container, 2026-11-24 to 2026-11-26",
+ "source": "the live demo (server mode), blind.json from the console container, 2026-11-26 to 2026-11-27",
  "rounds": [
   {
    "experimentId": 90,
-   "at": "2026-11-24T07:08:52.979Z",
+   "at": "2026-11-26T07:08:52.979Z",
    "truth": {
     "experimentId": 90,
     "control": "shop:1.5",
@@ -24,7 +24,7 @@
   },
   {
    "experimentId": 91,
-   "at": "2026-11-24T07:14:05.020Z",
+   "at": "2026-11-26T07:14:05.020Z",
    "truth": {
     "experimentId": 91,
     "control": "shop:1.4",
@@ -45,7 +45,7 @@
   },
   {
    "experimentId": 92,
-   "at": "2026-11-24T07:17:46.869Z",
+   "at": "2026-11-26T07:17:46.869Z",
    "truth": {
     "experimentId": 92,
     "control": "shop:1.4",
@@ -66,7 +66,7 @@
   },
   {
    "experimentId": 93,
-   "at": "2026-11-24T07:21:53.250Z",
+   "at": "2026-11-26T07:21:53.250Z",
    "truth": {
     "experimentId": 93,
     "control": "shop:1.4",
@@ -87,7 +87,7 @@
   },
   {
    "experimentId": 94,
-   "at": "2026-11-24T07:26:57.013Z",
+   "at": "2026-11-26T07:26:57.013Z",
    "truth": {
     "experimentId": 94,
     "control": "shop:1.5",
@@ -108,7 +108,7 @@
   },
   {
    "experimentId": 95,
-   "at": "2026-11-24T07:31:07.749Z",
+   "at": "2026-11-26T07:31:07.749Z",
    "truth": {
     "experimentId": 95,
     "control": "shop:1.4",
@@ -129,7 +129,7 @@
   },
   {
    "experimentId": 96,
-   "at": "2026-11-24T07:34:46.084Z",
+   "at": "2026-11-26T07:34:46.084Z",
    "truth": {
     "experimentId": 96,
     "control": "shop:1.4",
@@ -150,7 +150,7 @@
   },
   {
    "experimentId": 97,
-   "at": "2026-11-24T07:54:39.116Z",
+   "at": "2026-11-26T07:54:39.116Z",
    "truth": {
     "experimentId": 97,
     "control": "shop:1.4",
@@ -171,7 +171,7 @@
   },
   {
    "experimentId": 98,
-   "at": "2026-11-24T07:58:22.520Z",
+   "at": "2026-11-26T07:58:22.520Z",
    "truth": {
     "experimentId": 98,
     "control": "shop:1.4",
@@ -192,7 +192,7 @@
   },
   {
    "experimentId": 99,
-   "at": "2026-11-24T08:07:47.771Z",
+   "at": "2026-11-26T08:07:47.771Z",
    "truth": {
     "experimentId": 99,
     "control": "shop:1.4",
@@ -213,7 +213,7 @@
   },
   {
    "experimentId": 100,
-   "at": "2026-11-24T08:11:22.159Z",
+   "at": "2026-11-26T08:11:22.159Z",
    "truth": {
     "experimentId": 100,
     "control": "shop:1.5",
@@ -234,7 +234,7 @@
   },
   {
    "experimentId": 101,
-   "at": "2026-11-24T08:15:27.075Z",
+   "at": "2026-11-26T08:15:27.075Z",
    "truth": {
     "experimentId": 101,
     "control": "shop:1.4",
@@ -255,7 +255,7 @@
   },
   {
    "experimentId": 102,
-   "at": "2026-11-24T08:19:12.872Z",
+   "at": "2026-11-26T08:19:12.872Z",
    "truth": {
     "experimentId": 102,
     "control": "shop:1.4",
@@ -276,7 +276,7 @@
   },
   {
    "experimentId": 103,
-   "at": "2026-11-24T08:28:34.901Z",
+   "at": "2026-11-26T08:28:34.901Z",
    "truth": {
     "experimentId": 103,
     "control": "shop:1.4",
@@ -297,7 +297,7 @@
   },
   {
    "experimentId": 104,
-   "at": "2026-11-24T08:32:14.985Z",
+   "at": "2026-11-26T08:32:14.985Z",
    "truth": {
     "experimentId": 104,
     "control": "shop:1.5",
@@ -318,7 +318,7 @@
   },
   {
    "experimentId": 105,
-   "at": "2026-11-24T08:41:39.671Z",
+   "at": "2026-11-26T08:41:39.671Z",
    "truth": {
     "experimentId": 105,
     "control": "shop:1.4",
@@ -339,7 +339,7 @@
   },
   {
    "experimentId": 106,
-   "at": "2026-11-24T08:45:27.595Z",
+   "at": "2026-11-26T08:45:27.595Z",
    "truth": {
     "experimentId": 106,
     "control": "shop:1.5",
@@ -360,7 +360,7 @@
   },
   {
    "experimentId": 107,
-   "at": "2026-11-24T08:55:09.779Z",
+   "at": "2026-11-26T08:55:09.779Z",
    "truth": {
     "experimentId": 107,
     "control": "shop:1.4",
@@ -381,7 +381,7 @@
   },
   {
    "experimentId": 108,
-   "at": "2026-11-24T08:59:35.011Z",
+   "at": "2026-11-26T08:59:35.011Z",
    "truth": {
     "experimentId": 108,
     "control": "shop:1.4",
@@ -402,7 +402,7 @@
   },
   {
    "experimentId": 109,
-   "at": "2026-11-24T09:03:53.252Z",
+   "at": "2026-11-26T09:03:53.252Z",
    "truth": {
     "experimentId": 109,
     "control": "shop:1.4",
@@ -423,7 +423,7 @@
   },
   {
    "experimentId": 110,
-   "at": "2026-11-24T09:07:32.775Z",
+   "at": "2026-11-26T09:07:32.775Z",
    "truth": {
     "experimentId": 110,
     "control": "shop:1.5",
@@ -444,7 +444,7 @@
   },
   {
    "experimentId": 111,
-   "at": "2026-11-24T09:38:17.674Z",
+   "at": "2026-11-26T09:38:17.674Z",
    "truth": {
     "experimentId": 111,
     "control": "shop:1.4",
@@ -465,7 +465,7 @@
   },
   {
    "experimentId": 112,
-   "at": "2026-11-24T09:41:59.170Z",
+   "at": "2026-11-26T09:41:59.170Z",
    "truth": {
     "experimentId": 112,
     "control": "shop:1.5",
@@ -486,7 +486,7 @@
   },
   {
    "experimentId": 113,
-   "at": "2026-11-24T09:46:10.770Z",
+   "at": "2026-11-26T09:46:10.770Z",
    "truth": {
     "experimentId": 113,
     "control": "shop:1.4",
@@ -507,7 +507,7 @@
   },
   {
    "experimentId": 114,
-   "at": "2026-11-24T09:49:47.010Z",
+   "at": "2026-11-26T09:49:47.010Z",
    "truth": {
     "experimentId": 114,
     "control": "shop:1.4",
@@ -528,7 +528,7 @@
   },
   {
    "experimentId": 115,
-   "at": "2026-11-24T10:09:41.631Z",
+   "at": "2026-11-26T10:09:41.631Z",
    "truth": {
     "experimentId": 115,
     "control": "shop:1.4",
@@ -549,7 +549,7 @@
   },
   {
    "experimentId": 116,
-   "at": "2026-11-24T10:13:10.889Z",
+   "at": "2026-11-26T10:13:10.889Z",
    "truth": {
     "experimentId": 116,
     "control": "shop:1.5",
@@ -570,7 +570,7 @@
   },
   {
    "experimentId": 117,
-   "at": "2026-11-24T10:22:31.786Z",
+   "at": "2026-11-26T10:22:31.786Z",
    "truth": {
     "experimentId": 117,
     "control": "shop:1.4",
@@ -591,7 +591,7 @@
   },
   {
    "experimentId": 118,
-   "at": "2026-11-24T10:26:13.958Z",
+   "at": "2026-11-26T10:26:13.958Z",
    "truth": {
     "experimentId": 118,
     "control": "shop:1.5",
@@ -612,7 +612,7 @@
   },
   {
    "experimentId": 119,
-   "at": "2026-11-24T10:46:40.267Z",
+   "at": "2026-11-26T10:46:40.267Z",
    "truth": {
     "experimentId": 119,
     "control": "shop:1.4",
@@ -633,7 +633,7 @@
   },
   {
    "experimentId": 120,
-   "at": "2026-11-24T10:50:26.915Z",
+   "at": "2026-11-26T10:50:26.915Z",
    "truth": {
     "experimentId": 120,
     "control": "shop:1.5",
@@ -654,7 +654,7 @@
   },
   {
    "experimentId": 121,
-   "at": "2026-11-24T11:00:16.740Z",
+   "at": "2026-11-26T11:00:16.740Z",
    "truth": {
     "experimentId": 121,
     "control": "shop:1.4",
@@ -675,7 +675,7 @@
   },
   {
    "experimentId": 122,
-   "at": "2026-11-24T11:02:24.793Z",
+   "at": "2026-11-26T11:02:24.793Z",
    "truth": {
     "experimentId": 122,
     "control": "shop:1.5",
@@ -696,7 +696,7 @@
   },
   {
    "experimentId": 123,
-   "at": "2026-11-24T11:04:39.859Z",
+   "at": "2026-11-26T11:04:39.859Z",
    "truth": {
     "experimentId": 123,
     "control": "shop:1.4",
@@ -717,7 +717,7 @@
   },
   {
    "experimentId": 124,
-   "at": "2026-11-24T11:06:45.600Z",
+   "at": "2026-11-26T11:06:45.600Z",
    "truth": {
     "experimentId": 124,
     "control": "shop:1.4",
@@ -738,7 +738,7 @@
   },
   {
    "experimentId": 125,
-   "at": "2026-11-24T11:14:20.112Z",
+   "at": "2026-11-26T11:14:20.112Z",
    "truth": {
     "experimentId": 125,
     "control": "shop:1.4",
@@ -759,7 +759,7 @@
   },
   {
    "experimentId": 126,
-   "at": "2026-11-24T11:16:29.283Z",
+   "at": "2026-11-26T11:16:29.283Z",
    "truth": {
     "experimentId": 126,
     "control": "shop:1.4",
@@ -780,7 +780,7 @@
   },
   {
    "experimentId": 127,
-   "at": "2026-11-24T11:18:46.405Z",
+   "at": "2026-11-26T11:18:46.405Z",
    "truth": {
     "experimentId": 127,
     "control": "shop:1.4",
@@ -801,7 +801,7 @@
   },
   {
    "experimentId": 128,
-   "at": "2026-11-24T11:21:04.773Z",
+   "at": "2026-11-26T11:21:04.773Z",
    "truth": {
     "experimentId": 128,
     "control": "shop:1.5",
@@ -822,7 +822,7 @@
   },
   {
    "experimentId": 129,
-   "at": "2026-11-24T11:23:23.760Z",
+   "at": "2026-11-26T11:23:23.760Z",
    "truth": {
     "experimentId": 129,
     "control": "shop:1.4",
@@ -843,7 +843,7 @@
   },
   {
    "experimentId": 130,
-   "at": "2026-11-24T11:25:36.623Z",
+   "at": "2026-11-26T11:25:36.623Z",
    "truth": {
     "experimentId": 130,
     "control": "shop:1.4",
@@ -864,7 +864,7 @@
   },
   {
    "experimentId": 131,
-   "at": "2026-11-24T11:27:58.972Z",
+   "at": "2026-11-26T11:27:58.972Z",
    "truth": {
     "experimentId": 131,
     "control": "shop:1.4",
@@ -885,7 +885,7 @@
   },
   {
    "experimentId": 132,
-   "at": "2026-11-24T11:30:12.128Z",
+   "at": "2026-11-26T11:30:12.128Z",
    "truth": {
     "experimentId": 132,
     "control": "shop:1.4",
@@ -906,7 +906,7 @@
   },
   {
    "experimentId": 133,
-   "at": "2026-11-24T11:38:01.421Z",
+   "at": "2026-11-26T11:38:01.421Z",
    "truth": {
     "experimentId": 133,
     "control": "shop:1.4",
@@ -927,7 +927,7 @@
   },
   {
    "experimentId": 134,
-   "at": "2026-11-24T11:39:40.038Z",
+   "at": "2026-11-26T11:39:40.038Z",
    "truth": {
     "experimentId": 134,
     "control": "shop:1.4",
@@ -948,7 +948,7 @@
   },
   {
    "experimentId": 135,
-   "at": "2026-11-24T11:47:05.412Z",
+   "at": "2026-11-26T11:47:05.412Z",
    "truth": {
     "experimentId": 135,
     "control": "shop:1.4",
@@ -969,7 +969,7 @@
   },
   {
    "experimentId": 136,
-   "at": "2026-11-24T11:49:45.625Z",
+   "at": "2026-11-26T11:49:45.625Z",
    "truth": {
     "experimentId": 136,
     "control": "shop:1.4",
@@ -990,7 +990,7 @@
   },
   {
    "experimentId": 137,
-   "at": "2026-11-24T11:51:35.569Z",
+   "at": "2026-11-26T11:51:35.569Z",
    "truth": {
     "experimentId": 137,
     "control": "shop:1.4",
@@ -1011,7 +1011,7 @@
   },
   {
    "experimentId": 138,
-   "at": "2026-11-24T11:53:24.026Z",
+   "at": "2026-11-26T11:53:24.026Z",
    "truth": {
     "experimentId": 138,
     "control": "shop:1.4",
@@ -1032,7 +1032,7 @@
   },
   {
    "experimentId": 139,
-   "at": "2026-11-24T12:28:38.569Z",
+   "at": "2026-11-26T12:28:38.569Z",
    "truth": {
     "experimentId": 139,
     "control": "shop:1.4",
@@ -1053,7 +1053,7 @@
   },
   {
    "experimentId": 140,
-   "at": "2026-11-24T12:54:01.938Z",
+   "at": "2026-11-26T12:54:01.938Z",
    "truth": {
     "experimentId": 140,
     "control": "shop:1.4",
@@ -1074,7 +1074,7 @@
   },
   {
    "experimentId": 141,
-   "at": "2026-11-24T13:02:55.578Z",
+   "at": "2026-11-26T13:02:55.578Z",
    "truth": {
     "experimentId": 141,
     "control": "shop:1.4",
@@ -1095,7 +1095,7 @@
   },
   {
    "experimentId": 142,
-   "at": "2026-11-24T13:07:16.491Z",
+   "at": "2026-11-26T13:07:16.491Z",
    "truth": {
     "experimentId": 142,
     "control": "shop:1.4",
@@ -1116,7 +1116,7 @@
   },
   {
    "experimentId": 143,
-   "at": "2026-11-24T13:11:18.551Z",
+   "at": "2026-11-26T13:11:18.551Z",
    "truth": {
     "experimentId": 143,
     "control": "shop:1.4",
@@ -1137,7 +1137,7 @@
   },
   {
    "experimentId": 144,
-   "at": "2026-11-24T13:15:22.030Z",
+   "at": "2026-11-26T13:15:22.030Z",
    "truth": {
     "experimentId": 144,
     "control": "shop:1.5",
@@ -1158,7 +1158,7 @@
   },
   {
    "experimentId": 145,
-   "at": "2026-11-24T13:17:34.697Z",
+   "at": "2026-11-26T13:17:34.697Z",
    "truth": {
     "experimentId": 145,
     "control": "shop:1.4",
@@ -1179,7 +1179,7 @@
   },
   {
    "experimentId": 146,
-   "at": "2026-11-24T13:24:12.717Z",
+   "at": "2026-11-26T13:24:12.717Z",
    "truth": {
     "experimentId": 146,
     "control": "shop:1.4",
@@ -1200,7 +1200,7 @@
   },
   {
    "experimentId": 147,
-   "at": "2026-11-24T13:25:58.707Z",
+   "at": "2026-11-26T13:25:58.707Z",
    "truth": {
     "experimentId": 147,
     "control": "shop:1.4",
@@ -1221,7 +1221,7 @@
   },
   {
    "experimentId": 148,
-   "at": "2026-11-24T13:31:57.479Z",
+   "at": "2026-11-26T13:31:57.479Z",
    "truth": {
     "experimentId": 148,
     "control": "shop:1.5",
@@ -1242,7 +1242,7 @@
   },
   {
    "experimentId": 149,
-   "at": "2026-11-24T13:34:40.088Z",
+   "at": "2026-11-26T13:34:40.088Z",
    "truth": {
     "experimentId": 149,
     "control": "shop:1.4",
@@ -1263,7 +1263,7 @@
   },
   {
    "experimentId": 150,
-   "at": "2026-11-24T13:40:42.101Z",
+   "at": "2026-11-26T13:40:42.101Z",
    "truth": {
     "experimentId": 150,
     "control": "shop:1.5",
@@ -1284,7 +1284,7 @@
   },
   {
    "experimentId": 151,
-   "at": "2026-11-24T13:48:29.461Z",
+   "at": "2026-11-26T13:48:29.461Z",
    "truth": {
     "experimentId": 151,
     "control": "shop:1.4",
@@ -1305,7 +1305,7 @@
   },
   {
    "experimentId": 152,
-   "at": "2026-11-24T13:53:06.974Z",
+   "at": "2026-11-26T13:53:06.974Z",
    "truth": {
     "experimentId": 152,
     "control": "shop:1.5",
@@ -1326,7 +1326,7 @@
   },
   {
    "experimentId": 153,
-   "at": "2026-11-24T14:09:12.653Z",
+   "at": "2026-11-26T14:09:12.653Z",
    "truth": {
     "experimentId": 153,
     "control": "shop:1.4",
@@ -1347,7 +1347,7 @@
   },
   {
    "experimentId": 154,
-   "at": "2026-11-24T14:12:04.460Z",
+   "at": "2026-11-26T14:12:04.460Z",
    "truth": {
     "experimentId": 154,
     "control": "shop:1.5",
@@ -1368,7 +1368,7 @@
   },
   {
    "experimentId": 155,
-   "at": "2026-11-24T14:14:37.696Z",
+   "at": "2026-11-26T14:14:37.696Z",
    "truth": {
     "experimentId": 155,
     "control": "shop:1.4",
@@ -1389,7 +1389,7 @@
   },
   {
    "experimentId": 156,
-   "at": "2026-11-24T14:19:26.003Z",
+   "at": "2026-11-26T14:19:26.003Z",
    "truth": {
     "experimentId": 156,
     "control": "shop:1.4",
@@ -1410,7 +1410,7 @@
   },
   {
    "experimentId": 157,
-   "at": "2026-11-24T14:28:54.220Z",
+   "at": "2026-11-26T14:28:54.220Z",
    "truth": {
     "experimentId": 157,
     "control": "shop:1.4",
@@ -1431,7 +1431,7 @@
   },
   {
    "experimentId": 158,
-   "at": "2026-11-24T14:33:43.309Z",
+   "at": "2026-11-26T14:33:43.309Z",
    "truth": {
     "experimentId": 158,
     "control": "shop:1.4",
@@ -1452,7 +1452,7 @@
   },
   {
    "experimentId": 159,
-   "at": "2026-11-24T19:11:24.361Z",
+   "at": "2026-11-26T19:11:24.361Z",
    "truth": {
     "experimentId": 159,
     "control": "shop:1.4",
@@ -1683,7 +1683,7 @@
   },
   {
    "experimentId": 186,
-   "at": "2026-11-26T06:31:13.450Z",
+   "at": "2026-11-27T06:31:13.450Z",
    "truth": {
     "experimentId": 186,
     "control": "shop:1.4",
@@ -1704,7 +1704,7 @@
   },
   {
    "experimentId": 187,
-   "at": "2026-11-26T06:32:40.172Z",
+   "at": "2026-11-27T06:32:40.172Z",
    "truth": {
     "experimentId": 187,
     "control": "shop:1.5",
@@ -1725,7 +1725,7 @@
   },
   {
    "experimentId": 188,
-   "at": "2026-11-26T06:34:12.737Z",
+   "at": "2026-11-27T06:34:12.737Z",
    "truth": {
     "experimentId": 188,
     "control": "shop:1.4",
@@ -1746,7 +1746,7 @@
   },
   {
    "experimentId": 189,
-   "at": "2026-11-26T06:35:37.048Z",
+   "at": "2026-11-27T06:35:37.048Z",
    "truth": {
     "experimentId": 189,
     "control": "shop:1.4",
@@ -1767,7 +1767,7 @@
   },
   {
    "experimentId": 190,
-   "at": "2026-11-26T08:49:09.437Z",
+   "at": "2026-11-27T08:49:09.437Z",
    "truth": {
     "experimentId": 190,
     "control": "shop:1.4",
@@ -1788,7 +1788,7 @@
   },
   {
    "experimentId": 191,
-   "at": "2026-11-26T08:50:31.660Z",
+   "at": "2026-11-27T08:50:31.660Z",
    "truth": {
     "experimentId": 191,
     "control": "shop:1.5",
@@ -1809,7 +1809,7 @@
   },
   {
    "experimentId": 192,
-   "at": "2026-11-26T08:51:59.270Z",
+   "at": "2026-11-27T08:51:59.270Z",
    "truth": {
     "experimentId": 192,
     "control": "shop:1.4",
@@ -1830,7 +1830,7 @@
   },
   {
    "experimentId": 193,
-   "at": "2026-11-26T09:02:20.038Z",
+   "at": "2026-11-27T09:02:20.038Z",
    "truth": {
     "experimentId": 193,
     "control": "shop:1.4",
@@ -1851,7 +1851,7 @@
   },
   {
    "experimentId": 194,
-   "at": "2026-11-26T09:30:15.295Z",
+   "at": "2026-11-27T09:30:15.295Z",
    "truth": {
     "experimentId": 194,
     "control": "shop:1.4",
@@ -1872,7 +1872,7 @@
   },
   {
    "experimentId": 195,
-   "at": "2026-11-26T09:31:57.038Z",
+   "at": "2026-11-27T09:31:57.038Z",
    "truth": {
     "experimentId": 195,
     "control": "shop:1.5",
@@ -1893,7 +1893,7 @@
   },
   {
    "experimentId": 196,
-   "at": "2026-11-26T09:38:32.736Z",
+   "at": "2026-11-27T09:38:32.736Z",
    "truth": {
     "experimentId": 196,
     "control": "shop:1.4",
@@ -1914,7 +1914,7 @@
   },
   {
    "experimentId": 197,
-   "at": "2026-11-26T09:39:58.859Z",
+   "at": "2026-11-27T09:39:58.859Z",
    "truth": {
     "experimentId": 197,
     "control": "shop:1.5",
@@ -1935,7 +1935,7 @@
   },
   {
    "experimentId": 198,
-   "at": "2026-11-26T09:46:39.398Z",
+   "at": "2026-11-27T09:46:39.398Z",
    "truth": {
     "experimentId": 198,
     "control": "shop:1.4",
@@ -1956,7 +1956,7 @@
   },
   {
    "experimentId": 199,
-   "at": "2026-11-26T09:48:30.499Z",
+   "at": "2026-11-27T09:48:30.499Z",
    "truth": {
     "experimentId": 199,
     "control": "shop:1.5",
@@ -1977,7 +1977,7 @@
   },
   {
    "experimentId": 200,
-   "at": "2026-11-26T09:49:55.456Z",
+   "at": "2026-11-27T09:49:55.456Z",
    "truth": {
     "experimentId": 200,
     "control": "shop:1.4",
@@ -1998,7 +1998,7 @@
   },
   {
    "experimentId": 201,
-   "at": "2026-11-26T11:27:05.522Z",
+   "at": "2026-11-27T11:27:05.522Z",
    "truth": {
     "experimentId": 201,
     "control": "shop:1.4",
@@ -2019,7 +2019,7 @@
   },
   {
    "experimentId": 202,
-   "at": "2026-11-26T11:31:42.371Z",
+   "at": "2026-11-27T11:31:42.371Z",
    "truth": {
     "experimentId": 202,
     "control": "shop:1.4",
@@ -2040,7 +2040,7 @@
   },
   {
    "experimentId": 203,
-   "at": "2026-11-26T11:34:20.122Z",
+   "at": "2026-11-27T11:34:20.122Z",
    "truth": {
     "experimentId": 203,
     "control": "shop:1.4",
@@ -2061,7 +2061,7 @@
   },
   {
    "experimentId": 204,
-   "at": "2026-11-26T12:10:40.750Z",
+   "at": "2026-11-27T12:10:40.750Z",
    "truth": {
     "experimentId": 204,
     "control": "shop:1.4",
@@ -2082,7 +2082,7 @@
   },
   {
    "experimentId": 205,
-   "at": "2026-11-26T12:22:37.960Z",
+   "at": "2026-11-27T12:22:37.960Z",
    "truth": {
     "experimentId": 205,
     "control": "shop:1.5",
@@ -2103,7 +2103,7 @@
   },
   {
    "experimentId": 206,
-   "at": "2026-11-26T12:31:00.724Z",
+   "at": "2026-11-27T12:31:00.724Z",
    "truth": {
     "experimentId": 206,
     "control": "shop:1.4",
@@ -2124,7 +2124,7 @@
   },
   {
    "experimentId": 207,
-   "at": "2026-11-26T12:33:29.595Z",
+   "at": "2026-11-27T12:33:29.595Z",
    "truth": {
     "experimentId": 207,
     "control": "shop:1.5",
@@ -2145,7 +2145,7 @@
   },
   {
    "experimentId": 208,
-   "at": "2026-11-26T12:34:57.022Z",
+   "at": "2026-11-27T12:34:57.022Z",
    "truth": {
     "experimentId": 208,
     "control": "shop:1.4",
@@ -2166,7 +2166,7 @@
   },
   {
    "experimentId": 209,
-   "at": "2026-11-26T12:37:22.855Z",
+   "at": "2026-11-27T12:37:22.855Z",
    "truth": {
     "experimentId": 209,
     "control": "shop:1.4",
@@ -2187,7 +2187,7 @@
   },
   {
    "experimentId": 210,
-   "at": "2026-11-26T12:44:00.075Z",
+   "at": "2026-11-27T12:44:00.075Z",
    "truth": {
     "experimentId": 210,
     "control": "shop:1.4",
@@ -2208,7 +2208,7 @@
   },
   {
    "experimentId": 211,
-   "at": "2026-11-26T12:46:23.301Z",
+   "at": "2026-11-27T12:46:23.301Z",
    "truth": {
     "experimentId": 211,
     "control": "shop:1.5",
@@ -2229,7 +2229,7 @@
   },
   {
    "experimentId": 212,
-   "at": "2026-11-26T12:47:48.594Z",
+   "at": "2026-11-27T12:47:48.594Z",
    "truth": {
     "experimentId": 212,
     "control": "shop:1.4",
@@ -2250,7 +2250,7 @@
   },
   {
    "experimentId": 213,
-   "at": "2026-11-26T12:50:09.764Z",
+   "at": "2026-11-27T12:50:09.764Z",
    "truth": {
     "experimentId": 213,
     "control": "shop:1.5",
@@ -2271,7 +2271,7 @@
   },
   {
    "experimentId": 214,
-   "at": "2026-11-26T13:50:08.662Z",
+   "at": "2026-11-27T13:50:08.662Z",
    "truth": {
     "experimentId": 214,
     "control": "shop:1.4",
@@ -2292,7 +2292,7 @@
   },
   {
    "experimentId": 215,
-   "at": "2026-11-26T13:52:28.571Z",
+   "at": "2026-11-27T13:52:28.571Z",
    "truth": {
     "experimentId": 215,
     "control": "shop:1.5",
@@ -2313,7 +2313,7 @@
   },
   {
    "experimentId": 216,
-   "at": "2026-11-26T16:05:29.372Z",
+   "at": "2026-11-27T16:05:29.372Z",
    "truth": {
     "experimentId": 216,
     "control": "shop:1.4",

@@ -2,7 +2,7 @@
 
 Turnout needs no code in your app: it sits in front as a reverse proxy, picks a release per visitor from a Flagsmith flag, and turns HTTP requests into Flagsmith events. This page records what was tested, what happened, how to repeat it, and what doesn't work.
 
-## What was tested (23 Nov 2026)
+## What was tested (26 Nov 2026)
 
 Each row is a separate Compose project written by `turnout new`, pointed at its own Flagsmith project in a throwaway organisation (`init --project`), on its own ports (`--proxy-port`, `--console-port`), next to the running demo stack. Each run sent 20 to 40 visitors with a browser user agent: two page loads (cookie, then exposure), three more pages, then the goal request.
 
