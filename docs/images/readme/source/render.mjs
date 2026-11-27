@@ -147,8 +147,146 @@ function stack(t) {
   <div class="row" id="shot">${logos.map(([n, src]) => `<div class="tile${n === 'flagsmith' ? ' fs' : ''}"><img src="${src}" alt="${n}"></div>`).join('')}</div>`;
 }
 
+// ---- small line icons (24×24, stroke) for the cards ---------------------------------------------------------------
+const ICON = {
+  run: '<path d="M7 4v16l13-8z"/>',
+  measure: '<path d="M4 19h16"/><path d="M7 16V10"/><path d="M12 16V6"/><path d="M17 16v-4"/>',
+  decide: '<path d="M12 3v18"/><path d="M5 7h14"/><path d="M5 7l-3 7h6z"/><path d="M19 7l-3 7h6z"/>',
+  release: '<path d="M5 12h12"/><path d="M13 6l6 6-6 6"/>',
+  see: '<rect x="3" y="4" width="18" height="14" rx="2"/><path d="M7 14l3-4 3 3 4-5"/>',
+  automate: '<circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3M5 5l2 2M17 17l2 2M5 19l2-2M17 7l2-2"/>',
+  install: '<path d="M12 3v12"/><path d="M7 10l5 5 5-5"/><path d="M4 20h16"/>',
+  prove: '<path d="M9 12l2 2 4-4"/><circle cx="12" cy="12" r="9"/>',
+};
+const icon = (k, color) => `<svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="${color}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${ICON[k]}</svg>`;
+const esc = (s) => s.replace(/&/g, '&amp;').replace(/</g, '&lt;');
+const code = (s) => esc(s).replace(/`([^`]+)`/g, '<code>$1</code>');
+
+// ---- every feature, eight cards ----------------------------------------------------------------------------------
+function features(t) {
+  const cards = [
+    ['run', 'Run a test', ['`turnout compare` on URLs, images or git branches', 'Try it with your app: paste GitHub links', 'A/A, A/B and A/B/C tests']],
+    ['measure', 'Measure', ['The goal from any HTTP request', 'Server speed and errors on every page', 'Page speed in real browsers', 'Bots never counted, one id per visitor']],
+    ['decide', 'Decide', ['Flagsmith’s Bayesian result, as returned', 'Ships at 95% only if the interval clears zero', 'Safety checks, and how many more visitors']],
+    ['release', 'Release', ['Ship or Revert: one flag change', 'A preview segment for your team', 'Pin my browser; Feature Health']],
+    ['see', 'See it', ['A live traffic map', 'A guided demo, and tours', 'A setup check with 28 checks', 'Every Flagsmith feature, read live']],
+    ['automate', 'Automate', ['A GitHub Action with a PR comment', 'An agent skill that stops for a person', 'Server mode with an autopilot', '`turnout deploy` for nginx or Caddy']],
+    ['install', 'Install', ['One line on Windows, macOS, Linux', 'Codespaces: nothing to install', 'A public image on GHCR', '`turnout uninstall` removes it all']],
+    ['prove', 'Prove it', ['Blind rounds with hidden true rates', 'Simulated shoppers, real Chrome visits', 'The Experiment Doctor, with SRM']],
+  ];
+  const colors = [t.accent, t.a, t.b, t.b, t.a, t.accent, t.a, t.b];
+  return `<style>${base(t)}
+    .frame { width: 1280px; padding: 24px; display: grid; grid-template-columns: repeat(4, 1fr); gap: 14px; }
+    .c { background: ${t.card}; border: 1px solid ${t.line}; border-radius: 16px; padding: 18px 18px 16px; }
+    .h { display: flex; align-items: center; gap: 10px; }
+    .ic { width: 38px; height: 38px; border-radius: 11px; display: grid; place-items: center; }
+    h3 { font-size: 18px; }
+    ul { margin-top: 12px; padding-left: 0; list-style: none; display: grid; gap: 7px; }
+    li { font-size: 14px; line-height: 1.4; color: ${t.soft}; padding-left: 14px; position: relative; }
+    li::before { content: ""; position: absolute; left: 0; top: 8px; width: 5px; height: 5px; border-radius: 50%; background: ${t.faint}; }
+    code { font-family: Consolas, "Cascadia Mono", monospace; font-size: 12.5px; color: ${t.ink}; background: ${t.bg2}; padding: 1px 5px; border-radius: 5px; }
+  </style>
+  <div class="frame" id="shot">${cards.map(([k, h, items], i) => `<div class="c"><div class="h"><span class="ic" style="background:${colors[i]}1f">${icon(k, colors[i])}</span><h3>${h}</h3></div><ul>${items.map((x) => `<li>${code(x)}</li>`).join('')}</ul></div>`).join('')}</div>`;
+}
+
+// ---- the Flagsmith loop: four rounds, the Flagsmith features in each ----------------------------------------------
+function loop(t) {
+  const rounds = [
+    ['01', 'Create a flag', ['Multivariate flag', 'Local evaluation', 'Tags'], 'One flag holds every version; the proxy evaluates it in-process for each visitor.'],
+    ['02', 'Pick a metric', ['Metrics', 'Events', 'Event store'], 'Plain HTTP becomes Flagsmith events: the goal, speed, errors, browser page speed.'],
+    ['03', 'Split the traffic', ['Experiments', 'Segments', 'Identity overrides'], 'Each test is a Flagsmith experiment; your team previews through a segment.'],
+    ['04', 'Ship the winner', ['Bayesian results', 'Environment default', 'Feature Health'], 'Flagsmith decides; Ship sets the default and drains the split in one change.'],
+  ];
+  return `<style>${base(t)}
+    .frame { width: 1280px; padding: 26px 26px 22px; }
+    .top { display: flex; align-items: center; gap: 12px; margin-bottom: 18px; }
+    .top img { width: 34px; height: 34px; border-radius: 8px; }
+    .top b { font-size: 20px; }
+    .top span { font-size: 15px; color: ${t.soft}; }
+    .row { display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; }
+    .r { position: relative; background: ${t.card}; border: 1px solid ${t.line}; border-top: 4px solid ${t.accent}; border-radius: 14px; padding: 16px 16px 18px; }
+    .r:not(:last-child)::after { content: ""; position: absolute; right: -14px; top: 44px; width: 12px; height: 12px; border-top: 2.5px solid ${t.faint}; border-right: 2.5px solid ${t.faint}; transform: rotate(45deg); }
+    .n { font-size: 12.5px; font-weight: 800; letter-spacing: .08em; color: ${t.accent}; }
+    h3 { margin-top: 4px; font-size: 19px; }
+    .chips { margin-top: 12px; display: flex; flex-wrap: wrap; gap: 6px; }
+    .chip { font-size: 12.5px; font-weight: 700; padding: 5px 9px; border-radius: 999px; color: ${t.accent}; background: ${t.accent}1a; border: 1px solid ${t.accent}40; }
+    p { margin-top: 12px; font-size: 14px; line-height: 1.5; color: ${t.soft}; }
+  </style>
+  <div class="frame" id="shot">
+    <div class="top"><img src="${flagsmith}" alt=""><b>The Flagsmith experiment loop, run by Turnout</b><span>· self-hosted Flagsmith 2.291 · every number from its API</span></div>
+    <div class="row">${rounds.map(([n, h, chips, p]) => `<div class="r"><div class="n">ROUND ${n}</div><h3>${h}</h3><div class="chips">${chips.map((c) => `<span class="chip">${c}</span>`).join('')}</div><p>${p}</p></div>`).join('')}</div>
+  </div>`;
+}
+
+// ---- live demo or your machine -------------------------------------------------------------------------------------
+function compare(t) {
+  const rows = [
+    ['Guided A/A, A/B and A/B/C tests: Take over and run them', true, true],
+    ['Blind rounds and the live traffic map', true, true],
+    ['Be a visitor: Flagsmith gives you a version', true, true],
+    ['Every Flagsmith feature Turnout uses, read live', 'read-only', true],
+    ['Flagsmith’s dashboard, with Turnout’s tour inside it', false, true],
+    ['Try it with your app: GitHub links, no Dockerfile', false, true],
+    ['Your own site: turnout compare, browsers, simulate', false, true],
+    ['Preview for your team, Pin my browser, the guard', false, true],
+  ];
+  const cell = (v) => v === true ? `<span class="yes">✓</span>` : v === false ? `<span class="no">—</span>` : `<span class="part">${v}</span>`;
+  return `<style>${base(t)}
+    .frame { width: 1280px; padding: 24px 26px; display: grid; grid-template-columns: 1fr 1fr; gap: 26px; align-items: start; }
+    table { width: 100%; border-collapse: collapse; font-size: 15px; }
+    th { text-align: left; font-size: 13px; letter-spacing: .05em; text-transform: uppercase; color: ${t.soft}; padding: 0 10px 10px; }
+    th.c, td.c { text-align: center; width: 120px; }
+    td { padding: 10px; border-top: 1px solid ${t.line}; }
+    .yes { color: ${t.b}; font-weight: 800; font-size: 18px; }
+    .no { color: ${t.faint}; font-weight: 800; }
+    .part { font-size: 12.5px; font-weight: 700; color: ${t.accent}; }
+    .side { display: grid; gap: 14px; }
+    .box { background: ${t.card}; border: 1px solid ${t.line}; border-radius: 14px; padding: 16px 18px; }
+    .box h3 { font-size: 17px; }
+    .box p { margin-top: 6px; font-size: 14px; line-height: 1.5; color: ${t.soft}; }
+    .box code { font-family: Consolas, monospace; font-size: 13px; color: ${t.ink}; }
+    .live { border-left: 4px solid ${t.a}; } .local { border-left: 4px solid ${t.b}; } .run { border-left: 4px solid ${t.accent}; }
+    .run pre { margin-top: 10px; font-family: Consolas, "Cascadia Mono", monospace; font-size: 14px; line-height: 1.6; color: ${t.ink}; }
+    .run .c { color: ${t.faint}; }
+  </style>
+  <div class="frame" id="shot">
+    <table><thead><tr><th></th><th class="c">Live demo</th><th class="c">Your machine</th></tr></thead>
+      <tbody>${rows.map(([what, a, b]) => `<tr><td>${what}</td><td class="c">${cell(a)}</td><td class="c">${cell(b)}</td></tr>`).join('')}</tbody></table>
+    <div class="side">
+      <div class="box live"><h3>Live demo: nothing to install</h3><p>One shared server running the whole loop. Open it, press Take over, and run a test in a minute.</p></div>
+      <div class="box local"><h3>Your machine: every feature</h3><p>A public server can’t run strangers’ code or hand out Flagsmith’s admin login, so those run locally. Docker, then one line, then <code>turnout demo</code>.</p></div>
+      <div class="box run"><h3>Run it in one line</h3>
+        <pre><span class="c"># Windows (PowerShell)</span>
+irm …/turnout/main/install.ps1 | iex
+<span class="c"># macOS, Linux</span>
+curl -fsSL …/turnout/main/install.sh | sh
+turnout demo</pre></div>
+    </div>
+  </div>`;
+}
+
+// ---- given back to Flagsmith ------------------------------------------------------------------------------------
+function upstream(t) {
+  const cards = [
+    ['Flagsmith #9120', 'Completing an experiment kept the old split', '150 of 300 visitors stayed on it (2.291.0). Already fixed in 2.295.2; Flagsmith rewrote its docs after the report (#9141).', 'docs updated'],
+    ['Node SDK #330 · PR #331', 'Events dropped under load', '28% of events tracked faster than one batch round-trip were lost. The PR reports every drop: onEventsDropped, droppedEvents.', 'fix proposed'],
+    ['Node SDK #332', 'Self-hosted events went to Flagsmith Cloud', 'Pointed at your own Flagsmith, the SDK still sent experiment events to the cloud unless eventsApiUrl is set.', 'reported'],
+  ];
+  return `<style>${base(t)}
+    .frame { width: 1280px; padding: 22px; display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; }
+    .c { background: ${t.card}; border: 1px solid ${t.line}; border-radius: 14px; padding: 18px; }
+    .top { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+    .id { display: inline-flex; align-items: center; gap: 8px; font-size: 13.5px; font-weight: 800; color: ${t.accent}; }
+    .id img { width: 20px; height: 20px; border-radius: 5px; }
+    .tag { font-size: 11.5px; font-weight: 800; letter-spacing: .05em; text-transform: uppercase; color: ${t.b}; background: ${t.b}1f; padding: 4px 8px; border-radius: 999px; }
+    h3 { margin-top: 12px; font-size: 17.5px; line-height: 1.3; }
+    p { margin-top: 8px; font-size: 14px; line-height: 1.5; color: ${t.soft}; }
+  </style>
+  <div class="frame" id="shot">${cards.map(([id, h, p, tag]) => `<div class="c"><div class="top"><span class="id"><img src="${flagsmith}" alt="">${id}</span><span class="tag">${tag}</span></div><h3>${h}</h3><p>${p}</p></div>`).join('')}</div>`;
+}
+
 const b = await chromium.launch();
-for (const [name, fn] of Object.entries({ header, how, numbers, stack })) {
+for (const [name, fn] of Object.entries({ header, how, numbers, stack, features, loop, compare, upstream })) {
   for (const theme of ['light', 'dark']) {
     const p = await b.newPage({ viewport: { width: 1400, height: 900 }, deviceScaleFactor: 2 });
     await p.setContent(`<!doctype html><html><body style="padding:10px">${fn(THEMES[theme])}</body></html>`);

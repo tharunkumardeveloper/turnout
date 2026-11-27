@@ -1,8 +1,8 @@
 <div align="center">
 
 <picture>
-  <source media="(prefers-color-scheme: dark)" srcset="docs/images/readme/header-dark.png">
-  <img src="docs/images/readme/header-light.png" width="100%" alt="Turnout: A/B test whole website releases on self-hosted Flagsmith. Visitors pass through the Turnout proxy, which asks Flagsmith for a version and sends each one to A (v1.4, what's live) or B (v1.5); Flagsmith is 99% sure B wins, so it ships.">
+  <source media="(prefers-color-scheme: dark)" srcset="docs/images/readme/header-light.png">
+  <img src="docs/images/readme/header-dark.png" width="100%" alt="Turnout: A/B test whole website releases on self-hosted Flagsmith. Visitors pass through the Turnout proxy, which asks Flagsmith for a version and sends each one to A (v1.4, what's live) or B (v1.5); Flagsmith is 99% sure B wins, so it ships.">
 </picture>
 
 [**▶ Demo video (2:50)**](https://www.youtube.com/watch?v=uoJtfs4HVrE) · [**Live demo**](https://172-198-62-67.sslip.io) · [Get started](#get-started) · [Features](#features) · [How Flagsmith is used](#how-flagsmith-is-used) · [Proof](#proof)
@@ -16,8 +16,8 @@
 A Flagsmith experiment normally lives in your app's code: `getExperimentFlag` and `trackEvent` at every touchpoint. That works for one button, not for *"is our redesign, or release 1.5, better than what's live?"* **Turnout puts the experiment at the front door instead:** two versions of your site behind one URL, a Flagsmith flag routing each visitor, plain HTTP turned into Flagsmith events, and Flagsmith Experimentation deciding the winner. Ship or Revert is one flag change. Your app never changes, in any language.
 
 <picture>
-  <source media="(prefers-color-scheme: dark)" srcset="docs/images/readme/numbers-dark.png">
-  <img src="docs/images/readme/numbers-light.png" width="100%" alt="105 of 111 blind rounds decided right. 14 bad releases shipped by a 95% rule alone, 1 by Turnout. 0 of 68,141 events lost under load. 39 of 53 public GitHub repos built, tested and shipped from a link.">
+  <source media="(prefers-color-scheme: dark)" srcset="docs/images/readme/numbers-light.png">
+  <img src="docs/images/readme/numbers-dark.png" width="100%" alt="105 of 111 blind rounds decided right. 14 bad releases shipped by a 95% rule alone, 1 by Turnout. 0 of 68,141 events lost under load. 39 of 53 public GitHub repos built, tested and shipped from a link.">
 </picture>
 
 ## Get started
@@ -48,18 +48,12 @@ turnout compare localhost:3001 localhost:3002   # or your own two versions
 
 ### Live demo or your machine?
 
-The [live demo](https://172-198-62-67.sslip.io) shows the whole loop in a minute with nothing installed. **For the full feature set, run it locally:** a shared public server can't run strangers' code or hand out Flagsmith's admin login.
+The [live demo](https://172-198-62-67.sslip.io) shows the whole loop in a minute with nothing installed: press **Take over** and run a test yourself. **For every feature, run it locally:** a shared public server can't run strangers' code or hand out Flagsmith's admin login.
 
-| | Live demo | Your machine |
-|---|:---:|:---:|
-| Guided A/A, A/B and A/B/C tests, Flagsmith's results, Ship and Revert | ✅ | ✅ |
-| Blind rounds (hidden true rates, scored after) and the live traffic map | ✅ | ✅ |
-| *Be a visitor*: get a version from Flagsmith yourself | ✅ | ✅ |
-| Every Flagsmith feature Turnout uses, with live values | ✅ read-only | ✅ with links into Flagsmith |
-| Flagsmith's own dashboard, with Turnout's tour inside it | — admin login stays private | ✅ |
-| **Try it with your app**: paste GitHub links, no Dockerfile needed | — it builds and runs code | ✅ |
-| `turnout compare` on your own site, `browsers`, `simulate`, the setup check | — | ✅ |
-| Preview for your team, Pin my browser, the Feature Health guard | — | ✅ |
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/images/readme/compare-light.png">
+  <img src="docs/images/readme/compare-dark.png" width="100%" alt="Live demo and your machine both have: guided A/A, A/B and A/B/C tests you can take over, blind rounds and the live traffic map, Be a visitor, and every Flagsmith feature Turnout uses (read-only on the live demo). Only your machine has: Flagsmith's dashboard with Turnout's tour inside it, Try it with your app from GitHub links, turnout compare on your own site with browsers and simulate, and Preview, Pin my browser and the guard. Install: one line, then turnout demo.">
+</picture>
 
 ## See it
 
@@ -77,23 +71,18 @@ The [live demo](https://172-198-62-67.sslip.io) shows the whole loop in a minute
 ## How it works
 
 <picture>
-  <source media="(prefers-color-scheme: dark)" srcset="docs/images/readme/how-dark.png">
-  <img src="docs/images/readme/how-light.png" width="100%" alt="1. A visitor arrives: Turnout gives them a stable id. 2. Flagsmith picks the version: one multivariate flag, evaluated locally. 3. Turnout serves it, the same version on every visit. 4. HTTP becomes events: page loads, speed, errors and the goal go to Flagsmith. 5. Flagsmith decides: ship, keep running or revert; Ship is one flag change.">
+  <source media="(prefers-color-scheme: dark)" srcset="docs/images/readme/how-light.png">
+  <img src="docs/images/readme/how-dark.png" width="100%" alt="1. A visitor arrives: Turnout gives them a stable id. 2. Flagsmith picks the version: one multivariate flag, evaluated locally. 3. Turnout serves it, the same version on every visit. 4. HTTP becomes events: page loads, speed, errors and the goal go to Flagsmith. 5. Flagsmith decides: ship, keep running or revert; Ship is one flag change.">
 </picture>
 
 The same experiment written with the SDK inside the demo shop took **45 lines of app code and hit two silent traps** ([with vs without](examples/with-sdk/README.md)); with Turnout the shop has 0 lines and the config 12. Unlike canary tools (Argo Rollouts, Flagger), which judge a release on errors, Turnout asks the product question, *does it get more sign-ups?*, and keeps errors and speed as safety checks. More: [How it works](docs/HOW_IT_WORKS.md).
 
 ## Features
 
-| | |
-|---|---|
-| **Run a test** | `turnout compare` on URLs, Docker images or git branches, any number of versions (`--goal`, `--split`, `--env-file`); `turnout demo`; **Try it with your app** from GitHub links, folders or images, no Dockerfile needed |
-| **Measure** | One visitor id per browser, bots never counted; the goal from any HTTP request or an `X-Turnout-Event` header; server response time and errors; page speed in visitors' browsers (`--browser-speed`: largest paint, layout shift), compared only when both versions reported; `turnout browsers` for real headless-Chrome visits; `turnout simulate` for labelled pretend shoppers |
-| **Decide** | Flagsmith's Bayesian results as returned. Ship only when Flagsmith is 95% sure, its interval clears zero and every safety check passes; otherwise *keep running*, with the visitors it would take to settle; A/A tests; the Experiment Doctor with a sample-ratio check |
-| **Release** | Ship and Revert in one flag change that also drains the split; a preview segment for your team; *Pin my browser* (identity override); Feature Health marks a loser Unhealthy, and an opt-in guard reverts it; a release ledger and GitHub Releases |
-| **Console** | Live traffic map, guided demo with tours, results table, a setup check with 28 checks, a map of every Flagsmith feature with live values, and a tour inside Flagsmith's dashboard |
-| **Automate** | `turnout check` as a GitHub Action (job summary and one pull-request comment); an [agent skill](skills/turnout-experiment/SKILL.md) that stops for a person to ship; server mode with HTTPS, an autopilot and blind rounds; `turnout deploy` prints your nginx or Caddy lines |
-| **Install** | One-line installers for Windows, macOS and Linux; Codespaces; a public image on GitHub Container Registry; `turnout uninstall` |
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/images/readme/features-light.png">
+  <img src="docs/images/readme/features-dark.png" width="100%" alt="Run a test: turnout compare on URLs, images or git branches; Try it with your app from GitHub links; A/A, A/B and A/B/C. Measure: the goal from any HTTP request, server speed and errors, page speed in real browsers, bots never counted. Decide: Flagsmith's Bayesian result as returned; ships at 95% only if the interval clears zero; safety checks and how many more visitors. Release: Ship or Revert in one flag change, a preview segment, Pin my browser, Feature Health. See it: live traffic map, guided demo and tours, a 28-check setup check, every Flagsmith feature read live. Automate: a GitHub Action with a PR comment, an agent skill, server mode with an autopilot, turnout deploy. Install: one line on Windows, macOS and Linux, Codespaces, a GHCR image, turnout uninstall. Prove it: blind rounds, simulated shoppers and real Chrome visits, the Experiment Doctor with SRM.">
+</picture>
 
 Every feature, one line each: [FEATURES.md](FEATURES.md). Every command: [docs/CLI.md](docs/CLI.md).
 
@@ -101,16 +90,12 @@ Every feature, one line each: [FEATURES.md](FEATURES.md). Every command: [docs/C
 
 Self-hosted Flagsmith 2.291.0 from its official Docker Compose file ([compose.flagsmith.yml](compose.flagsmith.yml)), Experimentation on, its event store on PostgreSQL. **Turnout computes no statistics:** every number on its pages comes from Flagsmith's API.
 
-| Flagsmith | In Turnout |
-|---|---|
-| **Multivariate flag**, local evaluation | One flag per app; each variant's value names a version. The proxy evaluates it in-process, with no network call per request. |
-| **Metrics and events**, event store | Plain HTTP becomes events: the goal, add to cart, server response time and errors, and browser page speed. |
-| **Experiments**, Bayesian results | A/A, A/B and A/B/C tests. Chance to be best, credible interval and lift decide Ship, Keep running or Revert. |
-| **Environment default**, rollout | Ship and Revert set the default and drain the split: everyone moves at once, no redeploy. |
-| **Segments**, **identity overrides** | A preview for your team; a pinned browser. Both stay out of the test. |
-| **Feature Health**, tags, Code References, Admin API | A losing safety check shows Unhealthy in Flagsmith; a permanent `release` tag; the flag's code references; everything created automatically. |
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/images/readme/loop-light.png">
+  <img src="docs/images/readme/loop-dark.png" width="100%" alt="The Flagsmith experiment loop, run by Turnout. Round 01, create a flag: multivariate flag, local evaluation, tags. Round 02, pick a metric: metrics, events, event store. Round 03, split the traffic: experiments, segments, identity overrides. Round 04, ship the winner: Bayesian results, environment default, Feature Health.">
+</picture>
 
-Every Flagsmith fact with its source file and line: [docs/FLAGSMITH.md](docs/FLAGSMITH.md).
+Also the Admin API (everything is created automatically) and Code References. Every Flagsmith fact with its source file and line: [docs/FLAGSMITH.md](docs/FLAGSMITH.md); every feature with its live value: the [Flagsmith features page](https://172-198-62-67.sslip.io/judge/flagsmith).
 
 ## Proof
 
@@ -131,12 +116,12 @@ All measured during Toggle Wars; raw logs in [spikes/RESULTS.md](spikes/RESULTS.
 
 ### Built on Flagsmith, given back to Flagsmith
 
-| I hit | Turnout | Upstream |
-|---|---|---|
-| On 2.291.0, ending an experiment left 150 of 300 visitors on the old split (2.295.2 had already fixed it) | Ship drains the split: 300 of 300 on the winner | [Flagsmith#9120](https://github.com/Flagsmith/flagsmith/issues/9120); Flagsmith rewrote its docs in [#9141](https://github.com/Flagsmith/flagsmith/pull/9141) |
-| The Node SDK dropped 28% of events tracked faster than one batch round-trip | Holds events back while the buffer is full: 0 lost | [#330](https://github.com/Flagsmith/flagsmith-nodejs-client/issues/330), fix [PR #331](https://github.com/Flagsmith/flagsmith-nodejs-client/pull/331) |
-| Pointed at a self-hosted Flagsmith, the SDK still sent events to Flagsmith Cloud | Sets the events address to your instance | [#332](https://github.com/Flagsmith/flagsmith-nodejs-client/issues/332) |
-| Results recompute at most every 5 minutes | Asks only once visitors' events are in | |
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/images/readme/upstream-light.png">
+  <img src="docs/images/readme/upstream-dark.png" width="100%" alt="Flagsmith #9120: completing an experiment kept the old split (2.291.0); already fixed in 2.295.2, and Flagsmith rewrote its docs after the report (#9141). Node SDK #330 and PR #331: events dropped under load; the PR reports every drop. Node SDK #332: self-hosted events went to Flagsmith Cloud unless eventsApiUrl is set.">
+</picture>
+
+[Flagsmith#9120](https://github.com/Flagsmith/flagsmith/issues/9120) (docs: [#9141](https://github.com/Flagsmith/flagsmith/pull/9141)) · [flagsmith-nodejs-client#330](https://github.com/Flagsmith/flagsmith-nodejs-client/issues/330), fix [PR #331](https://github.com/Flagsmith/flagsmith-nodejs-client/pull/331) · [#332](https://github.com/Flagsmith/flagsmith-nodejs-client/issues/332). Turnout works around each one on 2.291.0: Ship drains the split, events wait while the SDK's buffer is full, and the events address is set to your instance.
 
 ## Step by step
 
@@ -217,8 +202,8 @@ Run `turnout compare` on the server that takes the traffic, then `turnout deploy
 ## Tech stack
 
 <picture>
-  <source media="(prefers-color-scheme: dark)" srcset="docs/images/readme/stack-dark.png">
-  <img src="docs/images/readme/stack-light.png" height="64" alt="Flagsmith, Node.js, TypeScript, JavaScript, Docker, PostgreSQL, Caddy, GitHub Actions, Azure">
+  <source media="(prefers-color-scheme: dark)" srcset="docs/images/readme/stack-light.png">
+  <img src="docs/images/readme/stack-dark.png" height="64" alt="Flagsmith, Node.js, TypeScript, JavaScript, Docker, PostgreSQL, Caddy, GitHub Actions, Azure">
 </picture>
 
 Node.js 24 running TypeScript directly (no build step) with two runtime dependencies (`@flagsmith/nodejs`, `yaml`); a console in plain HTML, CSS and JavaScript modules; Flagsmith 2.291 and its PostgreSQL event store in Docker Compose; Caddy for HTTPS on the Azure VM that hosts the live demo; GitHub Actions for CI and the reusable Action.
