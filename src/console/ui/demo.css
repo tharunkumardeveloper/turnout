@@ -369,3 +369,5 @@ a.version-frame:hover::after, a.version-frame:focus-visible::after { opacity: 1;
 .pilot-text { flex: 1 1 220px; margin: 0; font-size: 13.5px; line-height: 1.45; }
 .pilot[data-mode='autopilot'] .pilot-text::before { content: "●"; margin-right: 7px; color: #6633ff; animation: blind-live 1.6s ease-in-out infinite; }
 @media (prefers-reduced-motion: reduce) { .pilot[data-mode='autopilot'] .pilot-text::before { animation: none; } }
+
+.pilot[data-mode='other'] { border-color: color-mix(in srgb, #d97706 45%, var(--border)); background: color-mix(in srgb, #d97706 8%, var(--surface)); }

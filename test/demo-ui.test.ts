@@ -483,11 +483,16 @@ describe("the live demo's driver: the autopilot, or you after Take over", () => 
     const running = M.pilotView({ autopilot: { enabled: true, phase: 'waiting', pausedUntil: null } }, now);
     assert.equal(running.mode, 'autopilot');
     assert.equal(running.button.action, 'take-over');
-    const you = M.pilotView({ autopilot: { enabled: true, phase: 'paused', pausedUntil: '2026-11-27T10:09:30Z' } }, now);
+    const someone = M.pilotView({ autopilot: { enabled: true, phase: 'paused', pausedUntil: '2026-11-27T10:09:30Z' } }, now);
+    assert.equal(someone.mode, 'other', 'paused by another visitor: never "you"');
+    assert.match(someone.text, /^Someone else is running the steps/);
+    assert.equal(someone.button.action, 'take-over');
+    const mine = now + 600_000;
+    const you = M.pilotView({ autopilot: { enabled: true, phase: 'paused', pausedUntil: '2026-11-27T10:09:30Z' } }, now, mine);
     assert.equal(you.mode, 'you');
     assert.equal(you.button.action, 'hand-back');
     assert.match(you.text, /waits 10 more min/);
-    const finishing = M.pilotView({ autopilot: { enabled: true, phase: 'paused', pausedUntil: '2026-11-27T10:09:30Z' }, job: { status: 'running' } }, now);
+    const finishing = M.pilotView({ autopilot: { enabled: true, phase: 'paused', pausedUntil: '2026-11-27T10:09:30Z' }, job: { status: 'running' } }, now, mine);
     assert.match(finishing.text, /last step is finishing/);
     // A pause that has run out reads as the autopilot again.
     assert.equal(M.pilotView({ autopilot: { enabled: true, phase: 'paused', pausedUntil: '2026-11-27T09:59:00Z' } }, now).mode, 'autopilot');

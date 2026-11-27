@@ -25,7 +25,12 @@ $here = $PSScriptRoot
       $zip = Join-Path $env:TEMP "turnout-$Release.zip"
       $tmp = Join-Path $env:TEMP "turnout-$Release-unpack"
       [Net.ServicePointManager]::SecurityProtocol = [Net.ServicePointManager]::SecurityProtocol -bor [Net.SecurityProtocolType]::Tls12
-      Invoke-WebRequest -UseBasicParsing "https://github.com/$Repo/archive/refs/tags/$Release.zip" -OutFile $zip
+      # The release's own archive (GitHub counts its downloads), else the tag's source archive: the same files.
+      try {
+        Invoke-WebRequest -UseBasicParsing "https://github.com/$Repo/releases/download/$Release/turnout-$Release.zip" -OutFile $zip
+      } catch {
+        Invoke-WebRequest -UseBasicParsing "https://github.com/$Repo/archive/refs/tags/$Release.zip" -OutFile $zip
+      }
       if (Test-Path $tmp) { Remove-Item -Recurse -Force $tmp }
       Expand-Archive $zip -DestinationPath $tmp
       New-Item -ItemType Directory -Force $base | Out-Null

@@ -199,6 +199,7 @@ async function run(action, extra = {}) {
     const res = await api('/api/judge/run', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body) });
     const out = await res.json().catch(() => ({}));
     if (!res.ok) throw new Error(out.error ?? `HTTP ${res.status}`);
+    if (PLAY) markMine();
     if (out.job) followJob(out.job);
   } catch (error) {
     ui.error = error.message;
@@ -289,7 +290,7 @@ const isBusy = () => ui.job?.status === 'running' || ui.state?.job?.status === '
 function pickKind(k) {
   if (LOCKED) return;
   // The live demo: picking a test means you're driving, so the autopilot steps aside.
-  if (PLAY && M.pilotView(ui.state)?.mode === 'autopilot') void pilot('take-over');
+  if (PLAY && M.pilotView(ui.state, Date.now(), mineUntil())?.mode !== 'you') void pilot('take-over');
   ui.kind = k;
   try {
     localStorage.setItem(KIND_KEY, String(k));
@@ -405,9 +406,15 @@ new ResizeObserver(fitFrames).observe(document.documentElement);
 const JOB_STEP = { visitors: 'visitors', score: 'score', ship: 'decide', revert: 'decide', 'keep-running': 'decide', release: 'start', reset: 'start', abc: 'start', start: 'start' };
 
 // The live demo: who drives the steps, the autopilot or you, and the button to switch.
+// Until when this browser is the one driving: set by its own Take over or step clicks, as long as the server's pause.
+const MINE_KEY = 'turnout-pilot-mine';
+const PILOT_PAUSE_MS = 10 * 60_000;
+const mineUntil = () => Number(sessionStorage.getItem(MINE_KEY) ?? 0);
+const markMine = () => sessionStorage.setItem(MINE_KEY, String(Date.now() + PILOT_PAUSE_MS));
+
 function renderPilot(s) {
   const box = $('pilot');
-  const v = PLAY ? M.pilotView(s) : null;
+  const v = PLAY ? M.pilotView(s, Date.now(), mineUntil()) : null;
   box.hidden = !v;
   if (!v) return;
   const key = JSON.stringify([v, ui.pilotBusy]);
@@ -426,6 +433,8 @@ async function pilot(action) {
     const res = await api('/api/judge/run', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ action }) });
     const out = await res.json().catch(() => ({}));
     if (!res.ok) throw new Error(out.error ?? `HTTP ${res.status}`);
+    if (action === 'take-over') markMine();
+    else sessionStorage.removeItem(MINE_KEY);
     if (ui.state && out.autopilot) ui.state = { ...ui.state, autopilot: out.autopilot };
   } catch (error) {
     ui.error = error.message;

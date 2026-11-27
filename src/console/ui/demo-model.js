@@ -650,12 +650,20 @@ export function blindView(s) {
  * The live demo's driver: the autopilot runs tests by itself until a visitor takes over, then waits until they hand
  * it back or stop clicking for a while. Null where there's no autopilot (on your machine).
  */
-export function pilotView(s, nowMs = Date.now()) {
+export function pilotView(s, nowMs = Date.now(), mineUntil = 0) {
   const ap = s?.autopilot;
   if (!ap?.enabled) return null;
   const until = Date.parse(ap.pausedUntil ?? '');
   if (ap.phase === 'paused' && Number.isFinite(until) && until > nowMs) {
     const mins = Math.max(1, Math.ceil((until - nowMs) / 60_000));
+    // Someone else took over (this browser hasn't clicked a step lately): say so, and let this visitor take over too.
+    if (!(mineUntil > nowMs)) {
+      return {
+        mode: 'other',
+        text: `Someone else is running the steps. The autopilot carries on in up to ${mins} min, or take over and carry their test on.`,
+        button: { action: 'take-over', label: 'Take over' },
+      };
+    }
     const finishing = s?.job?.status === 'running';
     return {
       mode: 'you',

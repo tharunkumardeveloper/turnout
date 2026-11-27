@@ -20,12 +20,18 @@ else
   root="$base/$RELEASE"
   if [ ! -f "$root/bin/turnout" ]; then
     echo "Downloading Turnout $RELEASE from github.com/$REPO ..."
-    url="${TURNOUT_DOWNLOAD_URL:-https://github.com/$REPO/archive/refs/tags/$RELEASE.tar.gz}" # override: tests, mirrors
+    # The release's own archive (GitHub counts its downloads), else the tag's source archive: the same files.
+    asset="https://github.com/$REPO/releases/download/$RELEASE/turnout-$RELEASE.tar.gz"
+    source="https://github.com/$REPO/archive/refs/tags/$RELEASE.tar.gz"
     mkdir -p "$base"
     tmp=$(mktemp -d)
-    if command -v curl >/dev/null 2>&1; then curl -fsSL "$url" -o "$tmp/t.tar.gz"
-    elif command -v wget >/dev/null 2>&1; then wget -qO "$tmp/t.tar.gz" "$url"
-    else echo "Turnout: curl or wget is needed to download it." >&2; exit 1; fi
+    fetch() {
+      if command -v curl >/dev/null 2>&1; then curl -fsSL "$1" -o "$tmp/t.tar.gz"
+      elif command -v wget >/dev/null 2>&1; then wget -qO "$tmp/t.tar.gz" "$1"
+      else echo "Turnout: curl or wget is needed to download it." >&2; exit 1; fi
+    }
+    if [ -n "${TURNOUT_DOWNLOAD_URL:-}" ]; then fetch "$TURNOUT_DOWNLOAD_URL" # override: tests, mirrors
+    else fetch "$asset" 2>/dev/null || fetch "$source"; fi
     tar -xzf "$tmp/t.tar.gz" -C "$tmp"
     rm -rf "$root"
     mv "$tmp"/turnout-*/ "$root"
