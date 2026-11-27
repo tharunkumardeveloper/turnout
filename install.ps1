@@ -10,7 +10,7 @@
 $here = $PSScriptRoot
 & {
   $ErrorActionPreference = 'Stop'
-  $Release = 'v1.0.4' # the tagged release a one-line install downloads
+  $Release = 'v1.0.5' # the tagged release a one-line install downloads
   $Repo = 'tharunkumardeveloper/turnout'
 
   # From a checkout: use it. Piped (irm | iex): there's no script folder, so download the release.

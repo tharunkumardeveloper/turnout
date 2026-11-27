@@ -168,9 +168,12 @@ open_browser() {
   fi
 }
 
-echo
-echo " Turnout"
-echo " =========="
+# The turnout command shows its logo first (TURNOUT_LOGO_SHOWN); run directly, a plain header.
+if [ -z "${TURNOUT_LOGO_SHOWN:-}" ]; then
+  echo
+  echo " Turnout"
+  echo " =========="
+fi
 
 # ---- Docker must be installed and running -----------------------------------------------------------------
 if ! command -v docker >/dev/null 2>&1; then

@@ -506,7 +506,7 @@ case "$cmd" in
   simulate) cmd_simulate "$@" ;;
   browsers) cmd_browsers "$@" ;;
   uninstall) cmd_uninstall "$@" ;;
-  demo) need_docker; cd "$HOME_DIR" && exec sh turnout.sh "${1:-start}" ;;   # start (opens guided demo), or: stop, status, reset
+  demo) need_docker; logo; cd "$HOME_DIR" && TURNOUT_LOGO_SHOWN=1 exec sh turnout.sh "${1:-start}" ;;   # start (opens guided demo), or: stop, status, reset
   update) cd "$HOME_DIR" && git pull --ff-only && say "Up to date. The next turnout compare or turnout demo uses it." ;;
   results) need_state; need_docker; compose --progress quiet run --rm cli status ;;
   ship) need_state; need_docker; compose --progress quiet run --rm -it cli ship ${1:+--winner "$1"} ;;

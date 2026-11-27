@@ -495,14 +495,16 @@ switch ($cmd) {
   'uninstall' { Invoke-Uninstall $rest }
   'demo' {
     Need-Docker
-    $what = if ($rest.Count) { $rest[0] } else { 'start' }   # start (opens guided demo), or: stop, status, reset
-    Push-Location $HomeDir; try { & cmd /c "turnout.bat $what" } finally { Pop-Location }
+    $what = if ($rest.Count) { @($rest)[0] } else { 'start' } # @(): one argument arrives as a string, not an array   # start (opens guided demo), or: stop, status, reset
+    Show-Logo
+    $env:TURNOUT_LOGO_SHOWN = '1'
+    Push-Location $HomeDir; try { & (Join-Path $HomeDir 'turnout.bat') $what } finally { Pop-Location; Remove-Item Env:TURNOUT_LOGO_SHOWN -ErrorAction SilentlyContinue }
   }
   'update' { Push-Location $HomeDir; try { git pull --ff-only; if ($LASTEXITCODE -eq 0) { Say 'Up to date. The next turnout compare or turnout demo uses it.' } } finally { Pop-Location } }
   'results' { Read-Args | Out-Null; Need-Docker; Compose --progress quiet run --rm cli status }
-  'ship' { Read-Args | Out-Null; Need-Docker; if ($rest.Count) { Compose --progress quiet run --rm -it cli ship --winner $rest[0] } else { Compose --progress quiet run --rm -it cli ship } }
+  'ship' { Read-Args | Out-Null; Need-Docker; if ($rest.Count) { Compose --progress quiet run --rm -it cli ship --winner @($rest)[0] } else { Compose --progress quiet run --rm -it cli ship } }
   'revert' { Read-Args | Out-Null; Need-Docker; Compose --progress quiet run --rm -it cli revert }
-  'logs' { Read-Args | Out-Null; Need-Docker; $svc = if ($rest.Count) { $rest[0] } else { '' }; if ($svc -eq 'proxy') { $svc = 'turnout' }; if ($svc) { Compose logs -f --tail 50 $svc } else { Compose logs -f --tail 50 } }
+  'logs' { Read-Args | Out-Null; Need-Docker; $svc = if ($rest.Count) { @($rest)[0] } else { '' }; if ($svc -eq 'proxy') { $svc = 'turnout' }; if ($svc) { Compose logs -f --tail 50 $svc } else { Compose logs -f --tail 50 } }
   { $_ -in 'version', '--version', '-v' } { Say "turnout $(Get-Version)" }
   'open' { Read-Args | Out-Null; Start-Process "http://127.0.0.1:$ConsolePort"; Show-Banner }
   'status' { Read-Args | Out-Null; Need-Docker; Compose ps; Compose --progress quiet run --rm cli doctor | Select-Object -Last 1 }

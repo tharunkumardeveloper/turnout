@@ -9,8 +9,6 @@
 
 [![Open in GitHub Codespaces](https://github.com/codespaces/badge.svg)](https://codespaces.new/tharunkumardeveloper/turnout?quickstart=1)
 [![CI](https://github.com/tharunkumardeveloper/turnout/actions/workflows/ci.yml/badge.svg)](https://github.com/tharunkumardeveloper/turnout/actions/workflows/ci.yml)
-[![Downloads](https://img.shields.io/endpoint?url=https%3A%2F%2Fraw.githubusercontent.com%2Ftharunkumardeveloper%2Fturnout%2Fstats%2Fdownloads.json "Release downloads plus unique git clones, recounted every 6 hours (GitHub's clone count includes automated clones)")](https://github.com/tharunkumardeveloper/turnout/releases)
-[![Live demo visitors](https://img.shields.io/endpoint?url=https%3A%2F%2F172-198-62-67.sslip.io%2Fjudge%2Fapi%2Fbadge%2Fvisitors "Unique browsers on the live demo, people only (bots and automated browsers left out), counted live")](https://172-198-62-67.sslip.io)
 [![License: BSD-3-Clause](https://img.shields.io/badge/license-BSD--3--Clause-blue)](LICENSE)
 
 </div>
@@ -37,20 +35,24 @@ A Flagsmith experiment normally lives in your app's code: `getExperimentFlag` an
 
 **2. Install, one line.** It downloads the tagged release and adds the `turnout` command:
 
+**Windows** (PowerShell)
 ```powershell
-# Windows (PowerShell)
 irm https://raw.githubusercontent.com/tharunkumardeveloper/turnout/main/install.ps1 | iex
 ```
+**macOS, Linux**
 ```sh
-# macOS, Linux
 curl -fsSL https://raw.githubusercontent.com/tharunkumardeveloper/turnout/main/install.sh | sh
 ```
 
 **3. Run it.**
 
+The demo shop and the guided demo, at <http://127.0.0.1:8090>:
 ```sh
-turnout demo                                    # the demo shop and guided demo, at 127.0.0.1:8090
-turnout compare localhost:3001 localhost:3002   # or your own two versions
+turnout demo
+```
+Or your own two running versions:
+```sh
+turnout compare localhost:3001 localhost:3002
 ```
 
 `demo` starts self-hosted Flagsmith, creates the flag, metrics and experiment, starts the proxy and opens the console (about 2 minutes the first time). In the console, turn on **Guided demo** and press the green button in each step: Start, Send shoppers, Ask Flagsmith, Ship. `turnout uninstall` removes everything it set up.
@@ -141,8 +143,14 @@ All measured during Toggle Wars; raw logs in [spikes/RESULTS.md](spikes/RESULTS.
 
 ```sh
 git clone https://github.com/tharunkumardeveloper/turnout.git turnout
-sh turnout/install.sh                                         # macOS, Linux
-powershell -ExecutionPolicy Bypass -File turnout\install.ps1  # Windows
+```
+Then on **macOS, Linux**:
+```sh
+sh turnout/install.sh
+```
+Or on **Windows**:
+```powershell
+powershell -ExecutionPolicy Bypass -File turnout\install.ps1
 ```
 
 Open a new terminal, then `turnout help`. Not sure your machine is ready? `sh turnout/setup.sh` (macOS, Linux) or `turnout\setup.bat` (Windows) checks Docker, Compose, memory and ports. On Linux your user must be able to run `docker`.

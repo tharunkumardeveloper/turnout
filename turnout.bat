@@ -54,9 +54,12 @@ if not "%~3"=="" (
   goto :usage_error
 )
 
-echo.
-echo  Turnout
-echo  ==========
+rem The turnout command shows its logo first (TURNOUT_LOGO_SHOWN); run directly, a plain header.
+if not defined TURNOUT_LOGO_SHOWN (
+  echo.
+  echo  Turnout
+  echo  ==========
+)
 
 rem ---- Docker must be installed and running -----------------------------------------------------------------
 call :find_docker
