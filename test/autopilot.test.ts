@@ -92,8 +92,9 @@ function fakeJudge(clock: { t: number }, o: { refreshEveryMs?: number; jobMs?: n
         job,
       });
     },
-    async run(body) {
+    async run(body, origin) {
       const b = body as { action: JudgeAction; visitors?: number };
+      assert.deepEqual(origin, { by: 'autopilot' }, 'every autopilot action says who asked for it');
       if (job?.status === 'running') return { status: 409, body: { error: 'busy' } };
       ran.push({ action: b.action, at: clock.t, ...(b.visitors ? { visitors: b.visitors } : {}) });
       job = { id: `j${++n}`, action: b.action, status: 'running', startedAt: new Date(clock.t).toISOString() } as Job;

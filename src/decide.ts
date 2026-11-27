@@ -72,7 +72,7 @@ export type DecideOptions = {
   ledgerDir: string;
   github?: { token: string; repository: string; apiUrl?: string; fetch?: typeof fetch };
   onStep?: (step: StepResult) => void;
-  by?: 'person' | 'guard'; // the guard only ever reverts
+  by?: 'person' | 'guard' | 'autopilot'; // the guard only ever reverts; the autopilot runs the live demo
   guardReason?: string;
 };
 
@@ -117,6 +117,7 @@ export async function decide(opts: DecideOptions): Promise<Decision> {
     losingGuardrailsAccepted: losing,
     snapshot: snapshotFileOf(steps)?.replaceAll('\\', '/') ?? null, // null when the step was already done (a re-run)
     ...(opts.by === 'guard' ? { by: 'guard' as const, ...(opts.guardReason ? { guardReason: opts.guardReason } : {}) } : {}),
+    ...(opts.by === 'autopilot' ? { by: 'autopilot' as const } : {}),
   };
   recordDecision(opts.ledgerDir, entry);
 
@@ -137,7 +138,7 @@ export async function decide(opts: DecideOptions): Promise<Decision> {
 
 // Keep running: the honest call when Flagsmith's interval still crosses zero. Writes nothing to Flagsmith (the
 // experiment stays running, so more visitors can be sent); records the reason and the interval in the ledger.
-export async function keepRunning(opts: { experiments: Experiments; ledgerDir: string }): Promise<LedgerEntry> {
+export async function keepRunning(opts: { experiments: Experiments; ledgerDir: string; by?: 'autopilot' }): Promise<LedgerEntry> {
   const experiment = await opts.experiments.detail();
   if (experiment.status === 'completed') throw new Error('This experiment is already decided.');
   const results = await opts.experiments.results();
@@ -159,6 +160,7 @@ export async function keepRunning(opts: { experiments: Experiments; ledgerDir: s
     snapshot: null,
     reason: rec.reason,
     interval: rec.interval,
+    ...(opts.by ? { by: opts.by } : {}),
   };
   recordDecision(opts.ledgerDir, entry);
   return entry;

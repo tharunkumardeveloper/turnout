@@ -18,7 +18,7 @@ export type LedgerEntry = {
   resultsAsOf: string | null;
   losingGuardrailsAccepted: GuardrailWarning[];
   snapshot: string | null;
-  by?: 'person' | 'guard'; // who decided; the guard only ever reverts
+  by?: 'person' | 'guard' | 'autopilot'; // who decided; the guard only ever reverts; the autopilot is the live demo's
   guardReason?: string;
   reason?: string; // kept-running: why (e.g. "interval −14% to +44% crosses zero")
   interval?: { low: number; high: number } | null; // the goal's credible interval Flagsmith reported, as a relative lift
@@ -59,7 +59,7 @@ export function renderEntry(e: LedgerEntry): string {
   const lines = [
     `## ${e.release ?? e.variant} · Flagsmith experiment ${e.experimentId}`,
     '',
-    `**${verb}** ${e.by === 'guard' ? `automatically by Turnout's guard (${e.guardReason ?? 'a guardrail was losing'})` : 'by a person'}, on flag \`${e.flag}\`, at ${e.at}.${e.decision === 'kept-running' ? ' Nothing changed in Flagsmith; the experiment keeps running.' : ''}`,
+    `**${verb}** ${e.by === 'guard' ? `automatically by Turnout's guard (${e.guardReason ?? 'a guardrail was losing'})` : e.by === 'autopilot' ? "automatically by the live demo's autopilot, on Turnout's recommendation" : 'by a person'}, on flag \`${e.flag}\`, at ${e.at}.${e.decision === 'kept-running' ? ' Nothing changed in Flagsmith; the experiment keeps running.' : ''}`,
     '',
     `- Experiment: ${e.experiment}`,
     `- Hypothesis: ${e.hypothesis}`,

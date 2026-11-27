@@ -144,3 +144,8 @@ describe('kept running', () => {
     assert.match(readFileSync(join(dir, 'RELEASES.md'), 'utf8'), /Kept running: interval −2% to \+62% crosses zero/);
   });
 });
+
+test("the live demo's autopilot is named as the one who decided, not a person", () => {
+  assert.match(renderEntry(entry({ by: 'autopilot' })), /\*\* automatically by the live demo's autopilot, on Turnout's recommendation,/);
+  assert.match(renderEntry(entry({ decision: 'kept-running', reason: 'interval −14% to +44% crosses zero', by: 'autopilot' })), /crosses zero\*\* automatically by the live demo's autopilot/);
+});

@@ -29,7 +29,7 @@ export type AutopilotOptions = {
 /** What the autopilot needs from guided demo: the same three calls the console's routes use. */
 export type JudgeLike = {
   state: () => Promise<JudgeState>;
-  run: (body: unknown) => Promise<RunResponse>;
+  run: (body: unknown, origin?: { by?: 'autopilot' }) => Promise<RunResponse>;
   job: () => Job | null;
 };
 
@@ -159,7 +159,7 @@ export function createAutopilot(judge: JudgeLike, lock: { busy: boolean }, opts:
       recheckAt = Math.min(at, now() + recheckMs);
       return sleep(Math.min(pollMs, at - now()));
     }
-    const ran = await judge.run({ action: plan.action, ...(s.experiment ? { experimentId: s.experiment.id } : {}), ...(plan.visitors ? { visitors: plan.visitors } : {}) });
+    const ran = await judge.run({ action: plan.action, ...(s.experiment ? { experimentId: s.experiment.id } : {}), ...(plan.visitors ? { visitors: plan.visitors } : {}) }, { by: 'autopilot' }); // its decisions say so in the ledger
     if (ran.status !== 202) {
       const error = (ran.body as { error?: string } | null)?.error ?? `HTTP ${ran.status}`;
       status.lastError = `${plan.title}: ${error}`;

@@ -512,7 +512,9 @@ class JobFailure extends Error {
 }
 
 // arms (action "start"): how many versions the new test compares, 1 for an A/A test (the live release on both arms).
-type RunBody = { action: JudgeAction; experimentId?: number; visitors?: number; acceptLosingGuardrails?: boolean; arms?: number };
+type RunBody = { action: JudgeAction; experimentId?: number; visitors?: number; acceptLosingGuardrails?: boolean; arms?: number; by?: 'autopilot' };
+/** Who asks for an action, set by the caller in code, never read from a request body: the autopilot says so. */
+export type RunOrigin = { by?: 'autopilot' };
 export type RunResponse = { status: number; body: unknown };
 
 // What a running job may report besides log lines: which stage it is at, and how many visitors it has sent.
@@ -831,9 +833,10 @@ export function createJudge(opts: JudgeOptions, ctx: JudgeContext) {
     }
   }
 
-  async function run(raw: unknown): Promise<RunResponse> {
-    const body = parseRunBody(raw);
-    if ('error' in body) return { status: 400, body: { error: body.error } };
+  async function run(raw: unknown, origin: RunOrigin = {}): Promise<RunResponse> {
+    const parsed = parseRunBody(raw);
+    if ('error' in parsed) return { status: 400, body: { error: parsed.error } };
+    const body: RunBody = { ...parsed, ...(origin.by ? { by: origin.by } : {}) };
     const needsId = ['score', 'ship', 'revert', 'keep-running', 'verify', 'swing-back', 'swing-forward'].includes(body.action);
     if (needsId && body.experimentId === undefined) return { status: 400, body: { error: 'experimentId is required' } };
     if (ctx.lock.busy) return { status: 409, body: { error: 'Another action is still running. Wait for it to finish.' } };
@@ -1069,6 +1072,7 @@ export function createJudge(opts: JudgeOptions, ctx: JudgeContext) {
       snapshotDir: ctx.snapshotDir,
       ledgerDir: ctx.ledgerDir,
       ...(ctx.github ? { github: ctx.github } : {}),
+      ...(body.by ? { by: body.by } : {}),
       onStep: (step) => {
         stage(++done);
         log(`${step.status === 'done' ? '✓' : '·'} ${step.title}${step.status === 'skipped' ? ' (already done)' : ''}`);
@@ -1083,7 +1087,7 @@ export function createJudge(opts: JudgeOptions, ctx: JudgeContext) {
     return { entry: decision.entry, github: decision.github };
   };
 
-  const keepRunningAction: Action = async (s, _body, { log, stage }) => {
+  const keepRunningAction: Action = async (s, body, { log, stage }) => {
     const rec = s.recommendation;
     log(
       rec.interval
@@ -1091,7 +1095,7 @@ export function createJudge(opts: JudgeOptions, ctx: JudgeContext) {
         : 'Flagsmith has no interval on the goal yet.',
     );
     stage(1);
-    const entry = await keepRunning({ experiments: s.exps, ledgerDir: ctx.ledgerDir });
+    const entry = await keepRunning({ experiments: s.exps, ledgerDir: ctx.ledgerDir, ...(body.by ? { by: body.by } : {}) });
     log(`Kept running: ${entry.reason}. Nothing changed in Flagsmith; send more visitors, then get the results again.`);
     return { entry };
   };
