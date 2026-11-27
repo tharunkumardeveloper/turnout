@@ -73,7 +73,7 @@ The [live demo](https://172-198-62-67.sslip.io) shows the whole loop in a minute
 
 <table>
 <tr>
-<td width="50%" valign="top"><img src="docs/images/judge-ship.gif" alt="The guided demo: an A/B/C test, 2,100 shoppers, Flagsmith's verdict, and the blind round revealed"><br><b>The guided demo.</b> Start, shoppers, Flagsmith's call, decide. Blind rounds hide the true rates until the end.</td>
+<td width="50%" valign="top"><img src="docs/images/judge-ship.gif" alt="The live demo, run by a visitor: an A/B test, 1,400 shoppers, Flagsmith's call, Ship, the check that everyone gets 1.5, then the full console with each version's page and the live traffic map"><br><b>The live demo, run by a visitor.</b> Start, shoppers, Flagsmith's call, Ship; then the full console: every version and the live traffic.</td>
 <td width="50%" valign="top"><img src="docs/images/try-it.gif" alt="Try it with your app: two GitHub links with no Dockerfile become versions A and B, built, started and put in a Flagsmith experiment"><br><b>Your app from a GitHub link.</b> Two links, no Dockerfile: Turnout builds them and starts the A/B test.</td>
 </tr>
 <tr>

@@ -24,23 +24,17 @@ const mark = (label) => marks.push({ t: (Date.now() - t0) / 1000, label });
 const pause = (ms) => page.waitForTimeout(ms);
 
 if (clip === 'judge') {
+  // The live demo as a visitor runs it: pick A/B, then one green button per step, then the full console.
   await page.goto(`${LIVE}/`);
   const f = page.frameLocator('#judge-frame');
-  await f.locator('#pilot button').waitFor();
+  const go = f.locator('#go');
+  await go.waitFor({ timeout: 60_000 });
   await pause(1500);
-  // Take over from the autopilot, wait for its running step to finish, then an A/B test from the start.
-  const take = f.locator('#pilot button', { hasText: 'Take over' });
-  if (await take.count()) {
-    mark('take-over');
-    await take.click();
-  }
-  await f.locator('#go').waitFor();
   // A pick previews a new test; picking the kind already running goes back to it, so then pick the other one.
   await f.locator('#kinds button', { hasText: /^A\/B$/ }).click();
   await pause(800);
-  if (!/Start/.test((await f.locator('#go').textContent()) ?? '')) await f.locator('#kinds button', { hasText: /^A\/B\/C$/ }).click();
+  if (!/Start/.test((await go.textContent()) ?? '')) await f.locator('#kinds button', { hasText: /^A\/B\/C$/ }).click();
   mark('pick');
-  const go = f.locator('#go');
   const step = async (label, expect) => {
     await f.locator('#go:not([disabled])', { hasText: expect }).waitFor({ timeout: 240_000 });
     await pause(1200);
@@ -58,11 +52,15 @@ if (clip === 'judge') {
   else await f.locator('.action-row .btn-quiet').click();
   await f.locator('.check').waitFor({ timeout: 120_000 });
   mark('checked');
-  await f.locator('#steps-panel').evaluate((e) => e.scrollTo({ top: e.scrollHeight, behavior: 'smooth' }));
-  await pause(4000);
-  // Hand the demo back to the autopilot.
-  const back = f.locator('#pilot button', { hasText: 'carry on' });
-  if (await back.count()) await back.click();
+  // Test done: the prompt, then the full console with Previews | Traffic highlighted.
+  await page.locator('#next-view').waitFor({ timeout: 20_000 });
+  await pause(2500);
+  mark('prompt');
+  await page.locator('#next-view .btn-primary').click();
+  await pause(1500);
+  mark('console');
+  await page.locator('#map-show-traffic').click();
+  await pause(3500);
 } else if (clip === 'traffic') {
   await page.goto(`${LIVE}/judge/console?mode=console`);
   await page.locator('#map-show-traffic').waitFor();
