@@ -341,7 +341,9 @@ function ensureStepsFrame() {
     document.body.classList.add('steps-layout'); // the steps first in the left column, the page as tall as it needs
     $('run-title').textContent = 'The test, step by step';
     f.hidden = false;
-    f.setAttribute('src', `${frameSrc(BASE, new URLSearchParams(location.search))}&view=steps`);
+    // Your app's console (/app): your app's steps live at /try (the Try it judge), not under /app (the console itself).
+    const isApp = Boolean(document.querySelector('meta[name="turnout-app"]'));
+    f.setAttribute('src', isApp ? '/try?embed=1&view=steps' : `${frameSrc(BASE, new URLSearchParams(location.search))}&view=steps`);
   }
   return true;
 }

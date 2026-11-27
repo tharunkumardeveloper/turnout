@@ -183,7 +183,7 @@ function filled() {
 function kindLine() {
   const n = filled().length;
   const bad = filled().some((r) => !usable(r));
-  const left = ready && step !== 3 ? "Your last test is still running: Run a test, on the console, opens it." : ready;
+  const left = ready && step !== 3 ? "Your last test is still running: Your test, at the top, opens its console." : ready;
   $('try-kind').textContent = left || (bad ? 'Fix the version marked in red first.' : n ? `${n} version${n > 1 ? 's' : ''}: ${KIND[n]}.` : 'Give version A to start.');
   /** @type {HTMLButtonElement} */ ($('try-build')).disabled = !n || bad || Boolean(polling) || offline;
   /** @type {HTMLButtonElement} */ ($('try-next')).disabled = !n || bad;
@@ -475,7 +475,7 @@ async function poll() {
         $('try-done-text').textContent = "Opening your app's console: traffic, Flagsmith's results and one-button runs…";
         setTimeout(() => location.assign('/app'), 2600);
       } else if (done.dataset.leaving !== 'true') {
-        $('try-done-text').textContent = "It's running: Run a test, on the console, opens your app's console, where one button sends visitors and Flagsmith picks the winner.";
+        $('try-done-text').textContent = "It's running: your app's console opens next, where the test runs step by step and Flagsmith picks the winner.";
       }
     } else {
       ready = '';

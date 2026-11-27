@@ -485,11 +485,22 @@ export function startTryit(o: TryitOptions) {
     );
     // init leaves an experiment over every slot; start the one that matches what was built: 1 version → A/A,
     // 2 → A/B, 3 → A/B/C, so no visitor is ever routed to a slot with nothing behind it.
-    note(`Starting the ${state.kind} test`, 'Flagsmith', 'step');
-    const ran = await judge.run({ action: 'start', arms: versions.length === 1 ? 1 : versions.length });
-    if (ran.status !== 202) throw new Error(`Couldn't start the ${state.kind} test: ${(ran.body as { error?: string })?.error ?? ran.status}`);
-    for (let i = 0; i < 120 && judge.job()?.status === 'running'; i++) await new Promise((r) => setTimeout(r, 500));
-    if (judge.job()?.status === 'failed') throw new Error(`Couldn't start the ${state.kind} test: ${judge.job()?.error}`);
+    // init may already have left exactly this test running (try:b vs try:a for two versions), with no visitors yet:
+    // then it is the test. Starting it again reverted it and made the same one, about 45 s of Flagsmith calls.
+    const wanted = versions.length === 1 ? null : LABELS.slice(0, versions.length);
+    const current = wanted ? await judge.state().catch(() => null) : null;
+    const exp = current?.experiment ?? null;
+    const ready = Boolean(exp && wanted && exp.status === 'running' && current?.totals.visitorsSent === 0
+      && (exp.arms ?? []).map((a) => a.release).join() === wanted.join());
+    if (ready) {
+      note(`The ${state.kind} test is running in Flagsmith (experiment ${exp!.id})`, 'Flagsmith', 'ok');
+    } else {
+      note(`Starting the ${state.kind} test`, 'Flagsmith', 'step');
+      const ran = await judge.run({ action: 'start', arms: versions.length === 1 ? 1 : versions.length });
+      if (ran.status !== 202) throw new Error(`Couldn't start the ${state.kind} test: ${(ran.body as { error?: string })?.error ?? ran.status}`);
+      for (let i = 0; i < 120 && judge.job()?.status === 'running'; i++) await new Promise((r) => setTimeout(r, 500));
+      if (judge.job()?.status === 'failed') throw new Error(`Couldn't start the ${state.kind} test: ${judge.job()?.error}`);
+    }
     // Your app's console: the console for tryit_release, with this build's goal, traffic and one-button runs.
     if (o.consolePort && o.uiDir) {
       await serveConsole(judgeOptions, describeGoal(config.goal));

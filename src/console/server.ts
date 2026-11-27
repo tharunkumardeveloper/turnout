@@ -495,7 +495,8 @@ export function createConsole(opts: ConsoleOptions): http.Server {
         if (!thisMachine) return json(res, 403, { error: 'Try it is only available on the machine running Turnout.' });
         // Your app's test is on your app's console (/app), not in a judge view: /try goes there.
         if (req.method === 'GET' && (url.pathname === '/try' || url.pathname === '/try/')) {
-          if (!opts.tryitConsoleUrl) return serveTryPage(opts.uiDir, res, token);
+          // ?view=steps: your app's test, step by step, for the steps card in your app's console (/app).
+          if (!opts.tryitConsoleUrl || url.searchParams.get('view') === 'steps') return serveTryPage(opts.uiDir, res, token);
           res.writeHead(302, { location: '/app', 'cache-control': 'no-store' });
           return void res.end();
         }
