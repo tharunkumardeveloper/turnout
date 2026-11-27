@@ -455,3 +455,25 @@ describe('recommend: read the credible interval, not just the chance to win', ()
     assert.equal(recommend(s.experiment, null).call, 'keep-running');
   });
 });
+
+describe('settleText: what it would take to settle an interval crossing zero', () => {
+  test("read off Flagsmith's interval: width shrinks with √visitors", async () => {
+    const { settleText } = await import('../src/flagsmith/experiments.ts');
+    // The blog's example: +14.9% lift, interval −14.1% to +44.0%, 502 visitors. Centre +14.95%, half-width 29.05%:
+    // (29.05 / 14.95)² ≈ 3.8× the visitors, about 950 per version.
+    assert.equal(settleText({ low: -0.141, high: 0.44 }, 502, 2), 'roughly 3.8× the visitors so far, about 950 per version, would settle a lift this size, if it holds');
+    // Centred on zero: no amount of traffic is promised.
+    assert.match(settleText({ low: -0.2, high: 0.2 }, 1000, 2)!, /may be no real difference: more than 20× the visitors/);
+    // Clears zero: nothing to settle.
+    assert.equal(settleText({ low: 0.02, high: 0.3 }, 1000, 2), null);
+  });
+
+  test('recommend carries it on a crossing interval only', () => {
+    const s = initialState(); // v2: interval −2% to +62%, crossing zero
+    const crossing = recommend(s.experiment, s.results);
+    assert.equal(crossing.call, 'keep-running');
+    assert.match(crossing.settle ?? '', /^roughly 1\.\d× the visitors so far, about [\d,]+ per version/);
+    s.results!.payload!.metrics[0]!.inference.v2!.ci_low = 0.02; // now it clears zero
+    assert.equal(recommend(s.experiment, s.results).settle, undefined);
+  });
+});

@@ -53,3 +53,46 @@ test('watching: request patterns, visitors needed, the next step after Ship', as
   assert.equal(visitorsNeeded(0.9, 1), 50);
   assert.match(afterShip('try:b', { 'try:b': 'B' }), /^Next: make B the default deploy/);
 });
+
+test('the split check reads the split the flag asks for, not always an even one', async () => {
+  const { splitCheck, splitWeights } = await import('../src/commands/try-cli.ts');
+  // --split 20: 80/20 is right, and the even-split rule would have called it off.
+  const arms = { control: { n: 1607 }, v2: { n: 393 } };
+  assert.equal(splitCheck(arms).ok, false);
+  const weights = splitWeights({ routing: { experiment: { arms: [{ key: 'control', pct: 80 }, { key: 'v2', pct: 20 }] } } });
+  assert.deepEqual(weights, { control: 80, v2: 20 });
+  const check = splitCheck(arms, weights);
+  assert.equal(check.ok, true);
+  assert.match(check.text, /for a 80\/20 split: as expected/);
+  // Lopsided against that split: still caught.
+  assert.equal(splitCheck({ control: { n: 1000 }, v2: { n: 1000 } }, weights).ok, false);
+  // No routing (a completed test): an even split, as before.
+  assert.equal(splitWeights({ routing: { experiment: null } }), null);
+  // Three versions: the critical value for 2 degrees of freedom (13.82), not 1 (10.83).
+  assert.equal(splitCheck({ control: { n: 1000 }, v2: { n: 1060 }, v3: { n: 940 } }).ok, true);
+});
+
+test('keep running says what it would take to settle it', () => {
+  const crossing = state({ control: 250, v2: 252 }, {
+    recommendation: { call: 'keep-running', settle: 'roughly 2.1× the visitors so far, about 550 per version, would settle a lift this size, if it holds' },
+  });
+  assert.match(verdict(crossing, { 'try:b': 'B' }), /: keep it running \(to settle it, roughly 2\.1× the visitors so far, about 550 per version, would settle a lift this size, if it holds\)\.$/);
+});
+
+test('visitors climbing while nobody reaches the goal: the goal is not being counted', async () => {
+  const { fairness } = await import(new URL('../src/console/ui/verdict.js', import.meta.url).href);
+  const zero = { results: { metrics: [{ name: 'signup', role: 'goal', arms: { control: { n: 140, mean: 0 }, v2: { n: 151, mean: 0 } } }] } };
+  assert.match(fairness(zero, [], 'POST /signup'), /^Nobody reached the goal in any version \(140 and 151 visitors\): the goal isn't being counted\. Check that your site really sends POST \/signup/);
+  // Too early to tell: nothing said.
+  const early = { results: { metrics: [{ name: 'signup', role: 'goal', arms: { control: { n: 40, mean: 0 }, v2: { n: 38, mean: 0 } } }] } };
+  assert.equal(fairness(early, [], 'POST /signup'), null);
+});
+
+test('turnout results warns first when nobody reaches the goal', async () => {
+  const { resultsCommand } = await import('../src/commands/try-cli.ts');
+  const lines: string[] = [];
+  const st = { results: { metrics: [{ name: 'signup', role: 'goal', arms: { control: { n: 140, mean: 0 }, v2: { n: 151, mean: 0 } } }], winner: null, losingGuardrails: [], recommendation: { call: 'keep-running' } } };
+  const client = { call: async (path: string) => (path === '/try/status' ? { goal: 'POST /signup' } : st) };
+  await resultsCommand(client as any, false, (l: string) => lines.push(l));
+  assert.match(lines[0]!, /^! Nobody reached the goal in any version \(140 and 151 visitors\)/);
+});

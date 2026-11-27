@@ -1,7 +1,7 @@
 // Your test (your app's console, /app, from Try it): the verdict in one sentence (with a red alert when the test
 // can't be fair), progress per version, every metric as Flagsmith returned it (in plain words), the checks Turnout
 // runs, what visitors were seen doing, the goal changed mid-test, steady simulated visitors and the Markdown report.
-import { armReleases, fairness, goalWords, metricLabel, metricValue, report, splitCheck, verdict, versionName } from './verdict.js';
+import { armReleases, fairness, goalWords, metricLabel, metricValue, report, splitCheck, splitWeights, verdict, versionName } from './verdict.js';
 
 const TOKEN = document.querySelector('meta[name="turnout-console"]')?.getAttribute('content') ?? '';
 // Try it's API, through the console: /api/try/status → /try/api/try/status.
@@ -105,7 +105,7 @@ async function render(body) {
       h('span', { class: 'tp-bar-num' }, `${a.n.toLocaleString()} visitors`))),
     h('p', { class: 'tp-note' }, "The tick is Flagsmith's minimum (50 visitors and 5 conversions per version).")) : null;
 
-  const split = goalMetric ? splitCheck(goalMetric.arms) : { ok: true, text: 'Split check: no visitors yet.' };
+  const split = goalMetric ? splitCheck(goalMetric.arms, splitWeights(state)) : { ok: true, text: 'Split check: no visitors yet.' };
   const checks = h('ul', { class: 'tp-checks' },
     h('li', { 'data-tone': split.ok ? 'good' : 'bad' }, split.text.replace(/\b(control|v\d)\b/g, (k) => armName(k))),
     h('li', { 'data-tone': settings.ok ? 'good' : 'bad' }, settings.ok ? `Settings check: the proxy routes on Flagsmith's current settings${settings.ageSeconds != null ? ` (read ${settings.ageSeconds} s ago)` : ''}.` : `Settings check: ${settings.differences.join('; ')}.`));

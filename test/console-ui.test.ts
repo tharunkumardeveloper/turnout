@@ -71,8 +71,10 @@ describe('console UI files', () => {
   });
 
   test('no external requests: no remote URLs besides the SVG namespace', () => {
+    // The one exception is a link, not a request: the live demo's notice (menu.js) points to the project's own repository.
+    const allowed = (f: string, u: string) => u.startsWith('http://www.w3.org/2000/svg') || (f === 'menu.js' && u === 'https://github.com/tharunkumardeveloper/turnout');
     for (const f of files) {
-      const urls = [...read(f).matchAll(/https?:\/\/[^\s'"`)]+/g)].map((m) => m[0]).filter((u) => !u.startsWith('http://www.w3.org/2000/svg'));
+      const urls = [...read(f).matchAll(/https?:\/\/[^\s'"`)]+/g)].map((m) => m[0]).filter((u) => !allowed(f, u));
       assert.deepEqual(urls, [], `${f} references ${urls.join(', ')}`);
     }
   });
@@ -583,4 +585,21 @@ test("your app's console lists only the versions you built: an A/B test has no C
   const ab = { site: { previews: { 'try:a': 'http://127.0.0.1:8086', 'try:b': 'http://127.0.0.1:8087' } } };
   assert.deepEqual(F.built(ab, variants).map((v: { label: string }) => v.label), ['try:a', 'try:b']);
   assert.equal(F.built({ site: { url: 'http://127.0.0.1:8080' } }, variants).length, 3, "the demo shop's console: every release, as before");
+});
+
+test("the live demo's notice: public page only, never in a frame, and tours wait for it", () => {
+  const menu = read('menu.js');
+  // Only server mode's public page (turnout-readonly), only the top window (the console embeds the guided demo).
+  assert.match(menu, /function setupLiveNotice\(menu\) \{\n  if \(!READONLY \|\| typeof window === 'undefined' \|\| window\.top !== window\.self\) return;/);
+  assert.match(menu, /for \(const node of document\.querySelectorAll\('\[data-private\]'\)\) node\.remove\(\);\n    setupLiveNotice\(menu\);/);
+  // Says what's here, what's only on your machine and why, and how to run it.
+  for (const words of ['On this server', 'Only on your machine, and why', 'never runs strangers’ code', 'admin login can’t be public', 'turnout demo', 'Run it locally']) {
+    assert.ok(menu.includes(words), words);
+  }
+  // Once per browser; the menu's "About this demo" opens it again.
+  assert.match(menu, /localStorage\.setItem\(NOTICE_KEY, '1'\)/);
+  assert.match(menu, /'About this demo'/);
+  // One dialog at a time: the tours start once it's closed.
+  assert.match(read('demo.js'), /noticeClosed\(\)\.then\(\(\) => tour\.offer\(\)\)/);
+  assert.match(read('app.js'), /noticeClosed\(\)\.then\(\(\) => tour\.offer\(\)\)/);
 });

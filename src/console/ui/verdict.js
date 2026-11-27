@@ -18,18 +18,35 @@ export function verdict(state, names = {}, opts = {}) {
   const lift = goal.byArm?.[w.key]?.lift ?? goal.v2?.lift;
   const losing = (r.losingGuardrails ?? []).map((g) => g.metric);
   const call = r.recommendation?.call;
-  return `${who} ${lift != null && w.key !== 'control' ? `gets ${pct(Math.abs(lift))} ${lift >= 0 ? 'more' : 'fewer'} ${goalName}` : `leads on ${goalName}`}, ${pct(w.chanceToWin)} sure, ${losing.length ? `but worse on ${losing.join(', ')}` : 'no safety check losing'}: ${call === 'ship' ? `ship ${who}` : call === 'revert' ? 'revert' : 'keep it running'}.`;
+  const settle = call === 'keep-running' ? r.recommendation?.settle : null; // experiments.ts settleText
+  return `${who} ${lift != null && w.key !== 'control' ? `gets ${pct(Math.abs(lift))} ${lift >= 0 ? 'more' : 'fewer'} ${goalName}` : `leads on ${goalName}`}, ${pct(w.chanceToWin)} sure, ${losing.length ? `but worse on ${losing.join(', ')}` : 'no safety check losing'}: ${call === 'ship' ? `ship ${who}` : call === 'revert' ? 'revert' : `keep it running${settle ? ` (to settle it, ${settle})` : ''}`}.`;
 }
 
-/** Split check: visitors per arm vs an even split. A chi-square past 10.83 (p < 0.001) means the split is off. */
-export function splitCheck(arms) {
+// Chi-square critical values at p = 0.001, by degrees of freedom (versions − 1).
+const CHI_001 = [0, 10.83, 13.82, 16.27, 18.47, 20.52];
+
+/**
+ * Split check: visitors per arm against the split the flag asks for (`weights`: { control: 80, v2: 20 }, from the judge
+ * state's routing; an even split when not given). A chi-square past the p < 0.001 line means the split is off.
+ */
+export function splitCheck(arms, weights = null) {
   const entries = Object.entries(arms ?? {});
   const total = entries.reduce((n, [, a]) => n + a.n, 0);
   if (!total) return { ok: true, text: 'Split check: no visitors yet.' };
-  const expected = total / entries.length;
-  const chi = entries.reduce((x, [, a]) => x + (a.n - expected) ** 2 / expected, 0);
-  const ok = chi < 10.83;
-  return { ok, text: `Split check: ${entries.map(([k, a]) => `${k} ${a.n}`).join(', ')} for an even split: ${ok ? 'as expected' : 'off, so the results may be biased (check that every version answers)'}.` };
+  const given = weights && entries.every(([k]) => Number(weights[k]) > 0) ? entries.map(([k]) => Number(weights[k])) : null;
+  const sum = given ? given.reduce((a, b) => a + b, 0) : entries.length;
+  const share = (i) => (given ? given[i] / sum : 1 / entries.length);
+  const chi = entries.reduce((x, [, a], i) => x + (a.n - total * share(i)) ** 2 / (total * share(i)), 0);
+  const ok = chi < (CHI_001[entries.length - 1] ?? 20.52);
+  const even = !given || given.every((w) => w === given[0]);
+  const target = even ? 'an even split' : `a ${given.map((w) => Math.round((w / sum) * 100)).join('/')} split`;
+  return { ok, text: `Split check: ${entries.map(([k, a]) => `${k} ${a.n}`).join(', ')} for ${target}: ${ok ? 'as expected' : 'off, so the results may be biased (check that every version answers)'}.` };
+}
+
+/** The split the flag asks for, by arm ({ control: 50, v2: 50 }), from the judge state's routing; null when unknown. */
+export function splitWeights(state) {
+  const arms = state?.routing?.experiment?.arms;
+  return arms?.length ? Object.fromEntries(arms.map((a) => [a.key, a.pct])) : null;
 }
 
 /** Every metric, one row per arm, exactly as Flagsmith returned it. */
@@ -50,7 +67,7 @@ export function report(state, at = new Date()) {
   const lines = [`# Test report: ${state?.experiment?.name ?? state?.flag ?? 'Try it'}`, '', `${at.toISOString().slice(0, 16).replace('T', ' ')} UTC. Flagsmith's results as of ${r?.asOf ?? 'never'}.`, '', `**${verdict(state, state?.names)}**`, ''];
   if (!r) return lines.join('\n') + '\n';
   const goal = r.metrics.find((m) => m.role === 'goal') ?? r.metrics[0];
-  lines.push(splitCheck(goal.arms).text, '', '| Metric | Role | Arm | Visitors | Mean | Lift | 95% interval | Chance to win |', '|---|---|---|---|---|---|---|---|');
+  lines.push(splitCheck(goal.arms, splitWeights(state)).text, '', '| Metric | Role | Arm | Visitors | Mean | Lift | 95% interval | Chance to win |', '|---|---|---|---|---|---|---|---|');
   for (const x of metricRows(r)) lines.push(`| ${x.metric} | ${x.role} | ${x.arm} | ${x.n} | ${x.mean} | ${x.lift} | ${x.interval} | ${x.chance} |`);
   return lines.join('\n') + '\n';
 }
@@ -121,6 +138,9 @@ export function fairness(state, seen = [], goal, names = {}) {
     const zero = arms.filter(([, a]) => a.n >= 50 && Number(a.mean) === 0);
     const some = arms.filter(([, a]) => Number(a.mean) > 0);
     if (zero.length && some.length) return `${zero.map(([k]) => versionName(releases[k], names)).join(', ')} converted nobody in ${zero.map(([, a]) => a.n).join(', ')} visitors while ${some.map(([k]) => versionName(releases[k], names)).join(', ')} did: check that the goal exists on every version.`;
+    // Visitors climbing while the goal stays at zero everywhere: the goal event isn't firing (the wrong path or method,
+    // or a form that posts somewhere else), so this test can't find a winner however long it runs.
+    if (goal && arms.length && arms.every(([, a]) => a.n >= 100 && Number(a.mean) === 0)) return `Nobody reached the goal in any version (${arms.map(([, a]) => a.n).join(' and ')} visitors): the goal isn't being counted. Check that your site really sends ${goal}, or change the goal.`;
   }
   return null;
 }

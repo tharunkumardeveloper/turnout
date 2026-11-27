@@ -47,6 +47,7 @@ export function recommendationLines(rec: Recommendation): string[] {
       ? `Credible interval for ${rec.variant} on the goal: ${formatInterval(rec.interval)}${rec.chanceToWin !== null ? ` (${pct(rec.chanceToWin)} chance to win)` : ''}`
       : 'Credible interval on the goal: not computed yet',
     `Turnout recommends: ${call} (${rec.reason})`,
+    ...(rec.settle ? [`To settle it: ${rec.settle}.`] : []),
   ];
 }
 

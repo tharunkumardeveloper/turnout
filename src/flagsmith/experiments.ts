@@ -137,7 +137,30 @@ export function losingGuardrails(
 // "An interval crossing zero isn't a win": a high chance to win alone isn't enough.
 export const SHIP_CHANCE_AT_LEAST = 0.95;
 export type Call = 'ship' | 'keep-running' | 'revert';
-export type Recommendation = { call: Call; variant: string | null; reason: string; interval: { low: number; high: number } | null; chanceToWin: number | null };
+export type Recommendation = {
+  call: Call;
+  variant: string | null;
+  reason: string;
+  interval: { low: number; high: number } | null;
+  chanceToWin: number | null;
+  settle?: string; // keep running on an interval crossing zero: roughly what it would take to settle it (settleText)
+};
+
+/**
+ * What it would take to settle an interval that crosses zero, read off Flagsmith's own interval (no statistics of
+ * Turnout's): an interval's width shrinks with the square root of the visitors, so if the lift stays where it is, the
+ * interval clears zero at about (half-width / |centre|)² times the visitors so far. A rough planning figure, and said
+ * as one. The console's verdict (verdict.js toSettle) says the same. null: the interval doesn't cross zero.
+ */
+export function settleText(interval: { low: number; high: number }, visitors: number, versions: number): string | null {
+  if (interval.low > 0 || interval.high < 0) return null;
+  const centre = (interval.high + interval.low) / 2;
+  const half = (interval.high - interval.low) / 2;
+  const times = Math.abs(centre) > 1e-9 ? (half / Math.abs(centre)) ** 2 : Infinity;
+  if (!visitors || times > 20) return "the interval sits close to zero, so there may be no real difference: more than 20× the visitors would be needed to tell";
+  const perVersion = Math.ceil((visitors * times) / Math.max(1, versions) / 50) * 50;
+  return `roughly ${times < 1.5 ? '1.5' : times.toFixed(times < 10 ? 1 : 0)}× the visitors so far, about ${perVersion.toLocaleString('en')} per version, would settle a lift this size, if it holds`;
+}
 
 const signedPct = (x: number) => `${x < 0 ? '−' : '+'}${Math.abs(x * 100).toFixed(0)}%`;
 export const formatInterval = (i: { low: number; high: number }) => `${signedPct(i.low)} to ${signedPct(i.high)}`;
@@ -173,7 +196,10 @@ function callFor(experiment: ExperimentDetail, results: Results | null, key: str
     };
   }
   if (interval.low <= 0 && interval.high >= 0) {
-    return { call: 'keep-running', ...base, reason: `interval ${formatInterval(interval)} crosses zero` };
+    const goal = results?.payload?.metrics.find((m) => m.metric_id === experiment.metrics[0]?.metric);
+    const variants = Object.values(goal?.variants ?? {});
+    const settle = settleText(interval, variants.reduce((n, v) => n + v.n, 0), variants.length);
+    return { call: 'keep-running', ...base, reason: `interval ${formatInterval(interval)} crosses zero`, ...(settle ? { settle } : {}) };
   }
   if (inference.chance_to_win <= 1 - SHIP_CHANCE_AT_LEAST) {
     return { call: 'revert', ...base, reason: `control is better: ${key}'s interval ${formatInterval(interval)}, ${(inference.chance_to_win * 100).toFixed(1)}% chance to win` };

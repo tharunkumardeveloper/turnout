@@ -11,8 +11,10 @@ import * as words from '../console/ui/verdict.js';
 
 // Shared with the console page (verdict.js): the one-sentence verdict, the split check and the report.
 export const verdict = words.verdict as (state: any, names?: Record<string, string>) => string;
-export const splitCheck = words.splitCheck as (arms: Record<string, { n: number }>) => { ok: boolean; text: string };
+export const splitCheck = words.splitCheck as (arms: Record<string, { n: number }>, weights?: Record<string, number> | null) => { ok: boolean; text: string };
+export const splitWeights = words.splitWeights as (state: any) => Record<string, number> | null;
 export const report = words.report as (state: any, at?: Date) => string;
+export const fairness = words.fairness as (state: any, seen: unknown[], goal: string | null | undefined, names?: Record<string, string>) => string | null;
 
 export type TryClient = { call: <T = any>(path: string, init?: RequestInit) => Promise<T> };
 
@@ -147,9 +149,13 @@ const pct = (x: number) => `${Math.round(x * 100)}%`;
 export async function resultsCommand(c: TryClient, full = false, log = console.log, asReport = false): Promise<void> {
   const state = await c.call('/judge/state');
   if (asReport) return void log(report(state));
+  // Why the test can't be fair, first (a goal nobody reaches anywhere, a version whose goal page fails), like the console.
+  const st = await c.call<{ goal?: string | null }>('/try/status').catch(() => null);
+  const unfair = fairness(state, [], st?.goal, state.names);
+  if (unfair) log(`! ${unfair}`);
   log(verdict(state, state.names));
   const goal = state.results?.metrics?.find((m: any) => m.role === 'goal');
-  if (goal) log(splitCheck(goal.arms).text);
+  if (goal) log(splitCheck(goal.arms, splitWeights(state)).text);
   const last = (state.ledger ?? []).at(-1);
   if (last?.decision === 'shipped' && last.experimentId === state.experiment?.id && last.release) log(afterShip(last.release, state.names));
   if (!full || !state.results) return;

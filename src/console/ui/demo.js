@@ -5,7 +5,7 @@
 import * as M from './demo-model.js';
 import { createTour } from './tour.js';
 import { JUDGE_STOPS, stopsFor } from './tour-stops.js';
-import { PLAY, READONLY, loadSignin, setupMenu, setVersions, signinBox, viewLink } from './menu.js';
+import { PLAY, READONLY, loadSignin, noticeClosed, setupMenu, setVersions, signinBox, viewLink } from './menu.js';
 
 const STATE_POLL_MS = 4000;
 const JOB_POLL_MS = 800;
@@ -746,4 +746,4 @@ connectFeed();
 // /try?play=1 (the console's "Run your app's test"): play the whole test straight away, no tour.
 const playNow = TRY && new URLSearchParams(location.search).get('play') === '1';
 // Inside the console the tour starts from its Tour button, not by itself.
-loadState().then(() => (playNow ? startAutoplay() : EMBED ? null : tour.offer()));
+loadState().then(() => (playNow ? startAutoplay() : EMBED ? null : noticeClosed().then(() => tour.offer())));

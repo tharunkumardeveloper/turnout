@@ -131,6 +131,7 @@ Open the **[live demo](https://172-198-62-67.sslip.io)**: a demo shop with three
 - **Look inside Flagsmith:** the *In Flagsmith* tab shows the flag, its split and the route each shopper takes.
 - **Be a visitor:** opens [the shop](https://shop.172-198-62-67.sslip.io) the way a real shopper gets it: Flagsmith gives you a version, and the page says which.
 - **Use it on your app:** the third tab has the three commands to install Turnout and run it on your own site.
+- **About this demo:** the live demo is one small shared server, so some features run only on your own machine. The page says which, and why, the first time you open it (and from *About this demo* in the menu).
 
 On your own machine you also get **Try it with your app** (paste a GitHub link) and the full console.
 
@@ -169,6 +170,19 @@ Flagsmith runs self-hosted next to Turnout (its official Docker Compose file, Ex
 | | **Feature Health**, tags, Code References | A losing safety check marks the flag Unhealthy in Flagsmith's dashboard; an opt-in guard can revert by itself. |
 
 Every Flagsmith fact, with its source file and line: [docs/FLAGSMITH.md](docs/FLAGSMITH.md).
+
+### The four wiring mistakes, handled at the door
+
+An experiment can look healthy in the dashboard while the numbers underneath mean nothing. Because the proxy reads the flag, serves the version and sends the events itself, an app tested through Turnout avoids the four usual causes:
+
+| Mistake | What Turnout does |
+|---|---|
+| **An unstable identifier** (a new id per request reassigns visitors) | Each new visitor gets one id in an HttpOnly cookie that lasts a year, and every flag evaluation and event uses it: one version per visitor across pages and visits. |
+| **Exposures on one side only** (the flag read in one place, the page rendered in another) | The flag is read and the version served in the same request. The split check compares visitors per version with the split the flag asks for (an 80/20 split too) and flags a gap past p < 0.001; a version whose goal page fails is named. |
+| **Exposures rising while conversions stay flat** (the goal event isn't firing) | The goal event is sent from the request that reached the goal, with the same id. When 100 or more visitors per version reach nobody, the console's test panel and `turnout results` say the goal isn't being counted and name the request they're waiting for. |
+| **A boolean converted late** | Every flag Turnout creates is multivariate from the start; changing the versions, the split or the goal starts a new experiment instead of mixing data. |
+
+**Reading the result:** Ship needs Flagsmith's credible interval to clear zero and a 95% chance to win. While the interval crosses zero, Turnout recommends keeping it running and says roughly how many visitors would settle it, read off Flagsmith's own interval (its width shrinks with the square root of the visitors): for a +15% lift with an interval of −14% to +44% after 502 visitors, about 3.8× the visitors, around 950 per version, if the lift holds. Page speed and server errors are safety checks on every test, and an A/A test shows what noise looks like.
 
 ## Features
 

@@ -3,7 +3,7 @@
 // from the server goes in through textContent.
 import * as F from './format.js';
 import { TrafficMap } from './map.js';
-import { loadSignin, READONLY, setupMenu, setVersions, signinBox, viewLink } from './menu.js';
+import { loadSignin, noticeClosed, READONLY, setupMenu, setVersions, signinBox, viewLink } from './menu.js';
 import * as M from './demo-model.js';
 import { createTour } from './tour.js';
 import { CONSOLE_STOPS, stopsFor } from './tour-stops.js';
@@ -656,7 +656,7 @@ function renderActions(s) {
 
   // Turnout's call, read off Flagsmith's interval: an interval crossing zero isn't a win.
   const rec = s.recommendation;
-  $('recommendation-note').textContent = completed || !rec ? '' : `Turnout recommends: ${F.recommendationText(rec)}.`;
+  $('recommendation-note').textContent = completed || !rec ? '' : `Turnout recommends: ${F.recommendationText(rec)}.${rec.settle ? ` To settle it: ${rec.settle}.` : ''}`;
   const keep = /** @type {HTMLButtonElement} */ ($('keep-running-btn'));
   keep.disabled = completed || busy;
   keep.textContent = rec?.call === 'keep-running' ? 'Keep running (interval crosses zero)' : 'Keep running';
@@ -1551,7 +1551,7 @@ if (document.querySelector('meta[name="turnout-app"]')) {
 const mode = setupMode();
 $('tour-open').addEventListener('click', () => mode.tour() || tour.start());
 // Your app's console (/app) opens straight after a build: no tour on top of it (Tour is one click away).
-setTimeout(() => (mode.isOn() || document.body.classList.contains('is-app') ? null : tour.offer()), 1500);
+setTimeout(() => (mode.isOn() || document.body.classList.contains('is-app') ? null : noticeClosed().then(() => tour.offer())), 1500);
 
 setInterval(renderConnection, 1000);
 refreshNow();

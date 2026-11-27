@@ -49,3 +49,31 @@
 /* Try it with your app: the same green, prominent button on every page (the console's style.css has its own copy). */
 .try-btn { min-height: 34px; padding: 6px 16px; font-weight: 700; color: #fff !important; border-color: transparent; background: color-mix(in srgb, #16a34a 85%, black); box-shadow: 0 0 0 3px color-mix(in srgb, #16a34a 30%, transparent); text-decoration: none; }
 .try-btn:hover, .try-btn:focus-visible { background: color-mix(in srgb, #16a34a 70%, black); }
+
+/* Server mode's public page: "About this demo" (menu.js liveNotice), what's here and what runs only on your machine. */
+.menu-about { min-height: 34px; padding: 4px 12px; margin-left: 6px; border-radius: 999px; font: inherit; font-weight: 700; color: var(--text); background: var(--surface-2); border: 1px solid var(--border); cursor: pointer; white-space: nowrap; }
+.menu-about::before { content: "i"; display: inline-grid; place-items: center; width: 17px; height: 17px; margin-right: 7px; border-radius: 50%; font-size: 11px; font-style: italic; color: #fff; background: #6633ff; }
+.menu-about:hover, .menu-about:focus-visible { border-color: #6633ff; }
+.live-notice { width: min(880px, calc(100vw - 24px)); max-height: calc(100vh - 32px); padding: 0; border: 1px solid var(--border); border-radius: 16px; color: var(--text); background: var(--surface); box-shadow: 0 24px 60px rgb(2 6 23 / 0.35); overflow: auto; }
+.live-notice::backdrop { background: rgb(2 6 23 / 0.6); backdrop-filter: blur(3px); }
+.live-notice[open] { animation: live-rise 0.2s ease-out; }
+@keyframes live-rise { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: none; } }
+.live-inner { padding: 24px 26px 22px; border-top: 5px solid #6633ff; }
+.live-eyebrow { margin: 0; font-size: 12px; font-weight: 800; letter-spacing: 0.08em; text-transform: uppercase; color: #6633ff; }
+.live-notice h2 { margin: 4px 0 0; font-size: 22px; letter-spacing: -0.01em; }
+.live-intro { margin: 8px 0 0; color: var(--muted); font-size: 14.5px; line-height: 1.5; }
+.live-cols { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin-top: 18px; }
+.live-cols section { padding: 14px 16px; border-radius: 12px; background: var(--surface-2); border: 1px solid var(--border); }
+.live-cols section:last-child { border-color: color-mix(in srgb, #6633ff 40%, var(--border)); }
+.live-notice h3 { margin: 0 0 8px; font-size: 14px; }
+.live-notice ul { margin: 0; padding-left: 18px; font-size: 13.5px; line-height: 1.5; }
+.live-notice li + li { margin-top: 5px; }
+.live-run { margin-top: 16px; }
+.live-run p { margin: 0 0 8px; font-size: 13.5px; color: var(--muted); }
+.live-run pre { margin: 0; padding: 12px 14px; border-radius: 10px; overflow-x: auto; font-size: 12.5px; line-height: 1.6; color: #e8ecf2; background: #0f141c; }
+.live-actions { display: flex; justify-content: flex-end; flex-wrap: wrap; gap: 10px; margin-top: 18px; }
+.live-btn { display: inline-flex; align-items: center; min-height: 38px; padding: 6px 16px; border-radius: 10px; font: inherit; font-weight: 700; font-size: 14px; color: var(--text); background: var(--surface-2); border: 1px solid var(--border); text-decoration: none; cursor: pointer; }
+.live-primary { color: #fff; background: #6633ff; border-color: transparent; }
+.live-btn:hover, .live-btn:focus-visible { filter: brightness(1.08); }
+@media (max-width: 760px) { .live-cols { grid-template-columns: 1fr; } .live-inner { padding: 18px 16px; } .menu-about { margin-left: 0; } }
+.live-notice h2:focus { outline: none; }

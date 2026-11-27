@@ -1044,6 +1044,7 @@ export function createJudge(opts: JudgeOptions, ctx: JudgeContext) {
     }
     const rec = recommend(s.experiment, results);
     log(`Turnout recommends: ${rec.call === 'ship' ? 'ship' : rec.call === 'revert' ? 'revert' : 'keep running'} (${rec.reason}).`);
+    if (rec.settle) log(`To settle it: ${rec.settle}.`);
     return { asOf: results.as_of };
   };
 
