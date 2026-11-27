@@ -1443,7 +1443,11 @@ body.simple .detail { display: none !important; }
 
 /* The test, step by step, first in the left column and shown whole; Your site under it, compact: the button that
    makes you a visitor, the note, where you landed. One screen, nothing scrolls (the details are under Show details). */
-.steps-layout .cgrid { grid-template-areas: "run map results" "site map decide"; grid-template-rows: auto minmax(0, 1fr); }
+/* The steps have the whole left column; Your site sits under Flagsmith's results, where Decide was: the steps decide
+   (Ship, Roll back, Keep testing, and the check after), so that card would only repeat them. */
+.steps-layout .cgrid { grid-template-areas: "run map results" "run map site"; grid-template-rows: minmax(0, 1fr) auto; }
+.steps-layout .cgrid .actions-card { display: none !important; }
+.steps-layout .cgrid .run-card { overflow: hidden; }
 .steps-layout .cgrid .site-card { overflow: hidden; align-content: start; gap: 8px; }
 .steps-layout #site-versions, .steps-layout #site-goal, .steps-layout #site-more { display: none !important; }
 .steps-layout .cgrid .site-card .btn-big { padding-top: 9px; padding-bottom: 9px; }
