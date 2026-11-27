@@ -119,9 +119,16 @@ const inferenceOf = (m, key) => m.byArm?.[key] ?? (key === 'v2' && m.v2 ? { ...m
  * Flagsmith's results as rows: the metric in plain words, then a cell per version. A's cell is the baseline; each
  * new version's cell carries Flagsmith's call against A. Only Flagsmith's numbers; the ratio is the only arithmetic.
  */
+// Page speed from visitors' browsers: shown only when some browser reported it. Simulated shoppers never do, so on
+// the demo those rows would read 0 ms, "None" everywhere and look broken.
+const BROWSER_METRICS = new Set(['lcp_ms', 'cls', 'vitals_reported']);
+const browserReported = (metrics) => metrics.some((m) => m.name === 'vitals_reported' && Object.values(m.arms ?? {}).some((a) => Number(a.mean) > 0));
+
 export function findings(s) {
   const list = arms(s);
-  return (s?.results?.metrics ?? []).map((m) => ({
+  const all = s?.results?.metrics ?? [];
+  const shown = browserReported(all) ? all : all.filter((m) => !BROWSER_METRICS.has(m.name));
+  return shown.map((m) => ({
     key: m.name,
     name: metricName(m.name),
     hint: METRICS[m.name]?.hint ?? '',

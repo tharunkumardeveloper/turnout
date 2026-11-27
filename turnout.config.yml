@@ -18,6 +18,6 @@ metrics:
   - event: add_to_cart
     when: { method: POST, path: /cart/add, status: "2xx,303" }
 
-# Safety checks. doc_latency_ms and server_error: sent on every page load, measured by the proxy. lcp_ms and cls:
-# measured in each visitor's own browser (largest contentful paint, layout shift) by a script the proxy adds to pages.
-guardrails: [doc_latency_ms, server_error, lcp_ms, cls]
+# Safety checks, sent on every page load. Simulated shoppers have no browser, so the demo leaves out lcp_ms and cls
+# (page speed measured in visitors' browsers): add them for real visitors, or use turnout compare --browser-speed.
+guardrails: [doc_latency_ms, server_error]
