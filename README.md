@@ -133,7 +133,7 @@ All measured during Toggle Wars; raw logs in [spikes/RESULTS.md](spikes/RESULTS.
 
 | I hit | Turnout | Upstream |
 |---|---|---|
-| Ending an experiment left 150 of 300 visitors on the old split | Ship drains the split: 300 of 300 on the winner | [Flagsmith#9120](https://github.com/Flagsmith/flagsmith/issues/9120) |
+| On 2.291.0, ending an experiment left 150 of 300 visitors on the old split (2.295.2 had already fixed it) | Ship drains the split: 300 of 300 on the winner | [Flagsmith#9120](https://github.com/Flagsmith/flagsmith/issues/9120); Flagsmith rewrote its docs in [#9141](https://github.com/Flagsmith/flagsmith/pull/9141) |
 | The Node SDK dropped 28% of events tracked faster than one batch round-trip | Holds events back while the buffer is full: 0 lost | [#330](https://github.com/Flagsmith/flagsmith-nodejs-client/issues/330), fix [PR #331](https://github.com/Flagsmith/flagsmith-nodejs-client/pull/331) |
 | Pointed at a self-hosted Flagsmith, the SDK still sent events to Flagsmith Cloud | Sets the events address to your instance | [#332](https://github.com/Flagsmith/flagsmith-nodejs-client/issues/332) |
 | Results recompute at most every 5 minutes | Asks only once visitors' events are in | |

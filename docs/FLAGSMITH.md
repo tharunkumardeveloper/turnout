@@ -61,7 +61,7 @@ Measured on the pinned image with 300 fresh identities through a local-evaluatio
 | B after Ship winner (pause → default = v2 → rollout 0% with v2 weights → complete) | v2 300 |
 | B after one environment-default edit back to control | control 300 |
 
-So until the next experiment starts, the documented edit doesn't reach the identities the rollout covers. Ship winner drains the rollout first. Reported upstream as [Flagsmith#9120](https://github.com/Flagsmith/flagsmith/issues/9120), suggesting an optional "roll out the winner" on Complete.
+So on 2.291.0, until the next experiment starts, the documented edit doesn't reach the identities the rollout covers, and Ship winner drains the rollout first. Reported as [Flagsmith#9120](https://github.com/Flagsmith/flagsmith/issues/9120). Flagsmith 2.295.0 (23 Nov) had already added a choice of rollout to Complete, which removes the experiment's rollout ([#9018](https://github.com/Flagsmith/flagsmith/pull/9018), [#9021](https://github.com/Flagsmith/flagsmith/pull/9021); on for everyone from 2.295.2), and after the report Flagsmith rewrote its "Ending the experiment" docs ([#9141](https://github.com/Flagsmith/flagsmith/pull/9141)). On 2.295.2 and later, Ship winner's drain step isn't needed.
 
 ## Things we found on the pinned image
 
