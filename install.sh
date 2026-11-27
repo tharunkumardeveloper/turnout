@@ -20,7 +20,7 @@ else
   root="$base/$RELEASE"
   if [ ! -f "$root/bin/turnout" ]; then
     echo "Downloading Turnout $RELEASE from github.com/$REPO ..."
-    url="https://github.com/$REPO/archive/refs/tags/$RELEASE.tar.gz"
+    url="${TURNOUT_DOWNLOAD_URL:-https://github.com/$REPO/archive/refs/tags/$RELEASE.tar.gz}" # override: tests, mirrors
     mkdir -p "$base"
     tmp=$(mktemp -d)
     if command -v curl >/dev/null 2>&1; then curl -fsSL "$url" -o "$tmp/t.tar.gz"

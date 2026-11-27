@@ -426,14 +426,15 @@ function Invoke-Uninstall([string[]]$a) {
   $userPath = [Environment]::GetEnvironmentVariable('Path', 'User')
   $bin = Join-Path $HomeDir 'bin'
   $onPath = @($userPath -split ';') -contains $bin
-  $downloaded = $HomeDir -like "$(Join-Path $env:LOCALAPPDATA 'turnout')\*"
+  $downloads = if ($env:TURNOUT_INSTALL_DIR) { $env:TURNOUT_INSTALL_DIR } else { Join-Path $env:LOCALAPPDATA 'turnout' }
+  $downloaded = $HomeDir -like "$($downloads.TrimEnd('\'))\*"
   $stateHome = Split-Path -Parent $StateRoot
 
   Say 'turnout uninstall removes:'
   if ($projects) { foreach ($p in $projects) { Say "  - Docker project ${p}: its containers, networks and data (Flagsmith's database, results, the release history)" } }
   else { Say '  - no Turnout containers' }
   if ($tryit) { Say "  - $($tryit.Count) Try it container(s) and their network" }
-  Say '  - the turnout:local image'
+  Say '  - the turnout:local image (unless another container still uses it)'
   if (Test-Path $stateHome) { Say "  - Turnout's files: $stateHome" }
   if ($onPath) { Say "  - $bin from your user PATH" }
   if ($downloaded) { Say "  - the downloaded release: $HomeDir" } else { Say "  (This checkout, $HomeDir, stays: delete the folder yourself if you want it gone.)" }

@@ -448,7 +448,7 @@ cmd_uninstall() {
   if [ -n "$projects" ]; then for p in $projects; do say "  - Docker project $p: its containers, networks and data (Flagsmith's database, results, the release history)"; done
   else say "  - no Turnout containers"; fi
   [ -n "$tryit" ] && say "  - $(printf '%s\n' $tryit | grep -c .) Try it container(s) and their network"
-  say "  - the turnout:local image"
+  say "  - the turnout:local image (unless another container still uses it)"
   [ -d "$state_home" ] && say "  - Turnout's files: $state_home"
   [ -n "$linked" ] && say "  - the link $link"
   if [ -n "$downloaded" ]; then say "  - the downloaded release: $HOME_DIR"; else say "  (This checkout, $HOME_DIR, stays: delete the folder yourself if you want it gone.)"; fi
