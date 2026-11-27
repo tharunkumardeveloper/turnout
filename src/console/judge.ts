@@ -443,7 +443,8 @@ export function deriveSteps(i: StepInput): { steps: Step[]; current: StepId | 'r
     const keptSince = Boolean(i.keptRunningAt) && (i.lastVisitorsAt === null || later(i.keptRunningAt ?? null, i.lastVisitorsAt));
     const scored = visitors && !keptSince && (i.lastVisitorsAt ? later(i.resultsAsOf, i.lastVisitorsAt) : i.resultsAsOf !== null && i.identities >= 100);
     set('visitors', visitors && !keptSince ? 'done' : 'current');
-    if (visitors) set('score', scored ? 'done' : 'current');
+    // After Keep running, more visitors come first: the results step waits its turn (one current step, never two).
+    if (visitors) set('score', scored ? 'done' : keptSince ? 'todo' : 'current');
     if (scored) set('decide', 'current');
   } else {
     set('visitors', 'done');

@@ -81,6 +81,7 @@ describe('deriveSteps', () => {
     assert.equal(deriveSteps(kr).steps.find((s) => s.id === 'decide')!.title, 'Keep running (interval crosses zero)');
     const kept = { ...kr, keptRunningAt: '2026-11-17T10:01:00Z' };
     assert.equal(deriveSteps(kept).current, 'visitors');
+    assert.deepEqual(deriveSteps(kept).steps.filter((s) => s.status === 'current').map((s) => s.id), ['visitors'], 'one current step, not two');
     const more = { ...kept, lastVisitorsAt: '2026-11-17T10:05:00Z' };
     assert.equal(deriveSteps(more).current, 'score', 'more visitors sent: get the results again');
     assert.equal(deriveSteps({ ...more, resultsAsOf: '2026-11-17T10:06:00Z' }).current, 'decide');
