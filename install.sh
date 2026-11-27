@@ -6,7 +6,7 @@
 #     sh install.sh
 # Either way: a link at ~/.local/bin/turnout. Undo: turnout uninstall.
 set -eu
-RELEASE=v1.0.10 # the tagged release a one-line install downloads
+RELEASE=v1.0.11 # the tagged release a one-line install downloads
 REPO=tharunkumardeveloper/turnout
 dest="${TURNOUT_BIN_DIR:-$HOME/.local/bin}"
 if [ -t 1 ] && [ -z "${NO_COLOR:-}" ]; then G=$(printf '\033[32m'); B=$(printf '\033[1m'); Y=$(printf '\033[33m'); Z=$(printf '\033[0m'); else G=; B=; Y=; Z=; fi
