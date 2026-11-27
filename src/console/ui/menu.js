@@ -159,6 +159,8 @@ export function liveNotice({ play = PLAY } = {}) {
       el('h3', {}, 'Run it locally'),
       el('p', {}, 'Docker (about 4 GB of memory for it) and Git, then:'),
       el('pre', {}, el('code', {}, `git clone ${REPO}.git turnout\nsh turnout/install.sh        # Windows: powershell -ExecutionPolicy Bypass -File turnout\\install.ps1\nturnout demo                 # this demo, every feature on\nturnout compare localhost:3001 localhost:3002   # or your own two versions`))),
+    el('p', { class: 'live-feedback' }, 'Tried it on your own site? ',
+      el('a', { href: `${REPO}/issues/new?template=tried-turnout.yml`, target: '_blank', rel: 'noopener' }, 'Tell us how it went ↗'), ' Two minutes, and it shapes what comes next.'),
     el('div', { class: 'live-actions' },
       el('a', { class: 'live-btn', href: `${REPO}#quick-start`, target: '_blank', rel: 'noopener' }, 'Setup steps on GitHub ↗'),
       el('button', { class: 'live-btn live-primary', type: 'button', on: { click: () => dialog.close() } }, 'Explore the live demo'))));

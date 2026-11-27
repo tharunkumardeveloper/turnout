@@ -77,3 +77,5 @@
 .live-btn:hover, .live-btn:focus-visible { filter: brightness(1.08); }
 @media (max-width: 760px) { .live-cols { grid-template-columns: 1fr; } .live-inner { padding: 18px 16px; } .menu-about { margin-left: 0; } }
 .live-notice h2:focus { outline: none; }
+.live-feedback { margin: 14px 0 0; font-size: 13.5px; color: var(--muted); }
+.live-feedback a { color: #6633ff; font-weight: 700; }

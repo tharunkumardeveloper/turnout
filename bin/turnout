@@ -188,6 +188,7 @@ banner() {
   say ""
   say "  Each new browser (or private window) is a new visitor: it gets one version and keeps it."
   say "  Stop: turnout down    Start again: turnout compare (same arguments)    Wipe: turnout reset"
+  say "  Tried it on your site? Two minutes, it helps: https://github.com/tharunkumardeveloper/turnout/issues/new?template=tried-turnout.yml"
   say ""
 }
 

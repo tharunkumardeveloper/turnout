@@ -573,6 +573,10 @@ const commands: Record<string, () => Promise<void>> = {
     const guardOn = process.env.TURNOUT_GUARD === 'revert';
     let watcher: Watcher | undefined;
     if (healthWebhookUrl || guardOn || process.env.TURNOUT_GUARD === 'off') {
+      // The health watcher needs the environment's name now. After a server reboot Flagsmith may still be starting:
+      // wait for it (up to 3 minutes) instead of exiting and leaving the restart policy to retry.
+      const { waitForHttp } = await import('./wait-for.ts');
+      await waitForHttp(apiUrl(), { log: (line) => console.log(line) }); // FLAGSMITH_API_URL: …/api/v1/
       const environment = await new AdminClient(apiUrl(), { apiKey: key }).get<{ name: string; project: number }>(`/api/v1/environments/${envKey()}/`);
       const dashboard = judge.dashboardUrl.replace(/\/$/, '');
       watcher = new Watcher({

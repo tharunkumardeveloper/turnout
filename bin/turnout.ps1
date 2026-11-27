@@ -159,6 +159,7 @@ function Show-Banner {
   Say ''
   Say '  Each new browser (or private window) is a new visitor: it gets one version and keeps it.'
   Say '  Stop: turnout down    Start again: turnout compare (same arguments)    Wipe: turnout reset'
+  Say '  Tried it on your site? Two minutes, it helps: https://github.com/tharunkumardeveloper/turnout/issues/new?template=tried-turnout.yml'
   Say ''
 }
 
