@@ -16,6 +16,9 @@ rem
 rem  First time on this machine? Run setup.bat first: it checks and installs what's needed.
 rem ===========================================================================================================
 setlocal EnableExtensions EnableDelayedExpansion
+rem What to run again after a fix: the turnout command (it sets TURNOUT_LOGO_SHOWN), or this file.
+set "AGAIN=turnout.bat"
+if defined TURNOUT_LOGO_SHOWN set "AGAIN=turnout demo"
 cd /d "%~dp0"
 
 set "ACTION=%~1"
@@ -84,7 +87,7 @@ if errorlevel 1 (
   goto :failed
 )
 if exist ".env\" (
-  echo  .env is a folder ^(Docker creates one when the file is missing^). Delete it and run turnout.bat again.
+  echo  .env is a folder ^(Docker creates one when the file is missing^). Delete it and run !AGAIN! again.
   goto :failed
 )
 if not exist ".env" (
@@ -107,12 +110,20 @@ if defined SY_SERVER (
 
 echo.
 echo  [1/5] Starting Flagsmith ^(the first run downloads its images: a few minutes^)...
+rem Another Docker project holding Turnout's ports: say so now, before anything is created. It took 2 minutes to fail.
+powershell -NoProfile -ExecutionPolicy Bypass -File "%~dp0bin\port-clash.ps1" -Here "%~dp0."
+if errorlevel 1 (
+  echo  Then run !AGAIN! again.
+  goto :failed
+)
 !DC! up -d --wait flagsmith
 if errorlevel 1 (
   rem Another Docker project holding Turnout's ports names itself and the fix; otherwise Flagsmith's own logs.
   powershell -NoProfile -ExecutionPolicy Bypass -File "%~dp0bin\port-clash.ps1" -Here "%~dp0."
   if errorlevel 1 (
-    echo  Then run turnout.bat again.
+    rem Remove what this start created, data kept: a container that never got its network breaks the next start.
+    !DC! down >nul 2>&1
+    echo  Then run !AGAIN! again.
   ) else (
     echo  Flagsmith didn't become healthy. Logs:  !DC! logs flagsmith
   )
@@ -144,7 +155,8 @@ if defined SY_SERVER echo        and Caddy ^(HTTPS; the first certificate can ta
 if errorlevel 1 (
   powershell -NoProfile -ExecutionPolicy Bypass -File "%~dp0bin\port-clash.ps1" -Here "%~dp0."
   if errorlevel 1 (
-    echo  Then run turnout.bat again.
+    !DC! down >nul 2>&1
+    echo  Then run !AGAIN! again.
   ) else (
     echo  Something didn't start. See:  !DC! ps   and   !DC! logs
   )
@@ -378,7 +390,7 @@ set "DD_EXE="
 if exist "%LOCALAPPDATA%\Programs\DockerDesktop\Docker Desktop.exe" set "DD_EXE=%LOCALAPPDATA%\Programs\DockerDesktop\Docker Desktop.exe"
 if exist "%ProgramFiles%\Docker\Docker\Docker Desktop.exe" set "DD_EXE=%ProgramFiles%\Docker\Docker\Docker Desktop.exe"
 if not defined DD_EXE (
-  echo  Docker isn't running and Docker Desktop wasn't found. Start Docker Desktop, then run turnout.bat again.
+  echo  Docker isn't running and Docker Desktop wasn't found. Start Docker Desktop, then run !AGAIN! again.
   exit /b 1
 )
 echo  Starting Docker Desktop (this can take a minute)...
@@ -387,7 +399,7 @@ for /l %%i in (1,1,60) do (
   docker info >nul 2>&1 && (echo  Docker is running. & exit /b 0)
   timeout /t 3 /nobreak >nul
 )
-echo  Docker Desktop didn't start within 3 minutes. Open it, accept any prompts, then run turnout.bat again.
+echo  Docker Desktop didn't start within 3 minutes. Open it, accept any prompts, then run !AGAIN! again.
 exit /b 1
 
 :usage

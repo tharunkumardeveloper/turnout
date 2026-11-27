@@ -18,6 +18,8 @@
 # ===========================================================================================================
 cd "$(dirname "$0")" || exit 1
 HERE=$(pwd)
+# What to run again after a fix: the turnout command (it sets TURNOUT_LOGO_SHOWN), or this file.
+AGAIN="sh turnout.sh"; [ -n "${TURNOUT_LOGO_SHOWN:-}" ] && AGAIN="turnout demo"
 
 ACTION=${1:-start}
 OPTION=${2:-}
@@ -191,14 +193,14 @@ if ! docker info >/dev/null 2>&1; then
     until docker info >/dev/null 2>&1; do
       i=$((i + 1))
       if [ $i -gt 60 ]; then
-        echo " Docker Desktop didn't start within 3 minutes. Open it, accept any prompts, then run sh turnout.sh again."
+        echo " Docker Desktop didn't start within 3 minutes. Open it, accept any prompts, then run $AGAIN again."
         failed
       fi
       sleep 3
     done
     echo " Docker is running."
   else
-    echo " Docker isn't running. Start it (Linux: sudo systemctl start docker), then run sh turnout.sh again."
+    echo " Docker isn't running. Start it (Linux: sudo systemctl start docker), then run $AGAIN again."
     failed
   fi
 fi
@@ -225,7 +227,7 @@ start() {
     failed
   fi
   if [ -d .env ]; then
-    echo " .env is a folder (Docker creates one when the file is missing). Delete it (rm -r .env) and run sh turnout.sh again."
+    echo " .env is a folder (Docker creates one when the file is missing). Delete it (rm -r .env) and run $AGAIN again."
     failed
   fi
   if [ ! -f .env ]; then
@@ -235,7 +237,7 @@ start() {
   mkdir -p .turnout # before Docker creates it, owned by root, for the bind mount
   if [ ! -w .turnout ] || [ ! -w .env ]; then
     echo " .turnout/ or .env isn't writable by this user, and the console and the CLI run as this user."
-    echo " Fix: sudo chown -R \"\$(id -u):\$(id -g)\" .turnout .env   then run sh turnout.sh again."
+    echo " Fix: sudo chown -R \"\$(id -u):\$(id -g)\" .turnout .env   then run $AGAIN again."
     failed
   fi
   pick_host
@@ -252,9 +254,13 @@ start() {
 
   echo
   echo " [1/5] Starting Flagsmith (the first run downloads its images: a few minutes)..."
+  # Another Docker project holding Turnout's ports: say so now, before anything is created (it took 2 minutes to fail).
+  CLASH=$(port_clash)
+  if [ -n "$CLASH" ]; then echo "$CLASH"; echo " Then run $AGAIN again."; failed; fi
   if ! dc up -d --wait flagsmith; then
     CLASH=$(port_clash)
-    if [ -n "$CLASH" ]; then echo "$CLASH"; echo " Then run sh turnout.sh again."
+    # Remove what this start created (data kept): a container that never got its network breaks the next start.
+    if [ -n "$CLASH" ]; then dc down >/dev/null 2>&1; echo "$CLASH"; echo " Then run $AGAIN again."
     else echo " Flagsmith didn't become healthy. Logs:  docker compose $COMPOSE_FILES logs flagsmith"; fi
     failed
   fi
@@ -292,7 +298,7 @@ start() {
   [ "$MODE" = server ] && echo "       and Caddy (HTTPS for $(env_get TURNOUT_HOSTNAME); the first certificate can take a minute)"
   if ! dc up -d --build --wait --remove-orphans; then
     CLASH=$(port_clash)
-    if [ -n "$CLASH" ]; then echo "$CLASH"; echo " Then run sh turnout.sh again."
+    if [ -n "$CLASH" ]; then dc down >/dev/null 2>&1; echo "$CLASH"; echo " Then run $AGAIN again."
     else echo " Something didn't start. See:  docker compose $COMPOSE_FILES ps   and   docker compose $COMPOSE_FILES logs"; fi
     failed
   fi
