@@ -66,7 +66,9 @@ describe('code references: the scan', () => {
     const flag = loadConfig(join(REPO, 'turnout.config.yml')).flag;
     const refs = findReferences(REPO, [flag]);
     assert.ok(refs.length > 0, 'the config names the flag');
-    for (const r of refs) assert.match(r.file_path, /^(turnout\.(config|live)\.yml|compose[\w.-]*\.ya?ml|action\.yml|\.github\/)/, `${r.file_path}:${r.line_number}`);
+    // The one exception: examples/with-sdk writes the same experiment with the SDK in the app, to measure the difference.
+    for (const r of refs) assert.match(r.file_path, /^(turnout\.(config|live)\.yml|compose[\w.-]*\.ya?ml|action\.yml|\.github\/|examples\/with-sdk\/)/, `${r.file_path}:${r.line_number}`);
+    assert.equal(refs.filter((r) => r.file_path.startsWith('demo/')).length, 0, 'the demo shop itself never names the flag');
   });
 });
 

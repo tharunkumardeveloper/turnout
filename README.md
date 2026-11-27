@@ -29,8 +29,8 @@
 | Track 03 asks for | Turnout's evidence |
 |---|---|
 | **Self-hosted Flagsmith** | Flagsmith's official Docker Compose file, version pinned to 2.291.0 ([compose.flagsmith.yml](compose.flagsmith.yml)), with Experimentation and its event store on PostgreSQL; the [live demo](https://172-198-62-67.sslip.io) runs it on a VM |
-| **Integrations and plugins** | A Feature Health provider (Flagsmith marks a losing version Unhealthy), Code References for the flag, a reusable GitHub Action ([action.yml](action.yml)), and a tour inside Flagsmith's own dashboard |
-| **Developer tools** | The `turnout` CLI (`compare`, `results`, `ship`, `revert`, `simulate`), a setup check with 28 checks, and Try it with your app (paste a GitHub link) |
+| **Integrations and plugins** | A Feature Health provider (Flagsmith marks a losing version Unhealthy), Code References for the flag, a reusable GitHub Action ([action.yml](action.yml)) that writes its result to the job summary and one pull-request comment, and a tour inside Flagsmith's own dashboard |
+| **Developer tools** | The `turnout` CLI (`compare`, `results`, `ship`, `revert`, `simulate`), a setup check with 28 checks, the Experiment Doctor (exposures and events on every arm, and a **sample-ratio check (SRM)** against the configured split), Try it with your app (paste a GitHub link), and an [agent skill](skills/turnout-experiment/SKILL.md) that runs a test and stops for a person to ship |
 | **Easy for others to reuse** | One-line installers for Windows, macOS and Linux, a public image on GitHub Container Registry, and 53 real GitHub repos tested, 39 run end to end ([Proof](#proof)) |
 
 **Flagsmith's own calls, graded:** in the 41 blind rounds the live demo decided during the hackathon (hidden true rates), Flagsmith caught every real lift and drop (16 of 16) and made a false call in 1 of 8 rounds with no difference; Turnout's decision was right in 40 of 41. [The write-up](docs/BLIND_ROUNDS.md).
@@ -93,7 +93,7 @@ Turnout is what I wished existed while setting up Flagsmith's Experimentation on
 
 | I hit | So Turnout… |
 |---|---|
-| An experiment is app code at each touchpoint (`getExperimentFlag`, `trackEvent`, a visitor id). A whole new release has no single line to wrap. | Routes every request at the door, by one multivariate flag, and turns plain HTTP into Flagsmith events: no app code. |
+| An experiment is app code at each touchpoint (`getExperimentFlag`, `trackEvent`, a visitor id). A whole new release has no single line to wrap. | Routes every request at the door, by one multivariate flag, and turns plain HTTP into Flagsmith events: no app code. The same experiment written with the SDK took 45 lines and hit two silent traps ([with vs without](examples/with-sdk/README.md)); with Turnout the shop has 0 lines and the config 12. |
 | After ending an experiment and setting the flag's default, 150 of 300 visitors were still on the old split until the next experiment started. | **Ship winner** drains the split first: 300 of 300 on the winner ([details](docs/FLAGSMITH.md#ending-an-experiment-what-the-docs-say-and-what-the-pinned-image-does), reported upstream: [Flagsmith#9120](https://github.com/Flagsmith/flagsmith/issues/9120)). |
 | The Node SDK dropped events tracked faster than one batch round-trip (28% in a minimal reproduction, 9.4.0 and 9.5.0). | Holds its own events back while the SDK's buffer is full: 0 of 68,141 lost ([reproduction](spikes/sdk-buffer-repro/), still in SDK 9.5.0, reported upstream: [flagsmith-nodejs-client#330](https://github.com/Flagsmith/flagsmith-nodejs-client/issues/330), with a fix PR: [#331](https://github.com/Flagsmith/flagsmith-nodejs-client/pull/331)). |
 | Results recompute at most once every 5 minutes, and a Refresh before any visit wastes that window. | Asks only after visitors' events are in, and holds a pointless refresh back. |
@@ -165,7 +165,7 @@ Flagsmith runs self-hosted next to Turnout (its official Docker Compose file, Ex
 | Round | Flagsmith feature | What it does in Turnout |
 |---|---|---|
 | Create a flag | **Multivariate flag**, local evaluation | One flag per app; each variant's value names a version. The proxy evaluates it in-process with the server-side key. |
-| Pick a metric | **Metrics and events**, event store | Plain HTTP becomes Flagsmith events: page loads, page speed, server errors and the goal request. |
+| Pick a metric | **Metrics and events**, event store | Plain HTTP becomes Flagsmith events: page loads, page speed, server errors and the goal request. With the `lcp_ms` and `cls` guardrails, a small script the proxy adds to each page also measures page speed in the visitor's own browser (largest contentful paint, layout shift), still with no app code. |
 | Split the traffic | **Experiments**, Bayesian results | Each test is a Flagsmith experiment (A/A, A/B, A/B/C). Its chance to win and credible interval decide Ship, Keep running or Revert. |
 | | **Segments**, **identity overrides** | A preview segment shows the next version to your team; *Pin my browser* is an identity override for your visitor id. Both stay out of the test. |
 | Ship the winner | **Environment default**, rollout | Ship and Revert set the flag's default and drain the split: everyone moves with one flag change. |
@@ -362,6 +362,8 @@ or, for Caddy, `reverse_proxy 127.0.0.1:8080`. Visitors keep your domain; the co
 ## Development
 
 `npm test` runs the unit and integration tests (Node's built-in runner; Node 24 runs the TypeScript directly, no build step). `npx tsc --noEmit` typechecks. Layout and conventions: [docs/DEVELOPMENT.md](docs/DEVELOPMENT.md).
+
+**How it was built:** much of the code, the tests and the documentation was written with Claude Code (Anthropic's coding assistant), working from my design and direction; commits it co-wrote carry a `Co-Authored-By: Claude` line. I reviewed what it wrote and can explain every part.
 
 ## License
 

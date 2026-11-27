@@ -65,6 +65,7 @@ So until the next experiment starts, the documented edit doesn't reach the ident
 
 ## Things we found on the pinned image
 
+- **The Node SDK sends events to Flagsmith Cloud unless told otherwise.** With `apiUrl` pointing at a self-hosted instance, `@flagsmith/nodejs` 9.4.0 still posts events to `https://events.api.flagsmith.com/v1/events` (its default `eventsUrl`) unless `eventProcessorConfig.eventsApiUrl` is set; the self-hosted instance receives nothing and nothing says so. Turnout sets it from `FLAGSMITH_API_URL` (`src/flagsmith/flag-source.ts`); found while writing [examples/with-sdk](../examples/with-sdk/README.md).
 - **Local evaluation records exposures.** The docs say experiments need remote evaluation; Node SDK 9.4.0 records exposures under local evaluation: every load run on 27 Nov stored `$flag_exposure` rows from the proxy's local evaluation (`spikes/RESULTS.md`). Turnout relies on it.
 - **A partial `PATCH` of a multivariate option answers 500** (`KeyError: 'feature'`, then `'default_percentage_allocation'`, `features/multivariate/serializers.py:85-86`). Turnout uses a full `PUT`.
 - **The sample-ratio check is empty for rollout experiments** (`srm_p_value: null`: "sample-ratio check: not computed" on every decision the live demo recorded on 27 Nov, about 1,200 identities each); the first rollout zeroes the environment default's weights (`services.py:1000-1025`), so there is no expected share. Draft fix: #8798.

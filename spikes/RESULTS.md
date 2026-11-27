@@ -63,6 +63,38 @@ The same folder as above, after its Ship.
 - `sh turnout.sh status` against the running stack: **29 ok, 0 warnings, 0 failing.**
 - `sh setup.sh` (no terminal, so nothing installed): all 8 checks ran: "Ready. 1 warning(s)": Node.js isn't installed in that image (needed only for development). It also wrote `TURNOUT_UID=0` and `TURNOUT_GID=0` to `.env`, as designed for the user running it (root in that container); those two lines were removed afterwards, since the stack here runs on Windows.
 
+## Page speed in real browsers, end to end (05:28–05:35)
+
+The new `lcp_ms` and `cls` guardrails on the local stack: `turnout.config.yml` lists them, `init` created both metrics in Flagsmith, and the guided demo started an A/B/C test (experiment 391: shop:1.5 vs shop:1.6 vs shop:1.4). Then 180 real Chrome visitors (Playwright, a normal Chrome user agent, each a new browser): load the shop through the proxy, read the page's own LCP in the browser, leave the page.
+
+- **180 of 180** pages carried the script; the proxy handed Flagsmith **180 `lcp_ms` and 180 `cls` events**, one each; Flagsmith's table held 362 of each over this run and an earlier one of 182 visitors.
+- **Flagsmith's own results** (the guided demo's Ask Flagsmith):
+
+| | Visitors | `lcp_ms` in Flagsmith | LCP read in the page | `doc_latency_ms` |
+|---|---|---|---|---|
+| shop:1.4 (control) | 53 | 151.9 ms | 153 ms | 7.8 ms |
+| shop:1.5 | 68 | 163.3 ms (+7.5%, interval −4% to +18%) | 163 ms | 9.0 ms |
+| shop:1.6 (60 ms test fault) | 57 | **235.8 ms (+55%, interval +41% to +69%, 0% chance to win)** | 236 ms | 69.1 ms |
+
+- **CLS:** the shop's layout never moves, so `cls` was 0 everywhere. A second check put the real proxy and script in front of two pages, one that pushes a 300 px banner in above the text after 300 ms, and sent 6 Chrome visitors: the jumping page reported **0.2344** each time, the still page **0**.
+- **The floors:** shop:1.6's LCP is 84 ms later, under the 100 ms floor, so `lcp_ms` alone doesn't call it losing; its 61 ms server delay already fails `doc_latency_ms`.
+- **Found and fixed:** a new experiment copied the previous one's metrics, so a guardrail added to the config never reached one (the first test, experiment 390, had no `lcp_ms`). The guided demo now takes each new test's metrics from `turnout.config.yml`.
+
+## The GitHub Action's report and pull-request comment (05:40)
+
+The real `turnout check` against the local Flagsmith, with GitHub Actions' variables set and a stand-in for GitHub's API on 127.0.0.1:
+
+- `check` exited 1 on a real finding (a leftover split from the experiments above) and wrote the Markdown report to `TURNOUT_REPORT_FILE` and `GITHUB_STEP_SUMMARY`: "❌ Turnout check: 1 problem found", the output unfolded.
+- `turnout pr-comment`, run twice for pull request 12: the first run **posted** a comment, the second **edited that same comment** (GET, POST, then GET, PATCH). A run whose event isn't a pull request skipped the comment and said so.
+
+## The same experiment with the SDK in the app (05:40–05:52)
+
+[examples/with-sdk/server.ts](../examples/with-sdk/server.ts): the demo shop's experiment written with `@flagsmith/nodejs` 9.4.0 inside the app (45 lines of code, 7 Flagsmith calls), run against the local Flagsmith on experiment 391.
+
+- **First run: wrong, silently.** All 30 visitors got shop:1.4, and Flagsmith stored none of their events. Two causes: visitors arrived before the SDK had loaded the environment document, so each got the flag's default; and the SDK posts events to `https://events.api.flagsmith.com/v1/events` (Flagsmith Cloud) unless `eventsApiUrl` is set, whatever `apiUrl` says. That run's events (random visitor ids, page timings) went to Flagsmith Cloud.
+- **Fixed** (`await flagsmith.getEnvironmentFlags()` at start, `eventProcessorConfig.eventsApiUrl`): 30 visitors split 13 / 12 / 5 (1.5 / 1.4 / 1.6), 0 switched version on a second page; Flagsmith stored 30 exposures, 30 add-to-carts, 10 orders, 60 page-speed and 60 server-error events.
+- With Turnout the same experiment is 0 lines in the shop and 12 lines of `turnout.config.yml`. The comparison: [examples/with-sdk/README.md](../examples/with-sdk/README.md).
+
 ## Ending an experiment: the documented order against Ship winner (03:50–03:51)
 
 `node spikes/07-round04.ts` on the local stack: two throwaway experiments (100% rollout, 50/50), and the same 300 fresh identities through a local-evaluation SDK after each step.
