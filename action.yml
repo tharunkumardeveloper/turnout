@@ -17,6 +17,9 @@
 #       server-key: ${{ secrets.FLAGSMITH_SERVER_KEY }}
 #       admin-key: ${{ secrets.FLAGSMITH_ADMIN_KEY }}   # optional: experiment statuses, Experiment Doctor, Code References
 #       project-id: 1                                     # with admin-key
+#
+# The result also goes to the job summary, and on a pull request into one comment that each run updates (give the
+# workflow `permissions: pull-requests: write`; set comment-on-pr: false to skip it).
 name: Turnout check
 description: Find Flagsmith experiment splits left behind on any flag (read-only, needs only a server-side key); with an admin key, sanity-check running experiments' data and submit Code References.
 branding:
@@ -41,6 +44,14 @@ inputs:
     description: "Path to turnout.config.yml in your repository; its flag is the one scanned for."
     required: false
     default: turnout.config.yml
+  comment-on-pr:
+    description: "On a pull request, post the result as one comment that later runs update (needs pull-requests: write)."
+    required: false
+    default: "true"
+  github-token:
+    description: "The token for the pull-request comment."
+    required: false
+    default: ${{ github.token }}
 runs:
   using: composite
   steps:
@@ -57,7 +68,15 @@ runs:
         TURNOUT_SERVER_KEY: ${{ inputs.server-key }}
         TURNOUT_ADMIN_KEY: ${{ inputs.admin-key }} # optional; empty means server key only
         TURNOUT_ENV_FILE: /dev/null/none
+        TURNOUT_REPORT_FILE: ${{ runner.temp }}/turnout-check.md # and the job summary (GITHUB_STEP_SUMMARY)
       run: node "$GITHUB_ACTION_PATH/src/cli.ts" check
+    - name: turnout pr-comment
+      if: ${{ !cancelled() && inputs.comment-on-pr == 'true' && (github.event.pull_request || github.event.issue.pull_request) }}
+      shell: bash
+      env:
+        GITHUB_TOKEN: ${{ inputs.github-token }}
+        TURNOUT_ENV_FILE: /dev/null/none
+      run: node "$GITHUB_ACTION_PATH/src/cli.ts" pr-comment "${{ runner.temp }}/turnout-check.md"
     - name: turnout code-refs
       if: ${{ !cancelled() && inputs.admin-key != '' }} # also after check finds a leftover split
       shell: bash

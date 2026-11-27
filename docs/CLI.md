@@ -30,6 +30,7 @@ An unknown option or a missing value prints what was wrong and exits 1, before a
 | `release --aa` | Starts an A/A experiment: the live release on both arms (see below) |
 | `check` | Finds experiment splits left behind on any flag; with an admin key, also runs the Experiment Doctor (see below) |
 | `code-refs [--project <id>]` | Finds the flag's name in this checkout and submits it to Flagsmith's Code References (see below) |
+| `pr-comment [<report.md>]` | In GitHub Actions: posts `check`'s report on the pull request the run is for, or updates its earlier comment (see `check`) |
 | `proxy` | Runs the reverse proxy (port 8080). Compose runs it for you |
 | `console` | Runs the console and guided demo (port 8090). Compose runs it for you |
 
@@ -100,6 +101,20 @@ The Action in `action.yml` runs `check` with the `server-key` input, and with `a
     api-url: https://flagsmith.example.com/api/v1/
     server-key: ${{ secrets.FLAGSMITH_SERVER_KEY }}
     admin-key: ${{ secrets.FLAGSMITH_ADMIN_KEY }} # optional: experiment statuses and the Experiment Doctor
+```
+
+**In CI.** With `TURNOUT_REPORT_FILE` or GitHub's `GITHUB_STEP_SUMMARY` set, `check` also writes its result as Markdown: a headline (no problems, or how many), what it checks, and its full output. The [Action](../action.yml) puts it in the job summary, and on a pull request `turnout pr-comment` posts it as one comment that later runs edit instead of adding another (the workflow needs `permissions: pull-requests: write`; without it the job summary still has the report, and the comment step says why it was skipped). A run that isn't for a pull request skips the comment.
+
+```yaml
+permissions:
+  contents: read
+  pull-requests: write
+steps:
+  - uses: actions/checkout@v5
+  - uses: tharunkumardeveloper/turnout@v1
+    with:
+      api-url: https://flagsmith.example.com/api/v1/
+      server-key: ${{ secrets.FLAGSMITH_SERVER_KEY }}
 ```
 
 ### `release`: A/A runs and the launch estimate
