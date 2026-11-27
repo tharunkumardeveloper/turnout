@@ -30,5 +30,3 @@ $LANDING run --rm cli status --refresh
 ```
 
 `init --project` writes the landing environment's keys to `.env`, replacing the shop's: copy `.env` first if you want to go back to the shop demo, then restore it, unset `TURNOUT_CONFIG_FILE`, remove the two containers (`$LANDING rm -sf landing-1 landing-2`) and run `docker compose up -d --wait`.
-
-The live run, with its numbers: [spikes/RESULTS.md](../../spikes/RESULTS.md).

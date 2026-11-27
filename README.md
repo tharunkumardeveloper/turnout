@@ -31,7 +31,7 @@
 | **Developer tools** | The `turnout` CLI (`compare`, `results`, `ship`, `revert`, `simulate`), a setup check with 28 checks, and Try it with your app (paste a GitHub link) |
 | **Easy for others to reuse** | One-line installers for Windows, macOS and Linux, a public image on GitHub Container Registry, and 53 real GitHub repos tested, 39 run end to end ([Proof](#proof)) |
 
-**Flagsmith's own calls, graded:** in 111 blind rounds with hidden true rates, Flagsmith caught every real lift and drop (38 of 38), and made a false call in 5 of 20 rounds with no difference; Turnout's interval check held back 3 of the 5. [The write-up](docs/BLIND_ROUNDS.md).
+**Flagsmith's own calls, graded:** in the 41 blind rounds the live demo decided during the hackathon (hidden true rates), Flagsmith caught every real lift and drop (16 of 16) and made a false call in 1 of 8 rounds with no difference; Turnout's decision was right in 40 of 41. [The write-up](docs/BLIND_ROUNDS.md).
 
 ## In plain words
 
@@ -80,7 +80,7 @@ It works for any website in any language: a shop, a sign-up page, a dashboard. Y
 </td>
 <td width="50%" valign="top">
 <img src="docs/images/judge-ship.gif" alt="The guided demo on the live site: an A/B/C test, 2,100 shoppers, Flagsmith's verdict and the blind round revealed">
-<p><b>The guided demo, on the <a href="https://172-198-62-67.sslip.io">live site</a>.</b> Start, shoppers, Flagsmith's call, decide. Blind rounds hide the true rates until the end: Flagsmith right in 96 of 98.</p>
+<p><b>The guided demo, on the <a href="https://172-198-62-67.sslip.io">live site</a>.</b> Start, shoppers, Flagsmith's call, decide. Blind rounds hide the true rates until the end; during the hackathon, Turnout's decision was right in 40 of 41.</p>
 </td>
 </tr>
 </table>
@@ -92,8 +92,8 @@ Turnout is what I wished existed while setting up Flagsmith's Experimentation on
 | I hit | So Turnout… |
 |---|---|
 | An experiment is app code at each touchpoint (`getExperimentFlag`, `trackEvent`, a visitor id). A whole new release has no single line to wrap. | Routes every request at the door, by one multivariate flag, and turns plain HTTP into Flagsmith events: no app code. |
-| After ending an experiment and setting the flag's default, 144 of 300 visitors were still on the old split until the next experiment started. | **Ship winner** drains the split first: 300 of 300 on the winner ([details](docs/FLAGSMITH.md#ending-an-experiment-what-the-docs-say-and-what-the-pinned-image-does), reported upstream: [Flagsmith#9120](https://github.com/Flagsmith/flagsmith/issues/9120)). |
-| The Node SDK dropped events tracked faster than one batch round-trip (28% in a minimal reproduction). | Holds its own events back while the SDK's buffer is full: 0 of 121,678 lost ([reproduction](spikes/sdk-buffer-repro/), still in SDK 9.5.0, reported upstream: [flagsmith-nodejs-client#330](https://github.com/Flagsmith/flagsmith-nodejs-client/issues/330), with a fix PR: [#331](https://github.com/Flagsmith/flagsmith-nodejs-client/pull/331)). |
+| After ending an experiment and setting the flag's default, 150 of 300 visitors were still on the old split until the next experiment started. | **Ship winner** drains the split first: 300 of 300 on the winner ([details](docs/FLAGSMITH.md#ending-an-experiment-what-the-docs-say-and-what-the-pinned-image-does), reported upstream: [Flagsmith#9120](https://github.com/Flagsmith/flagsmith/issues/9120)). |
+| The Node SDK dropped events tracked faster than one batch round-trip (28% in a minimal reproduction, 9.4.0 and 9.5.0). | Holds its own events back while the SDK's buffer is full: 0 of 68,141 lost ([reproduction](spikes/sdk-buffer-repro/), still in SDK 9.5.0, reported upstream: [flagsmith-nodejs-client#330](https://github.com/Flagsmith/flagsmith-nodejs-client/issues/330), with a fix PR: [#331](https://github.com/Flagsmith/flagsmith-nodejs-client/pull/331)). |
 | Results recompute at most once every 5 minutes, and a Refresh before any visit wastes that window. | Asks only after visitors' events are in, and holds a pointless refresh back. |
 | Outgoing webhooks refuse private addresses, so a self-hosted console can't receive them. | Reports health through Flagsmith's Feature Health provider instead. |
 | Getting a test running took a dozen manual steps. | `turnout compare` (one command), a setup check, installers for every OS, and *Try it with your app* from the console. |
@@ -105,22 +105,22 @@ Turnout is what I wished existed while setting up Flagsmith's Experimentation on
 | **Hypothesis** | The one-page checkout (1.5 Express) gets more orders than the 3-step checkout (1.4 Classic), without slower pages or more errors. |
 | **Versions behind a flag** | `shop_release`, multivariate: `control` → 1.4, `v2` → 1.5 (and `v3` → 1.6 in the A/B/C test). |
 | **Metric from real events** | `order_placed`: the proxy's event when `POST /checkout` answers 2xx. Safety checks: page load time and server errors. `add_to_cart` is watched too. |
-| **Result** | Flagsmith: 1.5 at 20.3% against 10.1%, >99.9% chance to win, page speed unchanged; shipped with one flag change, then 50 of 50 new visitors on 1.5. In the A/B/C test, 1.6 sells a little more but its pages are 2.8× slower, so it's out. |
+| **Result** (live demo, 27 Nov) | Experiment 235: Flagsmith had 1.5 at 16.5% against 9.6% (1,200 shoppers), a 99.6% chance to win with an interval of +19% to +124%, page speed unchanged (10.4 vs 10.3 ms); shipped with one flag change. In the A/B/C test (experiment 229), 1.6 sold more (17.7% against 9.9%, 98.5%) but its pages took 65.6 ms against 4.1 ms, so it was rolled back. Those rates were drawn at random and hidden: a blind round. |
 | **Honest about it** | Those shoppers are simulated (labelled) at rates I set. On the live demo, blind rounds draw the rates at random and hide them; the page reveals them next to Flagsmith's call and keeps a scoreboard. Real visitors who press *Be a visitor* count in a separate experiment, `shop_release_live`, whose goal is `add_to_cart` (it fires early enough for a few days of traffic) with `order_placed` watched. |
 
 ## Proof
 
 | | Result |
 |---|---|
-| Your app, from an empty folder | `turnout compare` running in under 3.5 minutes; sign-ups counted end to end; after Ship, 100 of 100 new visitors on the winner |
-| Shipping under live traffic | 263 of 263 later visitors on the winner; 0 left behind |
-| Flagsmith down | 100 of 100 pages still served, 86 ms average |
-| Under load | 0 of 121,678 events lost at up to 200 visitors at once |
+| Your app, from an empty folder | `turnout compare` running in 271 s; 2,000 new visitors split 49.3% (and 20.5% at `--split 20`); after Ship, 100 of 100 new visitors on the winner |
+| Shipping under live traffic | a new visitor every 0.1 s: after Ship, 514 of 514 on the winner; 0 left behind |
+| Flagsmith down | 100 of 100 pages still served through the public address, 173 ms average (170 ms with it up) |
+| Under load | 0 of 68,141 events lost at up to 200 visitors at once, counted in Flagsmith's own table |
 | Any app, automatically | 12 sample apps (HTML, Vite, Next.js ×2, Express, Flask, Django, Go, PHP, no Dockerfile, needs a database, needs a setting): builds 12/12, goals 11/12, counts match Flagsmith 12/12, ships 12/12 (`npm run scoreboard`, [scoreboard/](scoreboard/README.md)) |
 | Real GitHub repos, pasted as links | 53 public repos, from hello-world samples to harder ones on purpose (framework starters, Laravel, Spring PetClinic, NestJS, realworld apps, 400 MB template galleries): **39 of 53** build, start, serve real pages (each home page checked), get Flagsmith results with matching counts, and ship. Most have no Dockerfile. The 14 that don't: the repository itself is broken (4: its own Dockerfile fails, or requirements.txt names a file it doesn't have), an API with no home page (2), it needs keys, a database or a setup step Turnout can't guess (6, including a Vercel-only SvelteKit app and a monorepo), a Vite build not yet diagnosed (1), and one that ran and shipped but whose counts didn't match Flagsmith's (1). Each with its reason: [github-run.json](scoreboard/github-run.json). |
-| A server, rebooted | back by itself in 50 s, every check passing |
+| A server, rebooted | every container back by itself in 29 s, the console in 62 s, every check passing |
 
-Raw logs and numbers: [spikes/RESULTS.md](spikes/RESULTS.md). Not claimed yet: production users, or any simulated number as evidence about real people. Tried it? [Tell us how it went](https://github.com/tharunkumardeveloper/turnout/issues/new?template=tried-turnout.yml): those reports will be listed here.
+All measured during Toggle Wars: on 27 Nov 2026, the GitHub repos on 26 Nov. Raw logs and numbers: [spikes/RESULTS.md](spikes/RESULTS.md). Not claimed yet: production users, or any simulated number as evidence about real people. Tried it? [Tell us how it went](https://github.com/tharunkumardeveloper/turnout/issues/new?template=tried-turnout.yml): those reports will be listed here.
 
 ## See it in 2 minutes
 
@@ -190,7 +190,7 @@ An experiment can look healthy in the dashboard while the numbers underneath mea
 |---|---|
 | **Your app** | `turnout compare` for URLs, images or git branches, any number of versions; goals optional; `--env-file`; installers for Windows, macOS and Linux; `turnout deploy` |
 | **Guided** | Guided demo with an interactive tour; a console tour; one button runs a whole test; *Try it with your app* (Dockerfiles, git repos or images); *Be a visitor* with a YOU pin; *Pin my browser* (identity override) |
-| **Measuring** | Sticky visitor ids, bots never counted, bounces counted, goals from HTTP or one response header; 0 of 121,678 events lost under load |
+| **Measuring** | Sticky visitor ids, bots never counted, bounces counted, goals from HTTP or one response header; 0 of 68,141 events lost under load |
 | **Deciding** | Flagsmith's results as returned; keep running while unsure; safety checks with a sensible margin (20 ms for page speed); A/A fairness checks |
 | **Releasing** | Ship and Revert that reach everyone; swing back with one edit; preview for your team; a release ledger and GitHub Releases |
 | **Tools** | `doctor` and `/setup` (28 checks); `check`, an Experiment Doctor for any Flagsmith experiment (also a GitHub Action); server mode with HTTPS and an autopilot |

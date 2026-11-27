@@ -1,42 +1,29 @@
 # Plug and play: Turnout in front of apps it has never seen
 
-Turnout needs no code in your app: it sits in front as a reverse proxy, picks a release per visitor from a Flagsmith flag, and turns HTTP requests into Flagsmith events. This page records what was tested, what happened, how to repeat it, and what doesn't work.
+Turnout needs no code in your app: it sits in front as a reverse proxy, picks a release per visitor from a Flagsmith flag, and turns HTTP requests into Flagsmith events. This page records what was tested, how to repeat it, and what doesn't work.
 
-## What was tested (23 Nov 2026)
+## What was tested
 
-Each row is a separate Compose project written by `turnout new`, pointed at its own Flagsmith project in a throwaway organisation (`init --project`), on its own ports (`--proxy-port`, `--console-port`), next to the running demo stack. Each run sent 20 to 40 visitors with a browser user agent: two page loads (cookie, then exposure), three more pages, then the goal request.
+During Toggle Wars (27 Nov 2026 unless noted), each a real run against Flagsmith 2.291.0. How each was run, with every number: [spikes/RESULTS.md](../spikes/RESULTS.md).
 
-| # | App | Releases | Goal | Both served | Sticky | Goal events in Flagsmith | `check` / `doctor` |
-|---|---|---|---|---|---|---|---|
-| a | Two static sites (`nginx:alpine`, different `index.html`), services in the same Compose project | `a=http://site-a`, `b=http://site-b` | `GET /index.html 2xx` | 19 / 21 | 0 switches | `viewed_index` n=21 / n=19 | pass / 0 failing |
-| b | Python `http.server` on the host, ports 3021 and 3022 | `http://localhost:3021`, `http://localhost:3022` (rewritten to `host.docker.internal`) | `GET /about.html 2xx` | 13 / 17 | 0 switches | `about` n=17 / n=13 | pass / 0 failing |
-| c | Public HTTPS websites | `https://example.com`, `https://httpbin.org/anything/v2` (a release under a path) | `GET / 2xx` | 10 / 10 | 0 switches | `index` n=18 / n=12 | pass / 0 failing |
-| d | Node SPA on the host: client-side routes, a JSON API, a POST form that checks `Origin` (as CSRF middleware does) and answers 303 | `spa-a=http://localhost:3031`, `spa-b=http://localhost:3032` | `POST /signup 303` | 9 / 21 | 0 switches; page, `/api/plan` and `/app.js` always from the same release | `signup` n=24 / n=13 | pass / 0 failing |
+| Apps | How | Result |
+|---|---|---|
+| Two landing pages (nginx, Start Bootstrap's Agency and Creative), on the host at :3001 and :3002 | `turnout compare localhost:3001 localhost:3002` from an empty folder, next to another running Turnout stack | Running in 271 s on the next free ports; 2,000 new visitors split 49.3% at `--split 50` and 20.5% at `--split 20`; one visitor 20 of 20 on the same version; after Ship, 100 of 100 on the winner |
+| 12 sample apps: plain HTML, Vite, Next.js static and server, Express, Flask, Django, Go, PHP, no Dockerfile, needs a database, needs a setting | Try it, each built from its folder ([scoreboard](../scoreboard/README.md)) | builds 12/12, starts 12/12, goals found 11/12 (Next.js static has no working link, on purpose), counts match Flagsmith 12/12, ships 12/12 |
+| 53 public GitHub repositories, pasted as links (26 Nov) | Try it ([github-run.json](../scoreboard/github-run.json)) | 39 build, start, serve real pages, get Flagsmith results with matching counts, and ship; each failure with its reason |
 
-"n" is Flagsmith's count of exposed identities per arm after `status --refresh`, so the events arrived and were joined to the exposures. The proxy reported 0 undelivered events in every run.
+The automated version is [`test/plug-and-play.test.ts`](../test/plug-and-play.test.ts), part of `npm test` (684 tests, 0 failing): two real local HTTP apps behind the proxy (one under a path), checking the split, stickiness, the redirect and CSRF headers, gzip assets, JSON API calls, app cookies and that the visitor cookie never reaches the app.
 
-Also checked by hand against public HTTPS sites (`httpbin.org`, `github.com`, `nodejs.org`), with the proxy run from source:
+## What the proxy handles for an app it has never seen
 
-| Concern | Result |
-|---|---|
-| `Host` and TLS server name (SNI) | The release's own host name (httpbin echoed `Host: httpbin.org`); TLS verified normally |
-| Compression | `content-encoding: gzip` passed through unchanged, body intact |
-| Redirect to the same site (`Location: https://httpbin.org/get` or `/get`) | Rewritten to `/get` on Turnout's host |
-| Redirect to another site | Left alone: the visitor leaves |
-| `Set-Cookie` with `Domain=` | `Domain` removed, so it becomes a cookie for Turnout's host |
-| `Set-Cookie` with `Secure`, visitor on plain http | github.com's session cookies arrived with `Secure`, which browsers refuse over http off localhost. Fixed: `Secure` is now removed for http visitors (except `__Secure-` / `__Host-` cookies); covered by the unit test |
-| `Origin` / `Referer` on a POST | Rewritten to the release's origin when they name Turnout's host; a foreign `Origin` passes unchanged |
-| `Content-Security-Policy`, `Strict-Transport-Security` | Passed through unchanged (see limits) |
-
-## Fixed while testing
-
-- **Releases under a path**: a same-site redirect from `https://site/docs/` came back as `/docs/x`, which the proxy then turned into `/docs/docs/x`. The release's path is now taken off `Location` again.
-- **CSRF checks**: the app got `Origin: http://127.0.0.1:8080` with `Host: app`, so Django-, Rails- or Express-style checks refused every form post. Same-host `Origin` and `Referer` are now rewritten to the release's origin.
-- **App cookies**: `Domain=<app's host>` cookies were refused by browsers on Turnout's host; `Secure` cookies from an https release were refused for http visitors off localhost. Both are adjusted (above).
-- **`turnout new --console-port`**: the generated compose file always published the console on 8090, so a second Turnout on the same machine couldn't start. The new flag moves it, like `--proxy-port`.
-- **`doctor` with your own Flagsmith** warned that it couldn't read `http://flagsmith:9100/metrics`, a host that only exists in the bundled stack. It now skips that check unless `FLAGSMITH_METRICS_URL` is set.
-
-The automated version is [`test/plug-and-play.test.ts`](../test/plug-and-play.test.ts): two real local HTTP apps behind the proxy (one under a path), checking the split, stickiness, the redirect and CSRF headers, gzip assets, JSON API calls, app cookies and that the visitor cookie never reaches the app.
+- **`Host` and TLS:** requests reach the release with its own host name and TLS server name (SNI), verified normally.
+- **Compression:** `content-encoding` passes through unchanged.
+- **Redirects:** a redirect to the same site (`Location: https://site/get` or `/get`) is rewritten to Turnout's host; for a release under a path (`https://site/docs/`), the release's path is taken off `Location` again. A redirect to another site is left alone: the visitor leaves.
+- **CSRF checks:** a same-host `Origin` or `Referer` on a POST is rewritten to the release's origin, so Django-, Rails- or Express-style checks accept the form; a foreign `Origin` passes unchanged.
+- **App cookies:** `Domain=` is removed, so the cookie belongs to Turnout's host; `Secure` is removed for visitors on plain http (except `__Secure-` and `__Host-` cookies), since browsers refuse it there off localhost.
+- **Security headers:** `Content-Security-Policy` and `Strict-Transport-Security` pass through unchanged (see limits).
+- **Several Turnouts on one machine:** `turnout new --proxy-port` and `--console-port` move both ports; `turnout compare` takes the next free ones by itself.
+- **Your own Flagsmith:** `doctor` skips the bundled stack's metrics check unless `FLAGSMITH_METRICS_URL` is set.
 
 ## Do it yourself
 

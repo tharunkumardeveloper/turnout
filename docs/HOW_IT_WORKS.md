@@ -64,7 +64,7 @@ Turnout runs as an overlay on Flagsmith's official self-hosted Docker Compose. B
 ## The problem
 
 1. **A release isn't an experiment.** A Flagsmith experiment is app code: Flagsmith's PayPal-button example has three touchpoints in the app (`useExperiment`, `trackEvent` and an anonymous ID; [`example-paypal-button.md:56,61,76`](https://github.com/Flagsmith/flagsmith/blob/main/docs/docs/experimentation/example-paypal-button.md)). When the change is the whole deploy, v1.4 against v1.5, there's no single line to wrap in a flag.
-2. **Ending an experiment has a sharp edge.** The docs say to end the experiment, then update the flag ([`analyse-an-experiment.md:58-61`](https://github.com/Flagsmith/flagsmith/blob/main/docs/docs/experimentation/analyse-an-experiment.md)). On the pinned image, the experiment's split stays in place after it's completed until the flag's next experiment starts, so that edit reaches none of the identities the rollout covered: I measured 144 of 300 still on control. **Ship winner** drains the split first: 300 of 300 on the winner. Details and sources: [docs/FLAGSMITH.md](FLAGSMITH.md#ending-an-experiment-what-the-docs-say-and-what-the-pinned-image-does).
+2. **Ending an experiment has a sharp edge.** The docs say to end the experiment, then update the flag ([`analyse-an-experiment.md:58-61`](https://github.com/Flagsmith/flagsmith/blob/main/docs/docs/experimentation/analyse-an-experiment.md)). On the pinned image, the experiment's split stays in place after it's completed until the flag's next experiment starts, so that edit reaches none of the identities the rollout covered: I measured 150 of 300 still on control (27 Nov). **Ship winner** drains the split first: 300 of 300 on the winner. Details and sources: [docs/FLAGSMITH.md](FLAGSMITH.md#ending-an-experiment-what-the-docs-say-and-what-the-pinned-image-does).
 
 ## What Turnout does
 
@@ -187,27 +187,20 @@ These work without the proxy, on experiments your app runs through the SDK. `che
 
 ## Evidence
 
-All on Flagsmith `2.291.0` and Node SDK `9.4.0`, Docker Desktop on Windows 11 unless noted. Raw logs in [`spikes/RESULTS.md`](../spikes/RESULTS.md).
+All measured during Toggle Wars, on 27 Nov 2026 unless noted, on Flagsmith `2.291.0` and Node SDK `9.4.0`: Docker Desktop on Windows 11, and the live demo's 2-vCPU VM. Raw numbers and how each was run: [`spikes/RESULTS.md`](../spikes/RESULTS.md).
 
 | What | Result |
 |---|---|
-| Ending an experiment the documented way, 300 identities | 144 stayed on control (the split survives); after Ship winner, 300 of 300 on the winner; one default edit back, 300 of 300 on control |
-| The full cycle on a fresh instance: init → 2,000 visitors → Ship → swing back → preview → release → 2,000 visitors → Revert | Flagsmith's identity counts equal the simulator's visitor counts (1,000 / 1,000 per arm); its own counter: 17,910 events accepted, 0 rejected |
-| shop:1.6, deliberate test fault (60 ms delay) | Orders: 99.8% chance to win. `doc_latency_ms`: 97.6 vs 26.5 ms (means per exposed identity), 0.0% chance to win. Ship refused without explicit acceptance; Revert left 200 of 200 new visitors on shop:1.5 and `check` clean |
-| First start from a fresh `.env`, Docker images already downloaded | Windows (`turnout.bat`): 135 s; Linux userland as uid 1234 (`turnout.sh`, Alpine): 128 s. Doctor: 29 ok, 0 warnings, 0 failing |
-| `reset --yes` (wipe and start again) | Windows: 142 s, then experiment 1 running again with an empty ledger; Linux: 135 s. Doctor: 29 ok after each |
-| Ship click → every new visitor on the winner (n = 1) | 7.05 s; the five steps took 7.1 s |
-| Swing back or forward (one default edit through the API, n = 14) | Click → every new visitor on the new release: median 1.58 s, range 1.08–6.07 s. The first 8 runs were evenly spaced and kept the same phase against the SDK's 5 s refresh; the 6 started at random times took 0.78–4.17 s from flag saved to routed, median 2.48 s |
-| The same edit in Flagsmith's own flag editor (n = 7) | Click → every new visitor on the new release: median 3.25 s, range 1.50–9.68 s |
-| Feature Health and the guard | Flagsmith tagged `shop_release` "Unhealthy" within 20 s, with Turnout's reason and links; the guard, once switched on, reverted the experiment and the tag cleared; 30 of 30 new visitors on shop:1.5 |
-| Preview | A preview browser kept shop:1.6 through the experiment, `enrolled: false`, out of the data |
-| Server mode on a 2-vCPU VM ([spikes/RESULTS.md](../spikes/RESULTS.md#server-mode-stress-tests-on-the-vm-2026-11-24)) | Reboot: back with 35 ok, 0 failing, no manual step (public page in 50 s). Flagsmith stopped: 100/100 pages served, mean 86 ms. 5,000 visitors: 0 events lost, stack peak ≈ 1.45 GiB. Ship during live traffic: 263 of 263 later visitors on the winner |
-| `turnout compare` from an empty folder ([spikes/RESULTS.md](../spikes/RESULTS.md#turnout-compare-end-to-end-2026-11-24)) | Two URLs: 152 s to running on Windows. Two branches: 167 s (Windows), 168 s (Linux). Split over 2,000 new visitors: 49.3% and 50.8% at `--split 50`, 19.7% at `--split 20`. A branch that crashes on start: stopped in 32–34 s with its error |
-| Events under load, counted in Flagsmith's own table ([spikes/RESULTS.md](../spikes/RESULTS.md#event-loss-under-load-the-cause-the-fix-and-the-measured-result-2026-11-24)) | 8 runs, 20 to 200 concurrent visitors: 0 of 121,678 events lost. Without Turnout's hold-back, the Flagsmith Node SDK dropped up to 25% of a run when one batch was slow; SDK-only reproduction in [spikes/sdk-buffer-repro](../spikes/sdk-buffer-repro/) |
-| Open-proxy attempts (`//flagsmith:8000/…`, `//console:8090/…`, absolute-form, `/\host`) | 400, and the proxy keeps serving; covered by tests |
-
-Seen in testing (shop:1.5 is about 0.7 ms slower than shop:1.4): the first experiment's latency guardrail read as losing in 2 of the 5 runs on record as of 18 Nov 2026, so Ship asked for that loss to be accepted. Losing: a fresh Windows stack (1,500 visitors, 3.0% chance to win) and experiment 23 (18,000 visitors, 2.6%). Inconclusive: the Linux run (21.5%). Not losing: the timed tour. Not recorded: the experiment 22 timing runs.
-
+| Ending an experiment the documented way, 300 identities | 150 stayed on control (the split survives); after Ship winner, 300 of 300 on the winner; one default edit back, 300 of 300 on control |
+| `turnout compare` from an empty folder ([RESULTS](../spikes/RESULTS.md#turnout-compare-from-an-empty-folder-02500303)) | 271 s to running on Windows, check 27 ok. Split over 2,000 new visitors: 49.3% at `--split 50`, 20.5% at `--split 20`; one visitor 20 of 20 on the same version; after Ship, 100 of 100 on the winner |
+| 12 sample apps through Try it ([RESULTS](../spikes/RESULTS.md#the-12-app-scoreboard-02360250)) | builds 12/12, starts 12/12, goals found 11/12, counts match Flagsmith 12/12, ships 12/12 |
+| 53 public GitHub repos through Try it (26 Nov; [github-run.json](../scoreboard/github-run.json)) | 39 build, start, serve real pages, get Flagsmith results with matching counts, and ship |
+| Ship under live traffic on the VM, a new visitor every 0.1 s ([RESULTS](../spikes/RESULTS.md#live-demo-vm-ship-and-revert-under-live-traffic-03290338)) | Ship took 12.7 s; then 514 of 514 new visitors on the winner. Seven Reverts: 2,086 of 2,091 later visitors on control, the other 5 within 0.4 s of the decision finishing |
+| Flagsmith stopped on the VM ([RESULTS](../spikes/RESULTS.md#live-demo-vm-flagsmith-stopped-03100311)) | 100 of 100 pages served through the public HTTPS address, mean 173 ms (170 ms with Flagsmith running) |
+| Events under load, counted in Flagsmith's own table ([RESULTS](../spikes/RESULTS.md#live-demo-vm-events-under-load-03150320)) | 5 runs, 3,000 to 5,000 visitors, 20 to 200 at once: 68,141 events handed to the SDK, 68,141 stored, 0 dropped, including batches of up to 12.1 s. Peak memory for 5,000 visitors: sum of peaks 1.87 GiB of 7.7 GiB |
+| The VM rebooted ([RESULTS](../spikes/RESULTS.md#live-demo-vm-reboot-0340)) | Every container started by itself in 29 s, no manual step; the console healthy in 62 s after 6 restarts while Flagsmith started (fixed: it now waits for Flagsmith) |
+| Without Turnout's hold-back, the Node SDK alone ([RESULTS](../spikes/RESULTS.md#flagsmith-node-sdk-events-lost-faster-than-one-batch-round-trip-03500400)) | At 300 events/s with a 5 s batch round-trip, 28.3% of events lost (9.4.0) and 28.2% (9.5.0, the latest), each only as a log warning; [sdk-buffer-repro](../spikes/sdk-buffer-repro/) |
+| Open-proxy attempts (`//flagsmith:8000/…`, `//console:8090/…`, absolute-form, `/\host`) | 400, and the proxy keeps serving; covered by tests (684 tests, 0 failing) |
 
 **Not claimed:** production users, prevented incidents, or any simulated or seeded number as evidence about real users.
 

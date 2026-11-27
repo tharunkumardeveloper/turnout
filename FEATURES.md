@@ -26,7 +26,7 @@ Turnout is a reverse proxy in front of your web app. It turns every release into
 - **Funnel metrics.** Secondary metrics such as `add_to_cart` are tracked but never act as guardrails.
 - **Built-in guardrails.** Every page load sends `doc_latency_ms` and `server_error`.
 - **Event header.** An app can name events itself in a response header, `X-Turnout-Event: signup, plan_chosen;value=49`.
-- **No lost events under load.** Turnout holds its own events back while the Flagsmith SDK's buffer is full (the SDK drops events then), and counts any drop so health and doctor show it. 0 of 121,678 lost at up to 200 concurrent visitors.
+- **No lost events under load.** Turnout holds its own events back while the Flagsmith SDK's buffer is full (the SDK drops events then), and counts any drop so health and doctor show it. 0 of 68,141 lost at up to 200 concurrent visitors (27 Nov, counted in Flagsmith's own table).
 - **Counting rule.** A visitor counts from their first page load in a browser, so bounces are in the data. Without the cookie, API calls, assets, scripts and Turnout's own probes never become identities.
 - **Single-page apps.** Goals go on API calls or the event header; verified on a Node SPA.
 - **Flagsmith does all the statistics.** Lift, credible interval and chance to win come from Flagsmith's Bayesian engine. Turnout shows them exactly as returned.
@@ -107,7 +107,7 @@ Turnout is a reverse proxy in front of your web app. It turns every release into
 ## Setup and portability
 - **Start scripts.** `turnout.bat` and `turnout.sh` take `start`, `demo`, `status`, `stop`, `reset [--yes]` and `server <host>`. `setup.bat` and `setup.sh` install prerequisites.
 - **Runs on top of Flagsmith.** It is an overlay on Flagsmith's official self-hosted Docker Compose, or it can use your existing Flagsmith.
-- **Works with any HTTP app.** Containers or apps on your machine (`host.docker.internal`). Verified on four app types. See [docs/PLUG_AND_PLAY.md](docs/PLUG_AND_PLAY.md).
+- **Works with any HTTP app.** Containers or apps on your machine (`host.docker.internal`). Verified on 12 sample apps and 39 of 53 public GitHub repos. See [docs/PLUG_AND_PLAY.md](docs/PLUG_AND_PLAY.md).
 - **Other ways to run it.** GitHub Codespaces and a devcontainer are supported. The Docker image is `ghcr.io/tharunkumardeveloper/turnout`.
 
 ## Security

@@ -51,13 +51,13 @@ A person confirms the pre-selection, or picks another variation with `--winner`.
 
 The docs' analysis page says to end the experiment, then update the flag (`docs/docs/experimentation/analyse-an-experiment.md:58-61`). On `2.291.0` an experiment's split is a system segment override, `experiment-<id>-rollout`, a percentage split on the identity key (`experimentation/services.py:757-775,937-939`). Completing an experiment sets `ended_at` (`services.py:624-625`); the override is removed when the flag's next experiment starts (`services.py:619-623,632-681`, from merged PR #8770), and saves through the flag API don't overwrite it (`features/future/views.py:117`). Flagsmith's own flag editor saves through the v1 feature-state endpoint instead; spike 9 made a swing-back there and routing followed (`spikes/RESULTS.md`, "Spike 9 through Flagsmith's own flag editor").
 
-Measured on the pinned image with 300 fresh identities through a local-evaluation SDK (`spikes/07-round04.ts`, log in `spikes/RESULTS.md`):
+Measured on the pinned image with 300 fresh identities through a local-evaluation SDK on 27 Nov 2026 (`spikes/07-round04.ts`, log in `spikes/RESULTS.md`):
 
 | | What the 300 identities get |
 |---|---|
-| Experiment A running | control 144, v2 156 |
-| A after Complete, then setting the flag's default to v2 (the documented order) | control 144, v2 156 |
-| Experiment B running | control 141, v2 159 |
+| Experiment A running | control 150, v2 150 |
+| A after Complete, then setting the flag's default to v2 (the documented order) | control 150, v2 150 |
+| Experiment B running | control 144, v2 156 |
 | B after Ship winner (pause → default = v2 → rollout 0% with v2 weights → complete) | v2 300 |
 | B after one environment-default edit back to control | control 300 |
 
@@ -65,9 +65,9 @@ So until the next experiment starts, the documented edit doesn't reach the ident
 
 ## Things we found on the pinned image
 
-- **Local evaluation records exposures.** The docs say experiments need remote evaluation; Node SDK 9.4.0 records exposures under local evaluation (spike 4). Turnout relies on it.
+- **Local evaluation records exposures.** The docs say experiments need remote evaluation; Node SDK 9.4.0 records exposures under local evaluation: every load run on 27 Nov stored `$flag_exposure` rows from the proxy's local evaluation (`spikes/RESULTS.md`). Turnout relies on it.
 - **A partial `PATCH` of a multivariate option answers 500** (`KeyError: 'feature'`, then `'default_percentage_allocation'`, `features/multivariate/serializers.py:85-86`). Turnout uses a full `PUT`.
-- **The sample-ratio check is empty for rollout experiments** (`srm_p_value: null` with 222 identities); the first rollout zeroes the environment default's weights (`services.py:1000-1025`), so there is no expected share. Draft fix: #8798.
+- **The sample-ratio check is empty for rollout experiments** (`srm_p_value: null`: "sample-ratio check: not computed" on every decision the live demo recorded on 27 Nov, about 1,200 identities each); the first rollout zeroes the environment default's weights (`services.py:1000-1025`), so there is no expected share. Draft fix: #8798.
 - **A Mean 0/1 guardrail with no errors at all has no inference**: control's mean is 0 (`experimentation/stats.py:60-61`). Turnout says "no errors in either release" instead of "collecting data".
 - **A Mean metric is averaged over every exposed identity.** Each identity's value is the average of its own events after its first exposure, or 0 when it sent none (`experimentation/results_query.py:101-108,123-124`; `experimentation/warehouses/dialect.py:39-41`, with the same rule in each warehouse's `avg_if` at `:96-97,157-158,229-230`). `n` counts every non-quarantined exposed identity (`results_query.py:184-196`), and the arm's mean is `sum / n` (`stats.py:35-36`). So when some identities send no events for a metric, its mean is lower than the average over the events. Spike 4's 200 SDK-only identities sent no latency events, and control's mean latency read 0.3 ms (`spikes/RESULTS.md`). Through the proxy every visitor sends latency, so Turnout's guardrails compare like with like; its results lines and health reports label these figures as means per exposed identity.
 - **Environment webhooks can't point at a private address**, by design: `core/network.py:8-34` rejects loopback and private ranges (`webhooks/fields.py:20`, `core/fields.py:27`). Turnout's console lives on the Compose network, so it doesn't use the webhook; it reads the flag's state when it loads instead.
