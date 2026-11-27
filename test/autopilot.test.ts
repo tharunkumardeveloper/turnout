@@ -208,6 +208,26 @@ describe('the autopilot loop (fake judge, fake clock)', () => {
     assert.ok(judge.ran[0]!.at - pausedAt >= 600_000, 'waited out the human pause');
   });
 
+  test("the public page's hand-back ends a take-over's pause at once", async () => {
+    const clock = { t: T0 };
+    const judge = fakeJudge(clock);
+    const ap = createAutopilot(judge, { busy: false }, { sleep: tick(clock), now: () => clock.t, pauseMs: 1000, humanPauseMs: 600_000 });
+    ap.noteHuman(); // Take over
+    assert.equal(ap.status().phase, 'paused');
+    ap.start();
+    for (let i = 0; i < 200; i++) await new Promise((r) => setImmediate(r));
+    assert.equal(judge.ran.length, 0, 'nothing while taken over');
+    const handedBack = clock.t;
+    ap.resume(); // Let the autopilot carry on
+    assert.equal(ap.status().pausedUntil, null);
+    for (let i = 0; i < 2000 && !judge.ran.length; i++) await new Promise((r) => setImmediate(r));
+    const stopped = ap.stop();
+    clock.t += 1;
+    await stopped;
+    assert.ok(judge.ran.length >= 1);
+    assert.ok(judge.ran[0]!.at - handedBack < 600_000, 'carried on without waiting out the pause');
+  });
+
   test('a refused step is retried after the error pause, and reported', async () => {
     const clock = { t: T0 };
     let calls = 0;

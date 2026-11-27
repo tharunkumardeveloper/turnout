@@ -137,33 +137,28 @@ export function liveNotice({ play = PLAY } = {}) {
   const dialog = el('dialog', { class: 'live-notice', id: 'live-notice', 'aria-labelledby': 'live-notice-title' });
   dialog.append(el('div', { class: 'live-inner' },
     el('p', { class: 'live-eyebrow' }, 'Public live demo'),
-    el('h2', { id: 'live-notice-title', tabindex: '-1', autofocus: true }, 'You’re on a shared demo server'), // focus starts at the top, not on the commands
-    el('p', { class: 'live-intro' }, 'One small server (2 vCPUs) running self-hosted Flagsmith 2.291.0 and Turnout in server mode, so you can see the whole loop without installing anything. Everyone who opens this page shares it.'),
+    el('h2', { id: 'live-notice-title', tabindex: '-1', autofocus: true }, 'What you can do here'), // focus starts at the top, not on the commands
+    el('p', { class: 'live-intro' }, 'Self-hosted Flagsmith 2.291.0 and Turnout on one small server, shared by everyone on this page. Shoppers are simulated and labelled.'),
     el('div', { class: 'live-cols' },
       el('section', {},
         el('h3', {}, 'On this server'),
         el('ul', {},
-          item('A demo shop', 'with three versions (1.4 Classic, 1.5 Express, 1.6 Bold) behind one Flagsmith flag.'),
           play
-            ? item('The guided demo:', 'run an A/A, A/B or A/B/C test with simulated shoppers, ask Flagsmith, then ship or revert.')
-            : item('The guided demo,', 'run by an autopilot: tests, Flagsmith’s results and the decision.'),
-          item('Blind rounds:', 'when nobody is clicking, an autopilot runs tests with hidden rates and scores Flagsmith’s calls.'),
-          item('Be a visitor:', 'the shop gives you a version the way a real visitor gets one, counted in its own live experiment.'),
-          item('A read-only console:', 'the live traffic map and Flagsmith’s numbers.'))),
+            ? item('Guided demo on:', 'the autopilot runs a test step by step. Press Take over to run Start, Send shoppers, Ask Flagsmith and Ship yourself.')
+            : item('Guided demo on:', 'the autopilot runs a test step by step: Flagsmith’s results and the decision.'),
+          item('Guided demo off:', 'the live traffic map, each visitor routed by the Flagsmith flag, and Flagsmith’s numbers.'),
+          item('Be a visitor:', 'Flagsmith gives you a version of the shop, counted in its own live experiment.'),
+          item('Flagsmith features:', 'every Flagsmith feature Turnout uses, with values read live.'))),
       el('section', {},
         el('h3', {}, 'Only on your machine, and why'),
         el('ul', {},
-          item('Try it with your app', '(GitHub links, folders, images): it builds and runs code, and a shared public server never runs strangers’ code.'),
-          item('Your own site', 'with turnout compare: your versions, your Flagsmith project, your experiment.'),
-          item('Flagsmith’s dashboard', 'and Turnout’s tour inside it: its admin login can’t be public, so here it stays private (SSH only).'),
-          item('The full console:', 'setup check, Ship and Revert on your own test, Preview for your team, Pin my browser, the Feature Health guard.'),
-          item('Numbers that are yours:', 'here tests are shared and rate-limited, and the one running may be someone else’s.')))),
+          item('Try it with your app:', 'it builds and runs code, and a shared public server never runs strangers’ code.'),
+          item('Flagsmith’s dashboard', 'and Turnout’s tour inside it: the admin login can’t be public.'),
+          item('Your own site', '(turnout compare), the setup check, Preview for your team and Pin my browser.')))),
     el('div', { class: 'live-run' },
       el('h3', {}, 'Run it locally'),
       el('p', {}, 'Docker running (about 4 GB of memory for it), then one line installs it:'),
       el('pre', {}, el('code', {}, `${INSTALL.win}   # Windows (PowerShell)\n${INSTALL.unix}   # macOS, Linux\nturnout demo                                    # this demo, every feature on\nturnout compare localhost:3001 localhost:3002   # or your own two versions`))),
-    el('p', { class: 'live-feedback' }, 'Tried it on your own site? ',
-      el('a', { href: `${REPO}/issues/new?template=tried-turnout.yml`, target: '_blank', rel: 'noopener' }, 'Tell us how it went ↗'), ' Two minutes, and it shapes what comes next.'),
     el('div', { class: 'live-actions' },
       el('a', { class: 'live-btn', href: `${REPO}#quick-start`, target: '_blank', rel: 'noopener' }, 'Setup steps on GitHub ↗'),
       el('button', { class: 'live-btn live-primary', type: 'button', on: { click: () => dialog.close() } }, 'Explore the live demo'))));
@@ -193,9 +188,9 @@ function setupLiveNotice(menu) {
   };
   const banner = el('div', { class: 'live-banner', role: 'region', 'aria-label': 'About this live demo' },
     el('span', { class: 'live-banner-text' },
-      el('b', {}, 'Shared live demo:'), ' self-hosted Flagsmith 2.291.0 and Turnout on one small server. Shoppers here are simulated and labelled; ',
-      el('b', {}, 'Be a visitor'), ' gets you a version for real.'),
-    el('button', { class: 'live-banner-link', type: 'button', on: { click: () => { remember(); dialog.showModal(); } } }, 'What’s here, and what runs only on your machine'),
+      el('b', {}, 'Live demo:'), ' self-hosted Flagsmith 2.291.0. ',
+      el('b', {}, 'Guided demo'), ' shows a test step by step (press Take over to run it); switch it off for the live traffic map.'),
+    el('button', { class: 'live-banner-link', type: 'button', on: { click: () => { remember(); dialog.showModal(); } } }, 'What’s here, and what runs only locally'),
     el('button', { class: 'live-banner-close', type: 'button', 'aria-label': 'Close this note', on: { click: () => { remember(); banner.remove(); } } }, '×'));
   document.body.append(banner);
 }

@@ -642,6 +642,30 @@ export function blindView(s) {
   return { tone: r.outcome === 'right' ? 'good' : r.outcome === 'wrong' ? 'bad' : 'wait', title: `Revealed: ${verdict}`, text: `The truth: ${b.round.truth}.`, score };
 }
 
+/**
+ * The live demo's driver: the autopilot runs tests by itself until a visitor takes over, then waits until they hand
+ * it back or stop clicking for a while. Null where there's no autopilot (on your machine).
+ */
+export function pilotView(s, nowMs = Date.now()) {
+  const ap = s?.autopilot;
+  if (!ap?.enabled) return null;
+  const until = Date.parse(ap.pausedUntil ?? '');
+  if (ap.phase === 'paused' && Number.isFinite(until) && until > nowMs) {
+    const mins = Math.max(1, Math.ceil((until - nowMs) / 60_000));
+    const finishing = s?.job?.status === 'running';
+    return {
+      mode: 'you',
+      text: finishing ? 'You took over. The autopilot’s last step is finishing, then the buttons are yours.' : `You’re running the steps. The autopilot waits ${mins} more min, longer with each click.`,
+      button: { action: 'hand-back', label: 'Let the autopilot carry on' },
+    };
+  }
+  return {
+    mode: 'autopilot',
+    text: 'The autopilot is running tests by itself, step by step.',
+    button: { action: 'take-over', label: 'Take over: run the steps yourself' },
+  };
+}
+
 /** How long ago, in words: "just now", "4 min ago", "2 h ago". */
 export function agoText(iso, nowMs = Date.now()) {
   const t = Date.parse(iso ?? '');

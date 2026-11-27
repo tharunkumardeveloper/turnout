@@ -475,3 +475,21 @@ describe('the live line and empty browser rows', () => {
     assert.deepEqual(M.findings(s(0.9)).map((f: any) => f.key), ['doc_latency_ms', 'lcp_ms', 'cls', 'vitals_reported']);
   });
 });
+
+describe("the live demo's driver: the autopilot, or you after Take over", () => {
+  const now = Date.parse('2026-11-27T10:00:00Z');
+  test('autopilot running: Take over; taken over: hand back, with the time left', () => {
+    assert.equal(M.pilotView({}, now), null, 'no autopilot: on your machine');
+    const running = M.pilotView({ autopilot: { enabled: true, phase: 'waiting', pausedUntil: null } }, now);
+    assert.equal(running.mode, 'autopilot');
+    assert.equal(running.button.action, 'take-over');
+    const you = M.pilotView({ autopilot: { enabled: true, phase: 'paused', pausedUntil: '2026-11-27T10:09:30Z' } }, now);
+    assert.equal(you.mode, 'you');
+    assert.equal(you.button.action, 'hand-back');
+    assert.match(you.text, /waits 10 more min/);
+    const finishing = M.pilotView({ autopilot: { enabled: true, phase: 'paused', pausedUntil: '2026-11-27T10:09:30Z' }, job: { status: 'running' } }, now);
+    assert.match(finishing.text, /last step is finishing/);
+    // A pause that has run out reads as the autopilot again.
+    assert.equal(M.pilotView({ autopilot: { enabled: true, phase: 'paused', pausedUntil: '2026-11-27T09:59:00Z' } }, now).mode, 'autopilot');
+  });
+});

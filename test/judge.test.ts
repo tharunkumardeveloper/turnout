@@ -1214,6 +1214,16 @@ describe('public play (server mode): visitors run the guided demo, nothing else'
     assert.match(((await other.json()) as { error: string }).error, /Someone else is running a test/);
   });
 
+  test('Take over and hand back reach the gate (404 here: this console runs no autopilot)', async () => {
+    const res = await fetch(`${pub}/judge/api/judge/run`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', 'x-turnout-console': token, 'x-forwarded-for': '198.51.100.7' },
+      body: JSON.stringify({ action: 'take-over' }),
+    });
+    assert.equal(res.status, 404, 'past the 403 for unknown steps');
+    assert.match(((await res.json()) as { error: string }).error, /No autopilot/);
+  });
+
   test('every other write stays refused', async () => {
     for (const method of ['PUT', 'DELETE', 'PATCH']) assert.equal((await fetch(`${pub}/judge`, { method })).status, 405);
     assert.equal((await fetch(`${pub}/judge/api/ship`, { method: 'POST', headers: { 'x-turnout-console': token } })).status, 405);

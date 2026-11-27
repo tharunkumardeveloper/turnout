@@ -362,3 +362,10 @@ a.version-frame:hover::after, a.version-frame:focus-visible::after { opacity: 1;
 .blind-live::before { content: ""; flex: none; width: 7px; height: 7px; border-radius: 50%; background: #16a34a; transform: translateY(-1px); animation: blind-live 1.6s ease-in-out infinite; }
 @keyframes blind-live { 50% { opacity: 0.3; } }
 @media (prefers-reduced-motion: reduce) { .blind-live::before { animation: none; } }
+
+/* The live demo's driver (demo.js renderPilot): the autopilot, or you after Take over. */
+.pilot { display: flex; align-items: center; flex-wrap: wrap; gap: 8px 12px; margin: 6px 0 10px; padding: 9px 12px; border-radius: 10px; border: 1px solid var(--border); background: var(--surface-2); }
+.pilot[data-mode='you'] { border-color: color-mix(in srgb, #16a34a 45%, var(--border)); background: color-mix(in srgb, #16a34a 8%, var(--surface)); }
+.pilot-text { flex: 1 1 220px; margin: 0; font-size: 13.5px; line-height: 1.45; }
+.pilot[data-mode='autopilot'] .pilot-text::before { content: "●"; margin-right: 7px; color: #6633ff; animation: blind-live 1.6s ease-in-out infinite; }
+@media (prefers-reduced-motion: reduce) { .pilot[data-mode='autopilot'] .pilot-text::before { animation: none; } }

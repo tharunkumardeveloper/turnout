@@ -219,7 +219,14 @@ export function createAutopilot(judge: JudgeLike, lock: { busy: boolean }, opts:
       stopped = true;
       return loop;
     },
-    /** Someone used the private console: stay out of their way for a while. */
+    /** The public page's "Let the autopilot carry on": end the pause now. */
+    resume(): void {
+      humanUntil = 0;
+      recheckAt = 0;
+      status.pausedUntil = null;
+      if (status.phase === 'paused') status.phase = 'waiting';
+    },
+    /** Someone used the private console, or took over on the public page: stay out of their way for a while. */
     noteHuman(): void {
       humanUntil = now() + humanPauseMs;
     recheckAt = 0; // after the pause, read the state afresh: the person may have changed everything

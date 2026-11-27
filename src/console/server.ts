@@ -324,7 +324,7 @@ export function createConsole(opts: ConsoleOptions): http.Server {
   };
   // Public play: anyone may run the demo's steps on the simulated shop. Only these actions, a capped shopper count,
   // one action at a time (the judge lock), a few seconds between one visitor's clicks and a pause between new tests.
-  const PLAY_ACTIONS = new Set(['start', 'abc', 'visitors', 'score', 'ship', 'revert', 'keep-running', 'verify']);
+  const PLAY_ACTIONS = new Set(['start', 'abc', 'visitors', 'score', 'ship', 'revert', 'keep-running', 'verify', 'take-over', 'hand-back']);
   const lastClick = new Map<string, number>();
   let lastStart = 0;
   let lastPlayer: { who: string; at: number } = { who: '', at: 0 };
@@ -346,8 +346,17 @@ export function createConsole(opts: ConsoleOptions): http.Server {
       return json(res, 409, { error: `Someone else is running a test right now. Watch it, or carry it on with the step buttons; a new test can start in about ${wait} min.` });
     }
     lastClick.set(who, now);
-    lastPlayer = { who, at: now };
     if (lastClick.size > 5000) lastClick.clear();
+    // Take over: the autopilot steps aside (its running step finishes) so this visitor runs the steps; hand back ends it.
+    if (action === 'take-over' || action === 'hand-back') {
+      if (!autopilot) return json(res, 404, { error: 'No autopilot here.' });
+      if (action === 'take-over') {
+        lastPlayer = { who, at: now };
+        autopilot.noteHuman();
+      } else autopilot.resume();
+      return json(res, 200, { autopilot: autopilot.status() });
+    }
+    lastPlayer = { who, at: now };
     const body = { ...raw, ...(typeof raw?.visitors === 'number' ? { visitors: Math.min(Math.max(1, raw.visitors), 3000) } : {}) };
     autopilot?.noteHuman();
     const ran = await judge.run(body);

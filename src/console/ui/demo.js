@@ -331,6 +331,7 @@ function render() {
   renderNext(s, m);
   renderResults(s, m);
   renderFlagsmith(s);
+  renderPilot(s);
   renderBlind(s);
   renderHistory(s);
   paintLive();
@@ -399,6 +400,36 @@ function fitFrames() {
 new ResizeObserver(fitFrames).observe(document.documentElement);
 
 const JOB_STEP = { visitors: 'visitors', score: 'score', ship: 'decide', revert: 'decide', 'keep-running': 'decide', release: 'start', reset: 'start', abc: 'start', start: 'start' };
+
+// The live demo: who drives the steps, the autopilot or you, and the button to switch.
+function renderPilot(s) {
+  const box = $('pilot');
+  const v = PLAY ? M.pilotView(s) : null;
+  box.hidden = !v;
+  if (!v) return;
+  const key = JSON.stringify([v, ui.pilotBusy]);
+  if (box.dataset.key === key) return;
+  box.dataset.key = key;
+  box.dataset.mode = v.mode;
+  box.replaceChildren(
+    h('p', { class: 'pilot-text', role: 'status' }, v.text),
+    h('button', { class: `btn btn-small ${v.mode === 'you' ? 'btn-quiet' : 'btn-go'}`, type: 'button', disabled: Boolean(ui.pilotBusy), on: { click: () => void pilot(v.button.action) } }, v.button.label));
+}
+async function pilot(action) {
+  ui.pilotBusy = true;
+  ui.error = '';
+  render();
+  try {
+    const res = await api('/api/judge/run', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ action }) });
+    const out = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(out.error ?? `HTTP ${res.status}`);
+    if (ui.state && out.autopilot) ui.state = { ...ui.state, autopilot: out.autopilot };
+  } catch (error) {
+    ui.error = error.message;
+  }
+  ui.pilotBusy = false;
+  render();
+}
 
 function renderSteps(s, m) {
   const job = ui.job?.status === 'running' ? ui.job : null;
