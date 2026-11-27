@@ -27,17 +27,19 @@ A Flagsmith experiment normally lives in your app's code: `getExperimentFlag` an
 **2. Install, one line.** It downloads the tagged release and adds the `turnout` command:
 
 ```powershell
-irm https://raw.githubusercontent.com/tharunkumardeveloper/turnout/main/install.ps1 | iex      # Windows (PowerShell)
+# Windows (PowerShell)
+irm https://raw.githubusercontent.com/tharunkumardeveloper/turnout/main/install.ps1 | iex
 ```
 ```sh
-curl -fsSL https://raw.githubusercontent.com/tharunkumardeveloper/turnout/main/install.sh | sh  # macOS, Linux
+# macOS, Linux
+curl -fsSL https://raw.githubusercontent.com/tharunkumardeveloper/turnout/main/install.sh | sh
 ```
 
 **3. Run it.**
 
 ```sh
-turnout demo                                    # the demo shop and the guided demo: http://127.0.0.1:8090
-turnout compare localhost:3001 localhost:3002   # or your own two running versions
+turnout demo                                    # the demo shop and guided demo, at 127.0.0.1:8090
+turnout compare localhost:3001 localhost:3002   # or your own two versions
 ```
 
 `demo` starts self-hosted Flagsmith, creates the flag, metrics and experiment, starts the proxy and opens the console (about 2 minutes the first time). In the console, turn on **Guided demo** and press the green button in each step: Start, Send shoppers, Ask Flagsmith, Ship. `turnout uninstall` removes everything it set up.
