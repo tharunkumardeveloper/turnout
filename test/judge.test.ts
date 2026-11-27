@@ -1063,9 +1063,14 @@ describe('the public, read-only judge view (server mode)', () => {
     assert.ok(token);
     assert.match(html, /<meta name="turnout-readonly" content="1">/);
     assert.match(html, /<meta name="turnout-base" content="\/judge">/);
-    assert.match(html, /src="\/judge\/demo\.js"/, 'the same page as /judge, its assets under /judge/');
+    assert.match(html, /src="\/judge\/v\/[\w-]+\/demo\.js"/, 'the same page as /judge, its assets under /judge/');
     assert.doesNotMatch(html, /(href|src)="\/[a-z-]+\.(css|js|svg)"/, 'no asset left at the root, where the app lives');
     assert.equal((await fetch(`${pub}/judge/demo.js`)).status, 200);
+    // Versioned: this start's URLs, and the modules a script imports resolve under the same version.
+    const versioned = html.match(/src="(\/judge\/v\/[\w-]+\/)demo\.js"/)?.[1];
+    assert.ok(versioned);
+    assert.equal((await fetch(`${pub}${versioned}menu.js`)).status, 200, 'an import, under the version');
+    assert.equal((await fetch(`${pub}/judge/v/x/../../index.html`)).status, 404);
     assert.equal((await fetch(`${pub}/judge/style.css`)).status, 200);
   });
 
@@ -1105,7 +1110,7 @@ describe('the public, read-only judge view (server mode)', () => {
     const html = await page.text();
     assert.match(html, /<meta name="turnout-readonly" content="1">/);
     assert.match(html, /<meta name="turnout-base" content="\/judge">/);
-    assert.match(html, /src="\/judge\/app\.js"/, "the console's script, its assets under /judge/");
+    assert.match(html, /src="\/judge\/v\/[\w-]+\/app\.js"/, "the console's script, its assets under /judge/");
     const res = await fetch(`${pub}/judge/api/state`, { headers: { 'x-turnout-console': token } });
     assert.equal(res.status, 200);
     const text = await res.text();
@@ -1122,7 +1127,7 @@ describe('the public, read-only judge view (server mode)', () => {
     assert.equal(page.status, 200);
     const html = await page.text();
     assert.match(html, /<meta name="turnout-readonly" content="1">/);
-    assert.match(html, /src="\/judge\/flagsmith\.js"/);
+    assert.match(html, /src="\/judge\/v\/[\w-]+\/flagsmith\.js"/);
     const res = await fetch(`${pub}/judge/api/flagsmith-map`, { headers: { 'x-turnout-console': token } });
     assert.equal(res.status, 200);
     const text = await res.text();

@@ -405,9 +405,12 @@ export function createConsole(opts: ConsoleOptions): http.Server {
         autopilot: autopilot?.status() ?? null,
       });
     }
-    const name = rest.slice(1);
+    // /judge/v/<build>/demo.js: the page's assets under this start's version (servePublicPage), and the modules they
+    // import resolve under it too, so a browser never mixes a new page with scripts cached before a deploy.
+    const asset = rest.replace(/^\/v\/[\w-]+(?=\/)/, '');
+    const name = asset.slice(1);
     if (!PUBLIC_ASSET_TYPES.has(extname(name))) return void res.writeHead(404).end();
-    return serveStatic(opts.uiDir, rest, res, publicToken);
+    return serveStatic(opts.uiDir, asset, res, publicToken);
   }
 
   const server = http.createServer(async (req, res) => {
@@ -909,13 +912,16 @@ const PAGES: Record<string, string> = { '/': 'index.html', '/judge': 'demo.html'
 
 // The public judge page: the same demo.html as /judge, read-only, its assets under /judge/ (Caddy sends only /judge* here, so
 // /style.css and friends stay the app's), and its API calls under /judge/api/ (the page reads turnout-base).
+// This start's version of the public page's assets: a deploy restarts the console, so its URLs change with it.
+export const UI_VERSION = Date.now().toString(36);
+
 function servePublicPage(dir: string, res: http.ServerResponse, token: string, page = 'demo.html', play = false): void {
   const html = readFileSync(join(dir, page), 'utf8')
     .replace(
       TOKEN_META,
       `<meta name="turnout-console" content="${token}"><meta name="turnout-base" content="${PUBLIC_BASE}"><meta name="turnout-readonly" content="1">${play ? '<meta name="turnout-public-play" content="1">' : ''}`,
     )
-    .replace(/(href|src)="\/([a-z0-9-]+\.(?:css|js|svg|png))"/g, `$1="${PUBLIC_BASE}/$2"`);
+    .replace(/(href|src)="\/([a-z0-9-]+\.(?:css|js|svg|png))"/g, `$1="${PUBLIC_BASE}/v/${UI_VERSION}/$2"`);
   res.writeHead(200, { 'content-type': TYPES['.html']!, 'cache-control': 'no-store' });
   res.end(html);
 }
