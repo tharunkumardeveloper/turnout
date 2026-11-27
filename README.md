@@ -98,6 +98,7 @@ Turnout is what I wished existed while setting up Flagsmith's Experimentation on
 | The Node SDK dropped events tracked faster than one batch round-trip (28% in a minimal reproduction, 9.4.0 and 9.5.0). | Holds its own events back while the SDK's buffer is full: 0 of 68,141 lost ([reproduction](spikes/sdk-buffer-repro/), still in SDK 9.5.0, reported upstream: [flagsmith-nodejs-client#330](https://github.com/Flagsmith/flagsmith-nodejs-client/issues/330), with a fix PR: [#331](https://github.com/Flagsmith/flagsmith-nodejs-client/pull/331)). |
 | Results recompute at most once every 5 minutes, and a Refresh before any visit wastes that window. | Asks only after visitors' events are in, and holds a pointless refresh back. |
 | Outgoing webhooks refuse private addresses, so a self-hosted console can't receive them. | Reports health through Flagsmith's Feature Health provider instead. |
+| The Node SDK, pointed at a self-hosted Flagsmith, sends experiment events to Flagsmith Cloud unless `eventsApiUrl` is set (found writing the [with-SDK example](examples/with-sdk/README.md)). | Sets the events address from `FLAGSMITH_API_URL`, so events stay on your instance ([reproduction](spikes/sdk-events-url/repro.mjs), reported upstream: [flagsmith-nodejs-client#332](https://github.com/Flagsmith/flagsmith-nodejs-client/issues/332)). |
 | Getting a test running took a dozen manual steps. | `turnout compare` (one command), a setup check, installers for every OS, and *Try it with your app* from the console. |
 
 ## The demo experiment

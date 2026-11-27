@@ -1,4 +1,4 @@
-# Draft issue for Flagsmith/flagsmith-nodejs-client (not posted yet)
+# Issue for Flagsmith/flagsmith-nodejs-client: posted as [#332](https://github.com/Flagsmith/flagsmith-nodejs-client/issues/332)
 
 **Title:** Self-hosted: experiment events go to Flagsmith Cloud unless `eventsApiUrl` is set
 

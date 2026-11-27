@@ -10,7 +10,7 @@
 
 **Two traps hit while writing it**, both silent:
 
-1. **Events go to Flagsmith Cloud by default.** With `apiUrl` pointing at a self-hosted Flagsmith, the SDK still posts events to `https://events.api.flagsmith.com/v1/events` unless `eventProcessorConfig.eventsApiUrl` is set: nothing reached the self-hosted instance, and nothing said so.
+1. **Events go to Flagsmith Cloud by default.** With `apiUrl` pointing at a self-hosted Flagsmith, the SDK still posts events to `https://events.api.flagsmith.com/v1/events` unless `eventProcessorConfig.eventsApiUrl` is set: nothing reached the self-hosted instance, and nothing said so. Reported upstream: [flagsmith-nodejs-client#332](https://github.com/Flagsmith/flagsmith-nodejs-client/issues/332).
 2. **Visitors before the environment document arrives get the flag's default.** Under local evaluation, every early visitor was served control until the first document loaded; `await flagsmith.getEnvironmentFlags()` at start fixes it.
 
 **What it still doesn't do** that Turnout does: leave bots out of the data; serve the live release when Flagsmith is slow or down instead of waiting on it; hold events back while the SDK's buffer is full (the SDK alone loses about 28% at 300 events/s with a 5 s round-trip, [spikes/RESULTS.md](../../spikes/RESULTS.md)); ship or revert by draining the experiment's split; preview a version to your team; measure page speed in real browsers (`lcp_ms`, `cls`).
