@@ -170,7 +170,7 @@ function features(t) {
     ['decide', 'Decide', ['Flagsmith’s Bayesian result, as returned', 'Ships at 95% only if the interval clears zero', 'Safety checks, and how many more visitors']],
     ['release', 'Release', ['Ship or Revert: one flag change', 'A preview segment for your team', 'Pin my browser; Feature Health']],
     ['see', 'See it', ['A live traffic map', 'A guided demo, and tours', 'A setup check with 28 checks', 'Every Flagsmith feature, read live']],
-    ['automate', 'Automate', ['A GitHub Action with a PR comment', 'An agent skill that stops for a person', 'Server mode with an autopilot', '`turnout deploy` for nginx or Caddy']],
+    ['automate', 'Automate', ['A GitHub Action with a PR comment', 'An agent skill that stops for a person', 'Server mode with HTTPS', '`turnout deploy` for nginx or Caddy']],
     ['install', 'Install', ['One line on Windows, macOS, Linux', 'Codespaces: nothing to install', 'A public image on GHCR', '`turnout uninstall` removes it all']],
     ['prove', 'Prove it', ['Blind rounds with hidden true rates', 'Simulated shoppers, real Chrome visits', 'The Experiment Doctor, with SRM']],
   ];
@@ -221,8 +221,8 @@ function loop(t) {
 // ---- live demo or your machine -------------------------------------------------------------------------------------
 function compare(t) {
   const rows = [
-    ['Guided A/A, A/B and A/B/C tests: Take over and run them', true, true],
-    ['Blind rounds and the live traffic map', true, true],
+    ['Run guided A/A, A/B and A/B/C tests yourself', true, true],
+    ['Blind rounds, and the live traffic map', true, true],
     ['Be a visitor: Flagsmith gives you a version', true, true],
     ['Every Flagsmith feature Turnout uses, read live', 'read-only', true],
     ['Flagsmith’s dashboard, with Turnout’s tour inside it', false, true],
@@ -253,7 +253,7 @@ function compare(t) {
     <table><thead><tr><th></th><th class="c">Live demo</th><th class="c">Your machine</th></tr></thead>
       <tbody>${rows.map(([what, a, b]) => `<tr><td>${what}</td><td class="c">${cell(a)}</td><td class="c">${cell(b)}</td></tr>`).join('')}</tbody></table>
     <div class="side">
-      <div class="box live"><h3>Live demo: nothing to install</h3><p>One shared server running the whole loop. Open it, press Take over, and run a test in a minute.</p></div>
+      <div class="box live"><h3>Live demo: nothing to install</h3><p>One shared server running the whole loop. Open it and run a test yourself in about a minute.</p></div>
       <div class="box local"><h3>Your machine: every feature</h3><p>A public server can’t run strangers’ code or hand out Flagsmith’s admin login, so those run locally. Docker, then one line, then <code>turnout demo</code>.</p></div>
       <div class="box run"><h3>Run it in one line</h3>
         <pre><span class="c"># Windows (PowerShell)</span>

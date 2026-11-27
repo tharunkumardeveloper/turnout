@@ -1418,3 +1418,13 @@ body.simple .detail { display: none !important; }
 
 /* "Show: Previews | Traffic" on the traffic card: say it's a switch. */
 .map-switch-label { align-self: center; padding: 0 4px 0 6px; font-size: 11px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: var(--muted); }
+
+/* After a guided test (app.js): the prompt to see the whole console, and the Previews | Traffic switch it points at. */
+.next-view { position: fixed; z-index: 60; top: 64px; right: 16px; width: min(380px, calc(100vw - 32px)); padding: 16px 18px; border-radius: 14px; background: var(--surface); border: 1px solid color-mix(in srgb, #6633ff 40%, var(--border)); box-shadow: 0 18px 48px rgb(2 6 23 / 0.28); animation: next-view-in .25s ease-out; }
+.next-view p { margin: 0 0 8px; font-size: 14px; line-height: 1.5; }
+.next-view-title { font-weight: 800; font-size: 16px !important; }
+.next-view-row { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 6px; }
+@keyframes next-view-in { from { opacity: 0; transform: translateY(-6px); } }
+.switch-hint { animation: switch-hint 1.5s ease-in-out 6; border-radius: 10px; }
+@keyframes switch-hint { 50% { box-shadow: 0 0 0 5px rgb(102 51 255 / 0.45); } }
+@media (prefers-reduced-motion: reduce) { .next-view, .switch-hint { animation: none; } .switch-hint { box-shadow: 0 0 0 3px rgb(102 51 255 / 0.5); } }

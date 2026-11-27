@@ -184,6 +184,7 @@ async function run(action, extra = {}) {
     ui.pendingKind = extra.arms ?? null;
     ui.plan = null;
   }
+  if (action === 'ship' || action === 'revert') ui.decidedExp = s?.experiment?.id ?? null; // this browser decided it
   ui.sending = true;
   ui.before = signature(s); // the state before this job, to wait for its effect
   ui.error = '';
@@ -290,7 +291,7 @@ const isBusy = () => ui.job?.status === 'running' || ui.state?.job?.status === '
 function pickKind(k) {
   if (LOCKED) return;
   // The live demo: picking a test means you're driving, so the autopilot steps aside.
-  if (PLAY && M.pilotView(ui.state, Date.now(), mineUntil())?.mode !== 'you') void pilot('take-over');
+  if (PLAY && ui.state?.autopilot?.enabled && M.pilotView(ui.state, Date.now(), mineUntil())?.mode !== 'you') void pilot('take-over');
   ui.kind = k;
   try {
     localStorage.setItem(KIND_KEY, String(k));
@@ -423,7 +424,7 @@ function renderPilot(s) {
   box.dataset.mode = v.mode;
   box.replaceChildren(
     h('p', { class: 'pilot-text', role: 'status' }, v.text),
-    h('button', { class: `btn btn-small ${v.mode === 'you' ? 'btn-quiet' : 'btn-go'}`, type: 'button', disabled: Boolean(ui.pilotBusy), on: { click: () => void pilot(v.button.action) } }, v.button.label));
+    !v.button ? null : h('button', { class: `btn btn-small ${v.mode === 'you' ? 'btn-quiet' : 'btn-go'}`, type: 'button', disabled: Boolean(ui.pilotBusy), on: { click: () => void pilot(v.button.action) } }, v.button.label));
 }
 async function pilot(action) {
   ui.pilotBusy = true;
@@ -470,7 +471,8 @@ function actionBox(m) {
   const wait = a.waitUntil ? Math.max(0, Date.parse(a.waitUntil) - Date.now()) : 0;
   const mins = Math.floor(wait / 60000);
   const secs = String(Math.floor((wait % 60000) / 1000)).padStart(2, '0');
-  const busy = ui.job?.status === 'running' || ui.state?.job?.status === 'running' || ui.sending || Boolean(ui.settle);
+  // Someone else's test on the live demo: theirs to run, so the buttons wait (the strip above says why).
+  const busy = ui.job?.status === 'running' || ui.state?.job?.status === 'running' || ui.sending || Boolean(ui.settle) || ui.state?.player === 'someone';
   const main = h('button', { class: 'btn btn-go', type: 'button', id: 'go', 'data-action': a.action, disabled: wait > 0 || busy, on: { click: () => run(a.action, { arms: a.arms, visitors: a.shoppers }) } },
     ui.sending ? 'Starting…' : ui.settle ? 'Reading Flagsmith…' : wait > 0 ? `Flagsmith allows the next look in ${mins}:${secs}` : a.label);
   const alt = m.alt ? h('button', { class: 'btn btn-quiet', type: 'button', disabled: busy, on: { click: () => run(m.alt.action) } }, m.alt.label) : null;
@@ -526,6 +528,11 @@ function outcomeBox(m) {
   // Only this test's check: one started after its decision (an earlier test's check named another release).
   const decidedAt = (ui.state?.ledger ?? []).filter((e) => e.experimentId === exp).at(-1)?.at ?? null;
   const check = M.verifyText(lastJobs.find((j) => j.action === 'verify' && decidedAt && j.startedAt >= decidedAt));
+  // This browser's own test, decided and checked: the console (around this frame) offers the full view next.
+  if (check?.ok && ui.decidedExp === exp && ui.finishedSent !== exp && window.parent !== window) {
+    ui.finishedSent = exp;
+    window.parent.postMessage({ turnout: 'test-finished' }, location.origin);
+  }
   return h('div', { class: 'outcome', 'data-shipped': String(o.shipped) },
     h('p', { class: 'outcome-title' }, o.title, h('span', { class: 'outcome-sub' }, ` ${o.text}`)),
     changed ? h('dl', { class: 'change' },

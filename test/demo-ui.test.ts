@@ -458,8 +458,8 @@ describe('the live line and empty browser rows', () => {
   const now = Date.parse('2026-11-27T10:00:00Z');
   test('Flagsmith version, when it computed results, and recent rounds', () => {
     const s = { flagsmithVersion: '2.291.0', results: { asOf: '2026-11-27T09:56:00Z' }, blind: { last24h: 12 } };
-    assert.equal(M.liveLine(s, now), 'Live: Flagsmith 2.291.0, self-hosted · results computed by Flagsmith 4 min ago · 12 blind rounds decided in the last 24 h');
-    assert.equal(M.liveLine({ blind: { last24h: 1 } }, now), 'Live: 1 blind round decided in the last 24 h');
+    assert.equal(M.liveLine(s, now), 'Live: Flagsmith 2.291.0, self-hosted · results computed by Flagsmith 4 min ago', 'no rounds count');
+    assert.equal(M.liveLine({ blind: { last24h: 1 } }, now), null);
     assert.equal(M.liveLine({}, now), null);
     assert.equal(M.agoText('2026-11-27T09:59:50Z', now), 'just now');
     assert.equal(M.agoText('2026-11-27T07:00:00Z', now), '3 h ago');
@@ -480,6 +480,12 @@ describe("the live demo's driver: the autopilot, or you after Take over", () => 
   const now = Date.parse('2026-11-27T10:00:00Z');
   test('autopilot running: Take over; taken over: hand back, with the time left', () => {
     assert.equal(M.pilotView({}, now), null, 'no autopilot: on your machine');
+    // One visitor at a time: someone else's test, no button, their turn's time left.
+    const busy = M.pilotView({ player: 'someone', playerFreeAt: '2026-11-27T10:02:10Z' }, now);
+    assert.equal(busy.mode, 'other');
+    assert.equal(busy.button, null);
+    assert.match(busy.text, /^Someone else is running a test right now\. Watch it here: your turn comes when they’re done, in about 3 min\.$/);
+    assert.equal(M.pilotView({ player: 'you' }, now), null, 'your own test: no note');
     const running = M.pilotView({ autopilot: { enabled: true, phase: 'waiting', pausedUntil: null } }, now);
     assert.equal(running.mode, 'autopilot');
     assert.equal(running.button.action, 'take-over');

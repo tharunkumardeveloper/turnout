@@ -9,6 +9,7 @@
 
 [![Open in GitHub Codespaces](https://github.com/codespaces/badge.svg)](https://codespaces.new/tharunkumardeveloper/turnout?quickstart=1)
 [![CI](https://github.com/tharunkumardeveloper/turnout/actions/workflows/ci.yml/badge.svg)](https://github.com/tharunkumardeveloper/turnout/actions/workflows/ci.yml)
+[![Installs](https://img.shields.io/github/downloads/tharunkumardeveloper/turnout/total?label=installs&color=6633ff "Downloads of the Release archives, which is what the one-line installers fetch (this includes the author's and reviewers' own test installs)")](https://github.com/tharunkumardeveloper/turnout/releases)
 [![License: BSD-3-Clause](https://img.shields.io/badge/license-BSD--3--Clause-blue)](LICENSE)
 
 </div>
@@ -61,11 +62,11 @@ turnout compare localhost:3001 localhost:3002
 
 ### Live demo or your machine?
 
-The [live demo](https://172-198-62-67.sslip.io) shows the whole loop in a minute with nothing installed: press **Take over** and run a test yourself. **For every feature, run it locally:** a shared public server can't run strangers' code or hand out Flagsmith's admin login.
+The [live demo](https://172-198-62-67.sslip.io) shows the whole loop in a minute with nothing installed: run a test yourself, one button at a time. **For every feature, run it locally:** a shared public server can't run strangers' code or hand out Flagsmith's admin login.
 
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="docs/images/readme/compare-light.png">
-  <img src="docs/images/readme/compare-dark.png" width="100%" alt="Live demo and your machine both have: guided A/A, A/B and A/B/C tests you can take over, blind rounds and the live traffic map, Be a visitor, and every Flagsmith feature Turnout uses (read-only on the live demo). Only your machine has: Flagsmith's dashboard with Turnout's tour inside it, Try it with your app from GitHub links, turnout compare on your own site with browsers and simulate, and Preview, Pin my browser and the guard. Install: one line, then turnout demo.">
+  <img src="docs/images/readme/compare-dark.png" width="100%" alt="Live demo and your machine both have: guided A/A, A/B and A/B/C tests you run yourself, blind rounds and the live traffic map, Be a visitor, and every Flagsmith feature Turnout uses (read-only on the live demo). Only your machine has: Flagsmith's dashboard with Turnout's tour inside it, Try it with your app from GitHub links, turnout compare on your own site with browsers and simulate, and Preview, Pin my browser and the guard. Install: one line, then turnout demo.">
 </picture>
 
 ## See it
@@ -94,7 +95,7 @@ The same experiment written with the SDK inside the demo shop took **45 lines of
 
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="docs/images/readme/features-light.png">
-  <img src="docs/images/readme/features-dark.png" width="100%" alt="Run a test: turnout compare on URLs, images or git branches; Try it with your app from GitHub links; A/A, A/B and A/B/C. Measure: the goal from any HTTP request, server speed and errors, page speed in real browsers, bots never counted. Decide: Flagsmith's Bayesian result as returned; ships at 95% only if the interval clears zero; safety checks and how many more visitors. Release: Ship or Revert in one flag change, a preview segment, Pin my browser, Feature Health. See it: live traffic map, guided demo and tours, a 28-check setup check, every Flagsmith feature read live. Automate: a GitHub Action with a PR comment, an agent skill, server mode with an autopilot, turnout deploy. Install: one line on Windows, macOS and Linux, Codespaces, a GHCR image, turnout uninstall. Prove it: blind rounds, simulated shoppers and real Chrome visits, the Experiment Doctor with SRM.">
+  <img src="docs/images/readme/features-dark.png" width="100%" alt="Run a test: turnout compare on URLs, images or git branches; Try it with your app from GitHub links; A/A, A/B and A/B/C. Measure: the goal from any HTTP request, server speed and errors, page speed in real browsers, bots never counted. Decide: Flagsmith's Bayesian result as returned; ships at 95% only if the interval clears zero; safety checks and how many more visitors. Release: Ship or Revert in one flag change, a preview segment, Pin my browser, Feature Health. See it: live traffic map, guided demo and tours, a 28-check setup check, every Flagsmith feature read live. Automate: a GitHub Action with a PR comment, an agent skill, server mode with HTTPS, turnout deploy. Install: one line on Windows, macOS and Linux, Codespaces, a GHCR image, turnout uninstall. Prove it: blind rounds, simulated shoppers and real Chrome visits, the Experiment Doctor with SRM.">
 </picture>
 
 Every feature, one line each: [FEATURES.md](FEATURES.md). Every command: [docs/CLI.md](docs/CLI.md).

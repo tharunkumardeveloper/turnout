@@ -1218,6 +1218,14 @@ describe('public play (server mode): visitors run the guided demo, nothing else'
     });
     assert.equal(other.status, 409);
     assert.match(((await other.json()) as { error: string }).error, /Someone else is running a test/);
+    // Nor press its buttons: one visitor at a time.
+    const step = await fetch(`${pub}/judge/api/judge/run`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', 'x-turnout-console': token, 'x-forwarded-for': '203.0.113.9' },
+      body: JSON.stringify({ action: 'score' }),
+    });
+    assert.equal(step.status, 409);
+    assert.match(((await step.json()) as { error: string }).error, /^Someone else is running a test right now\. Watch it here; your turn comes in about \d+ min\.$/);
   });
 
   test('Take over and hand back reach the gate (404 here: this console runs no autopilot)', async () => {

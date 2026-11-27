@@ -596,10 +596,13 @@ test("the live demo's notice: public page only, never in a frame, and tours wait
   for (const words of ['On this server', 'Only on your machine, and why', 'never runs strangers’ code', 'admin login can’t be public', 'turnout demo', 'Run it locally']) {
     assert.ok(menu.includes(words), words);
   }
-  // A banner until closed, never a dialog over the demo; the banner and the menu's "About this demo" open the notice.
+  // Once per browser, with the tour one click away; the menu's "About this demo" opens it again.
   assert.match(menu, /localStorage\.setItem\(NOTICE_KEY, '1'\)/);
-  assert.match(menu, /class: 'live-banner'/);
-  assert.doesNotMatch(menu.slice(menu.indexOf('if (seen) return;')), /^  dialog\.showModal\(\);$/m);
+  assert.match(menu.slice(menu.indexOf('if (seen) return;')), /^  dialog\.showModal\(\);$/m);
+  assert.match(menu, /'Take the tour'/);
+  assert.match(read('app.js'), /addEventListener\('turnout:tour-request', \(\) => mode\.tour\(\) \|\| tour\.start\(\)\)/);
+  // No autopilot and no Take over in what a visitor reads: the live demo is theirs to run.
+  assert.doesNotMatch(menu, /autopilot|Take over/);
   // The one-line installs, not git clone.
   assert.ok(menu.includes('install.ps1 | iex') && menu.includes('install.sh | sh') && !menu.includes('git clone'));
   assert.match(menu, /'About this demo'/);

@@ -25,7 +25,7 @@ export function setupMode() {
   const sw = $('mode-judge');
   const view = $('judge-view');
   const frame = /** @type {HTMLIFrameElement} */ ($('judge-frame'));
-  if (!sw || !view || meta('turnout-no-judge')) return { isOn: () => false, tour: () => false };
+  if (!sw || !view || meta('turnout-no-judge')) return { isOn: () => false, tour: () => false, set: () => {} };
   sw.hidden = false;
   const params = new URLSearchParams(location.search);
   let stored = null;
@@ -60,6 +60,8 @@ export function setupMode() {
   sw.addEventListener('click', () => set(!on));
   return {
     isOn: () => on,
+    /** Turn Guided demo on or off, as the switch does. */
+    set: (next) => set(next),
     /** The Tour button while Guided demo is on: the judge view's own tour. */
     tour: () => {
       if (!on) return false;

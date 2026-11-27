@@ -143,6 +143,8 @@ export const PUBLIC_BASE = '/judge';
 // What the public view serves: the judge page, its scripts, styles and icon, and three reads.
 const PUBLIC_READS = new Set(['/api/judge/state', '/api/judge/job', '/api/traffic', '/api/state', '/api/flagsmith-map']);
 // Writes from the private console: the autopilot steps aside for a while after one.
+// The public page: one visitor at a time; their turn lasts this long after their last step.
+const PLAYER_QUIET_MS = 3 * 60_000;
 const HUMAN_WRITES = new Set(['/api/judge/run', '/api/ship', '/api/revert', '/api/keep-running', '/api/refresh', '/api/guard']);
 const PUBLIC_ASSET_TYPES = new Set(['.js', '.css', '.svg', '.png']);
 
@@ -330,6 +332,14 @@ export function createConsole(opts: ConsoleOptions): http.Server {
   const lastClick = new Map<string, number>();
   let lastStart = 0;
   let lastPlayer: { who: string; at: number } = { who: '', at: 0 };
+  const visitorOf = (req: http.IncomingMessage) => String(req.headers['x-forwarded-for'] ?? req.socket.remoteAddress ?? '').split(',')[0]!.trim();
+  /** Who is running the public page's test, for this visitor: them, someone else, or nobody (quiet for 3 min). */
+  const playerFor = (req: http.IncomingMessage) => {
+    const active = lastPlayer.who && Date.now() - lastPlayer.at < PLAYER_QUIET_MS;
+    if (!active) return { player: null, playerFreeAt: null };
+    return { player: lastPlayer.who === visitorOf(req) ? 'you' : 'someone', playerFreeAt: new Date(lastPlayer.at + PLAYER_QUIET_MS).toISOString() };
+  };
+
   async function publicPlay(req: http.IncomingMessage, res: http.ServerResponse): Promise<void> {
     if (!judge) return json(res, 404, { error: 'not found' });
     const given = req.headers[TOKEN_HEADER];
@@ -337,15 +347,15 @@ export function createConsole(opts: ConsoleOptions): http.Server {
     const raw = (await readJson(req).catch(() => null)) as Record<string, unknown> | null;
     const action = typeof raw?.action === 'string' ? raw.action : '';
     if (!PLAY_ACTIONS.has(action)) return json(res, 403, { error: 'This step runs only from the console on the server.' });
-    const who = String(req.headers['x-forwarded-for'] ?? req.socket.remoteAddress ?? '').split(',')[0]!.trim();
+    const who = visitorOf(req);
     const now = Date.now();
     if (now - (lastClick.get(who) ?? 0) < 3000) return json(res, 429, { error: 'One step at a time: try again in a few seconds.' });
     if ((action === 'start' || action === 'abc') && now - lastStart < 20_000) return json(res, 429, { error: 'A test just started: give it 20 seconds before starting another.' });
-    // Shared demo: someone else's test in progress isn't restarted under them. Anyone may carry it on (send shoppers,
-    // ask Flagsmith, decide); a new test waits until its visitor has been quiet for 3 minutes.
-    if ((action === 'start' || action === 'abc') && lastPlayer.who && lastPlayer.who !== who && now - lastPlayer.at < 180_000) {
-      const wait = Math.ceil((180_000 - (now - lastPlayer.at)) / 60_000);
-      return json(res, 409, { error: `Someone else is running a test right now. Watch it, or carry it on with the step buttons; a new test can start in about ${wait} min.` });
+    // Shared demo, one visitor at a time: while someone runs a test (a step within the last 3 minutes), nobody else
+    // presses its buttons or starts another over it. They watch, and their turn comes when it's quiet.
+    if (action !== 'take-over' && action !== 'hand-back' && lastPlayer.who && lastPlayer.who !== who && now - lastPlayer.at < PLAYER_QUIET_MS) {
+      const wait = Math.max(1, Math.ceil((PLAYER_QUIET_MS - (now - lastPlayer.at)) / 60_000));
+      return json(res, 409, { error: `Someone else is running a test right now. Watch it here; your turn comes in about ${wait} min.` });
     }
     lastClick.set(who, now);
     if (lastClick.size > 5000) lastClick.clear();
@@ -416,6 +426,7 @@ export function createConsole(opts: ConsoleOptions): http.Server {
         links: { experiment: null, flag: null, shop: state.links.shop, preview: null },
         readOnly: true,
         autopilot: autopilot?.status() ?? null,
+        ...(opts.publicPlay ? playerFor(req) : {}),
       });
     }
     // /judge/v/<build>/demo.js: the page's assets under this start's version (servePublicPage), and the modules they

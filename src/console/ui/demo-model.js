@@ -639,7 +639,7 @@ export function blindView(s) {
   const b = s?.blind;
   if (!b?.enabled) return null;
   const sc = b.score ?? { rounds: 0, right: 0, wrong: 0, noCall: 0 };
-  const score = sc.rounds ? `Scoreboard: Flagsmith's call was right in ${sc.right} of ${sc.rounds} blind rounds${sc.noCall ? ` (${sc.noCall} where it wasn't sure yet)` : ''}${sc.wrong ? `, wrong in ${sc.wrong}` : ''}.` : 'Scoreboard: no blind round decided yet.';
+  const score = sc.rounds ? `Scoreboard on this server: Flagsmith's call was right in ${sc.right} of ${sc.rounds} blind rounds${sc.noCall ? ` (${sc.noCall} where it wasn't sure yet)` : ''}${sc.wrong ? `, wrong in ${sc.wrong}` : ''}.` : 'Scoreboard: no blind round decided yet.';
   if (!b.round || b.round.hidden) return { tone: 'wait', title: 'Blind round', text: 'The true order rates were drawn at random and stay hidden until the decision: the new version may be better, worse or the same. Flagsmith has to find out.', score };
   const r = b.round.round;
   const verdict = r.outcome === 'right' ? 'Flagsmith got it right' : r.outcome === 'wrong' ? 'Flagsmith got it wrong' : "Flagsmith wasn't sure yet (no call)";
@@ -651,6 +651,12 @@ export function blindView(s) {
  * it back or stop clicking for a while. Null where there's no autopilot (on your machine).
  */
 export function pilotView(s, nowMs = Date.now(), mineUntil = 0) {
+  // One visitor at a time (the server says who): someone else's test is theirs to finish.
+  if (s?.player === 'someone') {
+    const free = Date.parse(s.playerFreeAt ?? '');
+    const mins = Number.isFinite(free) ? Math.max(1, Math.ceil((free - nowMs) / 60_000)) : 3;
+    return { mode: 'other', text: `Someone else is running a test right now. Watch it here: your turn comes when they’re done, in about ${mins} min.`, button: null };
+  }
   const ap = s?.autopilot;
   if (!ap?.enabled) return null;
   const until = Date.parse(ap.pausedUntil ?? '');
@@ -689,14 +695,12 @@ export function agoText(iso, nowMs = Date.now()) {
   return hours < 48 ? `${hours} h ago` : `${Math.round(hours / 24)} days ago`;
 }
 
-/** Proof that this is running now, not a recording: Flagsmith's version, when it last computed results, recent rounds. */
+/** Proof that this is running now, not a recording: Flagsmith's version and when it last computed results. */
 export function liveLine(s, nowMs = Date.now()) {
   const parts = [];
   if (s?.flagsmithVersion) parts.push(`Flagsmith ${s.flagsmithVersion}, self-hosted`);
   const ago = agoText(s?.results?.asOf, nowMs);
   if (ago) parts.push(`results computed by Flagsmith ${ago}`);
-  const n = s?.blind?.last24h;
-  if (typeof n === 'number' && n > 0) parts.push(`${n} blind ${n === 1 ? 'round' : 'rounds'} decided in the last 24 h`);
   return parts.length ? `Live: ${parts.join(' · ')}` : null;
 }
 

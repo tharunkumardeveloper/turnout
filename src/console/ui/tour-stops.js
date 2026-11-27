@@ -10,14 +10,14 @@ export const JUDGE_STOPS = [
     target: null,
     title: "Welcome to Turnout's guided demo",
     text: "Turnout puts every new version of an app into a Flagsmith experiment without touching the app's code. This tour walks you through one real test on a demo shop: you click, Flagsmith decides. About three minutes.",
-    readonly: { text: 'Turnout puts every new version of an app into a Flagsmith experiment, without touching its code. This public page runs real Flagsmith experiments on a demo shop by itself, with simulated shoppers. Under two minutes.' },
+    readonly: { text: 'Turnout puts every new version of an app into a Flagsmith experiment, without touching its code. This public page runs real Flagsmith experiments on a demo shop, with simulated shoppers, and you press the buttons. Under two minutes.' },
   },
   {
     target: '#kinds',
     click: '#kinds .kind',
     title: 'Pick the kind of test',
     text: 'Click A/B/C to compare two new versions with the current one (or A/B for one, or A/A for two identical copies: a fairness check). Nothing starts yet: first you see what it will compare.',
-    readonly: { click: undefined, title: 'The kind of test', text: 'A/A: the same version twice, a check that the split is fair. A/B: one new version against A. A/B/C: two at once. On this public page the autopilot picks the test.' },
+    readonly: { click: undefined, title: 'The kind of test', text: 'A/A: the same version twice, a check that the split is fair. A/B: one new version against A. A/B/C: two at once. Pick one to preview it; nothing starts until Start.' },
   },
   {
     target: '#versions-panel',
@@ -31,7 +31,7 @@ export const JUDGE_STOPS = [
     action: 'start',
     title: 'Start the test',
     text: () => `Click “${goLabel()}”. Turnout creates the experiment in Flagsmith and the flag starts splitting shoppers between the versions.`,
-    readonly: { click: undefined, action: undefined, target: '#steps-panel', title: 'Four steps, run by the autopilot', text: 'Start the test, send shoppers, ask Flagsmith, decide. Here the autopilot runs each step by itself; the line in the current step says what comes next.' },
+    readonly: { click: undefined, action: undefined, target: '#steps-panel', title: 'Four steps, one button each', text: 'Start the test, send shoppers, ask Flagsmith, decide: the green button in the current step does the next one. If someone else is running a test, the note above the steps says so, and your turn comes after theirs.' },
   },
   {
     target: ['#go', '#steps-panel'],
@@ -124,7 +124,7 @@ export const CONSOLE_STOPS = [
     target: '#actions',
     title: 'Decide',
     text: 'Ship the winner or revert: each shows the exact Flagsmith calls first and asks you to confirm. The pre-selected version is the best one that passes every safety check.',
-    readonly: { text: 'On this public page the autopilot decides, by the same rules: ship the best version that passes every safety check, or revert. The private console has the buttons.' },
+    readonly: { text: 'On this public page you decide in the Guided demo, by the same rules: ship the best version that passes every safety check, or roll back.' },
   },
   {
     target: '#results',

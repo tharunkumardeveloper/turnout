@@ -120,8 +120,8 @@ async function wireFlagsmithLink() {
 
 // ---- Server mode's public page: "About this demo" ----------------------------------------------------------------
 // What the shared live demo has, and what runs only on your own machine (and why). The public page (never in a
-// frame: the console embeds the guided demo) shows a one-line bar at the bottom until it's closed, so the demo itself is the
-// first thing anyone sees; the banner and the menu's "About this demo" open the full notice. Local pages never show it.
+// frame: the console embeds the guided demo) opens it once per browser, with the tour one click away; the menu's
+// "About this demo" opens it again. Local pages never show it.
 export const NOTICE_KEY = 'turnout-live-notice-seen';
 const REPO = 'https://github.com/tharunkumardeveloper/turnout';
 const RAW = 'https://raw.githubusercontent.com/tharunkumardeveloper/turnout/main';
@@ -143,9 +143,7 @@ export function liveNotice({ play = PLAY } = {}) {
       el('section', {},
         el('h3', {}, 'On this server'),
         el('ul', {},
-          play
-            ? item('Guided demo on:', 'the autopilot runs a test step by step. Press Take over to run Start, Send shoppers, Ask Flagsmith and Ship yourself.')
-            : item('Guided demo on:', 'the autopilot runs a test step by step: Flagsmith’s results and the decision.'),
+          item('Guided demo on:', 'run an A/A, A/B or A/B/C test yourself, one button at a time: Start, Send shoppers, Ask Flagsmith, Ship.'),
           item('Guided demo off:', 'the live traffic map, each visitor routed by the Flagsmith flag, and Flagsmith’s numbers.'),
           item('Be a visitor:', 'Flagsmith gives you a version of the shop, counted in its own live experiment.'),
           item('Flagsmith features:', 'every Flagsmith feature Turnout uses, with values read live.'))),
@@ -160,8 +158,10 @@ export function liveNotice({ play = PLAY } = {}) {
       el('p', {}, 'Docker running (about 4 GB of memory for it), then one line installs it:'),
       el('pre', {}, el('code', {}, `# Windows (PowerShell)\n${INSTALL.win}\n# macOS, Linux\n${INSTALL.unix}\n\nturnout demo                                    # this demo, every feature on\nturnout compare localhost:3001 localhost:3002   # or your own two versions`))),
     el('div', { class: 'live-actions' },
-      el('a', { class: 'live-btn', href: `${REPO}#quick-start`, target: '_blank', rel: 'noopener' }, 'Setup steps on GitHub ↗'),
-      el('button', { class: 'live-btn live-primary', type: 'button', on: { click: () => dialog.close() } }, 'Explore the live demo'))));
+      el('a', { class: 'live-btn', href: `${REPO}#get-started`, target: '_blank', rel: 'noopener' }, 'Setup steps on GitHub ↗'),
+      el('button', { class: 'live-btn', type: 'button', on: { click: () => dialog.close() } }, 'Explore on my own'),
+      // The console (app.js) starts the tour of whichever view is on.
+      el('button', { class: 'live-btn live-primary', type: 'button', on: { click: () => { dialog.close(); document.dispatchEvent(new CustomEvent('turnout:tour-request')); } } }, 'Take the tour'))));
   return dialog;
 }
 
@@ -178,21 +178,17 @@ function setupLiveNotice(menu) {
     seen = false;
   }
   if (seen) return;
-  // A banner, not a dialog: nothing covers the demo. Closing it (or opening the notice from it) keeps it closed.
-  const remember = () => {
+  // The first visit: what's here, what runs only locally and why, and the tour. Once per browser; the menu's
+  // "About this demo" opens it again.
+  noticeDone = new Promise((resolve) => dialog.addEventListener('close', () => {
     try {
       localStorage.setItem(NOTICE_KEY, '1');
     } catch {
-      /* it shows again next time */
+      /* it opens again next time */
     }
-  };
-  const banner = el('div', { class: 'live-banner', role: 'region', 'aria-label': 'About this live demo' },
-    el('span', { class: 'live-banner-text' },
-      el('b', {}, 'Live demo:'), ' self-hosted Flagsmith 2.291.0. ',
-      el('b', {}, 'Guided demo'), ' shows a test step by step (press Take over to run it); switch it off for the console, where Previews and Traffic switch between the versions’ pages and the live traffic map.'),
-    el('button', { class: 'live-banner-link', type: 'button', on: { click: () => { remember(); dialog.showModal(); } } }, 'What’s here, and what runs only locally'),
-    el('button', { class: 'live-banner-close', type: 'button', 'aria-label': 'Close this note', on: { click: () => { remember(); banner.remove(); } } }, '×'));
-  document.body.append(banner);
+    resolve();
+  }, { once: true }));
+  dialog.showModal();
 }
 
 /** Wires the menu: marks the current page, fills the drop-downs when opened, closes them on a click outside. */

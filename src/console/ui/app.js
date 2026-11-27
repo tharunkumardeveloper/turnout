@@ -1549,7 +1549,28 @@ if (document.querySelector('meta[name="turnout-app"]')) {
 }
 // One page: Guided demo is the switch beside Tour; while it is on, Tour shows the judge view's tour.
 const mode = setupMode();
+// After a guided test of your own: show the rest. Turn Guided demo off, and point at Previews and Traffic.
+window.addEventListener('message', (e) => {
+  if (e.origin !== location.origin || e.data?.turnout !== 'test-finished' || !mode.isOn() || document.getElementById('next-view')) return;
+  const box = h('div', { class: 'next-view', id: 'next-view', role: 'dialog', 'aria-label': 'See the full console' },
+    h('p', { class: 'next-view-title' }, 'Test done. Now see the whole console'),
+    h('p', {}, 'Turn Guided demo off for everything at once: each version’s page (Previews) and every visitor on the live traffic map (Traffic), with Flagsmith’s results beside them.'),
+    h('div', { class: 'next-view-row' },
+      h('button', { class: 'btn btn-primary', type: 'button', onclick: () => { box.remove(); mode.set(false); showSwitch(); } }, 'Show the full console'),
+      h('button', { class: 'btn btn-ghost', type: 'button', onclick: () => box.remove() }, 'Not now')));
+  document.body.append(box);
+});
+/** The Previews | Traffic switch, highlighted for a moment, so it's found. */
+function showSwitch() {
+  const sw = document.querySelector('.map-switch');
+  if (!sw) return;
+  sw.scrollIntoView({ block: 'center', behavior: 'smooth' });
+  sw.classList.add('switch-hint');
+  setTimeout(() => sw.classList.remove('switch-hint'), 9000);
+}
 $('tour-open').addEventListener('click', () => mode.tour() || tour.start());
+// The live demo's notice: "Take the tour" (menu.js).
+document.addEventListener('turnout:tour-request', () => mode.tour() || tour.start());
 // Your app's console (/app) opens straight after a build: no tour on top of it (Tour is one click away).
 // The public page never opens a tour by itself (it landed on top of a page still loading): Tour pulses instead.
 if (READONLY) $('tour-open').classList.add('tour-hint');
