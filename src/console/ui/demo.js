@@ -273,10 +273,11 @@ function renderKinds(s, kind) {
     h('span', { class: 'kinds-label' }, 'Test'),
     ...options.map((o) => h('button', {
       class: 'kind', type: 'button',
-      title: LOCKED ? `${o.blurb} On this public page the autopilot picks the test.` : busy ? `A step is running: pick another test when it finishes.` : `${o.blurb} Click to preview it; Start runs it.`,
+      title: LOCKED ? `${o.blurb} On this public page the autopilot picks the test.` : `${o.blurb} Click to preview it; Start runs it${busy ? ' once the running step finishes' : ''}.`,
       // Pressed: the test on screen (a picked plan, else the running test, else the last pick), never a stale pick.
       'aria-pressed': String(o.arms === (ui.plan ?? ui.pendingKind ?? current ?? kind)), 'data-running': o.arms === current ? 'true' : null,
-      disabled: LOCKED || busy,
+      // A pick only previews the test (Start waits for a running step), so it never waits itself.
+      disabled: LOCKED,
       on: { click: () => pickKind(o.arms) },
     }, o.label)));
 }
@@ -286,7 +287,9 @@ const isBusy = () => ui.job?.status === 'running' || ui.state?.job?.status === '
 // A click on a kind previews that test: its versions show, and step 1 offers Start. Nothing changes in Flagsmith
 // until Start (a running test stops first then). Clicking the running test's own kind goes back to it.
 function pickKind(k) {
-  if (LOCKED || isBusy()) return;
+  if (LOCKED) return;
+  // The live demo: picking a test means you're driving, so the autopilot steps aside.
+  if (PLAY && M.pilotView(ui.state)?.mode === 'autopilot') void pilot('take-over');
   ui.kind = k;
   try {
     localStorage.setItem(KIND_KEY, String(k));
@@ -315,7 +318,7 @@ function render() {
   rl.setAttribute('href', links.experiment ?? '#');
 
   const kind = chosenKind(s);
-  const m = ui.plan !== null && !isBusy() ? M.planModel(s, ui.plan) : M.model(s, { kind });
+  const m = ui.plan !== null ? M.planModel(s, ui.plan) : M.model(s, { kind }); // a pick shows at once; its Start waits for a running step
   // A test that was just picked: show its versions now, before Flagsmith confirms it. Cleared once the page shows it.
   if (ui.pendingKind !== null && !ui.sending && !isBusy() && M.kindOf(s) === ui.pendingKind && s.experiment?.status === 'running') ui.pendingKind = null;
   if (ui.pendingKind !== null && !m.plan) m.versions = M.plannedVersions(s.releases, ui.pendingKind);
@@ -511,7 +514,9 @@ function outcomeBox(m) {
   const exp = ui.state?.experiment?.id;
   const decisionJob = lastJobs.find((j) => (j.action === 'ship' || j.action === 'revert') && j.status === 'done' && j.changes?.before?.experiment?.id === exp);
   const changed = M.changes(decisionJob);
-  const check = M.verifyText(lastJobs.find((j) => j.action === 'verify'));
+  // Only this test's check: one started after its decision (an earlier test's check named another release).
+  const decidedAt = (ui.state?.ledger ?? []).filter((e) => e.experimentId === exp).at(-1)?.at ?? null;
+  const check = M.verifyText(lastJobs.find((j) => j.action === 'verify' && decidedAt && j.startedAt >= decidedAt));
   return h('div', { class: 'outcome', 'data-shipped': String(o.shipped) },
     h('p', { class: 'outcome-title' }, o.title, h('span', { class: 'outcome-sub' }, ` ${o.text}`)),
     changed ? h('dl', { class: 'change' },
