@@ -357,7 +357,9 @@ window.addEventListener('message', (e) => {
     if (app.state) renderMapMode(app.state);
   }
   if (d.turnout === 'shoppers') {
-    mapView.choice = null; // shoppers on their way: the traffic map, once they flow
+    // Shoppers on their way: the traffic map now, with its tip, before the first dot arrives.
+    if (mapView.choice !== 'traffic' && (mapView.lastAuto ?? 'previews') !== 'traffic') switchTip('traffic');
+    mapView.choice = 'traffic';
     if (app.state) renderMapMode(app.state);
   }
 });

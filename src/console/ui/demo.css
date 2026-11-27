@@ -393,3 +393,12 @@ a.version-frame:hover::after, a.version-frame:focus-visible::after { opacity: 1;
 .steps-view .screen > :not(.steps-panel) { display: none !important; }
 .steps-view .steps-panel { padding: 0; border: 0; background: transparent; box-shadow: none; overflow: visible; height: auto; }
 .steps-view .steps-panel .eyebrow, .steps-view .blind, .steps-view .foot, .steps-view .error-box { display: none !important; }
+
+/* Steps only, in the console: the outcome says what happened and the check; the flag's before and after are in the
+   Guided demo and in Flagsmith's results beside it. */
+.steps-view .outcome .change { display: none; }
+.steps-view .now { font-size: 14.5px; margin-bottom: 8px; }
+.steps-view .step { padding-bottom: 8px; }
+.steps-view .step-title { font-size: 14.5px; }
+.steps-view .step-result, .steps-view .action-explain { font-size: 13px; }
+.steps-view .kinds { transform-origin: left; }
