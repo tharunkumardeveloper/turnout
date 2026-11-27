@@ -482,8 +482,6 @@ describe("the live demo's driver: the autopilot, or you after Take over", () => 
     assert.equal(M.pilotView({}, now), null, 'no autopilot: on your machine');
     const running = M.pilotView({ autopilot: { enabled: true, phase: 'waiting', pausedUntil: null } }, now);
     assert.equal(running.mode, 'autopilot');
-    assert.match(running.text, /^Your turn: run a test yourself/, 'the visitor first, the autopilot second');
-    assert.equal(running.button.label, 'Run a test yourself');
     assert.equal(running.button.action, 'take-over');
     const someone = M.pilotView({ autopilot: { enabled: true, phase: 'paused', pausedUntil: '2026-11-27T10:09:30Z' } }, now);
     assert.equal(someone.mode, 'other', 'paused by another visitor: never "you"');

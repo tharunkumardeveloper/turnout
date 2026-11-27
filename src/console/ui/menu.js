@@ -144,7 +144,7 @@ export function liveNotice({ play = PLAY } = {}) {
         el('h3', {}, 'On this server'),
         el('ul', {},
           play
-            ? item('Guided demo on:', 'press Run a test yourself, then Start, Send shoppers, Ask Flagsmith and Ship. When nobody is clicking, an autopilot runs one.')
+            ? item('Guided demo on:', 'the autopilot runs a test step by step. Press Take over to run Start, Send shoppers, Ask Flagsmith and Ship yourself.')
             : item('Guided demo on:', 'the autopilot runs a test step by step: Flagsmith’s results and the decision.'),
           item('Guided demo off:', 'the live traffic map, each visitor routed by the Flagsmith flag, and Flagsmith’s numbers.'),
           item('Be a visitor:', 'Flagsmith gives you a version of the shop, counted in its own live experiment.'),
@@ -189,7 +189,7 @@ function setupLiveNotice(menu) {
   const banner = el('div', { class: 'live-banner', role: 'region', 'aria-label': 'About this live demo' },
     el('span', { class: 'live-banner-text' },
       el('b', {}, 'Live demo:'), ' self-hosted Flagsmith 2.291.0. ',
-      el('b', {}, 'Guided demo'), ' lets you run a test yourself, step by step (press Run a test yourself); switch it off for the console, where Previews and Traffic switch between the versions’ pages and the live traffic map.'),
+      el('b', {}, 'Guided demo'), ' shows a test step by step (press Take over to run it); switch it off for the console, where Previews and Traffic switch between the versions’ pages and the live traffic map.'),
     el('button', { class: 'live-banner-link', type: 'button', on: { click: () => { remember(); dialog.showModal(); } } }, 'What’s here, and what runs only locally'),
     el('button', { class: 'live-banner-close', type: 'button', 'aria-label': 'Close this note', on: { click: () => { remember(); banner.remove(); } } }, '×'));
   document.body.append(banner);

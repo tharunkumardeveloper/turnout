@@ -673,8 +673,8 @@ export function pilotView(s, nowMs = Date.now(), mineUntil = 0) {
   }
   return {
     mode: 'autopilot',
-    text: 'Your turn: run a test yourself, one button at a time. Until someone does, an autopilot keeps one going so there’s always something to watch.',
-    button: { action: 'take-over', label: 'Run a test yourself' },
+    text: 'The autopilot is running tests by itself, step by step.',
+    button: { action: 'take-over', label: 'Take over: run the steps yourself' },
   };
 }
 
