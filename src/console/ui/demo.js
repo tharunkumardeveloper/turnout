@@ -485,6 +485,8 @@ function renderSteps(s, m) {
       h('div', { class: 'step-body' }, h('h3', { class: 'step-title' }, st.title), ...body));
   });
   $('steps').replaceChildren(...items);
+  // In the console's card (steps only, capped height): keep the step that needs you in view.
+  if (STEPS_ONLY) document.querySelector('#steps > [aria-current="step"], #steps > [data-status="current"]')?.scrollIntoView({ block: 'nearest' });
   ui.stepStatus = ui.nextStepStatus;
   ui.nextStepStatus = {};
 }
@@ -830,5 +832,5 @@ loadState().then(() => (playNow ? startAutoplay() : EMBED ? null : noticeClosed(
 
 // In the console (steps only): the frame is as tall as its steps, so the console's card never scrolls inside.
 if (STEPS_ONLY && typeof ResizeObserver === 'function') {
-  new ResizeObserver(() => tellConsole({ type: 'steps-height', height: Math.ceil(document.getElementById('steps-view-root')?.getBoundingClientRect().height ?? document.body.scrollHeight) })).observe(document.body);
+  new ResizeObserver(() => tellConsole({ type: 'steps-height', height: Math.ceil(document.body.scrollHeight) })).observe(document.getElementById('main'));
 }

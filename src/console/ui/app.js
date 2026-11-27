@@ -347,7 +347,7 @@ function ensureStepsFrame() {
 window.addEventListener('message', (e) => {
   if (e.origin !== location.origin || !e.data?.turnout) return;
   const d = e.data;
-  if (d.turnout === 'steps-height' && e.source === $('steps-frame')?.contentWindow) $('steps-frame').style.height = `${Math.max(120, d.height)}px`;
+  if (d.turnout === 'steps-height' && e.source === $('steps-frame')?.contentWindow) $('steps-frame').style.height = `${Math.max(120, Math.min(d.height, Math.round(window.innerHeight * 0.45)))}px`;
   if (d.turnout === 'plan') {
     // A pick shows its versions; a start (or going back) shows the test itself, and the map follows its traffic.
     steps.plan = Array.isArray(d.releases) && d.releases.length ? d.releases : null;
@@ -681,8 +681,8 @@ function renderActions(s) {
     const last = [...(s.ledger ?? [])].reverse().find((x) => x.experimentId === e.id && x.decision !== 'kept-running');
     const label = F.shown(variants.find((v) => v.key === last?.variant)?.label ?? last?.release ?? 'control');
     decided.textContent = last
-      ? `${last.decision === 'shipped' ? `Shipped ${label} to everyone` : `Reverted: everyone gets ${label}`} on ${new Date(last.at).toLocaleString('en-GB', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}. The next test starts from Run a test.`
-      : 'This test is decided: the flag is a plain flag again. The next test starts from Run a test.';
+      ? `${last.decision === 'shipped' ? `Shipped ${label} to everyone` : `Reverted: everyone gets ${label}`} on ${new Date(last.at).toLocaleString('en-GB', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}. The next test starts from The test, step by step.`
+      : 'This test is decided: the flag is a plain flag again. The next test starts from The test, step by step.';
   }
   // A demo job holds the console's lock too: Ship and Revert wait for it. The public page decides nothing.
   const busy = app.busy || demoRunning() || READONLY;
