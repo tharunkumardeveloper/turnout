@@ -120,7 +120,7 @@ async function wireFlagsmithLink() {
 
 // ---- Server mode's public page: "About this demo" ----------------------------------------------------------------
 // What the shared live demo has, and what runs only on your own machine (and why). The public page (never in a
-// frame: the console embeds the guided demo) shows a one-line banner until it's closed, so the demo itself is the
+// frame: the console embeds the guided demo) shows a one-line bar at the bottom until it's closed, so the demo itself is the
 // first thing anyone sees; the banner and the menu's "About this demo" open the full notice. Local pages never show it.
 export const NOTICE_KEY = 'turnout-live-notice-seen';
 const REPO = 'https://github.com/tharunkumardeveloper/turnout';
@@ -197,7 +197,7 @@ function setupLiveNotice(menu) {
       el('b', {}, 'Be a visitor'), ' gets you a version for real.'),
     el('button', { class: 'live-banner-link', type: 'button', on: { click: () => { remember(); dialog.showModal(); } } }, 'What’s here, and what runs only on your machine'),
     el('button', { class: 'live-banner-close', type: 'button', 'aria-label': 'Close this note', on: { click: () => { remember(); banner.remove(); } } }, '×'));
-  (menu.closest('header') ?? menu).after(banner);
+  document.body.append(banner);
 }
 
 /** Wires the menu: marks the current page, fills the drop-downs when opened, closes them on a click outside. */

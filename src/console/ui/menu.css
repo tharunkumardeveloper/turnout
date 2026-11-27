@@ -80,8 +80,10 @@
 .live-feedback { margin: 14px 0 0; font-size: 13.5px; color: var(--muted); }
 .live-feedback a { color: #6633ff; font-weight: 700; }
 
-/* The public live demo's one-line note (menu.js setupLiveNotice): under the header, never over the demo. */
-.live-banner { display: flex; align-items: center; gap: 10px 14px; flex-wrap: wrap; padding: 8px 16px; font-size: 13.5px; line-height: 1.45; color: var(--text); background: color-mix(in srgb, #6633ff 8%, var(--surface)); border-bottom: 1px solid color-mix(in srgb, #6633ff 25%, var(--border)); }
+/* The public live demo's one-line note (menu.js setupLiveNotice): a bar floating at the bottom, outside every page's
+   layout (the console's body is a grid: an element in its flow would take the main row). */
+.live-banner { position: fixed; z-index: 40; left: 50%; bottom: 14px; transform: translateX(-50%); width: min(1100px, calc(100vw - 24px)); display: flex; align-items: center; gap: 6px 14px; flex-wrap: wrap; padding: 9px 12px 9px 16px; font-size: 13.5px; line-height: 1.45; color: var(--text); background: color-mix(in srgb, #6633ff 7%, var(--surface)); border: 1px solid color-mix(in srgb, #6633ff 30%, var(--border)); border-radius: 12px; box-shadow: 0 10px 30px rgb(2 6 23 / 0.18); }
+@media (max-width: 640px) { .live-banner { font-size: 12.5px; bottom: 8px; } }
 .live-banner-text { flex: 1 1 360px; }
 .live-banner-link { padding: 0; font: inherit; font-weight: 700; color: #6633ff; background: none; border: 0; cursor: pointer; text-decoration: underline; text-underline-offset: 2px; }
 .live-banner-close { width: 28px; height: 28px; font-size: 18px; line-height: 1; color: inherit; background: none; border: 1px solid transparent; border-radius: 6px; cursor: pointer; }

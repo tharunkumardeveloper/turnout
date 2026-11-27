@@ -227,6 +227,21 @@ describe('reading the facts from Flagsmith', () => {
     assert.equal(reads() - before, 2);
     assert.equal(byName(a, 'Experiments').live, `experiment ${SEED.experimentId} is completed; 1 experiment on shop_release so far`);
   });
+
+  test('the public page reads quickly: the last map at once even after a write, a fresh read behind it', async () => {
+    const reader = createMapReader({
+      experiments: async () => new Experiments(api, { envKey: SEED.envKey, experimentId: SEED.experimentId }),
+      dashboardUrl: DASH,
+    });
+    const reads = () => state.requests.filter((r) => r.path.includes('/evaluation-data/')).length;
+    const before = reads();
+    const first = await reader.readQuick(); // nothing yet: waits for the first read
+    assert.equal(reads() - before, 1);
+    reader.invalidate(); // a write: read() would now wait for Flagsmith
+    assert.equal(await reader.readQuick(), first, 'the last map, at once');
+    for (const end = Date.now() + 5000; reads() - before < 2 && Date.now() < end; ) await new Promise((r) => setTimeout(r, 20));
+    assert.equal(reads() - before, 2, 'and a fresh read behind it');
+  });
 });
 
 describe('the console serves the map', () => {

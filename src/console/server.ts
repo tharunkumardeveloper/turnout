@@ -374,7 +374,7 @@ export function createConsole(opts: ConsoleOptions): http.Server {
       const given = req.headers[TOKEN_HEADER] ?? (rest === '/api/traffic' ? url.searchParams.get('token') : null);
       if (!sameSecret(typeof given === 'string' ? given : '', publicToken)) return json(res, 403, { error: 'Open the judge page to use its API.' });
       if (rest === '/api/traffic') return relayFeed(`${opts.feedUrl}/traffic`, res);
-      if (rest === '/api/flagsmith-map') return json(res, 200, publicMap(await flagsmithMap.read()));
+      if (rest === '/api/flagsmith-map') return json(res, 200, publicMap(await flagsmithMap.readQuick()));
       if (rest === '/api/state') {
         lastViewer = Date.now();
         const st = redact(await apiState.get());

@@ -548,13 +548,14 @@ export function createMapReader(o: {
   readEvents?: () => Promise<{ accepted: number; rejected: number } | null>;
   ledgerDir?: string;
   now?: () => number;
-}): { read: () => Promise<FlagsmithMap>; invalidate: () => void } {
+}): { read: () => Promise<FlagsmithMap>; readQuick: () => Promise<FlagsmithMap>; invalidate: () => void } {
   let cached: { at: number; map: FlagsmithMap } | null = null;
+  let last: FlagsmithMap | null = null; // the newest map, kept through invalidate() for readQuick()
   let pending: Promise<FlagsmithMap> | null = null;
   let generation = 0; // invalidate() bumps it: a read already running then answers its callers but isn't kept
   const now = o.now ?? Date.now;
-  return {
-    read: async () => {
+  const reader = {
+    read: async (): Promise<FlagsmithMap> => {
       if (cached && now() - cached.at < MAP_CACHE_MS) return cached.map;
       if (pending && !cached) return pending;
       // Expired (nothing written since): the last map at once, a new read behind it. The page took ~10 s otherwise.
@@ -575,6 +576,7 @@ export function createMapReader(o: {
           });
           const map = buildFlagsmithMap(facts, { dashboardUrl: o.dashboardUrl, now: new Date(now()) });
           if (mine === generation) cached = { at: now(), map };
+          last = map;
           return map;
         } finally {
           if (mine === generation) pending = null; // after invalidate(), a newer read may be pending: leave it
@@ -587,6 +589,14 @@ export function createMapReader(o: {
       }
       return read;
     },
+    // The public page: the newest map at once, even after a write, with a fresh read behind it. Server mode's
+    // autopilot writes every few minutes, so read() would otherwise make most visitors wait ~10 s for Flagsmith.
+    readQuick: async (): Promise<FlagsmithMap> => {
+      const fresh = reader.read();
+      if (!last) return fresh;
+      fresh.catch(() => {});
+      return last;
+    },
     // After a write (Ship, Revert, a judge job): the next read asks Flagsmith again.
     invalidate: () => {
       generation++;
@@ -594,4 +604,5 @@ export function createMapReader(o: {
       pending = null;
     },
   };
+  return reader;
 }
