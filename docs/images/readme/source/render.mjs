@@ -180,11 +180,11 @@ function features(t) {
     .c { background: ${t.card}; border: 1px solid ${t.line}; border-radius: 16px; padding: 18px 18px 16px; }
     .h { display: flex; align-items: center; gap: 10px; }
     .ic { width: 38px; height: 38px; border-radius: 11px; display: grid; place-items: center; }
-    h3 { font-size: 18px; }
+    h3 { font-size: 22px; }
     ul { margin-top: 12px; padding-left: 0; list-style: none; display: grid; gap: 7px; }
-    li { font-size: 14px; line-height: 1.4; color: ${t.soft}; padding-left: 14px; position: relative; }
+    li { font-size: 17.5px; line-height: 1.38; color: ${t.soft}; padding-left: 14px; position: relative; }
     li::before { content: ""; position: absolute; left: 0; top: 8px; width: 5px; height: 5px; border-radius: 50%; background: ${t.faint}; }
-    code { font-family: Consolas, "Cascadia Mono", monospace; font-size: 12.5px; color: ${t.ink}; background: ${t.bg2}; padding: 1px 5px; border-radius: 5px; }
+    code { font-family: Consolas, "Cascadia Mono", monospace; font-size: 15.5px; color: ${t.ink}; background: ${t.bg2}; padding: 1px 5px; border-radius: 5px; }
   </style>
   <div class="frame" id="shot">${cards.map(([k, h, items], i) => `<div class="c"><div class="h"><span class="ic" style="background:${colors[i]}1f">${icon(k, colors[i])}</span><h3>${h}</h3></div><ul>${items.map((x) => `<li>${code(x)}</li>`).join('')}</ul></div>`).join('')}</div>`;
 }
@@ -201,16 +201,16 @@ function loop(t) {
     .frame { width: 1280px; padding: 26px 26px 22px; }
     .top { display: flex; align-items: center; gap: 12px; margin-bottom: 18px; }
     .top img { width: 34px; height: 34px; border-radius: 8px; }
-    .top b { font-size: 20px; }
-    .top span { font-size: 15px; color: ${t.soft}; }
+    .top b { font-size: 24px; }
+    .top span { font-size: 17px; color: ${t.soft}; }
     .row { display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; }
     .r { position: relative; background: ${t.card}; border: 1px solid ${t.line}; border-top: 4px solid ${t.accent}; border-radius: 14px; padding: 16px 16px 18px; }
     .r:not(:last-child)::after { content: ""; position: absolute; right: -14px; top: 44px; width: 12px; height: 12px; border-top: 2.5px solid ${t.faint}; border-right: 2.5px solid ${t.faint}; transform: rotate(45deg); }
     .n { font-size: 12.5px; font-weight: 800; letter-spacing: .08em; color: ${t.accent}; }
-    h3 { margin-top: 4px; font-size: 19px; }
+    h3 { margin-top: 4px; font-size: 23px; }
     .chips { margin-top: 12px; display: flex; flex-wrap: wrap; gap: 6px; }
-    .chip { font-size: 12.5px; font-weight: 700; padding: 5px 9px; border-radius: 999px; color: ${t.accent}; background: ${t.accent}1a; border: 1px solid ${t.accent}40; }
-    p { margin-top: 12px; font-size: 14px; line-height: 1.5; color: ${t.soft}; }
+    .chip { font-size: 15px; font-weight: 700; padding: 5px 9px; border-radius: 999px; color: ${t.accent}; background: ${t.accent}1a; border: 1px solid ${t.accent}40; }
+    p { margin-top: 12px; font-size: 17px; line-height: 1.45; color: ${t.soft}; }
   </style>
   <div class="frame" id="shot">
     <div class="top"><img src="${flagsmith}" alt=""><b>The Flagsmith experiment loop, run by Turnout</b><span>· self-hosted Flagsmith 2.291 · every number from its API</span></div>
@@ -233,7 +233,7 @@ function compare(t) {
   const cell = (v) => v === true ? `<span class="yes">✓</span>` : v === false ? `<span class="no">—</span>` : `<span class="part">${v}</span>`;
   return `<style>${base(t)}
     .frame { width: 1280px; padding: 24px 26px; display: grid; grid-template-columns: 1fr 1fr; gap: 26px; align-items: start; }
-    table { width: 100%; border-collapse: collapse; font-size: 15px; }
+    table { width: 100%; border-collapse: collapse; font-size: 18px; }
     th { text-align: left; font-size: 13px; letter-spacing: .05em; text-transform: uppercase; color: ${t.soft}; padding: 0 10px 10px; }
     th.c, td.c { text-align: center; width: 120px; }
     td { padding: 10px; border-top: 1px solid ${t.line}; }
@@ -242,11 +242,11 @@ function compare(t) {
     .part { font-size: 12.5px; font-weight: 700; color: ${t.accent}; }
     .side { display: grid; gap: 14px; }
     .box { background: ${t.card}; border: 1px solid ${t.line}; border-radius: 14px; padding: 16px 18px; }
-    .box h3 { font-size: 17px; }
-    .box p { margin-top: 6px; font-size: 14px; line-height: 1.5; color: ${t.soft}; }
+    .box h3 { font-size: 20px; }
+    .box p { margin-top: 6px; font-size: 17px; line-height: 1.5; color: ${t.soft}; }
     .box code { font-family: Consolas, monospace; font-size: 13px; color: ${t.ink}; }
     .live { border-left: 4px solid ${t.a}; } .local { border-left: 4px solid ${t.b}; } .run { border-left: 4px solid ${t.accent}; }
-    .run pre { margin-top: 10px; font-family: Consolas, "Cascadia Mono", monospace; font-size: 14px; line-height: 1.6; color: ${t.ink}; }
+    .run pre { margin-top: 10px; font-family: Consolas, "Cascadia Mono", monospace; font-size: 16.5px; line-height: 1.6; color: ${t.ink}; }
     .run .c { color: ${t.faint}; }
   </style>
   <div class="frame" id="shot">
@@ -276,11 +276,11 @@ function upstream(t) {
     .frame { width: 1280px; padding: 22px; display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; }
     .c { background: ${t.card}; border: 1px solid ${t.line}; border-radius: 14px; padding: 18px; }
     .top { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
-    .id { display: inline-flex; align-items: center; gap: 8px; font-size: 13.5px; font-weight: 800; color: ${t.accent}; }
+    .id { display: inline-flex; align-items: center; gap: 8px; font-size: 16px; font-weight: 800; color: ${t.accent}; }
     .id img { width: 20px; height: 20px; border-radius: 5px; }
     .tag { font-size: 11.5px; font-weight: 800; letter-spacing: .05em; text-transform: uppercase; color: ${t.b}; background: ${t.b}1f; padding: 4px 8px; border-radius: 999px; }
-    h3 { margin-top: 12px; font-size: 17.5px; line-height: 1.3; }
-    p { margin-top: 8px; font-size: 14px; line-height: 1.5; color: ${t.soft}; }
+    h3 { margin-top: 12px; font-size: 21px; line-height: 1.3; }
+    p { margin-top: 8px; font-size: 17px; line-height: 1.5; color: ${t.soft}; }
   </style>
   <div class="frame" id="shot">${cards.map(([id, h, p, tag]) => `<div class="c"><div class="top"><span class="id"><img src="${flagsmith}" alt="">${id}</span><span class="tag">${tag}</span></div><h3>${h}</h3><p>${p}</p></div>`).join('')}</div>`;
 }
