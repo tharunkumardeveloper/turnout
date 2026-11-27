@@ -15,7 +15,7 @@ import { preview } from './commands/preview.ts';
 import { release } from './commands/release.ts';
 import { revert, ship, status } from './commands/ship.ts';
 import { simulate } from '../demo/simulator/simulate.ts';
-import { defaultHypothesis, describeGoal, experimentMetrics, loadConfig } from './config.ts';
+import { defaultHypothesis, describeGoal, experimentMetrics, loadConfig, measuresVitals } from './config.ts';
 import { createFlagSource } from './flagsmith/flag-source.ts';
 import { DEFAULT_RATES, parseRates, readLiveVisitors } from './console/judge.ts';
 import { createBlindStore } from './console/blind.ts';
@@ -67,6 +67,8 @@ Commands:
   code-refs  Find the flag's name in this checkout and submit it to Flagsmith's Code References [--project <id>]
              (repository: GitHub Actions' variables, an https GitHub "origin" remote, or TURNOUT_REPOSITORY_URL)
   pr-comment Post turnout check's report on the pull request this CI run is for, or update the earlier one
+  browsers   Real-browser visits (headless Chrome) through the simulation proxy, for page speed before real traffic
+             [--visits 100] [--lanes 4]  (TURNOUT_CHROME_URL, TURNOUT_SIM_TARGET)
 
 Options for any command:
   --api-url <url>      Flagsmith's API, e.g. http://127.0.0.1:8000/api/v1/ (env FLAGSMITH_API_URL)
@@ -100,6 +102,8 @@ const parseCommandLine = () =>
       refresh: { type: 'boolean' },
       json: { type: 'boolean' },
       visitors: { type: 'string' },
+      visits: { type: 'string' }, // browsers: real-browser visits
+      lanes: { type: 'string' }, // browsers: visits in parallel
       rate: { type: 'string', multiple: true },
       concurrency: { type: 'string' },
       seed: { type: 'string' },
@@ -117,6 +121,7 @@ const parseCommandLine = () =>
       release: { type: 'string', multiple: true },
       success: { type: 'string' },
       traffic: { type: 'string' },
+      'browser-speed': { type: 'boolean' }, // new: the lcp_ms and cls guardrails
       flag: { type: 'string' },
       event: { type: 'string' },
       port: { type: 'string' },
@@ -149,7 +154,7 @@ const { values: cliFlags, positionals: args } = parsed;
 const [name, ...positionals] = args;
 
 // A whole number option within bounds, or the fallback when it isn't given.
-function wholeNumber(option: 'visitors' | 'concurrency' | 'seed', fallback: number, min: number, max: number): number {
+function wholeNumber(option: 'visitors' | 'concurrency' | 'seed' | 'visits' | 'lanes', fallback: number, min: number, max: number): number {
   const raw = cliFlags[option];
   if (raw === undefined) return fallback;
   const value = raw.trim() === '' ? Number.NaN : Number(raw);
@@ -779,6 +784,30 @@ const commands: Record<string, () => Promise<void>> = {
     });
   },
   // turnout simulate, step 2: pretend visitors through the simulation proxy; hidden rates revealed at the end.
+  browsers: async () => {
+    // Real-browser visits through the simulation proxy (turnout browsers): page speed measured in Chrome, scored by
+    // Flagsmith in the Demo (simulated) environment, before any real traffic.
+    const config = loadConfig(configPath());
+    const visits = wholeNumber('visits', 100, 1, 5000);
+    const target = process.env.TURNOUT_SIM_TARGET || 'http://turnout-sim:8080';
+    const token = process.env.TURNOUT_PREVIEW_TOKEN;
+    if (!measuresVitals(config)) {
+      console.log('Note: turnout.config.yml has no lcp_ms or cls guardrail, so these visits are counted but page speed in the browser is not measured. Add them to guardrails: (or run turnout compare with --browser-speed).');
+    }
+    const reported = async (): Promise<number | null> => {
+      if (!token) return null;
+      const h = await fetch(`${target}/__turnout/health`, { headers: { 'x-turnout-debug': token } }).then((r) => r.json()).catch(() => null) as { trackedEvents?: Record<string, number> } | null;
+      return h?.trackedEvents?.vitals_reported ?? 0;
+    };
+    const before = await reported();
+    console.log(`Sending ${visits} real-browser visits (headless Chrome, labelled TurnoutBrowserVisit) through the simulation proxy: each a fresh browser, to your home page, then away (that's when page speed is reported).`);
+    const { browserVisits } = await import('./commands/browsers.ts');
+    const result = await browserVisits({ chromeUrl: process.env.TURNOUT_CHROME_URL || 'http://chrome:9222', target: `${target}/`, visits, lanes: wholeNumber('lanes', 4, 1, 16) });
+    await new Promise((r) => setTimeout(r, 2000));
+    const after = await reported();
+    console.log(`Done: ${result.done} visits${result.failed ? `, ${result.failed} failed (${result.errors.join('; ')})` : ''}.${before !== null && after !== null && measuresVitals(config) ? ` Page speed reported by ${after - before} of them.` : ''}`);
+    if (result.done === 0) process.exitCode = 1;
+  },
   simulate: async () => {
     const config = loadConfig(configPath());
     const releases = [...config.releases.keys()];
@@ -840,6 +869,7 @@ async function newCommand(): Promise<void> {
       releases,
       success,
       traffic,
+      ...(cliFlags['browser-speed'] ? { browserSpeed: true } : {}),
       flag: cliFlags.flag,
       event: cliFlags.event,
       appPort: num(cliFlags.port, 'port'),

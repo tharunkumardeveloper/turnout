@@ -57,7 +57,7 @@ test('bundled Flagsmith: a loadable config, a compose file with the proxy, conso
 
   const compose = YAML.parse(readFileSync(join(dir, 'turnout.compose.yml'), 'utf8'), { merge: true });
   assert.deepEqual(compose.include, ['flagsmith.compose.yml']);
-  assert.deepEqual(Object.keys(compose.services).sort(), ['cli', 'console', 'console-sim', 'landing-1', 'landing-2', 'turnout', 'turnout-sim']);
+  assert.deepEqual(Object.keys(compose.services).sort(), ['chrome', 'cli', 'console', 'console-sim', 'landing-1', 'landing-2', 'turnout', 'turnout-sim']);
   for (const name of ['turnout', 'console', 'cli']) {
     const s = compose.services[name];
     assert.equal(s.image, DEFAULT_IMAGE, name);
@@ -96,7 +96,7 @@ test('your own Flagsmith: its URL in compose, no bundled Flagsmith, and the proj
   assert.equal(compose.services.turnout.environment.FLAGSMITH_API_URL, 'https://flags.example.com/api/v1/');
   assert.equal(compose.services.turnout.image, 'turnout:local');
   assert.equal(compose.services.turnout.depends_on, undefined);
-  assert.deepEqual(Object.keys(compose.services).sort(), ['cli', 'console', 'console-sim', 'turnout', 'turnout-sim']);
+  assert.deepEqual(Object.keys(compose.services).sort(), ['chrome', 'cli', 'console', 'console-sim', 'turnout', 'turnout-sim']);
   assert.doesNotMatch(readFileSync(join(dir, 'turnout.compose.yml'), 'utf8'), /org\.secret/, 'the key stays out of the compose file');
   assert.deepEqual({ ...parseEnv(readFileSync(join(dir, '.env'), 'utf8')) }, { OTHER: 'kept', TURNOUT_PROJECT: 'Web', TURNOUT_ENVIRONMENT: 'Production', TURNOUT_ADMIN_KEY: 'org.secret' });
   assert.equal(loadConfig(join(dir, 'turnout.config.yml')).flag, 'web_release');

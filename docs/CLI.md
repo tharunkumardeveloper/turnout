@@ -30,6 +30,7 @@ An unknown option or a missing value prints what was wrong and exits 1, before a
 | `release --aa` | Starts an A/A experiment: the live release on both arms (see below) |
 | `check` | Finds experiment splits left behind on any flag; with an admin key, also runs the Experiment Doctor (see below) |
 | `code-refs [--project <id>]` | Finds the flag's name in this checkout and submits it to Flagsmith's Code References (see below) |
+| `browsers [--visits 100] [--lanes 4]` | Real-browser visits (headless Chrome, labelled `TurnoutBrowserVisit`) through the simulation proxy, so page speed (`lcp_ms`, `cls`) has a Flagsmith result before real traffic; they count only in the separate Demo (simulated) environment. The launcher's `turnout browsers` starts the Chrome; `turnout compare --browser-speed` adds the guardrails |
 | `pr-comment [<report.md>]` | In GitHub Actions: posts `check`'s report on the pull request the run is for, or updates its earlier comment (see `check`) |
 | `proxy` | Runs the reverse proxy (port 8080). Compose runs it for you |
 | `console` | Runs the console and guided demo (port 8090). Compose runs it for you |

@@ -99,9 +99,11 @@ help_screen() {
   opt 'A, B: localhost:3001, myapp:1.1' 'URLs, Docker images or git branches'
   opt '--goal "POST /signup"' 'what counts as a win (none: page speed)'
   opt '--split 10' '% of visitors on each new version'
+  opt '--browser-speed' 'also measure page speed in browsers (lcp_ms, cls)'
   opt '--port 3000' 'the port your images listen on'
   opt '--env-file .env.turnout' "your app's settings (default ./.env)"
   cmd 'turnout simulate [--visitors 500]' 'pretend visitors, so results show in minutes'
+  cmd 'turnout browsers [--visits 100]' 'real headless-Chrome visits: page speed before real traffic'
   cmd 'turnout open' 'the console: traffic, results, Ship or Revert'
   say ""
   section 'DECIDE   (Flagsmith decides; you confirm)'
@@ -244,9 +246,10 @@ cmd_compare() {
   N=$(printf '%s\n' $VERSIONS | grep -c .)
   [ "$N" -ge 2 ] || die 'usage: turnout compare <live> <new> [<new2> …] [--goal "POST /signup"] [--split 50]'
   [ "$N" -le 26 ] || die "at most 26 versions (A to Z)"
-  GOAL=none; SPLIT=; APP_PORT=; ENV_FILE=
+  GOAL=none; SPLIT=; APP_PORT=; ENV_FILE=; BROWSER_SPEED=
   while [ $# -gt 0 ]; do
     case "$1" in
+      --browser-speed) BROWSER_SPEED=1; shift ;;
       --goal) GOAL="${2:?--goal needs a request, e.g. \"POST /signup\"}"; shift 2 ;;
       --split) SPLIT="${2:?--split needs a percentage}"; shift 2 ;;
       --port) APP_PORT="${2:?--port needs the port your images listen on}"; shift 2 ;;
@@ -297,8 +300,9 @@ cmd_compare() {
 goal=$GOAL
 split=$SPLIT
 app_port=$APP_PORT
-env_file=$APP_ENV"
-  if [ -f "$STATE/compare.args" ] && [ "$(sed -e '/^proxy_port=/d' -e '/^console_port=/d' "$STATE/compare.args")" = "$WANT" ]; then
+env_file=$APP_ENV$([ -n "$BROWSER_SPEED" ] && printf '
+browser_speed=1')"
+  if [ -f "$STATE/compare.args" ] && [ "$(sed -e '/^proxy_port=/d' -e '/^console_port=/d' -e '/^sim_console_port=/d' "$STATE/compare.args")" = "$WANT" ]; then
     ports_from_state
     say "Resuming $NAME: $TITLE ($KIND test)."
   else
@@ -317,7 +321,7 @@ env_file=$APP_ENV"
     docker run --rm -v "$STATE:/work" "$IMAGE" new --dir /work --yes --force \
       $(for v in $VERSIONS; do printf -- '--release %s ' "$v"; done) --success "$GOAL" --traffic "$TRAFFIC" \
       --proxy-port "$PROXY_PORT" --console-port "$CONSOLE_PORT" --flagsmith-port "$FLAGSMITH_PORT" \
-      ${APP_PORT:+--port "$APP_PORT"} ${APP_ENV:+--app-env-file "$APP_ENV"} --image "$IMAGE" >"$STATE/new.log" 2>&1 \
+      ${APP_PORT:+--port "$APP_PORT"} ${APP_ENV:+--app-env-file "$APP_ENV"} ${BROWSER_SPEED:+--browser-speed} --image "$IMAGE" >"$STATE/new.log" 2>&1 \
       || { cat "$STATE/new.log" >&2; die "couldn't write the setup for $TITLE."; }
     say "$KIND test: A is ${VERSIONS%% *}, what everyone gets now; $([ "$TRAFFIC" = 100 ] && echo 'every visitor is split evenly between the versions' || echo "each new version gets $SPLIT% of visitors")."
 
@@ -379,6 +383,44 @@ cmd_deploy() {
   say "  then open http://127.0.0.1:$CONSOLE_PORT"
 }
 
+# The separate Demo (simulated) environment in Flagsmith, set up once, and the services given as arguments.
+sim_up() {
+  real=$(sed -n 's#^TURNOUT_EXPERIMENT=\([^/]*\)/.*#\1#p' "$STATE/.env")
+  [ -n "$real" ] || die "run turnout compare first: there's no experiment yet."
+  mkdir -p "$STATE/.turnout/sim"
+  [ -f "$STATE/.turnout/sim.env" ] || grep -E '^(TURNOUT_ADMIN_KEY|TURNOUT_PREVIEW_TOKEN)=' "$STATE/.env" > "$STATE/.turnout/sim.env"
+  step "Setting up the separate Demo environment in Flagsmith (once)"
+  compose run --rm -e TURNOUT_ENV_FILE=.turnout/sim.env -e TURNOUT_REAL_ENV_KEY="$real" cli sim-setup >"$STATE/sim-setup.log" 2>&1 \
+    || { tail -20 "$STATE/sim-setup.log" >&2; die "setting up the Demo environment failed (full log: $STATE/sim-setup.log)."; }
+  SIM_PORT=$(sed -n 's/^sim_console_port=//p' "$STATE/compare.args")
+  if [ -z "$SIM_PORT" ]; then SIM_PORT=$(free_port 8099); echo "sim_console_port=$SIM_PORT" >> "$STATE/compare.args"; fi
+  TURNOUT_SIM_CONSOLE_PORT=$SIM_PORT compose --profile sim up -d --wait "$@" >"$STATE/sim-up.log" 2>&1 \
+    || { tail -20 "$STATE/sim-up.log" >&2; die "starting the simulation failed (full log: $STATE/sim-up.log)."; }
+}
+
+# Real-browser visits: page speed measured in headless Chrome, scored by Flagsmith in the Demo environment.
+cmd_browsers() {
+  logo
+  need_state; need_docker
+  visits=100
+  while [ $# -gt 0 ]; do
+    case "$1" in
+      --visits) visits="${2:?--visits needs a number}"; shift 2 ;;
+      *) die "unknown option $1" ;;
+    esac
+  done
+  grep -q '^  chrome:' "$STATE/turnout.compose.yml" \
+    || die "this setup was made before turnout browsers: run turnout compare again with --browser-speed (a new experiment)."
+  grep -Eq 'lcp_ms|cls' "$STATE/turnout.config.yml" \
+    || say "Note: page speed in the browser isn't measured without --browser-speed (turnout compare ... --browser-speed); the visits still count."
+  sim_up turnout-sim console-sim chrome
+  compose --progress quiet run --rm -e TURNOUT_ENV_FILE=.turnout/sim.env cli browsers --visits "$visits" || die "the browser visits stopped (see above)."
+  say ""
+  say "  Results (Demo environment, never your real experiment):  http://127.0.0.1:$SIM_PORT"
+  say "  Flagsmith recomputes results at most every 5 minutes. Run turnout browsers again for more visits."
+  open_url "http://127.0.0.1:$SIM_PORT"
+}
+
 cmd_simulate() {
   logo
   need_state; need_docker
@@ -395,17 +437,7 @@ cmd_simulate() {
     say "Pretend visitors send real requests to your app, including the goal ($goal): it may create real records."
     printf 'Go ahead? [y/N] '; read -r ok; [ "$ok" = y ] || exit 1
   fi
-  real=$(sed -n 's#^TURNOUT_EXPERIMENT=\([^/]*\)/.*#\1#p' "$STATE/.env")
-  [ -n "$real" ] || die "run turnout compare first: there's no experiment yet."
-  mkdir -p "$STATE/.turnout/sim"
-  [ -f "$STATE/.turnout/sim.env" ] || grep -E '^(TURNOUT_ADMIN_KEY|TURNOUT_PREVIEW_TOKEN)=' "$STATE/.env" > "$STATE/.turnout/sim.env"
-  step "Setting up the separate Demo environment in Flagsmith (once)"
-  compose run --rm -e TURNOUT_ENV_FILE=.turnout/sim.env -e TURNOUT_REAL_ENV_KEY="$real" cli sim-setup >"$STATE/sim-setup.log" 2>&1 \
-    || { tail -20 "$STATE/sim-setup.log" >&2; die "setting up the Demo environment failed (full log: $STATE/sim-setup.log)."; }
-  SIM_PORT=$(sed -n 's/^sim_console_port=//p' "$STATE/compare.args")
-  if [ -z "$SIM_PORT" ]; then SIM_PORT=$(free_port 8099); echo "sim_console_port=$SIM_PORT" >> "$STATE/compare.args"; fi
-  TURNOUT_SIM_CONSOLE_PORT=$SIM_PORT compose --profile sim up -d --wait turnout-sim console-sim >"$STATE/sim-up.log" 2>&1 \
-    || { tail -20 "$STATE/sim-up.log" >&2; die "starting the simulation failed (full log: $STATE/sim-up.log)."; }
+  sim_up turnout-sim console-sim
   compose --progress quiet run --rm -e TURNOUT_ENV_FILE=.turnout/sim.env cli simulate --visitors "$visitors" || die "the simulation stopped (see above)."
   say ""
   say "  Simulated results (Demo environment, never your real experiment):  http://127.0.0.1:$SIM_PORT"
@@ -420,6 +452,7 @@ case "$cmd" in
   compare) cmd_compare "$@" ;;
   deploy) cmd_deploy "$@" ;;
   simulate) cmd_simulate "$@" ;;
+  browsers) cmd_browsers "$@" ;;
   demo) need_docker; cd "$HOME_DIR" && exec sh turnout.sh "${1:-start}" ;;   # start (opens guided demo), or: stop, status, reset
   update) cd "$HOME_DIR" && git pull --ff-only && say "Up to date. The next turnout compare or turnout demo uses it." ;;
   results) need_state; need_docker; compose --progress quiet run --rm cli status ;;

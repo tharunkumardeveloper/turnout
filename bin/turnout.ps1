@@ -122,9 +122,11 @@ function Show-Help {
   Show-Opt 'A, B: localhost:3001, myapp:1.1' 'URLs, Docker images or git branches'
   Show-Opt '--goal "POST /signup"' 'what counts as a win (none: page speed)'
   Show-Opt '--split 10' '% of visitors on each new version'
+  Show-Opt '--browser-speed' 'also measure page speed in browsers (lcp_ms, cls)'
   Show-Opt '--port 3000' 'the port your images listen on'
   Show-Opt '--env-file .env.turnout' "your app's settings (default .env)"
   Show-Cmd 'turnout simulate [--visitors 500]' 'pretend visitors, so results show in minutes'
+  Show-Cmd 'turnout browsers [--visits 100]' 'real headless-Chrome visits: page speed before real traffic'
   Show-Cmd 'turnout open' 'the console: traffic, results, Ship or Revert'
   Write-Host ''
   Show-Section 'DECIDE   (Flagsmith decides; you confirm)'
@@ -228,9 +230,10 @@ function Invoke-Compare([string[]]$a) {
   $Given = @($a[0..($first - 1)])
   $Versions = @($Given | ForEach-Object { Normalise $_ })
   $N = $Versions.Count
-  $Goal = 'none'; $Split = ''; $AppPort = ''; $EnvFile = ''
+  $Goal = 'none'; $Split = ''; $AppPort = ''; $EnvFile = ''; $BrowserSpeed = $false
   for ($i = $first; $i -lt $a.Count; $i += 2) {
     switch ($a[$i]) {
+      '--browser-speed' { $BrowserSpeed = $true; $i-- } # takes no value
       '--goal' { $Goal = $a[$i + 1] }
       '--split' { $Split = $a[$i + 1] }
       '--port' { $AppPort = $a[$i + 1] }
@@ -271,6 +274,7 @@ function Invoke-Compare([string[]]$a) {
   $isUrl = $Versions[0] -match '^https?://'
   if ($isUrl -or -not (Test-Path $appEnv)) { $appEnv = '' }
   $want = @("releases=$($Versions -join ' ')", "goal=$Goal", "split=$Split", "app_port=$AppPort", "env_file=$appEnv")
+  if ($BrowserSpeed) { $want += 'browser_speed=1' }
   $argsFile = Join-Path $State 'compare.args'
   $old = if (Test-Path $argsFile) { @(Get-Content $argsFile | Where-Object { $_ -notlike '*_port=*' -or $_ -like 'app_port=*' }) } else { $null }
   if ($old -and (($old -join "`n") -eq ($want -join "`n"))) {
@@ -293,6 +297,7 @@ function Invoke-Compare([string[]]$a) {
       '--proxy-port', $ProxyPort, '--console-port', $ConsolePort, '--flagsmith-port', $fsPort, '--image', $Image)
     foreach ($v in $Versions) { $newArgs += @('--release', $v) }
     if ($AppPort) { $newArgs += @('--port', $AppPort) }
+    if ($BrowserSpeed) { $newArgs += '--browser-speed' }
     if ($appEnv) { $newArgs += @('--app-env-file', $appEnv); Say "Your app's settings: $appEnv (passed to every version)." }
     docker @newArgs *> (Join-Path $State 'new.log')
     if ($LASTEXITCODE -ne 0) { Get-Content (Join-Path $State 'new.log'); Die "couldn't write the setup for $Title." }
@@ -345,6 +350,54 @@ function Invoke-Deploy([string[]]$a) {
   $lines | ForEach-Object { Say $_ }
 }
 
+# The separate Demo (simulated) environment in Flagsmith, set up once, and the given services. Returns its console port.
+function Start-Sim([string[]]$services) {
+  $envFile = Join-Path $State '.env'
+  $real = (Get-Content $envFile | Where-Object { $_ -like 'TURNOUT_EXPERIMENT=*' }) -replace '^TURNOUT_EXPERIMENT=([^/]*)/.*$', '$1'
+  if (-not $real) { Die "run turnout compare first: there's no experiment yet." }
+  New-Item -ItemType Directory -Force (Join-Path $State '.turnout\sim') | Out-Null
+  $simEnv = Join-Path $State '.turnout\sim.env'
+  if (-not (Test-Path $simEnv)) { Get-Content $envFile | Where-Object { $_ -match '^(TURNOUT_ADMIN_KEY|TURNOUT_PREVIEW_TOKEN)=' } | Set-Content -Encoding ascii $simEnv }
+  Step 'Setting up the separate Demo environment in Flagsmith (once)'
+  $log = Join-Path $State 'sim-setup.log'
+  Compose run --rm -e TURNOUT_ENV_FILE=.turnout/sim.env -e "TURNOUT_REAL_ENV_KEY=$real" cli sim-setup *> $log
+  if ($LASTEXITCODE -ne 0) { Get-Content $log -Tail 20; Die "setting up the Demo environment failed (full log: $log)." }
+  $argsFile = Join-Path $State 'compare.args'
+  $simPort = (Get-Content $argsFile | Where-Object { $_ -like 'sim_console_port=*' }) -replace '^sim_console_port=', ''
+  if (-not $simPort) { $simPort = Get-FreePort 8099 @([int]$ProxyPort, [int]$ConsolePort); Add-Content -Encoding ascii $argsFile "sim_console_port=$simPort" }
+  $env:TURNOUT_SIM_CONSOLE_PORT = $simPort
+  $log = Join-Path $State 'sim-up.log'
+  Compose --profile sim up -d --wait @services *> $log
+  if ($LASTEXITCODE -ne 0) { Get-Content $log -Tail 20; Die "starting the simulation failed (full log: $log)." }
+  return $simPort
+}
+
+# Real-browser visits: page speed measured in headless Chrome, scored by Flagsmith in the Demo environment.
+function Invoke-Browsers([string[]]$a) {
+  Show-Logo
+  $lines = Read-Args; Need-Docker
+  $visits = '100'
+  for ($i = 0; $i -lt $a.Count; $i++) {
+    switch ($a[$i]) {
+      '--visits' { $visits = $a[$i + 1]; $i++ }
+      default { Die "unknown option $($a[$i])" }
+    }
+  }
+  if (-not (Select-String -Quiet -Pattern '^  chrome:' (Join-Path $State 'turnout.compose.yml'))) {
+    Die 'this setup was made before turnout browsers: run turnout compare again with --browser-speed (a new experiment).'
+  }
+  if (-not (Select-String -Quiet -Pattern 'lcp_ms|cls' (Join-Path $State 'turnout.config.yml'))) {
+    Say "Note: page speed in the browser isn't measured without --browser-speed (turnout compare ... --browser-speed); the visits still count."
+  }
+  $simPort = Start-Sim @('turnout-sim', 'console-sim', 'chrome')
+  Compose --progress quiet run --rm -e TURNOUT_ENV_FILE=.turnout/sim.env cli browsers --visits $visits 2>&1 | ForEach-Object { "$_" }
+  if ($LASTEXITCODE -ne 0) { Die 'the browser visits stopped (see above).' }
+  Say ''
+  Say "  Results (Demo environment, never your real experiment):  http://127.0.0.1:$simPort"
+  Say '  Flagsmith recomputes results at most every 5 minutes. Run turnout browsers again for more visits.'
+  Start-Process "http://127.0.0.1:$simPort"
+}
+
 function Invoke-Simulate([string[]]$a) {
   Show-Logo
   $lines = Read-Args; Need-Docker
@@ -361,23 +414,7 @@ function Invoke-Simulate([string[]]$a) {
     Say "Pretend visitors send real requests to your app, including the goal ($goal): it may create real records."
     if ((Read-Host 'Go ahead? [y/N]') -ne 'y') { exit 1 }
   }
-  $envFile = Join-Path $State '.env'
-  $real = (Get-Content $envFile | Where-Object { $_ -like 'TURNOUT_EXPERIMENT=*' }) -replace '^TURNOUT_EXPERIMENT=([^/]*)/.*$', '$1'
-  if (-not $real) { Die "run turnout compare first: there's no experiment yet." }
-  New-Item -ItemType Directory -Force (Join-Path $State '.turnout\sim') | Out-Null
-  $simEnv = Join-Path $State '.turnout\sim.env'
-  if (-not (Test-Path $simEnv)) { Get-Content $envFile | Where-Object { $_ -match '^(TURNOUT_ADMIN_KEY|TURNOUT_PREVIEW_TOKEN)=' } | Set-Content -Encoding ascii $simEnv }
-  Step 'Setting up the separate Demo environment in Flagsmith (once)'
-  $log = Join-Path $State 'sim-setup.log'
-  Compose run --rm -e TURNOUT_ENV_FILE=.turnout/sim.env -e "TURNOUT_REAL_ENV_KEY=$real" cli sim-setup *> $log
-  if ($LASTEXITCODE -ne 0) { Get-Content $log -Tail 20; Die "setting up the Demo environment failed (full log: $log)." }
-  $argsFile = Join-Path $State 'compare.args'
-  $simPort = (Get-Content $argsFile | Where-Object { $_ -like 'sim_console_port=*' }) -replace '^sim_console_port=', ''
-  if (-not $simPort) { $simPort = Get-FreePort 8099 @([int]$ProxyPort, [int]$ConsolePort); Add-Content -Encoding ascii $argsFile "sim_console_port=$simPort" }
-  $env:TURNOUT_SIM_CONSOLE_PORT = $simPort
-  $log = Join-Path $State 'sim-up.log'
-  Compose --profile sim up -d --wait turnout-sim console-sim *> $log
-  if ($LASTEXITCODE -ne 0) { Get-Content $log -Tail 20; Die "starting the simulation failed (full log: $log)." }
+  $simPort = Start-Sim @('turnout-sim', 'console-sim')
   Compose --progress quiet run --rm -e TURNOUT_ENV_FILE=.turnout/sim.env cli simulate --visitors $visitors 2>&1 | ForEach-Object { "$_" }
   if ($LASTEXITCODE -ne 0) { Die 'the simulation stopped (see above).' }
   Say ''
@@ -392,6 +429,7 @@ switch ($cmd) {
   'compare' { Invoke-Compare $rest }
   'deploy' { Invoke-Deploy $rest }
   'simulate' { Invoke-Simulate $rest }
+  'browsers' { Invoke-Browsers $rest }
   'demo' {
     Need-Docker
     $what = if ($rest.Count) { $rest[0] } else { 'start' }   # start (opens guided demo), or: stop, status, reset

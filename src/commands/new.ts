@@ -18,6 +18,7 @@ export type NewAnswers = {
   releases: string[]; // each: "label=http://host:port", "http://host:port", or an image ("myapp:2")
   success: string; // "POST /signup 2xx", or "header signup": the app sends X-Turnout-Event: signup
   traffic: number; // % of visitors in the experiment
+  browserSpeed?: boolean; // also measure page speed in visitors' browsers: the lcp_ms and cls guardrails
   flag?: string | undefined;
   event?: string | undefined;
   appPort?: number | undefined; // the port your release images listen on
@@ -129,8 +130,10 @@ ${releases.map((r) => `  ${yamlString(r.label)}: ${r.url}`).join('\n')}
 
 ${goal}
 
-${noGoal ? 'guardrails: [server_error]   # sent on every page load' : 'guardrails: [doc_latency_ms, server_error]   # sent on every page load'}
-# Add lcp_ms and cls to also measure page speed in each visitor's own browser (largest paint, layout shift).
+${a.browserSpeed
+  ? `guardrails: [${noGoal ? '' : 'doc_latency_ms, '}server_error, lcp_ms, cls]   # lcp_ms, cls: page speed measured in each visitor's own browser`
+  : `${noGoal ? 'guardrails: [server_error]   # sent on every page load' : 'guardrails: [doc_latency_ms, server_error]   # sent on every page load'}
+# Add lcp_ms and cls to also measure page speed in each visitor's own browser (largest paint, layout shift).`}
 
 # % of visitors in the experiment; the rest stay on the first release.
 traffic: ${a.traffic}
@@ -249,6 +252,13 @@ services:
     depends_on:
       turnout-sim:
         condition: service_started
+
+  # turnout browsers: a headless Chrome for real-browser visits through turnout-sim (Chrome DevTools Protocol on 9222,
+  # reached only on this Compose network, never published).
+  chrome:
+    image: chromedp/headless-shell:stable
+    profiles: [sim]
+    shm_size: 1gb${nets}
 ${apps
   .map(
     (r) => `
