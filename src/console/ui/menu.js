@@ -158,7 +158,7 @@ export function liveNotice({ play = PLAY } = {}) {
     el('div', { class: 'live-run' },
       el('h3', {}, 'Run it locally'),
       el('p', {}, 'Docker running (about 4 GB of memory for it), then one line installs it:'),
-      el('pre', {}, el('code', {}, `${INSTALL.win}   # Windows (PowerShell)\n${INSTALL.unix}   # macOS, Linux\nturnout demo                                    # this demo, every feature on\nturnout compare localhost:3001 localhost:3002   # or your own two versions`))),
+      el('pre', {}, el('code', {}, `# Windows (PowerShell)\n${INSTALL.win}\n# macOS, Linux\n${INSTALL.unix}\n\nturnout demo                                    # this demo, every feature on\nturnout compare localhost:3001 localhost:3002   # or your own two versions`))),
     el('div', { class: 'live-actions' },
       el('a', { class: 'live-btn', href: `${REPO}#quick-start`, target: '_blank', rel: 'noopener' }, 'Setup steps on GitHub ↗'),
       el('button', { class: 'live-btn live-primary', type: 'button', on: { click: () => dialog.close() } }, 'Explore the live demo'))));
@@ -189,7 +189,7 @@ function setupLiveNotice(menu) {
   const banner = el('div', { class: 'live-banner', role: 'region', 'aria-label': 'About this live demo' },
     el('span', { class: 'live-banner-text' },
       el('b', {}, 'Live demo:'), ' self-hosted Flagsmith 2.291.0. ',
-      el('b', {}, 'Guided demo'), ' shows a test step by step (press Take over to run it); switch it off for the live traffic map.'),
+      el('b', {}, 'Guided demo'), ' shows a test step by step (press Take over to run it); switch it off for the console, where Previews and Traffic switch between the versions’ pages and the live traffic map.'),
     el('button', { class: 'live-banner-link', type: 'button', on: { click: () => { remember(); dialog.showModal(); } } }, 'What’s here, and what runs only locally'),
     el('button', { class: 'live-banner-close', type: 'button', 'aria-label': 'Close this note', on: { click: () => { remember(); banner.remove(); } } }, '×'));
   document.body.append(banner);

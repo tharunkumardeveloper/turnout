@@ -425,7 +425,11 @@ export function jobView(job) {
     running: job.status === 'running',
     failed: job.status === 'failed',
     title: JOB_TITLES[job.action] ?? 'Working',
-    detail: job.status === 'failed' ? (job.error ?? 'It failed.') : p && p.total ? `${int(p.done)} of ${int(p.total)} shoppers` : (stage?.title ?? ''),
+    detail: job.status === 'failed'
+      ? (job.error ?? 'It failed.')
+      : p && p.total
+        ? `${int(p.done)} of ${int(p.total)} shoppers`
+        : `${stage?.title ?? ''}${job.action === 'score' && job.status === 'running' ? ' (usually about 10 seconds: Flagsmith does the maths)' : ''}`,
     fraction: p && p.total ? p.done / p.total : null,
   };
 }

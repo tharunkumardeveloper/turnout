@@ -199,8 +199,9 @@
       <div class="card-head">
         <h2 id="traffic-title">Traffic map</h2>
         <div class="map-switch" role="group" aria-label="Show">
-          <button id="map-show-previews" type="button" aria-pressed="false">Previews</button>
-          <button id="map-show-traffic" type="button" aria-pressed="true">Traffic</button>
+          <span class="map-switch-label" aria-hidden="true">Show</span>
+          <button id="map-show-previews" type="button" aria-pressed="false" title="Each version's page, side by side">Previews</button>
+          <button id="map-show-traffic" type="button" aria-pressed="true" title="Live: every visitor, routed by the Flagsmith flag">Traffic</button>
         </div>
         <p class="card-sub" id="traffic-sub">Each routed request is a dot · counters cover the last <span id="traffic-window">60</span> s</p>
         <span id="merged-badge" class="merged-badge" hidden></span>
