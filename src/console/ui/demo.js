@@ -333,7 +333,10 @@ function render() {
   // (that one stays in Earlier tests). Once per page load, so a test you finish here stays on screen.
   if (!ui.freshShown && s.experiment && !LOCKED) {
     ui.freshShown = true;
-    if (s.experiment.status === 'completed' && ui.plan === null) ui.plan = ui.kind ?? 2;
+    if (s.experiment.status === 'completed' && ui.plan === null) {
+      ui.plan = ui.kind ?? 2;
+      tellConsole({ type: 'plan', releases: M.plannedVersions(s.releases ?? [], ui.plan).map((v) => v.release) }); // its previews too
+    }
   }
   const kind = chosenKind(s);
   // A pick shows at once (its Start waits for a running step). While a new test starts, its own fresh steps stay on
