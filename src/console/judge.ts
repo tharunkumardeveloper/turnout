@@ -1002,12 +1002,13 @@ export function createJudge(opts: JudgeOptions, ctx: JudgeContext) {
     return { visitors: sent, byRelease: report.byRelease };
   };
 
+  const QUIET_MS = 2_500;
   const score: Action = async (s, _body, { log, stage }) => {
     const id = s.experiment.id;
     const allowed = refreshAllowedAt(id, s.results);
     if (allowed) throw new Error(`Flagsmith allows one refresh per experiment every 5 minutes; next at ${hhmm(Date.parse(allowed))}.`);
 
-    log("Waiting for the proxy's events to reach Flagsmith (the proxy sends them every 2 s)…");
+    log("Waiting for the proxy's events to reach Flagsmith (the proxy sends them every second)…");
     const first = await deps.readEvents();
     if (!first) {
       await deps.sleep(6_000);
@@ -1015,9 +1016,10 @@ export function createJudge(opts: JudgeOptions, ctx: JudgeContext) {
       const started = deps.now();
       let last = first.accepted;
       let since = started;
-      // The proxy flushes events every second: 5 quiet seconds means they've all reached Flagsmith.
-      while (deps.now() - since < 5_000 && deps.now() - started < 45_000) {
-        await deps.sleep(1000);
+      // The proxy flushes events every second (flag-source.ts flushInterval): 2.5 quiet seconds, two flushes and a
+      // half with nothing new, means they've all reached Flagsmith.
+      while (deps.now() - since < QUIET_MS && deps.now() - started < 45_000) {
+        await deps.sleep(500);
         const now = (await deps.readEvents())?.accepted ?? last;
         if (now !== last) {
           last = now;
@@ -1042,7 +1044,7 @@ export function createJudge(opts: JudgeOptions, ctx: JudgeContext) {
     const started = deps.now();
     let results: Results | null = null;
     while (deps.now() - started < 90_000) {
-      await deps.sleep(1000);
+      await deps.sleep(400); // Flagsmith's task processor publishes them in a few seconds: look often
       results = await s.exps.results();
       if ((results?.as_of ?? null) !== before) break;
       results = null;

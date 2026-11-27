@@ -593,7 +593,7 @@ test("the live demo's notice: public page only, never in a frame, and tours wait
   assert.match(menu, /function setupLiveNotice\(menu\) \{\n  if \(!READONLY \|\| typeof window === 'undefined' \|\| window\.top !== window\.self\) return;/);
   assert.match(menu, /for \(const node of document\.querySelectorAll\('\[data-private\]'\)\) node\.remove\(\);\n    setupLiveNotice\(menu\);/);
   // Says what's here, what's only on your machine and why, and how to run it.
-  for (const words of ['On this server', 'Only on your machine, and why', 'never runs strangers’ code', 'admin login can’t be public', 'turnout demo', 'Run it locally']) {
+  for (const words of ['On this server', 'Only on your machine, and why', 'never runs strangers’ code', 'admin login can’t be public', 'turnout demo', 'Judges: for every feature, please run Turnout on your own machine']) {
     assert.ok(menu.includes(words), words);
   }
   // Once per browser, with the tour one click away; the menu's "About this demo" opens it again.

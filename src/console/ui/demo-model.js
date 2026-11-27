@@ -429,7 +429,7 @@ export function jobView(job) {
       ? (job.error ?? 'It failed.')
       : p && p.total
         ? `${int(p.done)} of ${int(p.total)} shoppers`
-        : `${stage?.title ?? ''}${job.action === 'score' && job.status === 'running' ? ' (usually about 10 seconds: Flagsmith does the maths)' : ''}`,
+        : `${stage?.title ?? ''}${job.action === 'score' && job.status === 'running' ? ' (a few seconds: Flagsmith does the maths)' : ''}`,
     fraction: p && p.total ? p.done / p.total : null,
   };
 }

@@ -319,6 +319,12 @@ function render() {
   rl.hidden = !(links.experiment && s.results);
   rl.setAttribute('href', links.experiment ?? '#');
 
+  // Arriving when no test is running: a fresh test, ready to Start, instead of the last one's finished steps
+  // (that one stays in Earlier tests). Once per page load, so a test you finish here stays on screen.
+  if (!ui.freshShown && s.experiment && !LOCKED) {
+    ui.freshShown = true;
+    if (s.experiment.status === 'completed' && ui.plan === null) ui.plan = ui.kind ?? 2;
+  }
   const kind = chosenKind(s);
   const m = ui.plan !== null ? M.planModel(s, ui.plan) : M.model(s, { kind }); // a pick shows at once; its Start waits for a running step
   // A test that was just picked: show its versions now, before Flagsmith confirms it. Cleared once the page shows it.
@@ -456,11 +462,18 @@ function renderSteps(s, m) {
     if (st.id === 'decide' && m.finished) body.push(outcomeBox(m));
     if (showJob) body.push(jobBox(job));
     else if (isCurrent && m.action && !job) body.push(actionBox(m));
-    return h('li', { class: 'step', 'data-status': showJob ? 'current' : st.status, 'aria-current': isCurrent ? 'step' : null },
+    // A step whose status just changed animates once: its mark pops when done, and the next one slides in.
+    const status = showJob ? 'current' : st.status;
+    const before = ui.stepStatus?.[st.id];
+    const change = before !== undefined && before !== status ? (status === 'done' ? ' just-done' : status === 'current' ? ' just-current' : '') : '';
+    (ui.nextStepStatus ??= {})[st.id] = status;
+    return h('li', { class: `step${change}`, 'data-status': status, 'aria-current': isCurrent ? 'step' : null },
       h('span', { class: 'step-n', 'aria-hidden': 'true' }, st.status === 'done' && !showJob ? '✓' : String(st.n)),
       h('div', { class: 'step-body' }, h('h3', { class: 'step-title' }, st.title), ...body));
   });
   $('steps').replaceChildren(...items);
+  ui.stepStatus = ui.nextStepStatus;
+  ui.nextStepStatus = {};
 }
 
 function actionBox(m) {
