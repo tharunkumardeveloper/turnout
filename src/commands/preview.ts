@@ -70,9 +70,17 @@ export async function preview(opts: Options): Promise<void> {
   const state = await api.get<FlagState>(flagPath);
   const existing = state.segment_overrides.find((o) => o.segment.id === segment.id);
   const priority = existing?.priority ?? Math.max(-1, ...state.segment_overrides.map((o) => o.priority)) + 1;
+  // Every variant, v2 at 100 and the rest at 0: once the flag has a v3 (an A/B/C test), Flagsmith refuses an override
+  // that leaves one out (400, segment_overrides: "Must include all feature's variants."), like the environment default.
   await api.patch(flagPath, {
     segment_overrides: [
-      { segment: { id: segment.id }, priority, enabled: true, value: { type: 'string', value: live }, variants: [{ id: v2.id, weight: 100 }] },
+      {
+        segment: { id: segment.id },
+        priority,
+        enabled: true,
+        value: { type: 'string', value: live },
+        variants: feature.multivariate_options.map((o) => ({ id: o.id, weight: o.id === v2.id ? 100 : 0 })),
+      },
     ],
   });
   log(`✓ your team gets ${opts.newRelease}; everyone else still gets ${live}`);

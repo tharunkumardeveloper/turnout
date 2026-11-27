@@ -437,6 +437,13 @@ export async function startFakeAdmin(state: FakeAdminState): Promise<{ apiUrl: s
             }
           }
         }
+        // Flagsmith 2.291.0 refuses an override that leaves out one of the feature's variants (seen live: 400,
+        // {"segment_overrides":[{"variants":["Must include all feature's variants."]}]}), once it lists any.
+        const options = state.features.find((f) => f.id === Number(m![2]))?.multivariate_options ?? [];
+        for (const o of (body.segment_overrides ?? []) as Override[]) {
+          const given = new Set((o.variants ?? []).map((v) => v.id));
+          if (given.size && options.some((x) => !given.has(x.id))) return send(400, { segment_overrides: [{ variants: ["Must include all feature's variants."] }] });
+        }
         for (const o of (body.segment_overrides ?? []) as Override[]) {
           const clash = flag.segment_overrides.find((x) => x.priority === o.priority && x.segment.id !== o.segment.id);
           if (clash) return send(400, { detail: `Priority ${o.priority} is already used by segment ${clash.segment.id}.` });

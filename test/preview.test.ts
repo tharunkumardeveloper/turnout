@@ -117,3 +117,12 @@ test('a missing flag or missing v2 option is explained', async () => {
   await assert.rejects(run(state, 'shop:1.6'), /Flag "shop_release" not found\. Run turnout init first\./);
   assert.deepEqual(writes(state), []);
 });
+
+test('with a v3 on the flag (after an A/B/C test), the override lists every variant: v2 at 100%, v3 at 0%', async () => {
+  const state = seededState();
+  state.features[0]!.multivariate_options.push({ id: SEED.v2Id + 1, key: 'v3', string_value: 'shop:1.6', type: 'unicode', default_percentage_allocation: 0 } as any);
+  await run(state, 'shop:1.6');
+  const [segment] = previewSegments(state);
+  const override = flagOf(state).segment_overrides.find((o) => o.segment.id === segment!.id)!;
+  assert.deepEqual(override.variants, [{ id: SEED.v2Id, weight: 100 }, { id: SEED.v2Id + 1, weight: 0 }]);
+});
