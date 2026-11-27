@@ -62,26 +62,31 @@ if (clip === 'judge') {
   await page.locator('#map-show-traffic').click();
   await pause(3500);
 } else if (clip === 'traffic') {
+  // The console, Guided demo off: the test step by step under the previews; shoppers flow on the traffic map.
   await page.goto(`${LIVE}/judge/console?mode=console`);
-  await page.locator('#map-show-traffic').waitFor();
-  await page.locator('#map-show-traffic').click();
-  // Wait for the autopilot's shoppers, so the map is busy.
-  const tok = await page.locator('meta[name="turnout-console"]').getAttribute('content');
-  for (let i = 0; i < 180; i++) {
-    const s = await page.evaluate(async (t) => (await fetch('/judge/api/judge/state', { headers: { 'x-turnout-console': t } })).json(), tok);
-    if (s.job?.action === 'visitors' && s.job.status === 'running' && (s.job.progress?.done ?? 0) > 50) break;
+  const sf = page.frameLocator('#steps-frame');
+  const go = sf.locator('#go');
+  await go.waitFor({ timeout: 60_000 });
+  await pause(1500);
+  mark('console');
+  await sf.locator('#kinds button', { hasText: /^A\/B$/ }).click();
+  await pause(800);
+  if (!/Start/.test((await go.textContent()) ?? '')) await sf.locator('#kinds button', { hasText: /^A\/B\/C$/ }).click();
+  mark('pick');
+  await pause(1500);
+  const step = async (label, expect) => {
+    await sf.locator('#go:not([disabled])', { hasText: expect }).waitFor({ timeout: 240_000 });
+    await pause(800);
+    mark(label);
+    await go.click();
+  };
+  await step('start', /Start/);
+  await step('shoppers', /Send/);
+  // The dots, in real time: marked every 2 s so none of it is fast-forwarded.
+  for (let i = 0; i < 6; i++) {
     await pause(2000);
-  }
-  // Marked every 2 s: the dots play in real time, never fast-forwarded.
-  for (let i = 0; i < 5; i++) {
     mark('traffic');
-    await pause(2000);
   }
-  mark('previews');
-  await page.locator('#map-show-previews').click();
-  await pause(3500);
-  await page.locator('#map-show-traffic').click();
-  await pause(2500);
 } else if (clip === 'try') {
   // On your machine (Try it never runs on a public server): two GitHub links, neither with a Dockerfile.
   const LOCAL = process.env.TURNOUT_LOCAL ?? 'http://127.0.0.1:8090';

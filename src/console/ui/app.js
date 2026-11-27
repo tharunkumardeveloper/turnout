@@ -420,10 +420,12 @@ function fitMapPreviews() {
 }
 if (typeof ResizeObserver === 'function') new ResizeObserver(fitMapPreviews).observe($('map-previews'));
 $('map-show-previews').addEventListener('click', () => {
+  document.getElementById('switch-tip')?.remove(); // you used the switch: its tip has done its job
   mapView.choice = 'previews';
   if (app.state) renderMapMode(app.state);
 });
 $('map-show-traffic').addEventListener('click', () => {
+  document.getElementById('switch-tip')?.remove(); // you used the switch: its tip has done its job
   mapView.choice = 'traffic';
   if (app.state) renderMapMode(app.state);
 });

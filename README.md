@@ -77,7 +77,7 @@ The [live demo](https://172-198-62-67.sslip.io) shows the whole loop in a minute
 <td width="50%" valign="top"><img src="docs/images/try-it.gif" alt="Try it with your app: two GitHub links with no Dockerfile become versions A and B, built, started and put in a Flagsmith experiment"><br><b>Your app from a GitHub link.</b> Two links, no Dockerfile: Turnout builds them and starts the A/B test.</td>
 </tr>
 <tr>
-<td width="50%" valign="top"><img src="docs/images/traffic.gif" alt="The traffic map: each visitor passes the proxy and the Flagsmith flag sends it down the A or B track"><br><b>Every visitor, live.</b> The flag's weights pick each request's track; one flag change moves the stream.</td>
+<td width="50%" valign="top"><img src="docs/images/traffic.gif" alt="The console with Guided demo off: the test step by step at the top left; picking A/B shows its versions, Start and Send shoppers, and the traffic map shows every visitor sent to A or B by the Flagsmith flag"><br><b>The console: every visitor, live.</b> The test runs step by step on the left; the map follows it, each dot sent to a version by the flag.</td>
 <td width="50%" valign="top"><img src="docs/images/flagsmith-tour.gif" alt="Turnout's tour inside Flagsmith's own dashboard: the flag, experiments, results and metrics"><br><b>Inside Flagsmith.</b> Everything Turnout does is a real Flagsmith object; its tour walks through them.</td>
 </tr>
 </table>
