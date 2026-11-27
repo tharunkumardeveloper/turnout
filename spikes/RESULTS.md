@@ -92,6 +92,14 @@ A browser that never reports counts as 0 ms in Flagsmith's mean. To see it, the 
 
 The bias is real: Flagsmith's numbers alone called the slowest release the fastest. **Fix, checked on these results:** the proxy records `vitals_reported` per reporting visitor; `lcp_ms` and `cls` decide only when both versions' reporting rates are within 5 points. Turnout's own functions on experiment 392: shop:1.5 comparable (100% vs 100%); shop:1.6 **not compared**, "55% of v3's visitors reported it against 100% of control's, and a visitor who didn't report counts as 0", and still losing on `doc_latency_ms`.
 
+## `turnout browsers`: real-browser visits from the command line (06:43–06:52)
+
+The two landing pages again, from the same folder: `turnout compare localhost:3001 localhost:3002 --browser-speed` (a new experiment, since the settings changed; check 29 ok; guardrails `server_error, lcp_ms, cls`), then `turnout browsers --visits 60`. The launcher set up the separate Demo environment, started the simulation proxy and a headless Chrome (`chromedp/headless-shell:stable`, pulled on first use), and the CLI sent the visits over the Chrome DevTools Protocol, each a fresh browser profile with the user agent `… TurnoutBrowserVisit/1.0`.
+
+- **60 of 60 visits, 0 failed, page speed reported by 60**, in 2 min 27 s including the Chrome image's download.
+- Flagsmith's results in the Demo environment: `lcp_ms` v1 (Agency) 1,507.6 ms against v2 (Creative) 784.7 ms; `vitals_reported` 100% on both; 30 visitors each, under Flagsmith's minimum of 50, so "collecting data".
+- **Found and fixed:** `turnout simulate` wrote its console's port to the settings `compare` compares on resume, so running `compare` again with the same arguments after a simulation started a new experiment and discarded the data. The comparison now leaves that line out, as the Windows launcher already did.
+
 ## The GitHub Action's report and pull-request comment (05:40)
 
 The real `turnout check` against the local Flagsmith, with GitHub Actions' variables set and a stand-in for GitHub's API on 127.0.0.1:

@@ -30,7 +30,7 @@
 |---|---|
 | **Self-hosted Flagsmith** | Flagsmith's official Docker Compose file, version pinned to 2.291.0 ([compose.flagsmith.yml](compose.flagsmith.yml)), with Experimentation and its event store on PostgreSQL; the [live demo](https://172-198-62-67.sslip.io) runs it on a VM |
 | **Integrations and plugins** | A Feature Health provider (Flagsmith marks a losing version Unhealthy), Code References for the flag, a reusable GitHub Action ([action.yml](action.yml)) that writes its result to the job summary and one pull-request comment, and a tour inside Flagsmith's own dashboard |
-| **Developer tools** | The `turnout` CLI (`compare`, `results`, `ship`, `revert`, `simulate`), a setup check with 28 checks, the Experiment Doctor (exposures and events on every arm, and a **sample-ratio check (SRM)** against the configured split), Try it with your app (paste a GitHub link), and an [agent skill](skills/turnout-experiment/SKILL.md) that runs a test and stops for a person to ship |
+| **Developer tools** | The `turnout` CLI (`compare`, `results`, `ship`, `revert`, `simulate`, and `browsers`: real headless-Chrome visits for page speed before real traffic), a setup check with 28 checks, the Experiment Doctor (exposures and events on every arm, and a **sample-ratio check (SRM)** against the configured split), Try it with your app (paste a GitHub link), and an [agent skill](skills/turnout-experiment/SKILL.md) that runs a test and stops for a person to ship |
 | **Easy for others to reuse** | One-line installers for Windows, macOS and Linux, a public image on GitHub Container Registry, and 53 real GitHub repos tested, 39 run end to end ([Proof](#proof)) |
 
 **Flagsmith's own calls, graded:** in the 41 blind rounds the live demo decided during the hackathon (hidden true rates), Flagsmith caught every real lift and drop (16 of 16) and made a false call in 1 of 8 rounds with no difference; Turnout's decision was right in 40 of 41. [The write-up](docs/BLIND_ROUNDS.md).
@@ -158,6 +158,8 @@ turnout compare localhost:3001 localhost:3002         # your two running version
 ```
 
 `compare` starts its own Flagsmith, creates the flag and the experiment, starts the proxy, checks everything and opens the console. Every new browser is a new visitor.
+
+No real traffic yet? `turnout compare … --browser-speed` also measures page speed in each visitor's browser, and `turnout browsers --visits 200` sends real headless-Chrome visits (labelled automated, counted only in a separate Demo environment), so Flagsmith can compare the versions' page speed in minutes.
 
 ## How Flagsmith is used
 
