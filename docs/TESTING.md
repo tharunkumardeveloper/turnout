@@ -34,7 +34,7 @@ Each line is one thing to check, and what you should see. Start with `turnout de
 | Guided demo | flip the **Guided demo** switch | the step-by-step view replaces the cards; flip back for the console; reload keeps the choice |
 | Judge tour | with Guided demo on, press **Tour** | the judge view's tour |
 | Traffic card | press **Previews**, then **Traffic** | Previews: the versions' websites only. Traffic: the flow chart only |
-| Run a test | pick A/A, A/B or A/B/C, press its one button | the test starts, simulated shoppers flow on the map, Flagsmith's results arrive |
+| The test, step by step (Guided demo off, under Your site) | pick A/A, A/B or A/B/C (the previews show its versions), then Start, Send shoppers, Ask Flagsmith, decide | the test starts, the map switches to Traffic as simulated shoppers flow, Flagsmith's results arrive |
 | Results headline | after a test | names the version to ship, in that version's colour; a version that loses a safety check is never the one to ship |
 | Refresh | press **Refresh** on Flagsmith's results | new numbers, or "Flagsmith allows the next refresh in …" (its 5-minute limit) |
 | Decide | **Ship** or **Revert**, confirm | everyone moves; the ledger and History show it |
@@ -51,7 +51,7 @@ Each line is one thing to check, and what you should see. Start with `turnout de
 | A Dockerfile that copies files | paste one with `COPY . .` | a red note: choose its project folder instead |
 | A repository without a Dockerfile | paste such a GitHub link and build | a red card names the version and says the repository has no Dockerfile |
 | Previews | on your app's console, **Previews** | each version's own site (A :8086, B :8087, C :8088) |
-| Your app's console | /app | traffic, Flagsmith's results, Run a test, Decide, for flag `tryit_release`; **← Demo shop** goes back |
+| Your app's console | /app | traffic, Flagsmith's results, the test step by step, Decide, for flag `tryit_release`; **← Demo shop** goes back |
 
 ## Flagsmith (<http://127.0.0.1:8001>)
 
