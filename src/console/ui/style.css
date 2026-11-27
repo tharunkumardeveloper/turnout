@@ -1455,3 +1455,5 @@ body.simple .detail { display: none !important; }
 .steps-layout .you { font-size: 13px; }
 .steps-layout .cgrid .run-card { padding-bottom: 8px; }
 .steps-layout .cgrid:has(.run-card[hidden]) .site-card { grid-row: 1 / span 2; }
+/* Short screens (768 px and so): Your site keeps its button and note; where you landed shows once you've visited. */
+@media (max-height: 820px) { .steps-layout #you { display: none; } .steps-layout .cgrid { gap: 10px; padding-top: 8px; } }
