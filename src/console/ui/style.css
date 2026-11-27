@@ -1429,3 +1429,14 @@ body.simple .detail { display: none !important; }
 @keyframes switch-hint { 50% { box-shadow: 0 0 0 5px rgb(102 51 255 / 0.45); } }
 @media (prefers-reduced-motion: reduce) { .next-view, .switch-hint { animation: none; } .switch-hint { box-shadow: 0 0 0 3px rgb(102 51 255 / 0.5); } }
 .next-view .btn-primary { --c: #6633ff; } /* outside a version card --c is unset: give the button its colour */
+
+/* The run card with Guided demo off: just the Guided demo's steps (app.js ensureStepsFrame). */
+.run-card.steps-mode > :not(.card-head):not(.steps-frame) { display: none !important; }
+.run-card.steps-mode .card-head .kinds { display: none; }
+.steps-frame { display: block; width: 100%; height: 360px; border: 0; background: transparent; }
+.steps-frame[hidden] { display: none; }
+/* The live demo's hints: the switch that changed by itself, and the shop to open. */
+.switch-tip { display: flex; gap: 8px; align-items: flex-start; margin: 2px 0 8px; padding: 8px 10px; border-radius: 10px; font-size: 13px; line-height: 1.45; background: color-mix(in srgb, #6633ff 9%, var(--surface)); border: 1px solid color-mix(in srgb, #6633ff 35%, var(--border)); }
+.switch-tip span { flex: 1; }
+.switch-tip-x { padding: 0 4px; font-size: 16px; line-height: 1; color: inherit; background: none; border: 0; cursor: pointer; }
+.site-hint { margin: 8px 0 0; padding: 8px 10px; border-radius: 10px; font-size: 13px; line-height: 1.45; background: color-mix(in srgb, #16a34a 9%, var(--surface)); border: 1px solid color-mix(in srgb, #16a34a 35%, var(--border)); }

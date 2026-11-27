@@ -383,3 +383,12 @@ a.version-frame:hover::after, a.version-frame:focus-visible::after { opacity: 1;
 @keyframes step-ring { from { box-shadow: 0 0 0 0 color-mix(in srgb, var(--go) 45%, transparent); } }
 @keyframes step-in { from { opacity: 0; transform: translateY(-6px); } to { opacity: 1; transform: none; } }
 @media (prefers-reduced-motion: reduce) { .step.just-done .step-n, .step.just-done::before, .step.just-current .step-n, .step.just-current .step-body { animation: none; } }
+
+/* Steps only (demo.js STEPS_ONLY): inside the console's card under Your site, the kinds and the steps, nothing else. */
+.steps-view body { background: transparent; min-height: 0; height: auto; overflow: hidden; display: block; padding: 0; }
+.steps-view .top { padding: 0 0 10px; border: 0; background: transparent; min-height: 0; }
+.steps-view .top > :not(.kinds) { display: none !important; }
+.steps-view .screen { display: block; padding: 0; height: auto; min-height: 0; overflow: visible; }
+.steps-view .screen > :not(.steps-panel) { display: none !important; }
+.steps-view .steps-panel { padding: 0; border: 0; background: transparent; box-shadow: none; overflow: visible; height: auto; }
+.steps-view .steps-panel .eyebrow, .steps-view .blind, .steps-view .foot, .steps-view .error-box { display: none !important; }

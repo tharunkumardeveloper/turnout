@@ -8,7 +8,7 @@ import * as M from './demo-model.js';
 import { createTour } from './tour.js';
 import { CONSOLE_STOPS, stopsFor } from './tour-stops.js';
 import { setupTry } from './try.js';
-import { setupMode } from './mode.js';
+import { frameSrc, setupMode } from './mode.js';
 
 const POLL_MS = 5000;
 const $ = (id) => /** @type {HTMLElement} */ (document.getElementById(id));
@@ -216,6 +216,7 @@ function renderSite(s) {
   }
   $('site-open').href = s.site.url;
   $('site-open').textContent = `Open your site: be a visitor (${s.site.url.replace(/^https?:\/\//, '')})`;
+  $('site-hint').hidden = !READONLY; // the live demo: visiting the shop is how you see Flagsmith pick your version
   $('site-flagsmith').href = s.site.dashboardUrl;
   const goal = $('site-goal');
   goal.textContent = '';
@@ -328,21 +329,71 @@ function render() {
 // ---- the traffic card: previews before traffic, the map once shoppers flow -------------------------------------
 // Before a test has traffic the card shows each version, live (as guided demo does); once requests flow it shows the
 // traffic map. The switch overrides that until the page reloads.
-const mapView = { choice: null, framesKey: '' };
+const mapView = { choice: null, framesKey: '', lastAuto: null };
+
+// ---- The test, step by step (Guided demo off): the Guided demo's steps in the run card, and what they tell us ----
+const steps = { plan: null };
+function ensureStepsFrame() {
+  const f = $('steps-frame');
+  if (!f) return false;
+  if (!f.getAttribute('src')) {
+    $('run').classList.add('steps-mode');
+    $('run-title').textContent = 'The test, step by step';
+    f.hidden = false;
+    f.setAttribute('src', `${frameSrc(BASE, new URLSearchParams(location.search))}&view=steps`);
+  }
+  return true;
+}
+window.addEventListener('message', (e) => {
+  if (e.origin !== location.origin || !e.data?.turnout) return;
+  const d = e.data;
+  if (d.turnout === 'steps-height' && e.source === $('steps-frame')?.contentWindow) $('steps-frame').style.height = `${Math.max(120, d.height)}px`;
+  if (d.turnout === 'plan') {
+    // A pick shows its versions; a start (or going back) shows the test itself, and the map follows its traffic.
+    steps.plan = Array.isArray(d.releases) && d.releases.length ? d.releases : null;
+    mapView.choice = null;
+    mapView.framesKey = '';
+    if (app.state) renderMapMode(app.state);
+  }
+  if (d.turnout === 'shoppers') {
+    mapView.choice = null; // shoppers on their way: the traffic map, once they flow
+    if (app.state) renderMapMode(app.state);
+  }
+});
+
+/** The live demo: when Previews / Traffic switches by itself, say what's on screen and that the switch is there. */
+function switchTip(mode) {
+  if (!READONLY) return;
+  document.getElementById('switch-tip')?.remove();
+  const sw = document.querySelector('.map-switch');
+  if (!sw) return;
+  const text = mode === 'traffic'
+    ? 'Shoppers are arriving: each dot is a visitor, sent to a version by the Flagsmith flag. Click Previews to see each version’s page.'
+    : 'These are the versions in your test. Click one to open its page; click Traffic to watch every visitor live.';
+  const tip = h('div', { class: 'switch-tip', id: 'switch-tip', role: 'status' }, h('span', {}, text),
+    h('button', { type: 'button', class: 'switch-tip-x', 'aria-label': 'Close', onclick: () => tip.remove() }, '×'));
+  sw.closest('.card-head')?.after(tip);
+  sw.classList.add('switch-hint');
+  setTimeout(() => { sw.classList.remove('switch-hint'); tip.remove(); }, 12000);
+}
 /** One version on its own: its own address (Try it), or the proxy's view link. Never counted either way. */
 function previewOf(site, label) {
   return site?.previews?.[label] ?? viewLink(site?.url, label);
 }
 function renderMapMode(s) {
-  const variants = s.experiment ? F.built(s, F.variantList(s.experiment)) : [];
+  // A test picked in the steps, not started yet: its versions, as previews.
+  const planned = steps.plan?.map((release, i) => ({ label: release, color: RUN_COLORS[i % RUN_COLORS.length], isControl: i === 0 }));
+  const variants = planned ?? (s.experiment ? F.built(s, F.variantList(s.experiment)) : []);
   const flowing = Object.values(s.traffic?.byVariant ?? {}).some((v) => v.requests > 0) || flow.running;
-  const auto = s.experiment?.status === 'running' && flowing ? 'traffic' : 'previews';
+  const auto = !planned && s.experiment?.status === 'running' && flowing ? 'traffic' : 'previews';
   const mode = s.site?.url && variants.length ? (mapView.choice ?? auto) : 'traffic';
+  if (!mapView.choice && mapView.lastAuto && mapView.lastAuto !== mode) switchTip(mode);
+  if (!mapView.choice) mapView.lastAuto = mode;
   $('map-show-previews').setAttribute('aria-pressed', String(mode === 'previews'));
   $('map-show-traffic').setAttribute('aria-pressed', String(mode === 'traffic'));
   $('map').hidden = mode !== 'traffic';
   for (const node of document.querySelectorAll('#traffic .legend')) node.hidden = mode !== 'traffic';
-  $('traffic-title').textContent = mode === 'traffic' ? 'Traffic map' : 'The versions';
+  $('traffic-title').textContent = mode === 'traffic' ? 'Traffic map' : planned ? 'The versions you picked' : 'The versions';
   $('traffic-sub').hidden = mode !== 'traffic';
   const box = $('map-previews');
   box.hidden = mode !== 'previews';
@@ -1045,8 +1096,10 @@ async function runDemo(action, payload) {
 
 function renderDemo() {
   const card = $('run');
-  card.hidden = demo.available !== true || READONLY; // the public page: the autopilot runs the tests
+  card.hidden = demo.available !== true;
   if (card.hidden) return;
+  // The test, step by step: the Guided demo's own steps (demo.html?view=steps) do everything this card did.
+  if (ensureStepsFrame()) return;
   renderRun();
   const s = app.state;
   const e = s?.experiment;

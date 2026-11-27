@@ -25,6 +25,11 @@ const LOCKED = READONLY && !PLAY;
 // opened on its own (an old link, a bookmark) it sends you to the console with the switch on.
 const QUERY = new URLSearchParams(location.search);
 export const EMBED = QUERY.has('embed') || window.self !== window.top;
+// The console with Guided demo off shows just the steps (index.html's run card): the kinds and the steps, nothing else.
+export const STEPS_ONLY = QUERY.get('view') === 'steps';
+if (STEPS_ONLY) document.documentElement.classList.add('steps-view');
+/** Tells the console around this frame what to show: the versions of a picked test, or a test that started. */
+const tellConsole = (msg) => window.parent !== window && window.parent.postMessage({ turnout: msg.type, ...msg }, location.origin);
 if (!EMBED) {
   const tryPage = document.querySelector('meta[name="turnout-try"]') !== null;
   const consolePath = BASE === '/judge' ? '/judge/console' : '/';
@@ -177,6 +182,7 @@ async function run(action, extra = {}) {
   const s = ui.state;
   if (action === 'cancel-plan') {
     ui.plan = null;
+    tellConsole({ type: 'plan', releases: null });
     return render();
   }
   if (ui.sending) return;
@@ -202,6 +208,8 @@ async function run(action, extra = {}) {
     if (!res.ok) throw new Error(out.error ?? `HTTP ${res.status}`);
     if (PLAY) markMine();
     if (out.job) followJob(out.job);
+    if (action === 'start' || action === 'abc') tellConsole({ type: 'plan', releases: null, started: true });
+    if (action === 'visitors') tellConsole({ type: 'shoppers' });
   } catch (error) {
     ui.error = error.message;
     ui.before = null;
@@ -302,6 +310,8 @@ function pickKind(k) {
   const running = s?.experiment && s.experiment.status !== 'completed' ? M.kindOf(s) : null;
   ui.plan = running === k ? null : k;
   document.dispatchEvent(new CustomEvent('turnout:kind', { detail: { kind: k, label: M.kindLabel(k), planned: ui.plan !== null } }));
+  // The console shows the picked test's versions in its previews; going back to the running test, the running one's.
+  tellConsole({ type: 'plan', releases: ui.plan !== null ? M.plannedVersions(s?.releases ?? [], ui.plan).map((v) => v.release) : null });
   render();
 }
 
@@ -817,3 +827,8 @@ connectFeed();
 const playNow = TRY && new URLSearchParams(location.search).get('play') === '1';
 // Inside the console the tour starts from its Tour button, not by itself.
 loadState().then(() => (playNow ? startAutoplay() : EMBED ? null : noticeClosed().then(() => tour.offer())));
+
+// In the console (steps only): the frame is as tall as its steps, so the console's card never scrolls inside.
+if (STEPS_ONLY && typeof ResizeObserver === 'function') {
+  new ResizeObserver(() => tellConsole({ type: 'steps-height', height: Math.ceil(document.getElementById('steps-view-root')?.getBoundingClientRect().height ?? document.body.scrollHeight) })).observe(document.body);
+}
