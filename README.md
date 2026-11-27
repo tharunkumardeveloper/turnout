@@ -16,7 +16,7 @@
 [![Tests](https://img.shields.io/badge/tests-650%2B%20passing-15803d)](#development)
 [![License: BSD-3-Clause](https://img.shields.io/badge/license-BSD--3--Clause-blue)](LICENSE)
 
-[**Live demo**](https://172-198-62-67.sslip.io) · [Quick start](#quick-start) · [Step-by-step setup](#step-by-step-setup) · [How Flagsmith is used](#how-flagsmith-is-used)
+[**▶ Demo video (2:50)**](https://www.youtube.com/watch?v=uoJtfs4HVrE) · [**Live demo**](https://172-198-62-67.sslip.io) · [Quick start](#quick-start) · [Step-by-step setup](#step-by-step-setup) · [How Flagsmith is used](#how-flagsmith-is-used)
 
 <img src="docs/images/judge-ship.gif" width="860" alt="The live demo, guided: a visitor runs an A/B/C test. 2,100 shoppers go through, Flagsmith is not sure B beats A and flags C's pages as 8.6× slower; keeping A reveals the blind round: identical on orders, so Flagsmith got it right (96 of 98)">
 
