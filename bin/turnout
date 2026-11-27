@@ -118,6 +118,7 @@ help_screen() {
   cmd 'turnout status' "what's running, and a full check"
   cmd 'turnout logs [proxy|console]' "follow Turnout's logs"
   cmd 'turnout down | reset' 'stop (data kept) | wipe and start fresh'
+  cmd 'turnout uninstall [--dry-run]' 'remove Turnout: its containers, data and link (asks first)'
   cmd 'turnout update | version' 'get the latest | which one you have'
   say ""
   say "  ${C_D}How it works: visitors reach Turnout, Flagsmith picks each one's version, Turnout sends them there and"
@@ -422,6 +423,51 @@ cmd_browsers() {
   open_url "http://127.0.0.1:$SIM_PORT"
 }
 
+# turnout uninstall: every Turnout project's containers and data (this checkout's demo and each turnout compare
+# project), Try it's containers (with this checkout's demo), the turnout:local image, Turnout's state folder, the
+# ~/.local/bin/turnout link and a downloaded release. Lists it first and asks; --dry-run only lists; --yes doesn't ask.
+cmd_uninstall() {
+  dry=; yes=
+  for a in "$@"; do case "$a" in --dry-run) dry=1 ;; --yes) yes=1 ;; *) die "unknown option $a" ;; esac; done
+  need_docker
+  state_root="${TURNOUT_STATE:-$HOME/.turnout/projects}"
+  # One line per container: project|folder. Folders can have spaces, so whole lines, never words.
+  rows=$(docker ps -a --format '{{.Label "com.docker.compose.project"}}|{{.Label "com.docker.compose.project.working_dir"}}' 2>/dev/null | sort -u)
+  demo_here=$(printf '%s\n' "$rows" | awk -F'|' -v d="$HOME_DIR" '$1 != "" && $2 == d { print 1; exit }')
+  projects=$(printf '%s\n' "$rows" | awk -F'|' -v d="$HOME_DIR" -v r="$state_root/" '$1 != "" && ($2 == d || index($2, r) == 1) { print $1 }')
+  for d in "$state_root"/*/; do [ -d "$d" ] && projects="$projects turnout-$(basename "$d")"; done
+  projects=$(printf '%s\n' $projects | sort -u)
+  tryit=; [ -n "$demo_here" ] && tryit=$(docker ps -aq --filter label=turnout.tryit=1 2>/dev/null)
+  link="${TURNOUT_BIN_DIR:-$HOME/.local/bin}/turnout"
+  linked=; [ -L "$link" ] && [ "$(readlink "$link")" = "$HOME_DIR/bin/turnout" ] && linked=1
+  downloads="${TURNOUT_INSTALL_DIR:-${XDG_DATA_HOME:-$HOME/.local/share}/turnout}"
+  downloaded=; case "$HOME_DIR" in "$downloads"/*) downloaded=1 ;; esac
+  state_home=$(dirname "$state_root")
+
+  say "turnout uninstall removes:"
+  if [ -n "$projects" ]; then for p in $projects; do say "  - Docker project $p: its containers, networks and data (Flagsmith's database, results, the release history)"; done
+  else say "  - no Turnout containers"; fi
+  [ -n "$tryit" ] && say "  - $(printf '%s\n' $tryit | grep -c .) Try it container(s) and their network"
+  say "  - the turnout:local image"
+  [ -d "$state_home" ] && say "  - Turnout's files: $state_home"
+  [ -n "$linked" ] && say "  - the link $link"
+  if [ -n "$downloaded" ]; then say "  - the downloaded release: $HOME_DIR"; else say "  (This checkout, $HOME_DIR, stays: delete the folder yourself if you want it gone.)"; fi
+  if [ -n "$dry" ]; then say ""; say "--dry-run: nothing removed."; return 0; fi
+  if [ -z "$yes" ]; then printf 'Remove all of this? It cannot be undone. [y/N] '; read -r ok; [ "$ok" = y ] || { say "Nothing removed."; return 0; }; fi
+
+  for p in $projects; do
+    docker compose -p "$p" down -v --remove-orphans >/dev/null 2>&1 || true
+    for v in $(docker volume ls -q --filter "label=com.docker.compose.project=$p" 2>/dev/null); do docker volume rm "$v" >/dev/null 2>&1 || true; done
+    say "  removed $p"
+  done
+  if [ -n "$tryit" ]; then docker rm -f $tryit >/dev/null 2>&1 || true; docker network prune -f --filter label=turnout.tryit=1 >/dev/null 2>&1 || true; say "  removed Try it containers"; fi
+  docker image rm turnout:local >/dev/null 2>&1 || true
+  [ -d "$state_home" ] && rm -rf "$state_home" && say "  removed $state_home"
+  [ -n "$linked" ] && rm -f "$link" && say "  removed $link"
+  [ -n "$downloaded" ] && rm -rf "$HOME_DIR" && say "  removed $HOME_DIR"
+  say "Turnout is uninstalled."
+}
+
 cmd_simulate() {
   logo
   need_state; need_docker
@@ -454,6 +500,7 @@ case "$cmd" in
   deploy) cmd_deploy "$@" ;;
   simulate) cmd_simulate "$@" ;;
   browsers) cmd_browsers "$@" ;;
+  uninstall) cmd_uninstall "$@" ;;
   demo) need_docker; cd "$HOME_DIR" && exec sh turnout.sh "${1:-start}" ;;   # start (opens guided demo), or: stop, status, reset
   update) cd "$HOME_DIR" && git pull --ff-only && say "Up to date. The next turnout compare or turnout demo uses it." ;;
   results) need_state; need_docker; compose --progress quiet run --rm cli status ;;

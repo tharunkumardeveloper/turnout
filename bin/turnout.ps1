@@ -141,6 +141,7 @@ function Show-Help {
   Show-Cmd 'turnout status' "what's running, and a full check"
   Show-Cmd 'turnout logs [proxy|console]' "follow Turnout's logs"
   Show-Cmd 'turnout down | reset' 'stop (data kept) | wipe and start fresh'
+  Show-Cmd 'turnout uninstall [--dry-run]' 'remove Turnout: its containers, data and PATH entry (asks first)'
   Show-Cmd 'turnout update | version' 'get the latest | which one you have'
   Write-Host ''
   Write-Host '  How it works: visitors reach Turnout, Flagsmith picks each one''s version, Turnout sends them there and' -ForegroundColor DarkGray
@@ -399,6 +400,62 @@ function Invoke-Browsers([string[]]$a) {
   Start-Process "http://127.0.0.1:$simPort"
 }
 
+# turnout uninstall: every Turnout project's containers and data (this checkout's demo and each turnout compare
+# project), Try it's containers, the turnout:local image, Turnout's state folder, the PATH entry, and a downloaded
+# release. Lists it all first and asks; --dry-run only lists; --yes doesn't ask. Flagsmith's and Postgres' images stay.
+function Invoke-Uninstall([string[]]$a) {
+  $dry = $a -contains '--dry-run'; $yes = $a -contains '--yes'
+  Need-Docker
+  $projects = @(); $demoHere = $false
+  # Containers of this checkout's demo (its folder) or of a compare project (under the state folder), by Compose's labels.
+  $rows = docker ps -a --format '{{json .}}' 2>$null
+  foreach ($row in @($rows)) {
+    if (-not $row) { continue }
+    $labels = @{}
+    foreach ($kv in (($row | ConvertFrom-Json).Labels -split ',')) { $k, $v = $kv -split '=', 2; if ($k) { $labels[$k] = $v } }
+    $proj = $labels['com.docker.compose.project']; $dir = $labels['com.docker.compose.project.working_dir']
+    if (-not $proj -or -not $dir) { continue }
+    $d = $dir.TrimEnd('\')
+    if ($d -ieq $HomeDir.TrimEnd('\')) { $projects += $proj; $demoHere = $true }
+    elseif ($d -like "$($StateRoot.TrimEnd('\'))\*") { $projects += $proj }
+  }
+  foreach ($s in (Get-ChildItem $StateRoot -Directory -ErrorAction SilentlyContinue)) { $projects += "turnout-$($s.Name)" }
+  $projects = @($projects | Sort-Object -Unique)
+  # Try it's containers aren't labelled with the checkout that made them: only with this checkout's own demo stack.
+  $tryit = if ($demoHere) { @(docker ps -aq --filter label=turnout.tryit=1 2>$null | Where-Object { $_ }) } else { @() }
+  $userPath = [Environment]::GetEnvironmentVariable('Path', 'User')
+  $bin = Join-Path $HomeDir 'bin'
+  $onPath = @($userPath -split ';') -contains $bin
+  $downloaded = $HomeDir -like "$(Join-Path $env:LOCALAPPDATA 'turnout')\*"
+  $stateHome = Split-Path -Parent $StateRoot
+
+  Say 'turnout uninstall removes:'
+  if ($projects) { foreach ($p in $projects) { Say "  - Docker project ${p}: its containers, networks and data (Flagsmith's database, results, the release history)" } }
+  else { Say '  - no Turnout containers' }
+  if ($tryit) { Say "  - $($tryit.Count) Try it container(s) and their network" }
+  Say '  - the turnout:local image'
+  if (Test-Path $stateHome) { Say "  - Turnout's files: $stateHome" }
+  if ($onPath) { Say "  - $bin from your user PATH" }
+  if ($downloaded) { Say "  - the downloaded release: $HomeDir" } else { Say "  (This checkout, $HomeDir, stays: delete the folder yourself if you want it gone.)" }
+  if ($dry) { Say ''; Say '--dry-run: nothing removed.'; return }
+  if (-not $yes -and (Read-Host 'Remove all of this? It cannot be undone. [y/N]') -ne 'y') { Say 'Nothing removed.'; return }
+
+  foreach ($p in $projects) {
+    docker compose -p $p down -v --remove-orphans *> $null
+    foreach ($v in @(docker volume ls -q --filter "label=com.docker.compose.project=$p" 2>$null)) { if ($v) { docker volume rm $v *> $null } }
+    Say "  removed $p"
+  }
+  if ($tryit) { docker rm -f @tryit *> $null; docker network prune -f --filter label=turnout.tryit=1 *> $null; Say '  removed Try it containers' }
+  docker image rm turnout:local *> $null
+  if (Test-Path $stateHome) { Remove-Item -Recurse -Force $stateHome; Say "  removed $stateHome" }
+  if ($onPath) {
+    [Environment]::SetEnvironmentVariable('Path', ((@($userPath -split ';') | Where-Object { $_ -and $_ -ne $bin }) -join ';'), 'User')
+    Say "  removed $bin from your user PATH (new terminals)"
+  }
+  if ($downloaded) { Remove-Item -Recurse -Force $HomeDir; Say "  removed $HomeDir" }
+  Say 'Turnout is uninstalled.'
+}
+
 function Invoke-Simulate([string[]]$a) {
   Show-Logo
   $lines = Read-Args; Need-Docker
@@ -431,6 +488,7 @@ switch ($cmd) {
   'deploy' { Invoke-Deploy $rest }
   'simulate' { Invoke-Simulate $rest }
   'browsers' { Invoke-Browsers $rest }
+  'uninstall' { Invoke-Uninstall $rest }
   'demo' {
     Need-Docker
     $what = if ($rest.Count) { $rest[0] } else { 'start' }   # start (opens guided demo), or: stop, status, reset

@@ -144,22 +144,37 @@ On your own machine you also get **Try it with your app** (paste a GitHub link) 
 
 ## Quick start
 
-You need **Docker** ([Docker Desktop](https://www.docker.com/products/docker-desktop/) on Windows and macOS) with about 4 GB of memory for it, and **Git**.
+Pick the first that suits you:
 
-Not sure what you have? After cloning, `sh turnout/setup.sh` (macOS, Linux) or `turnout\setup.bat` (Windows) checks Docker, Compose, memory and ports, and offers to install what's missing.
+1. **Nothing to install, 0 minutes:** the [live demo](https://172-198-62-67.sslip.io).
+2. **Nothing to install, a few minutes:** [![Open in GitHub Codespaces](https://github.com/codespaces/badge.svg)](https://codespaces.new/tharunkumardeveloper/turnout?quickstart=1). It starts Flagsmith and the demo in your browser (a 4-core codespace).
+3. **One line on your machine.** You need [Docker Desktop](https://www.docker.com/products/docker-desktop/) (Windows, macOS) or Docker (Linux) running, with about 4 GB of memory for it. Each line downloads the tagged release and adds the `turnout` command:
 
-```sh
-git clone https://github.com/tharunkumardeveloper/turnout.git turnout
-sh turnout/install.sh                                         # macOS, Linux
-powershell -ExecutionPolicy Bypass -File turnout\install.ps1  # Windows
-```
+   ```powershell
+   irm https://raw.githubusercontent.com/tharunkumardeveloper/turnout/main/install.ps1 | iex      # Windows (PowerShell)
+   ```
+   ```sh
+   curl -fsSL https://raw.githubusercontent.com/tharunkumardeveloper/turnout/main/install.sh | sh  # macOS, Linux
+   ```
 
-Open a **new** terminal, then either try the demo or point it at your app:
+4. **Or clone it** (you'll also need Git), if you'd rather not pipe a script into your shell:
+
+   ```sh
+   git clone https://github.com/tharunkumardeveloper/turnout.git turnout
+   sh turnout/install.sh                                         # macOS, Linux
+   powershell -ExecutionPolicy Bypass -File turnout\install.ps1  # Windows
+   ```
+
+   Not sure your machine is ready? `sh turnout/setup.sh` (macOS, Linux) or `turnout\setup.bat` (Windows) checks Docker, Compose, memory and ports, and offers to install what's missing.
+
+Then try the demo, or point it at your app:
 
 ```sh
 turnout demo                                          # the demo shop and guided demo
 turnout compare localhost:3001 localhost:3002         # your two running versions
 ```
+
+The installer prints the exact command if this terminal can't find `turnout` yet. `turnout uninstall` removes everything it set up, after showing you what (`--dry-run` only shows).
 
 `compare` starts its own Flagsmith, creates the flag and the experiment, starts the proxy, checks everything and opens the console. Every new browser is a new visitor.
 
