@@ -1,0 +1,82 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="light dark">
+  <meta name="turnout-console" content="">
+  <title>Turnout demo</title>
+  <link rel="icon" href="/favicon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="/demo.css">
+  <link rel="stylesheet" href="/menu.css">
+  <link rel="stylesheet" href="/tour.css">
+  <script type="module" src="/demo.js"></script>
+  <link rel="modulepreload" href="/tour.js">
+</head>
+<body>
+  <!-- One screen, no scrolling: the bar, then the steps on the left and the versions and Flagsmith's results on the right. -->
+  <header class="top">
+    <a class="brand" href="/judge" aria-label="Turnout demo">
+      <svg class="brand-mark" viewBox="0 0 32 32" aria-hidden="true" focusable="false">
+        <path d="M3 16h10c5 0 6-8 13-8" /><path d="M13 16c5 0 6 8 13 8" /><circle cx="13" cy="16" r="3" />
+      </svg>
+      Turnout
+    </a>
+    <nav class="menu" id="menu" aria-label="Turnout">
+      <a href="/" data-page="console">Console</a>
+      <a href="/setup" data-page="setup" data-private>Setup check</a>
+      <a href="/flagsmith" data-page="flagsmith" data-private>What we use</a>
+      <details class="menu-drop" id="menu-versions"><summary>Versions</summary><div class="menu-panel" id="versions-list"><p class="menu-note">Loading…</p></div></details>
+      <a href="#" id="menu-flagsmith" class="menu-ext fs-mark" target="_blank" rel="noopener" data-private>Flagsmith <span aria-hidden="true">↗</span></a>
+    </nav>
+    <div class="kinds" id="kinds" role="group" aria-label="Kind of test"></div>
+    <div class="top-actions">
+      <button class="btn btn-ghost" id="tour-open" type="button">Tour</button>
+      <button class="btn btn-ghost" id="autoplay" type="button" aria-pressed="false">▶ Play it for me</button>
+      <details class="history" id="history-box">
+        <summary>Earlier tests <span id="history-count"></span></summary>
+        <ul class="history-list" id="history"></ul>
+      </details>
+    </div>
+  </header>
+
+  <main class="screen" id="main">
+    <section class="panel steps-panel" id="steps-panel" aria-labelledby="steps-title">
+      <h2 class="eyebrow" id="steps-title">The test, step by step <span class="card-meta" id="exp-id"></span></h2>
+      <div class="pilot" id="pilot" hidden></div>
+      <p class="now" id="now" aria-live="polite">Reading Flagsmith…</p>
+      <ol class="steps" id="steps"></ol>
+      <div class="blind" id="blind" hidden></div>
+      <div class="next" id="next" hidden></div>
+      <p class="error" id="error" role="alert" hidden></p>
+    </section>
+
+    <section class="panel versions-panel" id="versions-panel" aria-labelledby="versions-title">
+      <h2 class="eyebrow" id="versions-title">The versions <span class="card-meta">A is live · click a preview to open it</span><span class="you-line" id="you"></span><a class="btn btn-small btn-visit" id="be-visitor" href="#" target="_blank" rel="noopener" title="Opens the shop the way a real shopper gets it: Flagsmith picks your version, and you count like any visitor.">Be a visitor ↗</a></h2>
+      <div class="versions" id="versions"></div>
+    </section>
+
+    <section class="panel results-panel" id="results-panel" aria-label="Flagsmith">
+      <div class="tabs" role="tablist" aria-label="Flagsmith">
+        <button class="tab fs-mark" id="tab-results" role="tab" type="button" aria-selected="true" aria-controls="results">What Flagsmith measured</button>
+        <button class="tab fs-mark" id="tab-flagsmith" role="tab" type="button" aria-selected="false" aria-controls="flagsmith-tab">In Flagsmith</button>
+        <button class="tab" id="tab-yours" role="tab" type="button" aria-selected="false" aria-controls="yours-tab">Use it on your app</button>
+        <a class="card-meta tabs-link fs-mark" id="results-link" href="#" target="_blank" rel="noopener" hidden>open in Flagsmith ↗</a>
+      </div>
+      <div class="results" id="results" role="tabpanel" aria-labelledby="tab-results"><p class="placeholder">Flagsmith's results appear here once shoppers have gone through and you ask for them.</p></div>
+      <div class="fs" id="flagsmith-tab" role="tabpanel" aria-labelledby="tab-flagsmith" hidden></div>
+      <div class="yours" id="yours-tab" role="tabpanel" aria-labelledby="tab-yours" hidden>
+        <p class="yours-lead">The same test on your own website, on your machine. You need Docker running; Flagsmith comes with Turnout.</p>
+        <ol class="yours-steps">
+          <li><span>Install it, one line</span><code data-os="win" data-install="win"></code><code data-os="unix" data-install="unix"></code><button class="btn btn-small btn-quiet copy" type="button">Copy</button></li>
+          <li><span>This demo, every feature on</span><code>turnout demo</code><button class="btn btn-small btn-quiet copy" type="button">Copy</button></li>
+          <li><span>Or, in your project</span><code>turnout compare localhost:3001 localhost:3002</code><button class="btn btn-small btn-quiet copy" type="button">Copy</button></li>
+        </ol>
+        <p class="yours-note">Your current version and the new one, running: addresses, Docker images or git branches. Turnout starts its own Flagsmith, splits visitors, and opens this console with your app in it. In <code>turnout demo</code>, <b>Try it with your app</b> takes a GitHub link instead. <a data-repo-link="#quick-start" target="_blank" rel="noopener">Full guide ↗</a></p>
+      </div>
+    </section>
+  </main>
+
+  <footer class="foot">Flagsmith decides; Turnout does no statistics of its own. Every shopper here is simulated. <span data-private><a href="/setup">Setup check</a> · <a href="/flagsmith">What Turnout uses in Flagsmith</a></span></footer>
+</body>
+</html>

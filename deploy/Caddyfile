@@ -1,0 +1,91 @@
+# Server mode's front door (compose.server.yml mounts it). Caddy fills {$…} from the environment Compose gives it, so
+# the sites below are built from TURNOUT_HOSTNAME: turnout.sh server <hostname> writes it into .env.
+#
+#   https://<hostname>/                  the console's public page (redirect to /judge)
+#   https://<hostname>/judge, /judge/*   the console's public port (8092, never published): GET and HEAD, plus the
+#                                        guided demo's own steps (POST /judge/api/judge/run, simulated shoppers only)
+#   https://<hostname>/__turnout/receipt where this browser lands (the visitor cookie is set for <hostname> and below)
+#   https://shop.<hostname>              the live proxy (real visitors, flag shop_release_live), which routes each
+#                                        visitor to a release. Simulated visitors use the other proxy, inside the network.
+# Flagsmith and the console's own ports are not here at all: they stay on 127.0.0.1 (SSH tunnel).
+{
+	admin off
+}
+
+# Shared by both sites. While a service restarts, Caddy keeps retrying it for a few seconds before giving up, and if it
+# is still down, visitors get a static page (deploy/fallback/down.html: the video, the code, "back in a minute")
+# instead of a bare 502. API calls get JSON, so the page's own scripts keep retrying quietly.
+(resilient) {
+	encode zstd gzip
+	handle_errors 502 503 504 {
+		@api path */api/*
+		handle @api {
+			header Content-Type application/json
+			header Cache-Control no-store
+			respond `{"error":"restarting, try again in a minute"}` 503
+		}
+		handle {
+			root * /srv/fallback
+			rewrite * /down.html
+			header Cache-Control no-store
+			file_server {
+				status 503
+			}
+		}
+	}
+}
+(retry) {
+	lb_try_duration 5s
+	lb_try_interval 500ms
+}
+
+{$TURNOUT_HOSTNAME} {
+	# Empty for a public certificate; "tls internal" (TURNOUT_CADDY_TLS) for Caddy's own CA in CI or a trial.
+	{$TURNOUT_CADDY_TLS}
+	import resilient
+
+	# The console's scripts, styles and images: browsers keep them 5 minutes (the console itself says no-store).
+	@asset path_regexp \.(js|css|svg|png)$
+	header @asset >Cache-Control "public, max-age=300"
+
+	@judge path /judge /judge/*
+	handle @judge {
+		@read method GET HEAD
+		handle @read {
+			reverse_proxy console:8092 {
+				import retry
+			}
+		}
+		@play {
+			method POST
+			path /judge/api/judge/run
+		}
+		handle @play {
+			request_body {
+				max_size 4KB
+			}
+			reverse_proxy console:8092
+		}
+		header Allow "GET, HEAD"
+		respond "Read-only view: this step runs only from the console on the server." 405
+	}
+
+	handle /__turnout/receipt {
+		reverse_proxy turnout-live:8080
+	}
+
+	handle {
+		redir * /judge 302
+	}
+}
+
+shop.{$TURNOUT_HOSTNAME} {
+	{$TURNOUT_CADDY_TLS}
+	import resilient
+
+	handle {
+		reverse_proxy turnout-live:8080 {
+			import retry
+		}
+	}
+}

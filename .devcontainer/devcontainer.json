@@ -1,0 +1,18 @@
+{
+  "name": "Turnout",
+  "image": "mcr.microsoft.com/devcontainers/base:bookworm",
+  "hostRequirements": { "cpus": 4, "memory": "8gb" },
+  "features": {
+    "ghcr.io/devcontainers/features/docker-in-docker:2": {},
+    "ghcr.io/devcontainers/features/node:1": { "version": "24" }
+  },
+  "forwardPorts": [8090, 8080, 8000],
+  "portsAttributes": {
+    "8090": { "label": "Judge mode (open the judge link from the terminal)", "onAutoForward": "openBrowser" },
+    "8080": { "label": "Shop, through the Turnout proxy", "onAutoForward": "silent" },
+    "8000": { "label": "Flagsmith", "onAutoForward": "silent" }
+  },
+  "otherPortsAttributes": { "onAutoForward": "ignore" },
+  "postStartCommand": "sh .devcontainer/start.sh",
+  "remoteUser": "vscode"
+}

@@ -1,0 +1,82 @@
+import assert from 'node:assert/strict';
+import { test } from 'node:test';
+import { ConfigError, matchesRule, parseConfig } from '../src/config.ts';
+
+const valid = {
+  flag: 'shop_release',
+  releases: { 'shop:1.4': 'http://shop-1-4:8080', 'shop:1.5': 'http://shop-1-5:8080' },
+  goal: { event: 'order_placed', when: { method: 'post', path: '/checkout', status: '2xx' } },
+  guardrails: ['doc_latency_ms', 'server_error'],
+};
+
+test('parses the demo config', () => {
+  const config = parseConfig(valid);
+  assert.equal(config.flag, 'shop_release');
+  assert.equal(config.releases.get('shop:1.5')?.host, 'shop-1-5:8080');
+  assert.equal(config.fallback, 'shop:1.4');
+  assert.equal(config.goal.when!.method, 'POST');
+});
+
+test('requires at least one release', () => {
+  assert.throws(() => parseConfig({ ...valid, releases: {} }), ConfigError);
+});
+
+test('rejects non-http upstreams and unknown guardrails', () => {
+  assert.throws(() => parseConfig({ ...valid, releases: { 'shop:1.4': 'file:///etc/passwd' } }), ConfigError);
+  assert.throws(() => parseConfig({ ...valid, guardrails: ['cpu'] }), ConfigError);
+});
+
+test('matches goal rules by method, path and status class', () => {
+  const rule = parseConfig(valid).goal.when!;
+  assert.equal(matchesRule(rule, 'POST', '/checkout', 201), true);
+  assert.equal(matchesRule(rule, 'POST', '/checkout?x=1', 200), true);
+  assert.equal(matchesRule(rule, 'GET', '/checkout', 200), false);
+  assert.equal(matchesRule(rule, 'POST', '/checkout', 500), false);
+  assert.equal(matchesRule(rule, 'POST', '/checkout/extra', 200), false);
+});
+
+test('supports wildcard paths and exact status codes', () => {
+  const rule = { method: 'GET', path: '/fix/*', status: '200' };
+  assert.equal(matchesRule(rule, 'GET', '/fix/srm', 200), true);
+  assert.equal(matchesRule(rule, 'GET', '/fix/srm', 204), false);
+  assert.equal(matchesRule(rule, 'GET', '/fixes', 200), false);
+});
+
+test('traffic: the % of visitors in the experiment, 100 by default', async () => {
+  const { parseConfig: parse } = await import('../src/config.ts');
+  const raw = { flag: 'f', releases: { a: 'http://a:1', b: 'http://host.docker.internal:3000' }, goal: { event: 'signup', when: { method: 'POST', path: '/signup' } } };
+  assert.equal(parse(raw).traffic, 100);
+  assert.equal(parse({ ...raw, traffic: 25 }).traffic, 25);
+  for (const bad of [0, 101, 'lots']) assert.throws(() => parse({ ...raw, traffic: bad }), /traffic/);
+});
+
+test('a missing config file says how to get one', async () => {
+  const { loadConfig } = await import('../src/config.ts');
+  assert.throws(() => loadConfig('no-such-turnout.config.yml'), /not found.*turnout new/);
+});
+
+test('secondary metrics: parsed from HTTP rules, with comma status lists', () => {
+  const config = parseConfig({ ...valid, metrics: [{ event: 'add_to_cart', when: { method: 'post', path: '/cart/add', status: '2xx, 303' } }] });
+  const rule = config.metrics![0]!.when;
+  assert.equal(config.metrics![0]!.event, 'add_to_cart');
+  assert.equal(matchesRule(rule, 'POST', '/cart/add', 200), true);
+  assert.equal(matchesRule(rule, 'POST', '/cart/add', 303), true);
+  assert.equal(matchesRule(rule, 'POST', '/cart/add', 302), false);
+  assert.deepEqual(parseConfig(valid).metrics, []);
+  assert.throws(() => parseConfig({ ...valid, metrics: [{ event: 'order_placed', when: { method: 'POST', path: '/x' } }] }), ConfigError);
+  assert.throws(() => parseConfig({ ...valid, metrics: [{ event: 'server_error', when: { method: 'POST', path: '/x' } }] }), ConfigError);
+  assert.throws(() => parseConfig({ ...valid, metrics: [{ event: 'ok', when: { method: 'POST', path: '/x', status: '2xx;' } }] }), ConfigError);
+});
+
+test('no goal: a speed-only experiment (page speed is the primary metric, server errors the guardrail)', async () => {
+  const { measuresSpeed, defaultHypothesis } = await import('../src/config.ts');
+  const c = parseConfig({ flag: 'app_release', releases: { 'app:1.0': 'http://a:3000', 'app:1.1': 'http://b:3000' } });
+  assert.deepEqual(c.goal, { event: 'doc_latency_ms', header: false, speedOnly: true });
+  assert.deepEqual(c.guardrails, ['server_error']);
+  assert.equal(c.traffic, 100);
+  assert.ok(measuresSpeed(c));
+  assert.equal(defaultHypothesis('app:1.1', c.goal.event), 'app:1.1 loads pages faster without more errors');
+  const both = parseConfig({ flag: 'f', releases: { a: 'http://a', b: 'http://b' }, guardrails: ['doc_latency_ms', 'server_error'] });
+  assert.deepEqual(both.guardrails, ['server_error'], 'page speed is never both the goal and a guardrail');
+  assert.throws(() => parseConfig({ flag: 'f', releases: { a: 'http://a' }, metrics: [{ event: 'x', when: { method: 'POST', path: '/x' } }] }), /metrics need a goal/);
+});

@@ -1,0 +1,245 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
+      - name: Typecheck
+        run: npx tsc --noEmit
+      - name: Unit and integration tests
+        run: npm test
+
+  # The README flow end to end on a real Flagsmith: bootstrap, route, send events, check, and confirm the shop
+  # image knows nothing about Flagsmith.
+  smoke:
+    needs: test
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Prepare .env and state directory
+        # The console and the cli write the bind-mounted .env and .turnout. Compose runs them as
+        # TURNOUT_UID:TURNOUT_GID, so make that the runner's user (as turnout.sh does on Linux).
+        run: |
+          cp .env.example .env
+          mkdir -p .turnout
+          echo "TURNOUT_UID=$(id -u)" >> "$GITHUB_ENV"
+          echo "TURNOUT_GID=$(id -g)" >> "$GITHUB_ENV"
+
+      - name: Start Flagsmith
+        run: docker compose up -d flagsmith
+
+      - name: Wait for Flagsmith to be healthy
+        run: |
+          for i in $(seq 1 120); do
+            id=$(docker compose ps -q flagsmith)
+            status=$(docker inspect -f '{{if .State.Health}}{{.State.Health.Status}}{{else}}none{{end}}' "$id" 2>/dev/null || true)
+            echo "flagsmith: ${status:-starting}"
+            [ "$status" = healthy ] && exit 0
+            sleep 3
+          done
+          echo "Flagsmith did not become healthy" >&2
+          exit 1
+
+      - name: turnout init
+        run: docker compose run --build --rm cli init
+
+      - name: Start Turnout, the console and the shops
+        run: docker compose up -d --build
+
+      - name: Wait for the proxy to be healthy
+        run: |
+          for i in $(seq 1 60); do
+            id=$(docker compose ps -q turnout)
+            status=$(docker inspect -f '{{if .State.Health}}{{.State.Health.Status}}{{else}}none{{end}}' "$id" 2>/dev/null || true)
+            echo "turnout: ${status:-starting}"
+            [ "$status" = healthy ] && exit 0
+            sleep 3
+          done
+          echo "The turnout service did not become healthy" >&2
+          exit 1
+
+      - name: Drive simulated visitors through the proxy
+        run: docker compose run --rm cli demo --visitors 200
+
+      - name: Proxy health
+        run: curl -fsS http://127.0.0.1:8080/__turnout/health
+
+      - name: turnout check
+        run: docker compose run --rm cli check
+
+      - name: Read the server key for the action
+        id: keys
+        # Masked first, so the key never appears in the log, even where a later step echoes its inputs.
+        run: |
+          key=$(grep '^TURNOUT_SERVER_KEY=' .env | cut -d= -f2-)
+          [ -n "$key" ] || { echo "init wrote no TURNOUT_SERVER_KEY to .env" >&2; exit 1; }
+          echo "::add-mask::$key"
+          echo "server-key=$key" >> "$GITHUB_OUTPUT"
+
+      - name: The reusable action, against this job's Flagsmith
+        uses: ./
+        with:
+          api-url: http://127.0.0.1:8000/api/v1/ # Compose publishes Flagsmith on 127.0.0.1 only
+          server-key: ${{ steps.keys.outputs.server-key }}
+
+      - name: The shop image has no Flagsmith in it
+        run: docker compose run --rm --entrypoint sh shop-1-4 -c '! grep -rli flagsmith /app'
+
+      - name: Logs
+        if: failure()
+        run: docker compose logs --no-color
+
+      - name: Tear down
+        if: always()
+        run: docker compose down -v
+
+  # The UI check: every page and dialog in headless Chrome at 390, 820, 1280 and 1440 px, light and dark. Fails on a
+  # script error, a failed console API call or sideways scrolling. Screenshots are kept as a build artifact.
+  ui:
+    needs: test
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
+      - name: Prepare .env and state directory
+        run: |
+          cp .env.example .env
+          mkdir -p .turnout
+          echo "TURNOUT_UID=$(id -u)" >> "$GITHUB_ENV"
+          echo "TURNOUT_GID=$(id -g)" >> "$GITHUB_ENV"
+      - name: Start Flagsmith
+        run: docker compose up -d --wait flagsmith
+      - name: turnout init
+        run: docker compose run --build --rm cli init
+      - name: Start Turnout, Try it and the console
+        run: docker compose --profile tryit up -d --build --wait
+      - name: An app through Try it (so /app has a test to show)
+        run: npm run scoreboard plain-html
+      - name: npm run ui-check
+        run: npm run ui-check
+      - name: Screenshots
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ui-shots
+          path: scoreboard/ui-shots/
+      - name: Logs
+        if: failure()
+        run: docker compose --profile tryit logs --no-color
+      - name: Tear down
+        if: always()
+        run: docker compose --profile tryit down -v
+
+  # Server mode end to end, with Caddy's internal (self-signed) certificate on hostname localhost: the start-up script,
+  # HTTPS, Secure cookies, the read-only judge view, and nothing private reachable from outside 127.0.0.1.
+  server:
+    needs: test
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      TURNOUT_NO_BROWSER: '1'
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Server mode refuses the official placeholder secrets
+        run: |
+          cp .env.example .env
+          mkdir -p .turnout
+          printf 'TURNOUT_MODE=server\nTURNOUT_HOSTNAME=localhost\nFLAGSMITH_DJANGO_SECRET_KEY=secret\nFLAGSMITH_WAREHOUSE_SECRET=secret\nPOSTGRES_PASSWORD=password\n' >> .env
+          if docker compose -f compose.yaml -f compose.server.yml run --rm --build --no-deps cli server-check; then
+            echo "server-check accepted placeholder secrets" >&2; exit 1
+          fi
+          rm .env
+
+      - name: sh turnout.sh server localhost (tls internal)
+        run: |
+          cp .env.example .env
+          sh turnout.sh server localhost
+          grep -q '^TURNOUT_MODE=server$' .env
+          grep -q '^TURNOUT_CADDY_TLS=tls internal$' .env
+
+      - name: Doctor's server checks all pass
+        run: |
+          policies=$(docker compose -f compose.yaml -f compose.server.yml ps -q | xargs docker inspect -f '{{index .Config.Labels "com.docker.compose.service"}}={{.HostConfig.RestartPolicy.Name}}' | tr '\n' ',')
+          docker compose -f compose.yaml -f compose.server.yml run --rm -e TURNOUT_RESTART_POLICIES="$policies" cli doctor --json > doctor.json || true
+          node -e '
+            const r = JSON.parse(require("fs").readFileSync("doctor.json", "utf8"));
+            const server = r.checks.filter((c) => c.area === "Server mode");
+            for (const c of server) console.log(`${c.status.padEnd(4)} ${c.name}: ${c.actual}`);
+            if (server.length !== 6 || server.some((c) => c.status !== "ok")) process.exit(1);'
+
+      - name: HTTPS, certificate, Secure cookies
+        run: |
+          # Caddy's internal CA: untrusted by default, valid with its root.
+          if curl -fsS -o /dev/null https://localhost/; then echo "expected an untrusted certificate" >&2; exit 1; fi
+          docker compose -f compose.yaml -f compose.server.yml cp caddy:/data/caddy/pki/authorities/local/root.crt caddy-root.crt
+          curl -fsS --cacert caddy-root.crt -o /dev/null https://localhost/
+          # The main address opens the guided demo; the shop (the proxy, which sets the cookies) is shop.<host>.
+          [ "$(curl -s --cacert caddy-root.crt -o /dev/null -w '%{http_code} %{redirect_url}' https://localhost/)" = "302 https://localhost/judge" ]
+          SHOP='--resolve shop.localhost:443:127.0.0.1'
+          curl -fsS --cacert caddy-root.crt $SHOP -o /dev/null https://shop.localhost/
+          curl -sS --cacert caddy-root.crt $SHOP -A 'Mozilla/5.0' -D - -o /dev/null https://shop.localhost/ | grep -i '^set-cookie:' | tee cookies.txt
+          [ -s cookies.txt ]
+          if grep -iv 'secure' cookies.txt; then echo "a cookie without Secure" >&2; exit 1; fi
+          # Plain HTTP redirects to HTTPS
+          [ "$(curl -s -o /dev/null -w '%{http_code}' http://localhost/)" = 308 ]
+
+      - name: Only the read-only judge view is public
+        run: |
+          c() { curl -s --cacert caddy-root.crt -o body.txt -w '%{http_code}' "$@"; }
+          [ "$(c https://localhost/judge)" = 200 ] && grep -q 'name="turnout-readonly"' body.txt
+          [ "$(c https://localhost/judge/demo.js)" = 200 ]
+          # The guided demo's own steps are the only POST, and only with the page's token and a guided action.
+          [ "$(c -X POST -H 'content-type: application/json' -d '{}' https://localhost/judge/api/judge/run)" = 403 ]
+          [ "$(c -X POST -H 'content-type: application/json' -d '{}' https://localhost/judge/api/ship)" = 405 ]
+          [ "$(c -X POST https://localhost/judge)" = 405 ]
+          for path in /judge/api/state /judge/api/doctor /judge/api/guard /judge/api/judge/signin /judge/setup.html; do
+            code=$(c "https://localhost$path"); echo "$path $code"; [ "$code" = 404 ] || [ "$code" = 403 ]
+          done
+          # The console's own pages and API are not on the hostname: they redirect to the guided demo, never the console.
+          for path in /api/state /api/doctor /setup /flagsmith; do
+            c "https://localhost$path" > /dev/null
+            if grep -q 'turnout-console' body.txt; then echo "$path reached the console" >&2; exit 1; fi
+          done
+
+      - name: Flagsmith, the proxy and the console are not reachable from outside 127.0.0.1
+        run: |
+          ip=$(hostname -I | awk '{print $1}')
+          for port in 8000 8080 8090 8091 8092; do
+            if curl -s --max-time 3 -o /dev/null "http://$ip:$port/"; then echo "port $port is reachable on $ip" >&2; exit 1; fi
+            echo "$port: not reachable on $ip"
+          done
+          curl -fsS -o /dev/null http://127.0.0.1:8090/ # still there for an SSH tunnel
+
+      - name: Logs
+        if: failure()
+        run: docker compose -f compose.yaml -f compose.server.yml logs --no-color
+
+      - name: Tear down
+        if: always()
+        run: docker compose -f compose.yaml -f compose.server.yml --profile tools down -v

@@ -1,0 +1,527 @@
+#!/bin/sh
+# turnout: put Turnout in front of two or more versions of your app and watch Flagsmith compare them.
+#
+#   turnout compare <live> <new> [<new2> …] [--goal "POST /signup"] [--split 50] [--port 3000] [--env-file .env]
+#       Two versions make an A/B test, three an A/B/C test, and so on: <live> is A, the others are tested against it.
+#       --split: % of visitors who get each new version (the rest get <live>); default: an even share each
+#       versions: URLs (localhost:3001, http://localhost:3002), Docker images (myapp:1.0), or branches of the git
+#       project you're in (main new-checkout: each built from its Dockerfile; your .env is passed); not a mix
+#       --port: the port your app listens on in its container (default: the Dockerfile's EXPOSE, else 8080)
+#   turnout demo: the demo shop and guided demo (stop: turnout demo stop)    turnout update: get the latest Turnout
+#   turnout simulate [--visitors 500] [--yes]: pretend visitors, in a separate Flagsmith environment, results in minutes
+#   turnout deploy [domain]: the Caddy or Nginx lines to put your web server in front of Turnout
+#   turnout open | status | down | reset [--yes]
+#
+# Everything runs on your machine's Docker. Turnout's own files live in ~/.turnout/projects/<this folder's name>, not
+# in your project. Re-running compare with the same arguments resumes; with new ones it sets the experiment up again.
+set -eu
+
+# The Turnout checkout this script lives in, following the link install.sh puts on your PATH.
+self=$0
+while [ -L "$self" ]; do
+  link=$(readlink "$self")
+  case "$link" in /*) self=$link ;; *) self=$(dirname -- "$self")/$link ;; esac
+done
+HOME_DIR=$(CDPATH= cd -- "$(dirname -- "$self")/.." && pwd)
+IMAGE="${TURNOUT_IMAGE:-turnout:local}"
+NAME=$(basename "$PWD" | tr 'A-Z' 'a-z' | sed 's/[^a-z0-9]\{1,\}/-/g; s/^-//; s/-$//')
+[ -n "$NAME" ] || NAME=app
+STATE="${TURNOUT_STATE:-$HOME/.turnout/projects}/$NAME"
+# Git Bash on Windows rewrites Linux paths in arguments (docker's /work became C:/Program Files/Git/work): turn that
+# off, and give Docker the state folder as a Windows path it can mount.
+case "$(uname -s 2>/dev/null)" in
+  MINGW*|MSYS*|CYGWIN*)
+    export MSYS_NO_PATHCONV=1 MSYS2_ARG_CONV_EXCL='*'
+    command -v cygpath >/dev/null 2>&1 && { STATE=$(cygpath -m "$STATE"); HOME_DIR=$(cygpath -m "$HOME_DIR"); }
+    ;;
+esac
+PROJECT="turnout-$NAME"
+
+say() { printf '%s\n' "$*"; }
+die() { printf 'turnout: %s\n' "$*" >&2; exit 1; }
+compose() { docker compose -p "$PROJECT" --project-directory "$STATE" -f "$STATE/turnout.compose.yml" "$@"; }
+
+# ---- the look: banner, colours, help ------------------------------------------------------------------------------
+# Colours only on a terminal that shows them (not when piped, not with NO_COLOR); 256 colours for the logo's gradient.
+if [ -t 1 ] && [ -z "${NO_COLOR:-}" ]; then
+  C_B=$(printf '\033[1m'); C_D=$(printf '\033[2m'); C_G=$(printf '\033[32m'); C_C=$(printf '\033[36m'); C_Y=$(printf '\033[33m'); C_R=$(printf '\033[31m'); C_0=$(printf '\033[0m')
+  C_P=$(printf '\033[38;5;99m')
+  L1=$(printf '\033[38;5;33m'); L2=$(printf '\033[38;5;39m'); L3=$(printf '\033[38;5;43m'); L4=$(printf '\033[38;5;41m'); L5=$(printf '\033[38;5;178m')
+else
+  C_B=; C_D=; C_G=; C_C=; C_Y=; C_R=; C_0=; C_P=; L1=; L2=; L3=; L4=; L5=
+fi
+
+logo() {
+  say ""
+  say "${L1}   ████████ ██    ██ ██████  ███    ██  ██████  ██    ██ ████████${C_0}"
+  say "${L2}      ██    ██    ██ ██   ██ ████   ██ ██    ██ ██    ██    ██${C_0}"
+  say "${L3}      ██    ██    ██ ██████  ██ ██  ██ ██    ██ ██    ██    ██${C_0}"
+  say "${L4}      ██    ██    ██ ██   ██ ██  ██ ██ ██    ██ ██    ██    ██${C_0}"
+  say "${L5}      ██     ██████  ██   ██ ██   ████  ██████   ██████     ██${C_0}"
+  say ""
+  say "   ${C_B}Every release becomes a Flagsmith experiment.${C_0} ${C_D}No app code. One click to ship or roll back.${C_0}"
+  say "   ${C_D}v$(version_of) · built by Tharun Kumar · powered by${C_0} ${C_P}${C_B}Flagsmith${C_0}"
+  say ""
+}
+
+version_of() { sed -n 's/.*"version": *"\([^"]*\)".*/\1/p' "$HOME_DIR/package.json" 2>/dev/null | head -1; }
+
+# One section of the help: a title with a rule under it.
+section() { say "  ${C_B}$1${C_0} ${C_D}$(printf '%*s' $((60 - ${#1})) '' | sed 's/ /─/g')${C_0}"; }
+# One command: the command in colour, padded, and what it does.
+cmd() { printf '    %s%-34s%s %s\n' "$C_C" "$1" "$C_0" "$2"; }
+opt() { printf '    %s  %-32s %s%s\n' "$C_D" "$1" "$2" "$C_0"; }
+
+# What this machine has: Docker (installed, running), Git. Prints a line each.
+machine_check() {
+  ok=0
+  if command -v docker >/dev/null 2>&1; then
+    if docker info >/dev/null 2>&1; then say "    ${C_G}✓${C_0} Docker is installed and running"
+    else say "    ${C_Y}!${C_0} Docker is installed but not running: start Docker Desktop (or: sudo systemctl start docker)"; ok=1; fi
+  else say "    ${C_R}✕${C_0} Docker isn't installed: https://docs.docker.com/get-docker/"; ok=1; fi
+  if command -v git >/dev/null 2>&1; then say "    ${C_G}✓${C_0} Git is installed"
+  else say "    ${C_Y}–${C_0} Git isn't installed (needed for turnout update and comparing branches): https://git-scm.com/downloads"; fi
+  return $ok
+}
+
+help_screen() {
+  logo
+  section 'WHAT YOU NEED'
+  machine_check || true
+  say "    ${C_D}About 4 GB of memory for Docker. Flagsmith comes with Turnout: nothing else to install.${C_0}"
+  say ""
+  section 'START HERE'
+  cmd 'turnout demo' 'the demo shop: console, Guided demo, Try it, the tours'
+  cmd 'turnout demo stop' 'stop it (data kept)'
+  say ""
+  section 'TEST YOUR APP   (in your project folder)'
+  cmd 'turnout compare <A> <B> [<C>]' 'put Turnout in front of your versions: A/B, A/B/C'
+  opt 'A, B: localhost:3001, myapp:1.1' 'URLs, Docker images or git branches'
+  opt '--goal "POST /signup"' 'what counts as a win (none: page speed)'
+  opt '--split 10' '% of visitors on each new version'
+  opt '--browser-speed' 'also measure page speed in browsers (lcp_ms, cls)'
+  opt '--port 3000' 'the port your images listen on'
+  opt '--env-file .env.turnout' "your app's settings (default ./.env)"
+  cmd 'turnout simulate [--visitors 500]' 'pretend visitors, so results show in minutes'
+  cmd 'turnout browsers [--visits 100]' 'real headless-Chrome visits: page speed before real traffic'
+  cmd 'turnout open' 'the console: traffic, results, Ship or Revert'
+  say ""
+  section 'DECIDE   (Flagsmith decides; you confirm)'
+  cmd 'turnout results' "Flagsmith's results, in the terminal"
+  cmd 'turnout ship [v2]' 'move everyone to the winner (asks first)'
+  cmd 'turnout revert' 'move everyone back to A (asks first)'
+  say ""
+  section 'GO LIVE'
+  cmd 'turnout deploy yourdomain.com' 'the Nginx or Caddy lines to put Turnout in front'
+  say ""
+  section 'LOOK AFTER IT'
+  cmd 'turnout status' "what's running, and a full check"
+  cmd 'turnout logs [proxy|console]' "follow Turnout's logs"
+  cmd 'turnout down | reset' 'stop (data kept) | wipe and start fresh'
+  cmd 'turnout uninstall [--dry-run]' 'remove Turnout: its containers, data and link (asks first)'
+  cmd 'turnout update | version' 'get the latest | which one you have'
+  say ""
+  say "  ${C_D}How it works: visitors reach Turnout, Flagsmith picks each one's version, Turnout sends them there and"
+  say "  reports what they did; Flagsmith scores every version; one click moves everyone to the winner.${C_0}"
+  say "  ${C_D}More: ${C_0}turnout help${C_D} · README.md in $HOME_DIR${C_0}"
+}
+
+step() { say "${C_C}▸${C_0} ${C_B}$*${C_0}"; }
+ok() { say "  ${C_G}✓${C_0} $*"; }
+
+
+need_docker() {
+  command -v docker >/dev/null 2>&1 || die "Docker isn't installed. Install Docker Desktop (https://docs.docker.com/get-docker/), start it, and run this again."
+  docker info >/dev/null 2>&1 || die "Docker isn't running. Start Docker Desktop (or: sudo systemctl start docker), wait for it, and run this again."
+}
+
+# The image: turnout:local, built from this checkout (no registry, no account). TURNOUT_IMAGE=<image> uses another one,
+# pulled if it isn't here yet.
+need_image() {
+  if [ "$IMAGE" != turnout:local ]; then
+    docker image inspect "$IMAGE" >/dev/null 2>&1 && return
+    docker pull -q "$IMAGE" >/dev/null 2>&1 && return
+    die "can't pull $IMAGE (TURNOUT_IMAGE). Unset it to build turnout:local from this checkout."
+  fi
+  [ -f "$HOME_DIR/Dockerfile" ] || die "there's no Turnout checkout at $HOME_DIR to build turnout:local from."
+  # Always rebuilt, so it matches this checkout; Docker's cache makes that seconds when nothing changed.
+  docker image inspect turnout:local >/dev/null 2>&1 || say "Building turnout:local from $HOME_DIR (the first build takes about a minute)."
+  docker build -q -t turnout:local "$HOME_DIR" >/dev/null || die "building turnout:local failed: run docker build -t turnout:local $HOME_DIR to see why."
+}
+
+# Free: nothing accepts a connection there. curl says 7 (refused); on Windows (Git Bash) a refused loopback connection
+# takes about 2 s, so a short timeout (28) with no connection made is free too.
+port_free() {
+  t=$(curl -s -o /dev/null -w '%{time_connect}' --connect-timeout 3 -m 4 "http://127.0.0.1:$1/" 2>/dev/null)
+  rc=$?
+  [ "$rc" -eq 7 ] || { [ "$rc" -eq 28 ] && [ "$t" = "0.000000" ]; }
+}
+free_port() {
+  p=$1
+  while ! port_free "$p"; do p=$((p + 1)); [ "$p" -lt $(($1 + 50)) ] || die "no free port from $1 to $p"; done
+  echo "$p"
+}
+
+# localhost:3001 → http://localhost:3001; URLs and images pass through.
+normalise() {
+  case "$1" in
+    http://*|https://*) echo "$1" ;;
+    localhost:*|127.0.0.1:*|*.*:[0-9]*) echo "http://$1" ;;
+    *) echo "$1" ;;
+  esac
+}
+
+open_url() {
+  if command -v open >/dev/null 2>&1; then open "$1" >/dev/null 2>&1 || true
+  elif command -v xdg-open >/dev/null 2>&1; then xdg-open "$1" >/dev/null 2>&1 || true
+  fi
+}
+
+ports_from_state() {
+  PROXY_PORT=$(sed -n 's/^proxy_port=//p' "$STATE/compare.args" 2>/dev/null)
+  CONSOLE_PORT=$(sed -n 's/^console_port=//p' "$STATE/compare.args" 2>/dev/null)
+}
+
+banner() {
+  say ""
+  say "  ${C_G}${C_B}+----------------------------------------------------------+${C_0}"
+  say "  ${C_G}${C_B}|${C_0}  Your app, through Turnout:   ${C_B}http://127.0.0.1:$PROXY_PORT${C_0}"
+  say "  ${C_G}${C_B}|${C_0}  Results, Ship and Revert:    ${C_B}http://127.0.0.1:$CONSOLE_PORT${C_0}"
+  say "  ${C_G}${C_B}+----------------------------------------------------------+${C_0}"
+  say ""
+  say "  Each new browser (or private window) is a new visitor: it gets one version and keeps it."
+  say "  Stop: turnout down    Start again: turnout compare (same arguments)    Wipe: turnout reset"
+  say "  Tried it on your site? Two minutes, it helps: https://github.com/tharunkumardeveloper/turnout/issues/new?template=tried-turnout.yml"
+  say ""
+}
+
+is_branch() {
+  case "$1" in http://*|https://*|*:*|*=*) return 1 ;; esac
+  git rev-parse --verify --quiet "refs/heads/$1" >/dev/null 2>&1
+}
+label_of() { printf '%s' "$1" | tr 'A-Z' 'a-z' | sed 's/[^a-z0-9._-]\{1,\}/-/g'; }
+exposed_port() { git show "refs/heads/$1:Dockerfile" 2>/dev/null | grep -i '^[[:space:]]*EXPOSE[[:space:]]' | head -1 | sed 's/^[^0-9]*\([0-9]\{1,5\}\).*/\1/'; }
+
+# Builds a branch's last commit (git archive: committed files only) from its Dockerfile; prints the image tag.
+build_branch() {
+  git cat-file -e "refs/heads/$1:Dockerfile" 2>/dev/null \
+    || die "branch $1 has no Dockerfile at its root. Build it yourself and give the image name, or run it and give its URL."
+  sha=$(git rev-parse --short "refs/heads/$1")
+  tag="turnout-$NAME-$(label_of "$1"):$sha"
+  logs="${TURNOUT_STATE:-$HOME/.turnout/projects}/.builds"; mkdir -p "$logs"
+  if ! docker image inspect "$tag" >/dev/null 2>&1; then
+    say "${C_C}==>${C_0} ${C_B}Building branch $1 ($sha) from its Dockerfile${C_0}" >&2
+    git archive --format=tar "refs/heads/$1" | docker build -t "$tag" - >"$logs/$NAME-$(label_of "$1").log" 2>&1 \
+      || { tail -20 "$logs/$NAME-$(label_of "$1").log" >&2; die "building branch $1 failed (full log: $logs/$NAME-$(label_of "$1").log)."; }
+  fi
+  echo "$tag"
+}
+
+# Release containers built from branches (services named turnout-<project>-<branch>-<commit>).
+app_services() { compose config --services 2>/dev/null | grep '^turnout-' || true; }
+# Those that crashed: restarted, or not running. Seconds after start, long before doctor could tell.
+crashed_apps() {
+  for svc in $(app_services); do
+    id=$(compose ps -a -q "$svc" 2>/dev/null | head -1); [ -n "$id" ] || continue
+    st=$(docker inspect -f '{{.State.Status}} {{.RestartCount}}' "$id" 2>/dev/null)
+    case "$st" in "running 0") ;; *) echo "$svc" ;; esac
+  done
+}
+# Release containers doctor says don't answer (its "expected: container <name> answers" lines).
+failing_apps() { grep -A2 '\[FAIL\]' "$STATE/doctor.log" 2>/dev/null | sed -n 's/.*expected: container \([^ ]*\) answers.*/\1/p' | sort -u; }
+app_logs() {
+  for svc in ${1:-$(failing_apps)}; do
+    say "--- last log lines of $svc:" >&2
+    compose logs --no-log-prefix --tail 20 "$svc" >&2 2>/dev/null || true
+  done
+}
+
+cmd_compare() {
+  logo
+  # The versions come first: A (live), then every new one. Two make an A/B test, three an A/B/C test, and so on.
+  VERSIONS=; GIVEN=
+  while [ $# -gt 0 ]; do
+    case "$1" in --*) break ;; esac
+    VERSIONS="${VERSIONS:+$VERSIONS }$(normalise "$1")"; GIVEN="${GIVEN:+$GIVEN }$1"; shift
+  done
+  N=$(printf '%s\n' $VERSIONS | grep -c .)
+  [ "$N" -ge 2 ] || die 'usage: turnout compare <live> <new> [<new2> …] [--goal "POST /signup"] [--split 50]'
+  [ "$N" -le 26 ] || die "at most 26 versions (A to Z)"
+  GOAL=none; SPLIT=; APP_PORT=; ENV_FILE=; BROWSER_SPEED=
+  while [ $# -gt 0 ]; do
+    case "$1" in
+      --browser-speed) BROWSER_SPEED=1; shift ;;
+      --goal) GOAL="${2:?--goal needs a request, e.g. \"POST /signup\"}"; shift 2 ;;
+      --split) SPLIT="${2:?--split needs a percentage}"; shift 2 ;;
+      --port) APP_PORT="${2:?--port needs the port your images listen on}"; shift 2 ;;
+      --env-file) ENV_FILE="${2:?--env-file needs a file}"; shift 2 ;;
+      *) die "unknown option $1" ;;
+    esac
+  done
+  # Visitors in the experiment: everyone by default, split evenly between all the versions (50/50, 34/33/33…).
+  # --split S gives each new version S% of visitors: the experiment then takes S% times the number of versions.
+  MAXSPLIT=$((100 / N))
+  if [ -n "$SPLIT" ]; then
+    case "$SPLIT" in *[!0-9]*) die "--split is a whole percentage from 1 to $MAXSPLIT" ;; esac
+    [ "$SPLIT" -ge 1 ] && [ "$SPLIT" -le "$MAXSPLIT" ] || die "--split is a whole percentage from 1 to $MAXSPLIT with $N versions (Flagsmith splits the experiment's visitors evenly)"
+    TRAFFIC=$((SPLIT * N))
+  else
+    SPLIT=$MAXSPLIT; TRAFFIC=100
+  fi
+  need_docker
+  # Branches of the git project here: each is built from its own Dockerfile into an image, labelled with the branch.
+  BRANCHES=; NB=0
+  for v in $VERSIONS; do if is_branch "$v"; then NB=$((NB + 1)); fi; done
+  if [ "$NB" -gt 0 ]; then
+    [ "$NB" = "$N" ] || die "give all branches, or all URLs, or all images (not a mix): $GIVEN"
+    FIRST=${VERSIONS%% *}
+    [ -n "$APP_PORT" ] || APP_PORT=$(exposed_port "$FIRST")
+    [ -n "$APP_PORT" ] || die "branch $FIRST's Dockerfile has no EXPOSE line, so the port your app listens on isn't known: add --port <port>."
+    [ -z "$(git status --porcelain 2>/dev/null)" ] || say "Note: uncommitted changes aren't included; each branch is built from its last commit."
+    BRANCHES="$VERSIONS"; BUILT=
+    for v in $VERSIONS; do
+      img=$(build_branch "$v") || exit 1   # build_branch's die only leaves the $( ) subshell
+      BUILT="${BUILT:+$BUILT }$(label_of "$v")=$img"
+    done
+    VERSIONS=$BUILT
+  fi
+  TITLE=$(printf '%s' "$VERSIONS" | sed 's/ / vs /g')
+  KIND=$(printf 'ABCDEFGHIJKLMNOPQRSTUVWXYZ' | cut -c1-"$N" | sed 's/./&\//g; s/\/$//')
+  need_image
+  mkdir -p "$STATE"
+
+  # Your app's settings: --env-file, else the .env in this folder. Passed to every version Turnout starts itself (an
+  # image or a branch); versions you run yourself (URLs) already have theirs.
+  if [ -n "$ENV_FILE" ]; then
+    [ -f "$ENV_FILE" ] || die "--env-file: no such file: $ENV_FILE"
+    APP_ENV=$(CDPATH= cd -- "$(dirname -- "$ENV_FILE")" && pwd)/$(basename -- "$ENV_FILE")
+  elif [ -f "$PWD/.env" ]; then APP_ENV="$PWD/.env"; else APP_ENV=; fi
+  case "${VERSIONS%% *}" in http://*|https://*) APP_ENV= ;; esac
+  WANT="releases=$VERSIONS
+goal=$GOAL
+split=$SPLIT
+app_port=$APP_PORT
+env_file=$APP_ENV$([ -n "$BROWSER_SPEED" ] && printf '
+browser_speed=1')"
+  if [ -f "$STATE/compare.args" ] && [ "$(sed -e '/^proxy_port=/d' -e '/^console_port=/d' -e '/^sim_console_port=/d' "$STATE/compare.args")" = "$WANT" ]; then
+    ports_from_state
+    say "Resuming $NAME: $TITLE ($KIND test)."
+  else
+    if [ -f "$STATE/compare.args" ]; then
+      # A running experiment keeps its split and its main metric (Flagsmith fixes it at creation), so different
+      # versions or settings need a new experiment, from scratch.
+      say "Different versions or settings start a new experiment: the previous one's data is discarded."
+      compose --profile sim down -v >/dev/null 2>&1 || true
+      find "$STATE" -mindepth 1 -delete
+    fi
+    PROXY_PORT=$(free_port 8080); CONSOLE_PORT=$(free_port 8090)
+    [ "$CONSOLE_PORT" = "$PROXY_PORT" ] && CONSOLE_PORT=$(free_port $((PROXY_PORT + 1)))
+    FLAGSMITH_PORT=$(free_port 8000)
+    [ "$PROXY_PORT" = 8080 ] || say "Port 8080 is busy: your app will be on $PROXY_PORT."
+    [ -n "$APP_ENV" ] && say "Your app's settings: $APP_ENV (passed to every version)."
+    docker run --rm -v "$STATE:/work" "$IMAGE" new --dir /work --yes --force \
+      $(for v in $VERSIONS; do printf -- '--release %s ' "$v"; done) --success "$GOAL" --traffic "$TRAFFIC" \
+      --proxy-port "$PROXY_PORT" --console-port "$CONSOLE_PORT" --flagsmith-port "$FLAGSMITH_PORT" \
+      ${APP_PORT:+--port "$APP_PORT"} ${APP_ENV:+--app-env-file "$APP_ENV"} ${BROWSER_SPEED:+--browser-speed} --image "$IMAGE" >"$STATE/new.log" 2>&1 \
+      || { cat "$STATE/new.log" >&2; die "couldn't write the setup for $TITLE."; }
+    say "$KIND test: A is ${VERSIONS%% *}, what everyone gets now; $([ "$TRAFFIC" = 100 ] && echo 'every visitor is split evenly between the versions' || echo "each new version gets $SPLIT% of visitors")."
+
+    printf '%s\nproxy_port=%s\nconsole_port=%s\n' "$WANT" "$PROXY_PORT" "$CONSOLE_PORT" > "$STATE/compare.args"
+  fi
+
+  NOT_ANSWERING="a version doesn't answer: its last log lines are above. If it needs a database or other services, start the versions yourself and run: turnout compare http://localhost:<port-a> http://localhost:<port-b> …"
+  if [ -n "$BRANCHES" ]; then
+    # Start the branch builds first and give them a few seconds: a crash shows now, before Flagsmith's set-up.
+    step "Starting the branches"
+    compose up -d $(app_services) >"$STATE/apps.log" 2>&1 || { tail -20 "$STATE/apps.log" >&2; die "couldn't start the branches (full log: $STATE/apps.log)."; }
+    sleep 8
+    crashed=$(crashed_apps)
+    if [ -n "$crashed" ]; then app_logs "$crashed"; compose down >/dev/null 2>&1 || true; die "$NOT_ANSWERING"; fi
+  fi
+  step "Starting Flagsmith and Turnout (the first time takes a few minutes)"
+  compose run --rm cli init >"$STATE/init.log" 2>&1 || { tail -20 "$STATE/init.log" >&2; die "setting up Flagsmith failed (full log: $STATE/init.log)."; }
+  if ! compose up -d --wait >"$STATE/up.log" 2>&1; then
+    tail -20 "$STATE/up.log" >&2
+    [ -n "$BRANCHES" ] && app_logs "$(crashed_apps)"
+    die "starting failed (full log: $STATE/up.log)."
+  fi
+  # An app can take a few seconds to listen: check up to three times before calling a version broken.
+  for try in 1 2 3; do
+    compose run --rm cli doctor >"$STATE/doctor.log" 2>&1 || true
+    [ -z "$(failing_apps)" ] && break
+    [ "$try" = 3 ] || sleep 10
+  done
+  if [ -n "$(failing_apps)" ]; then
+    app_logs
+    die "$NOT_ANSWERING"
+  fi
+  say "Check: $(grep -v '^[[:space:]]*$' "$STATE/doctor.log" | tail -1)"
+  banner
+  open_url "http://127.0.0.1:$CONSOLE_PORT"
+}
+
+cmd_deploy() {
+  need_state
+  host="${1:-your-domain.example}"
+  say "Going live: run turnout compare on the server that will take the traffic (it already did, on this machine),"
+  say "then put the web server you already have in front of Turnout. Pick one:"
+  say ""
+  say "  Caddy (Caddyfile; it fetches the HTTPS certificate itself):"
+  say "    $host {"
+  say "        reverse_proxy 127.0.0.1:$PROXY_PORT"
+  say "    }"
+  say ""
+  say "  Nginx (in the server { } block for $host):"
+  say "    location / {"
+  say "        proxy_pass http://127.0.0.1:$PROXY_PORT;"
+  say "        proxy_set_header Host \$host;"
+  say "        proxy_set_header X-Forwarded-Proto \$scheme;   # Turnout marks its cookie Secure over https"
+  say "        proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;"
+  say "    }"
+  say ""
+  say "  Visitors keep your address; Turnout picks their version. Turnout's port stays on 127.0.0.1."
+  say "  The console stays private too. From your laptop: ssh -L $CONSOLE_PORT:127.0.0.1:$CONSOLE_PORT you@$host"
+  say "  then open http://127.0.0.1:$CONSOLE_PORT"
+}
+
+# The separate Demo (simulated) environment in Flagsmith, set up once, and the services given as arguments.
+sim_up() {
+  real=$(sed -n 's#^TURNOUT_EXPERIMENT=\([^/]*\)/.*#\1#p' "$STATE/.env")
+  [ -n "$real" ] || die "run turnout compare first: there's no experiment yet."
+  mkdir -p "$STATE/.turnout/sim"
+  [ -f "$STATE/.turnout/sim.env" ] || grep -E '^(TURNOUT_ADMIN_KEY|TURNOUT_PREVIEW_TOKEN)=' "$STATE/.env" > "$STATE/.turnout/sim.env"
+  step "Setting up the separate Demo environment in Flagsmith (once)"
+  compose run --rm -e TURNOUT_ENV_FILE=.turnout/sim.env -e TURNOUT_REAL_ENV_KEY="$real" cli sim-setup >"$STATE/sim-setup.log" 2>&1 \
+    || { tail -20 "$STATE/sim-setup.log" >&2; die "setting up the Demo environment failed (full log: $STATE/sim-setup.log)."; }
+  SIM_PORT=$(sed -n 's/^sim_console_port=//p' "$STATE/compare.args")
+  if [ -z "$SIM_PORT" ]; then SIM_PORT=$(free_port 8099); echo "sim_console_port=$SIM_PORT" >> "$STATE/compare.args"; fi
+  TURNOUT_SIM_CONSOLE_PORT=$SIM_PORT compose --profile sim up -d --wait "$@" >"$STATE/sim-up.log" 2>&1 \
+    || { tail -20 "$STATE/sim-up.log" >&2; die "starting the simulation failed (full log: $STATE/sim-up.log)."; }
+}
+
+# Real-browser visits: page speed measured in headless Chrome, scored by Flagsmith in the Demo environment.
+cmd_browsers() {
+  logo
+  need_state; need_docker
+  visits=100; extra=
+  while [ $# -gt 0 ]; do
+    case "$1" in
+      --visits) visits="${2:?--visits needs a number}"; shift 2 ;;
+      --path|--latency|--lanes) extra="$extra $1 ${2:?$1 needs a value}"; shift 2 ;;
+      *) die "unknown option $1" ;;
+    esac
+  done
+  grep -q '^  chrome:' "$STATE/turnout.compose.yml" \
+    || die "this setup was made before turnout browsers: run turnout compare again with --browser-speed (a new experiment)."
+  grep -Eq 'lcp_ms|cls' "$STATE/turnout.config.yml" \
+    || say "Note: page speed in the browser isn't measured without --browser-speed (turnout compare ... --browser-speed); the visits still count."
+  sim_up turnout-sim console-sim chrome
+  compose --progress quiet run --rm -e TURNOUT_ENV_FILE=.turnout/sim.env cli browsers --visits "$visits" $extra || die "the browser visits stopped (see above)."
+  say ""
+  say "  Results (Demo environment, never your real experiment):  http://127.0.0.1:$SIM_PORT"
+  say "  Flagsmith recomputes results at most every 5 minutes. Run turnout browsers again for more visits."
+  open_url "http://127.0.0.1:$SIM_PORT"
+}
+
+# turnout uninstall: every Turnout project's containers and data (this checkout's demo and each turnout compare
+# project), Try it's containers (with this checkout's demo), the turnout:local image, Turnout's state folder, the
+# ~/.local/bin/turnout link and a downloaded release. Lists it first and asks; --dry-run only lists; --yes doesn't ask.
+cmd_uninstall() {
+  dry=; yes=
+  for a in "$@"; do case "$a" in --dry-run) dry=1 ;; --yes) yes=1 ;; *) die "unknown option $a" ;; esac; done
+  # Works without Docker too: then only Turnout's own files, its link and a downloaded release are removed.
+  if ! command -v docker >/dev/null 2>&1; then docker_state=missing
+  elif docker info >/dev/null 2>&1; then docker_state=up
+  else docker_state=down; fi
+  state_root="${TURNOUT_STATE:-$HOME/.turnout/projects}"
+  # One line per container: project|folder. Folders can have spaces, so whole lines, never words.
+  rows=; [ "$docker_state" = up ] && rows=$(docker ps -a --format '{{.Label "com.docker.compose.project"}}|{{.Label "com.docker.compose.project.working_dir"}}' 2>/dev/null | sort -u)
+  demo_here=$(printf '%s\n' "$rows" | awk -F'|' -v d="$HOME_DIR" '$1 != "" && $2 == d { print 1; exit }')
+  projects=$(printf '%s\n' "$rows" | awk -F'|' -v d="$HOME_DIR" -v r="$state_root/" '$1 != "" && ($2 == d || index($2, r) == 1) { print $1 }')
+  if [ "$docker_state" = up ]; then for d in "$state_root"/*/; do [ -d "$d" ] && projects="$projects turnout-$(basename "$d")"; done; fi
+  projects=$(printf '%s\n' $projects | sort -u)
+  tryit=; [ -n "$demo_here" ] && tryit=$(docker ps -aq --filter label=turnout.tryit=1 2>/dev/null)
+  link="${TURNOUT_BIN_DIR:-$HOME/.local/bin}/turnout"
+  linked=; [ -L "$link" ] && [ "$(readlink "$link")" = "$HOME_DIR/bin/turnout" ] && linked=1
+  downloads="${TURNOUT_INSTALL_DIR:-${XDG_DATA_HOME:-$HOME/.local/share}/turnout}"
+  downloaded=; case "$HOME_DIR" in "$downloads"/*) downloaded=1 ;; esac
+  state_home=$(dirname "$state_root")
+
+  say "turnout uninstall removes:"
+  if [ "$docker_state" = missing ]; then say "  - nothing in Docker: it isn't installed"
+  elif [ "$docker_state" = down ]; then say "  ! Docker isn't running, so Turnout's containers and data in it can't be removed now. To remove them as well, answer no, start Docker and run turnout uninstall again; otherwise they stay."
+  elif [ -n "$projects" ]; then for p in $projects; do say "  - Docker project $p: its containers, networks and data (Flagsmith's database, results, the release history)"; done
+  else say "  - no Turnout containers"; fi
+  [ -n "$tryit" ] && say "  - $(printf '%s\n' $tryit | grep -c .) Try it container(s) and their network"
+  [ "$docker_state" = up ] && say "  - the turnout:local image (unless another container still uses it)"
+  [ -d "$state_home" ] && say "  - Turnout's files: $state_home"
+  [ -n "$linked" ] && say "  - the link $link"
+  if [ -n "$downloaded" ]; then say "  - the downloaded release: $HOME_DIR"; else say "  (This checkout, $HOME_DIR, stays: delete the folder yourself if you want it gone.)"; fi
+  if [ -n "$dry" ]; then say ""; say "--dry-run: nothing removed."; return 0; fi
+  if [ -z "$yes" ]; then printf 'Remove all of this? It cannot be undone. [y/N] '; read -r ok; [ "$ok" = y ] || { say "Nothing removed."; return 0; }; fi
+
+  for p in $projects; do
+    docker compose -p "$p" down -v --remove-orphans >/dev/null 2>&1 || true
+    for v in $(docker volume ls -q --filter "label=com.docker.compose.project=$p" 2>/dev/null); do docker volume rm "$v" >/dev/null 2>&1 || true; done
+    say "  removed $p"
+  done
+  if [ -n "$tryit" ]; then docker rm -f $tryit >/dev/null 2>&1 || true; docker network prune -f --filter label=turnout.tryit=1 >/dev/null 2>&1 || true; say "  removed Try it containers"; fi
+  [ "$docker_state" = up ] && { docker image rm turnout:local >/dev/null 2>&1 || true; }
+  [ -d "$state_home" ] && rm -rf "$state_home" && say "  removed $state_home"
+  [ -n "$linked" ] && rm -f "$link" && say "  removed $link"
+  [ -n "$downloaded" ] && rm -rf "$HOME_DIR" && say "  removed $HOME_DIR"
+  say "Turnout is uninstalled."
+}
+
+cmd_simulate() {
+  logo
+  need_state; need_docker
+  visitors=500; yes=
+  while [ $# -gt 0 ]; do
+    case "$1" in
+      --visitors) visitors="${2:?--visitors needs a number}"; shift 2 ;;
+      --yes) yes=1; shift ;;
+      *) die "unknown option $1" ;;
+    esac
+  done
+  goal=$(sed -n 's/^goal=//p' "$STATE/compare.args")
+  if [ "$goal" != none ] && [ -z "$yes" ]; then
+    say "Pretend visitors send real requests to your app, including the goal ($goal): it may create real records."
+    printf 'Go ahead? [y/N] '; read -r ok; [ "$ok" = y ] || exit 1
+  fi
+  sim_up turnout-sim console-sim
+  compose --progress quiet run --rm -e TURNOUT_ENV_FILE=.turnout/sim.env cli simulate --visitors "$visitors" || die "the simulation stopped (see above)."
+  say ""
+  say "  Simulated results (Demo environment, never your real experiment):  http://127.0.0.1:$SIM_PORT"
+  say "  Flagsmith recomputes results at most every 5 minutes. Run turnout simulate again for more visitors."
+  open_url "http://127.0.0.1:$SIM_PORT"
+}
+
+need_state() { [ -f "$STATE/compare.args" ] || die "nothing set up for $NAME here yet: run turnout compare <live> <new> first."; ports_from_state; }
+
+cmd="${1:-help}"; [ $# -gt 0 ] && shift
+case "$cmd" in
+  compare) cmd_compare "$@" ;;
+  deploy) cmd_deploy "$@" ;;
+  simulate) cmd_simulate "$@" ;;
+  browsers) cmd_browsers "$@" ;;
+  uninstall) cmd_uninstall "$@" ;;
+  demo) need_docker; cd "$HOME_DIR" && exec sh turnout.sh "${1:-start}" ;;   # start (opens guided demo), or: stop, status, reset
+  update) cd "$HOME_DIR" && git pull --ff-only && say "Up to date. The next turnout compare or turnout demo uses it." ;;
+  results) need_state; need_docker; compose --progress quiet run --rm cli status ;;
+  ship) need_state; need_docker; compose --progress quiet run --rm -it cli ship ${1:+--winner "$1"} ;;
+  revert) need_state; need_docker; compose --progress quiet run --rm -it cli revert ;;
+  logs) need_state; need_docker; svc=${1:-}; [ "$svc" = proxy ] && svc=turnout; compose logs -f --tail 50 $svc ;;
+  version|--version|-v) say "turnout $(version_of)" ;;
+  open) need_state; open_url "http://127.0.0.1:$CONSOLE_PORT"; banner ;;
+  status) need_state; need_docker; compose ps; compose --progress quiet run --rm cli doctor | tail -1 ;;
+  down) need_state; need_docker; step "Stopping $NAME"; compose --profile sim down >/dev/null 2>&1; say "Stopped. turnout compare with the same arguments starts it again, with its data." ;;
+  reset)
+    need_state; need_docker
+    if [ "${1:-}" != --yes ]; then printf 'Delete %s'"'"'s Turnout and Flagsmith data? [y/N] ' "$NAME"; read -r ok; [ "$ok" = y ] || exit 1; fi
+    step "Removing $NAME's containers and data"; compose --profile sim down -v >/dev/null 2>&1; rm -rf "$STATE"; say "Wiped. turnout compare starts fresh." ;;
+  help|-h|--help|'') help_screen ;;
+  *) help_screen; printf '
+turnout: unknown command "%s" (the commands are above).
+' "$cmd" >&2; exit 2 ;;
+esac

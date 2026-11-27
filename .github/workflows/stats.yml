@@ -1,0 +1,48 @@
+# The README's downloads badge: Release downloads plus unique git clones, recounted every 6 hours into the `stats`
+# branch (never main). Clones need a TRAFFIC_TOKEN secret: a fine-grained token for this repository with
+# "Administration: read" (GitHub's traffic API needs it); without it, only Release downloads are counted.
+name: Stats
+
+on:
+  schedule:
+    - cron: '17 */6 * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: stats
+  cancel-in-progress: false
+
+jobs:
+  count:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          sparse-checkout: .github/stats
+      - name: The stats branch (created on the first run)
+        run: |
+          git fetch origin stats:stats 2>/dev/null || true
+          if git show-ref --quiet refs/heads/stats; then
+            git worktree add stats-branch stats
+          else
+            git worktree add --detach stats-branch
+            git -C stats-branch checkout --orphan stats
+            git -C stats-branch rm -rf --quiet . || true
+          fi
+      - name: Count
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TRAFFIC_TOKEN: ${{ secrets.TRAFFIC_TOKEN }}
+        run: node .github/stats/stats.mjs stats-branch
+      - name: Publish
+        working-directory: stats-branch
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git diff --cached --quiet && exit 0
+          git commit -q -m "Stats $(date -u +%Y-%m-%dT%H:%MZ)"
+          git push -q origin stats

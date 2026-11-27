@@ -1,0 +1,27 @@
+/* The guided tour judge mode and the console share (tour.js). Self-contained: its own buttons, and colours with
+   fallbacks, since the two pages name their colours differently. */
+.tour-block { position: fixed; inset: 0; z-index: 50; }
+.tour-ring { position: fixed; z-index: 51; border-radius: 14px; pointer-events: none;
+  box-shadow: 0 0 0 3px var(--go, var(--good)), 0 0 0 9999px rgb(10 14 22 / .58);
+  transition: left .35s ease, top .35s ease, width .35s ease, height .35s ease; }
+.tour-ring.tour-ring-live { animation: tour-ring-pulse 1.6s ease-in-out infinite; }
+@keyframes tour-ring-pulse { 50% { box-shadow: 0 0 0 6px var(--go, var(--good)), 0 0 0 9999px rgb(10 14 22 / .58); } }
+.tour-ring.tour-ring-none { box-shadow: 0 0 0 9999px rgb(10 14 22 / .58); }
+.tour-tip { position: fixed; z-index: 52; width: 370px; padding: 16px 18px 14px; border-radius: 14px; background: var(--surface); color: var(--text);
+  border: 1px solid var(--border); box-shadow: 0 18px 40px -12px rgb(0 0 0 / .45); display: grid; gap: 6px; transition: left .35s ease, top .35s ease;
+  font: 15px/1.5 var(--sans); }
+.tour-tip[data-click='true'] { border-color: color-mix(in srgb, var(--go, var(--good)) 55%, var(--border)); }
+.tour-count { margin: 0; font-size: 12px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: var(--go, var(--good)); }
+.tour-title { margin: 0; font-size: 17px; line-height: 1.3; }
+.tour-text { margin: 0; color: var(--muted); font-size: 14.5px; line-height: 1.5; }
+.tour-row { display: flex; align-items: center; gap: 6px; margin-top: 6px; }
+.tour-tip .btn { min-height: 36px; padding: 6px 14px; border-radius: 10px; border: 1px solid var(--border); background: var(--surface); color: var(--text); font: 650 14px var(--sans); cursor: pointer; }
+.tour-tip .btn:disabled { opacity: .5; cursor: not-allowed; }
+.tour-tip .btn-quiet { border-color: transparent; background: transparent; color: var(--muted); text-decoration: underline; padding-inline: 6px; }
+.tour-tip .btn-go { background: var(--go, var(--good)); border-color: var(--go, var(--good)); color: #fff; }
+.tour-row .tour-next { margin-left: auto; }
+.tour-cue { margin-left: auto; font-size: 13px; font-weight: 700; color: var(--go, var(--good)); white-space: nowrap; }
+.tour-row .tour-pass { padding-inline: 4px; }
+.tour-key { display: inline-grid; place-items: center; min-width: 22px; height: 20px; padding: 0 4px; border-radius: 5px; font: 700 12px var(--sans);
+  background: rgb(255 255 255 / .22); border: 1px solid rgb(255 255 255 / .45); border-bottom-width: 2px; }
+@media (prefers-reduced-motion: reduce) { .tour-ring, .tour-tip { transition: none; animation: none; } }
