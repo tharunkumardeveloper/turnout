@@ -70,8 +70,9 @@ button?.addEventListener('click', async () => {
   }
 });
 
-// The public, read-only console has no guard (and no API for it).
-if (card && !document.querySelector('meta[name="turnout-readonly"]')) {
+// The public, read-only console has no guard (and no API for it), nor does your app's console (/app, from Try it):
+// asking there only makes a 404 in the browser's console.
+if (card && !document.querySelector('meta[name="turnout-readonly"]') && !document.querySelector('meta[name="turnout-app"]')) {
   refresh();
   setInterval(refresh, 5000);
 }
