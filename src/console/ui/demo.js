@@ -8,7 +8,7 @@ import { JUDGE_STOPS, stopsFor } from './tour-stops.js';
 import { INSTALL, PLAY, READONLY, loadSignin, noticeClosed, setupMenu, setVersions, signinBox, viewLink } from './menu.js';
 
 const STATE_POLL_MS = 4000;
-const JOB_POLL_MS = 800;
+const JOB_POLL_MS = 400;
 const AUTOPLAY_PAUSE_MS = 2500;
 const $ = (id) => /** @type {HTMLElement} */ (document.getElementById(id));
 
@@ -125,7 +125,7 @@ async function loadState() {
     if (body.job?.status === 'running' && !ui.job) followJob(body.job);
     if (ui.settle) {
       if (signature(body) !== ui.settle.sig || Date.now() > ui.settle.until) ui.settle = null;
-      else next = 700;
+      else next = 350;
     }
     if (ui.error.startsWith('Cannot reach')) ui.error = '';
   } catch (error) {
@@ -164,7 +164,7 @@ async function jobFinished(job) {
   else ui.settle = { sig: ui.before ?? signature(ui.state), until: Date.now() + 8000 };
   ui.before = null;
   await loadState();
-  while (ui.settle) await new Promise((r) => setTimeout(r, 300));
+  while (ui.settle) await new Promise((r) => setTimeout(r, 150));
   // After Ship or Revert, check straight away that brand-new shoppers get the decision.
   if (job?.status === 'done' && (job.action === 'ship' || job.action === 'revert')) {
     ui.decidedThisRun = true;

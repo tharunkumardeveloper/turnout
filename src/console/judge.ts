@@ -1017,8 +1017,11 @@ export function createJudge(opts: JudgeOptions, ctx: JudgeContext) {
       let last = first.accepted;
       let since = started;
       // The proxy flushes events every second (flag-source.ts flushInterval): 2.5 quiet seconds, two flushes and a
-      // half with nothing new, means they've all reached Flagsmith.
-      while (deps.now() - since < QUIET_MS && deps.now() - started < 45_000) {
+      // half with nothing new, means they've all reached Flagsmith. Shoppers that finished longer ago than that have
+      // been flushed already, so one quiet second is enough.
+      const sentAt = Date.parse(lastVisitorsAt.get(id) ?? '');
+      const quiet = Number.isFinite(sentAt) && deps.now() - sentAt > QUIET_MS ? 1_000 : QUIET_MS;
+      while (deps.now() - since < quiet && deps.now() - started < 45_000) {
         await deps.sleep(500);
         const now = (await deps.readEvents())?.accepted ?? last;
         if (now !== last) {
