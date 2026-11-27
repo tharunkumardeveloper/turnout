@@ -1428,3 +1428,4 @@ body.simple .detail { display: none !important; }
 .switch-hint { animation: switch-hint 1.5s ease-in-out 6; border-radius: 10px; }
 @keyframes switch-hint { 50% { box-shadow: 0 0 0 5px rgb(102 51 255 / 0.45); } }
 @media (prefers-reduced-motion: reduce) { .next-view, .switch-hint { animation: none; } .switch-hint { box-shadow: 0 0 0 3px rgb(102 51 255 / 0.5); } }
+.next-view .btn-primary { --c: #6633ff; } /* outside a version card --c is unset: give the button its colour */
