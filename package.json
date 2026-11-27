@@ -1,6 +1,6 @@
 {
   "name": "turnout",
-  "version": "1.0.3",
+  "version": "1.0.4",
   "private": true,
   "description": "Every deploy is a Flagsmith experiment, with zero app code. Ship it or roll it back on the same flag.",
   "license": "BSD-3-Clause",

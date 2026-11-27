@@ -405,10 +405,11 @@ function Invoke-Browsers([string[]]$a) {
 # release. Lists it all first and asks; --dry-run only lists; --yes doesn't ask. Flagsmith's and Postgres' images stay.
 function Invoke-Uninstall([string[]]$a) {
   $dry = $a -contains '--dry-run'; $yes = $a -contains '--yes'
-  Need-Docker
+  # Works without Docker too: then only Turnout's own files, its PATH entry and a downloaded release are removed.
+  $docker = if (-not (Get-Command docker -ErrorAction SilentlyContinue)) { 'missing' } else { docker info *> $null; if ($LASTEXITCODE -eq 0) { 'up' } else { 'down' } }
   $projects = @(); $demoHere = $false
   # Containers of this checkout's demo (its folder) or of a compare project (under the state folder), by Compose's labels.
-  $rows = docker ps -a --format '{{json .}}' 2>$null
+  $rows = if ($docker -eq 'up') { docker ps -a --format '{{json .}}' 2>$null } else { @() }
   foreach ($row in @($rows)) {
     if (-not $row) { continue }
     $labels = @{}
@@ -419,7 +420,7 @@ function Invoke-Uninstall([string[]]$a) {
     if ($d -ieq $HomeDir.TrimEnd('\')) { $projects += $proj; $demoHere = $true }
     elseif ($d -like "$($StateRoot.TrimEnd('\'))\*") { $projects += $proj }
   }
-  foreach ($s in (Get-ChildItem $StateRoot -Directory -ErrorAction SilentlyContinue)) { $projects += "turnout-$($s.Name)" }
+  if ($docker -eq 'up') { foreach ($s in (Get-ChildItem $StateRoot -Directory -ErrorAction SilentlyContinue)) { $projects += "turnout-$($s.Name)" } }
   $projects = @($projects | Sort-Object -Unique)
   # Try it's containers aren't labelled with the checkout that made them: only with this checkout's own demo stack.
   $tryit = if ($demoHere) { @(docker ps -aq --filter label=turnout.tryit=1 2>$null | Where-Object { $_ }) } else { @() }
@@ -431,10 +432,12 @@ function Invoke-Uninstall([string[]]$a) {
   $stateHome = Split-Path -Parent $StateRoot
 
   Say 'turnout uninstall removes:'
-  if ($projects) { foreach ($p in $projects) { Say "  - Docker project ${p}: its containers, networks and data (Flagsmith's database, results, the release history)" } }
+  if ($docker -eq 'missing') { Say "  - nothing in Docker: it isn't installed" }
+  elseif ($docker -eq 'down') { Say "  ! Docker isn't running, so Turnout's containers and data in it can't be removed now. To remove them as well, answer no, start Docker and run turnout uninstall again; otherwise they stay (Docker Desktop's Containers page can delete them later)." }
+  elseif ($projects) { foreach ($p in $projects) { Say "  - Docker project ${p}: its containers, networks and data (Flagsmith's database, results, the release history)" } }
   else { Say '  - no Turnout containers' }
   if ($tryit) { Say "  - $($tryit.Count) Try it container(s) and their network" }
-  Say '  - the turnout:local image (unless another container still uses it)'
+  if ($docker -eq 'up') { Say '  - the turnout:local image (unless another container still uses it)' }
   if (Test-Path $stateHome) { Say "  - Turnout's files: $stateHome" }
   if ($onPath) { Say "  - $bin from your user PATH" }
   if ($downloaded) { Say "  - the downloaded release: $HomeDir" } else { Say "  (This checkout, $HomeDir, stays: delete the folder yourself if you want it gone.)" }
@@ -447,7 +450,7 @@ function Invoke-Uninstall([string[]]$a) {
     Say "  removed $p"
   }
   if ($tryit) { docker rm -f @tryit *> $null; docker network prune -f --filter label=turnout.tryit=1 *> $null; Say '  removed Try it containers' }
-  docker image rm turnout:local *> $null
+  if ($docker -eq 'up') { docker image rm turnout:local *> $null }
   if (Test-Path $stateHome) { Remove-Item -Recurse -Force $stateHome; Say "  removed $stateHome" }
   if ($onPath) {
     [Environment]::SetEnvironmentVariable('Path', ((@($userPath -split ';') | Where-Object { $_ -and $_ -ne $bin }) -join ';'), 'User')
