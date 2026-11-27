@@ -22,6 +22,7 @@ import { readLedger } from '../ledger.ts';
 import type { Watcher } from '../health.ts';
 import { createAutopilot, type AutopilotOptions } from './autopilot.ts';
 import { createJudge, shared, type JudgeOptions, type LiveVisitors } from './judge.ts';
+import { createVisitorCount } from './visitors.ts';
 
 export type ConsoleOptions = {
   // A fixed experiment, or a resolver that finds the flag's latest one (so the console follows `release`).
@@ -157,6 +158,7 @@ export function createConsole(opts: ConsoleOptions): http.Server {
   const lock = opts.lock ?? { busy: false }; // one write sequence at a time: Ship/Revert, judge jobs, the guard
   const token = randomBytes(24).toString('base64url');
   const publicToken = randomBytes(24).toString('base64url'); // the public view's own: never the console's token
+  const visitors = createVisitorCount(opts.ledgerDir); // the public page's people, counted once each (visitors.ts)
   // Taken out of everything the public view sends (the preview link and job logs carry the preview token).
   const hidden = [opts.judge?.previewToken, opts.judgeToken, opts.flagsmithLogin?.password]
     .filter((x): x is string => !!x)
@@ -371,6 +373,17 @@ export function createConsole(opts: ConsoleOptions): http.Server {
       return void res.end(JSON.stringify({ error: 'Read-only view: actions run only from the console on the server (SSH tunnel).' }));
     }
     const url = new URL(req.url ?? '/', 'http://console');
+    // The README's live badge: the visitor count only, in shields.io's endpoint format. No token: it's public.
+    if (url.pathname === `${PUBLIC_BASE}/api/badge/visitors`) {
+      res.writeHead(200, { 'content-type': 'application/json', 'cache-control': 'public, max-age=300', 'access-control-allow-origin': '*' });
+      return void res.end(JSON.stringify(visitors.badge()));
+    }
+    const pages: Record<string, string> = { '': 'demo.html', '/': 'demo.html', '/console': 'index.html', '/console/': 'index.html', '/flagsmith': 'flagsmith.html', '/flagsmith/': 'flagsmith.html' };
+    const pageRest = url.pathname.startsWith(PUBLIC_BASE) ? url.pathname.slice(PUBLIC_BASE.length) : null;
+    if (pageRest !== null && pages[pageRest] && req.method === 'GET') {
+      const cookie = visitors.note(req.headers.cookie, req.headers['user-agent'], req.headers['x-forwarded-proto'] === 'https');
+      if (cookie) res.setHeader('set-cookie', cookie);
+    }
     if (url.pathname === PUBLIC_BASE || url.pathname === `${PUBLIC_BASE}/`) return servePublicPage(opts.uiDir, res, publicToken, 'demo.html', opts.publicPlay);
     // The console, read-only: the same page as the private one, its data live, no button that changes anything.
     if (url.pathname === `${PUBLIC_BASE}/console` || url.pathname === `${PUBLIC_BASE}/console/`) return servePublicPage(opts.uiDir, res, publicToken, 'index.html', opts.publicPlay);

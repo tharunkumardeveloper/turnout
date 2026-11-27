@@ -9,7 +9,8 @@
 
 [![Open in GitHub Codespaces](https://github.com/codespaces/badge.svg)](https://codespaces.new/tharunkumardeveloper/turnout?quickstart=1)
 [![CI](https://github.com/tharunkumardeveloper/turnout/actions/workflows/ci.yml/badge.svg)](https://github.com/tharunkumardeveloper/turnout/actions/workflows/ci.yml)
-[![Downloads](https://img.shields.io/github/downloads/tharunkumardeveloper/turnout/total?label=downloads&color=6633ff)](https://github.com/tharunkumardeveloper/turnout/releases)
+[![Downloads](https://img.shields.io/endpoint?url=https%3A%2F%2Fraw.githubusercontent.com%2Ftharunkumardeveloper%2Fturnout%2Fstats%2Fdownloads.json "Release downloads plus unique git clones, recounted every 6 hours (GitHub's clone count includes automated clones)")](https://github.com/tharunkumardeveloper/turnout/releases)
+[![Live demo visitors](https://img.shields.io/endpoint?url=https%3A%2F%2F172-198-62-67.sslip.io%2Fjudge%2Fapi%2Fbadge%2Fvisitors "Unique browsers on the live demo, people only (bots and automated browsers left out), counted live")](https://172-198-62-67.sslip.io)
 [![License: BSD-3-Clause](https://img.shields.io/badge/license-BSD--3--Clause-blue)](LICENSE)
 
 </div>
