@@ -106,7 +106,13 @@ echo.
 echo  [1/5] Starting Flagsmith ^(the first run downloads its images: a few minutes^)...
 !DC! up -d --wait flagsmith
 if errorlevel 1 (
-  echo  Flagsmith didn't become healthy. Logs:  !DC! logs flagsmith
+  rem Another Docker project holding Turnout's ports names itself and the fix; otherwise Flagsmith's own logs.
+  powershell -NoProfile -ExecutionPolicy Bypass -File "%~dp0bin\port-clash.ps1" -Here "%~dp0."
+  if errorlevel 1 (
+    echo  Then run turnout.bat again.
+  ) else (
+    echo  Flagsmith didn't become healthy. Logs:  !DC! logs flagsmith
+  )
   goto :failed
 )
 
@@ -133,7 +139,12 @@ echo  [3/5] Starting Turnout, the console and the three shop releases...
 if defined SY_SERVER echo        and Caddy ^(HTTPS; the first certificate can take a minute^)
 !DC! up -d --build --wait --remove-orphans
 if errorlevel 1 (
-  echo  Something didn't start. See:  !DC! ps   and   !DC! logs
+  powershell -NoProfile -ExecutionPolicy Bypass -File "%~dp0bin\port-clash.ps1" -Here "%~dp0."
+  if errorlevel 1 (
+    echo  Then run turnout.bat again.
+  ) else (
+    echo  Something didn't start. See:  !DC! ps   and   !DC! logs
+  )
   goto :failed
 )
 

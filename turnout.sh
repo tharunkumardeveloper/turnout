@@ -200,6 +200,21 @@ if ! docker info >/dev/null 2>&1; then
   fi
 fi
 
+# After a failed start: is another Docker project holding Turnout's ports (another Turnout, Flagsmith or anything
+# else)? Prints who and the fix; prints nothing when the ports are free or held by this folder's own containers.
+port_clash() {
+  held=$(for p in 8000 8080 8090 8091; do
+    docker ps --filter "publish=$p" --format "$p|{{.Label \"com.docker.compose.project\"}}|{{.Label \"com.docker.compose.project.working_dir\"}}|{{.Names}}" 2>/dev/null
+  done | while IFS='|' read -r p proj dir name; do [ -n "$name" ] && [ "$dir" != "$HERE" ] && echo "$p|$proj|$dir|$name"; done)
+  [ -n "$held" ] || return 0
+  echo "$held" | while IFS='|' read -r p proj dir name; do
+    echo " Port $p is already used by the Docker container $name${proj:+ (Compose project \"$proj\"${dir:+, from $dir})}."
+  done
+  echo "$held" | cut -d'|' -f2 | sort -u | while read -r proj; do
+    [ -n "$proj" ] && echo " Stop it first (its data is kept):  docker compose -p $proj down"
+  done
+}
+
 start() {
   # ---- Everything else setup.sh checks (Compose version, files, ports) ------------------------------------
   if ! sh "$HERE/setup.sh" --check >/dev/null 2>&1; then
@@ -235,7 +250,9 @@ start() {
   echo
   echo " [1/5] Starting Flagsmith (the first run downloads its images: a few minutes)..."
   if ! dc up -d --wait flagsmith; then
-    echo " Flagsmith didn't become healthy. Logs:  docker compose $COMPOSE_FILES logs flagsmith"
+    CLASH=$(port_clash)
+    if [ -n "$CLASH" ]; then echo "$CLASH"; echo " Then run sh turnout.sh again."
+    else echo " Flagsmith didn't become healthy. Logs:  docker compose $COMPOSE_FILES logs flagsmith"; fi
     failed
   fi
 
@@ -271,7 +288,9 @@ start() {
   echo " [3/5] Starting Turnout, the console and the three shop releases..."
   [ "$MODE" = server ] && echo "       and Caddy (HTTPS for $(env_get TURNOUT_HOSTNAME); the first certificate can take a minute)"
   if ! dc up -d --build --wait --remove-orphans; then
-    echo " Something didn't start. See:  docker compose $COMPOSE_FILES ps   and   docker compose $COMPOSE_FILES logs"
+    CLASH=$(port_clash)
+    if [ -n "$CLASH" ]; then echo "$CLASH"; echo " Then run sh turnout.sh again."
+    else echo " Something didn't start. See:  docker compose $COMPOSE_FILES ps   and   docker compose $COMPOSE_FILES logs"; fi
     failed
   fi
 

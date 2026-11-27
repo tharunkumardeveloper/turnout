@@ -59,7 +59,8 @@ services:
     environment:
       POSTGRES_PASSWORD: password
       POSTGRES_DB: flagsmith
-    container_name: flagsmith_postgres
+    # Turnout's edit: no container_name (it was flagsmith_postgres), which clashed with any other Flagsmith or Turnout
+    # on the same machine. Compose names it per project; the data volume (pgdata) is unchanged.
     volumes:
       - pgdata:/var/lib/postgresql/data
     healthcheck:
