@@ -376,10 +376,11 @@ function Start-Sim([string[]]$services) {
 function Invoke-Browsers([string[]]$a) {
   Show-Logo
   $lines = Read-Args; Need-Docker
-  $visits = '100'
+  $visits = '100'; $extra = @()
   for ($i = 0; $i -lt $a.Count; $i++) {
     switch ($a[$i]) {
       '--visits' { $visits = $a[$i + 1]; $i++ }
+      { $_ -in '--path', '--latency', '--lanes' } { $extra += @($a[$i], $a[$i + 1]); $i++ }
       default { Die "unknown option $($a[$i])" }
     }
   }
@@ -390,7 +391,7 @@ function Invoke-Browsers([string[]]$a) {
     Say "Note: page speed in the browser isn't measured without --browser-speed (turnout compare ... --browser-speed); the visits still count."
   }
   $simPort = Start-Sim @('turnout-sim', 'console-sim', 'chrome')
-  Compose --progress quiet run --rm -e TURNOUT_ENV_FILE=.turnout/sim.env cli browsers --visits $visits 2>&1 | ForEach-Object { "$_" }
+  Compose --progress quiet run --rm -e TURNOUT_ENV_FILE=.turnout/sim.env cli browsers --visits $visits @extra 2>&1 | ForEach-Object { "$_" }
   if ($LASTEXITCODE -ne 0) { Die 'the browser visits stopped (see above).' }
   Say ''
   Say "  Results (Demo environment, never your real experiment):  http://127.0.0.1:$simPort"

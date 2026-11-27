@@ -68,7 +68,7 @@ Commands:
              (repository: GitHub Actions' variables, an https GitHub "origin" remote, or TURNOUT_REPOSITORY_URL)
   pr-comment Post turnout check's report on the pull request this CI run is for, or update the earlier one
   browsers   Real-browser visits (headless Chrome) through the simulation proxy, for page speed before real traffic
-             [--visits 100] [--lanes 4]  (TURNOUT_CHROME_URL, TURNOUT_SIM_TARGET)
+             [--visits 100] [--lanes 4] [--path /] [--latency 0]  (TURNOUT_CHROME_URL, TURNOUT_SIM_TARGET)
 
 Options for any command:
   --api-url <url>      Flagsmith's API, e.g. http://127.0.0.1:8000/api/v1/ (env FLAGSMITH_API_URL)
@@ -104,6 +104,8 @@ const parseCommandLine = () =>
       visitors: { type: 'string' },
       visits: { type: 'string' }, // browsers: real-browser visits
       lanes: { type: 'string' }, // browsers: visits in parallel
+      path: { type: 'string' }, // browsers: the page to visit
+      latency: { type: 'string' }, // browsers: added latency per request, ms
       rate: { type: 'string', multiple: true },
       concurrency: { type: 'string' },
       seed: { type: 'string' },
@@ -154,7 +156,7 @@ const { values: cliFlags, positionals: args } = parsed;
 const [name, ...positionals] = args;
 
 // A whole number option within bounds, or the fallback when it isn't given.
-function wholeNumber(option: 'visitors' | 'concurrency' | 'seed' | 'visits' | 'lanes', fallback: number, min: number, max: number): number {
+function wholeNumber(option: 'visitors' | 'concurrency' | 'seed' | 'visits' | 'lanes' | 'latency', fallback: number, min: number, max: number): number {
   const raw = cliFlags[option];
   if (raw === undefined) return fallback;
   const value = raw.trim() === '' ? Number.NaN : Number(raw);
@@ -802,7 +804,11 @@ const commands: Record<string, () => Promise<void>> = {
     const before = await reported();
     console.log(`Sending ${visits} real-browser visits (headless Chrome, labelled TurnoutBrowserVisit) through the simulation proxy: each a fresh browser, to your home page, then away (that's when page speed is reported).`);
     const { browserVisits } = await import('./commands/browsers.ts');
-    const result = await browserVisits({ chromeUrl: process.env.TURNOUT_CHROME_URL || 'http://chrome:9222', target: `${target}/`, visits, lanes: wholeNumber('lanes', 4, 1, 16) });
+    const path = cliFlags.path ?? '/';
+    if (!path.startsWith('/') || path.startsWith('//')) throw new Error(`--path is a path on your site, like /pricing, got "${path}"`);
+    const latencyMs = wholeNumber('latency', 0, 0, 5000);
+    if (latencyMs) console.log(`Each request gets ${latencyMs} ms of added latency (Chrome's network emulation).`);
+    const result = await browserVisits({ chromeUrl: process.env.TURNOUT_CHROME_URL || 'http://chrome:9222', target: `${target}${path}`, visits, lanes: wholeNumber('lanes', 4, 1, 16), latencyMs });
     await new Promise((r) => setTimeout(r, 2000));
     const after = await reported();
     console.log(`Done: ${result.done} visits${result.failed ? `, ${result.failed} failed (${result.errors.join('; ')})` : ''}.${before !== null && after !== null && measuresVitals(config) ? ` Page speed reported by ${after - before} of them.` : ''}`);

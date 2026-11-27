@@ -56,3 +56,13 @@ test('turnout new --browser-speed: the lcp_ms and cls guardrails, and a headless
   assert.match(compose, /\n  chrome:\n    image: chromedp\/headless-shell:stable\n    profiles: \[sim\]/);
   assert.doesNotMatch(compose.split('\n  chrome:')[1]!.split('\n\n')[0]!, /ports:/, 'its DevTools port is never published');
 });
+
+test('--latency adds that much latency to each request with Chrome\'s own network emulation', async () => {
+  const { cdp, calls } = fakeChrome();
+  await browserVisits({ chromeUrl: 'x', target: 'http://t/demo/demo', visits: 1, latencyMs: 50, connect: async () => cdp, log: () => {} });
+  assert.deepEqual(calls.find((c) => c.method === 'Network.emulateNetworkConditions')!.params, { offline: false, latency: 50, downloadThroughput: -1, uploadThroughput: -1 });
+  assert.equal(calls.find((c) => c.method === 'Page.navigate')!.params.url, 'http://t/demo/demo');
+  const plain = fakeChrome();
+  await browserVisits({ chromeUrl: 'x', target: 'http://t/', visits: 1, connect: async () => plain.cdp, log: () => {} });
+  assert.equal(plain.calls.some((c) => c.method === 'Network.emulateNetworkConditions'), false, 'none unless asked');
+});

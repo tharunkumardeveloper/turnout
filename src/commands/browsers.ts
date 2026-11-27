@@ -69,13 +69,15 @@ export async function connectChrome(chromeUrl: string): Promise<Cdp> {
 }
 
 /** One visit: a fresh profile, the page, a pause for it to settle, then leaving it (the page-speed script reports). */
-export async function browserVisit(cdp: Cdp, target: string, opts: { settleMs?: number; timeoutMs?: number } = {}): Promise<void> {
+export async function browserVisit(cdp: Cdp, target: string, opts: { settleMs?: number; timeoutMs?: number; latencyMs?: number } = {}): Promise<void> {
   const { browserContextId } = await cdp.send('Target.createBrowserContext', { disposeOnDetach: true });
   try {
     const { targetId } = await cdp.send('Target.createTarget', { url: 'about:blank', browserContextId });
     const { sessionId } = await cdp.send('Target.attachToTarget', { targetId, flatten: true });
     await cdp.send('Network.enable', {}, sessionId);
     await cdp.send('Network.setUserAgentOverride', { userAgent: BROWSER_VISIT_UA }, sessionId);
+    // Added latency per request (Chrome's own network emulation), to measure as if over a real network.
+    if (opts.latencyMs) await cdp.send('Network.emulateNetworkConditions', { offline: false, latency: opts.latencyMs, downloadThroughput: -1, uploadThroughput: -1 }, sessionId);
     await cdp.send('Page.enable', {}, sessionId);
     const loaded = cdp.once('Page.loadEventFired', sessionId, opts.timeoutMs ?? 30_000);
     await cdp.send('Page.navigate', { url: target }, sessionId);
@@ -96,6 +98,7 @@ export async function browserVisits(o: {
   target: string;
   visits: number;
   lanes?: number;
+  latencyMs?: number;
   log?: (line: string) => void;
   connect?: (url: string) => Promise<Cdp>;
 }): Promise<{ done: number; failed: number; errors: string[] }> {
@@ -109,7 +112,7 @@ export async function browserVisits(o: {
     while (next < o.visits) {
       next++;
       try {
-        await browserVisit(cdp, o.target);
+        await browserVisit(cdp, o.target, { ...(o.latencyMs ? { latencyMs: o.latencyMs } : {}) });
         done++;
         if (done % 25 === 0) log(`  ${done} of ${o.visits} visits`);
       } catch (error) {

@@ -402,10 +402,11 @@ sim_up() {
 cmd_browsers() {
   logo
   need_state; need_docker
-  visits=100
+  visits=100; extra=
   while [ $# -gt 0 ]; do
     case "$1" in
       --visits) visits="${2:?--visits needs a number}"; shift 2 ;;
+      --path|--latency|--lanes) extra="$extra $1 ${2:?$1 needs a value}"; shift 2 ;;
       *) die "unknown option $1" ;;
     esac
   done
@@ -414,7 +415,7 @@ cmd_browsers() {
   grep -Eq 'lcp_ms|cls' "$STATE/turnout.config.yml" \
     || say "Note: page speed in the browser isn't measured without --browser-speed (turnout compare ... --browser-speed); the visits still count."
   sim_up turnout-sim console-sim chrome
-  compose --progress quiet run --rm -e TURNOUT_ENV_FILE=.turnout/sim.env cli browsers --visits "$visits" || die "the browser visits stopped (see above)."
+  compose --progress quiet run --rm -e TURNOUT_ENV_FILE=.turnout/sim.env cli browsers --visits "$visits" $extra || die "the browser visits stopped (see above)."
   say ""
   say "  Results (Demo environment, never your real experiment):  http://127.0.0.1:$SIM_PORT"
   say "  Flagsmith recomputes results at most every 5 minutes. Run turnout browsers again for more visits."
