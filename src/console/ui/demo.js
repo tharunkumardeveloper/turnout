@@ -485,8 +485,6 @@ function renderSteps(s, m) {
       h('div', { class: 'step-body' }, h('h3', { class: 'step-title' }, st.title), ...body));
   });
   $('steps').replaceChildren(...items);
-  // In the console's card (steps only, capped height): keep the step that needs you in view.
-  if (STEPS_ONLY) document.querySelector('#steps > [aria-current="step"], #steps > [data-status="current"]')?.scrollIntoView({ block: 'nearest' });
   ui.stepStatus = ui.nextStepStatus;
   ui.nextStepStatus = {};
 }

@@ -1440,3 +1440,10 @@ body.simple .detail { display: none !important; }
 .switch-tip span { flex: 1; }
 .switch-tip-x { padding: 0 4px; font-size: 16px; line-height: 1; color: inherit; background: none; border: 0; cursor: pointer; }
 .site-hint { margin: 8px 0 0; padding: 8px 10px; border-radius: 10px; font-size: 13px; line-height: 1.45; background: color-mix(in srgb, #16a34a 9%, var(--surface)); border: 1px solid color-mix(in srgb, #16a34a 35%, var(--border)); }
+
+/* The test, step by step, first in the left column and shown whole (no scroll inside); Your site under it. The page
+   grows when the steps need it, as the console already does on narrower screens. */
+body.console-screen.steps-layout:not(.judge-on) { height: auto; min-height: 100vh; overflow: visible; }
+.steps-layout .cgrid { grid-template-areas: "run map results" "site map decide"; grid-template-rows: auto minmax(0, 1fr); min-height: calc(100vh - 110px); }
+.steps-layout .cgrid .site-card { overflow: visible; }
+.steps-layout .cgrid:has(.run-card[hidden]) .site-card { grid-row: 1 / span 2; }

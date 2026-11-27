@@ -385,7 +385,8 @@ a.version-frame:hover::after, a.version-frame:focus-visible::after { opacity: 1;
 @media (prefers-reduced-motion: reduce) { .step.just-done .step-n, .step.just-done::before, .step.just-current .step-n, .step.just-current .step-body { animation: none; } }
 
 /* Steps only (demo.js STEPS_ONLY): inside the console's card under Your site, the kinds and the steps, nothing else. */
-.steps-view body { background: transparent; min-height: 0; height: auto; overflow-x: hidden; overflow-y: auto; display: block; padding: 0; }
+.steps-view, .steps-view body { overflow: hidden; }
+.steps-view body { background: transparent; min-height: 0; height: auto; display: block; padding: 0; }
 .steps-view .top { padding: 0 0 10px; border: 0; background: transparent; min-height: 0; }
 .steps-view .top > :not(.kinds) { display: none !important; }
 .steps-view .screen { display: block; padding: 0; height: auto; min-height: 0; overflow: visible; }

@@ -338,6 +338,7 @@ function ensureStepsFrame() {
   if (!f) return false;
   if (!f.getAttribute('src')) {
     $('run').classList.add('steps-mode');
+    document.body.classList.add('steps-layout'); // the steps first in the left column, the page as tall as it needs
     $('run-title').textContent = 'The test, step by step';
     f.hidden = false;
     f.setAttribute('src', `${frameSrc(BASE, new URLSearchParams(location.search))}&view=steps`);
@@ -347,7 +348,7 @@ function ensureStepsFrame() {
 window.addEventListener('message', (e) => {
   if (e.origin !== location.origin || !e.data?.turnout) return;
   const d = e.data;
-  if (d.turnout === 'steps-height' && e.source === $('steps-frame')?.contentWindow) $('steps-frame').style.height = `${Math.max(120, Math.min(d.height, Math.round(window.innerHeight * 0.45)))}px`;
+  if (d.turnout === 'steps-height' && e.source === $('steps-frame')?.contentWindow) $('steps-frame').style.height = `${Math.max(120, d.height)}px`; // all of it: never a scroll inside
   if (d.turnout === 'plan') {
     // A pick shows its versions; a start (or going back) shows the test itself, and the map follows its traffic.
     steps.plan = Array.isArray(d.releases) && d.releases.length ? d.releases : null;
