@@ -192,6 +192,7 @@ async function run(action, extra = {}) {
   }
   if (action === 'ship' || action === 'revert') ui.decidedExp = s?.experiment?.id ?? null; // this browser decided it
   ui.sending = true;
+  if (action === 'visitors') tellConsole({ type: 'shoppers' }); // the console shows its traffic map at the click
   ui.before = signature(s); // the state before this job, to wait for its effect
   ui.error = '';
   render();
@@ -209,7 +210,6 @@ async function run(action, extra = {}) {
     if (PLAY) markMine();
     if (out.job) followJob(out.job);
     if (action === 'start' || action === 'abc') tellConsole({ type: 'plan', releases: null, started: true });
-    if (action === 'visitors') tellConsole({ type: 'shoppers' });
   } catch (error) {
     ui.error = error.message;
     ui.before = null;
