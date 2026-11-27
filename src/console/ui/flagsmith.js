@@ -3,7 +3,7 @@
 // features Turnout uses for it and their live values; below, every feature, menu and integration as cards, with
 // filters by status and a search. Every string from the server goes in through textContent, and only http(s) links
 // become hrefs.
-import { setupMenu } from './menu.js';
+import { BASE, setupMenu } from './menu.js';
 
 const $ = (id) => /** @type {HTMLElement} */ (document.getElementById(id));
 const TOKEN = globalThis.document?.querySelector('meta[name="turnout-console"]')?.getAttribute('content') ?? '';
@@ -170,7 +170,7 @@ async function load() {
   button.disabled = true;
   $('groups').setAttribute('aria-busy', 'true');
   try {
-    const res = await fetch('/api/flagsmith-map', { headers: { [TOKEN_HEADER]: TOKEN } });
+    const res = await fetch(`${BASE}/api/flagsmith-map`, { headers: { [TOKEN_HEADER]: TOKEN } });
     const body = await res.json().catch(() => ({}));
     if (!res.ok) throw new Error(body?.error ?? `The console answered ${res.status}`);
     render(body);

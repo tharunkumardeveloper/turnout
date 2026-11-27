@@ -7,7 +7,7 @@
 
 const meta = (name) => (typeof document === 'undefined' ? null : document.querySelector(`meta[name="${name}"]`));
 const TOKEN = meta('turnout-console')?.getAttribute('content') ?? '';
-const BASE = meta('turnout-base')?.getAttribute('content') ?? '';
+export const BASE = meta('turnout-base')?.getAttribute('content') ?? '';
 export const READONLY = meta('turnout-readonly') !== null;
 /** The public page lets visitors run the guided demo's own steps (simulated shoppers only); everything else stays read-only. */
 export const PLAY = READONLY && meta('turnout-public-play') !== null;
@@ -119,11 +119,14 @@ async function wireFlagsmithLink() {
 }
 
 // ---- Server mode's public page: "About this demo" ----------------------------------------------------------------
-// What the shared live demo has, and what runs only on your own machine (and why). Opens once per browser on the
-// public page (never in a frame: the console embeds the guided demo); the menu's "About this demo" opens it again.
-// Local pages never show it.
+// What the shared live demo has, and what runs only on your own machine (and why). The public page (never in a
+// frame: the console embeds the guided demo) shows a one-line banner until it's closed, so the demo itself is the
+// first thing anyone sees; the banner and the menu's "About this demo" open the full notice. Local pages never show it.
 export const NOTICE_KEY = 'turnout-live-notice-seen';
 const REPO = 'https://github.com/tharunkumardeveloper/turnout';
+const RAW = 'https://raw.githubusercontent.com/tharunkumardeveloper/turnout/main';
+/** The one-line installs (the README's Quick start). */
+export const INSTALL = { win: `irm ${RAW}/install.ps1 | iex`, unix: `curl -fsSL ${RAW}/install.sh | sh` };
 let noticeDone = Promise.resolve();
 /** Resolves once the live-demo notice is closed (at once when it isn't showing): tours wait for it. */
 export const noticeClosed = () => noticeDone;
@@ -157,8 +160,8 @@ export function liveNotice({ play = PLAY } = {}) {
           item('Numbers that are yours:', 'here tests are shared and rate-limited, and the one running may be someone else’s.')))),
     el('div', { class: 'live-run' },
       el('h3', {}, 'Run it locally'),
-      el('p', {}, 'Docker (about 4 GB of memory for it) and Git, then:'),
-      el('pre', {}, el('code', {}, `git clone ${REPO}.git turnout\nsh turnout/install.sh        # Windows: powershell -ExecutionPolicy Bypass -File turnout\\install.ps1\nturnout demo                 # this demo, every feature on\nturnout compare localhost:3001 localhost:3002   # or your own two versions`))),
+      el('p', {}, 'Docker running (about 4 GB of memory for it), then one line installs it:'),
+      el('pre', {}, el('code', {}, `${INSTALL.win}   # Windows (PowerShell)\n${INSTALL.unix}   # macOS, Linux\nturnout demo                                    # this demo, every feature on\nturnout compare localhost:3001 localhost:3002   # or your own two versions`))),
     el('p', { class: 'live-feedback' }, 'Tried it on your own site? ',
       el('a', { href: `${REPO}/issues/new?template=tried-turnout.yml`, target: '_blank', rel: 'noopener' }, 'Tell us how it went ↗'), ' Two minutes, and it shapes what comes next.'),
     el('div', { class: 'live-actions' },
@@ -180,15 +183,21 @@ function setupLiveNotice(menu) {
     seen = false;
   }
   if (seen) return;
-  noticeDone = new Promise((resolve) => dialog.addEventListener('close', () => {
+  // A banner, not a dialog: nothing covers the demo. Closing it (or opening the notice from it) keeps it closed.
+  const remember = () => {
     try {
       localStorage.setItem(NOTICE_KEY, '1');
     } catch {
-      /* it opens again next time */
+      /* it shows again next time */
     }
-    resolve();
-  }, { once: true }));
-  dialog.showModal();
+  };
+  const banner = el('div', { class: 'live-banner', role: 'region', 'aria-label': 'About this live demo' },
+    el('span', { class: 'live-banner-text' },
+      el('b', {}, 'Shared live demo:'), ' self-hosted Flagsmith 2.291.0 and Turnout on one small server. Shoppers here are simulated and labelled; ',
+      el('b', {}, 'Be a visitor'), ' gets you a version for real.'),
+    el('button', { class: 'live-banner-link', type: 'button', on: { click: () => { remember(); dialog.showModal(); } } }, 'What’s here, and what runs only on your machine'),
+    el('button', { class: 'live-banner-close', type: 'button', 'aria-label': 'Close this note', on: { click: () => { remember(); banner.remove(); } } }, '×'));
+  (menu.closest('header') ?? menu).after(banner);
 }
 
 /** Wires the menu: marks the current page, fills the drop-downs when opened, closes them on a click outside. */
@@ -196,12 +205,20 @@ export function setupMenu(current) {
   const menu = document.getElementById('menu');
   if (!menu) return;
   for (const a of menu.querySelectorAll('a[data-page]')) if (a.dataset.page === current) a.setAttribute('aria-current', 'page');
-  // The public page keeps guided demo, the read-only console and the versions; setup and Flagsmith stay private.
+  // The public page keeps guided demo, the read-only console, the feature map and the versions; setup and Flagsmith's
+  // dashboard stay private.
   if (READONLY) {
     const consoleLink = menu.querySelector('a[data-page="console"]');
     if (consoleLink) {
       consoleLink.setAttribute('href', `${BASE}/console`);
       consoleLink.removeAttribute('data-private');
+    }
+    // The Flagsmith feature map is public too, read-only and without links into Flagsmith's private dashboard.
+    const mapLink = menu.querySelector('a[data-page="flagsmith"]');
+    if (mapLink) {
+      mapLink.setAttribute('href', `${BASE}/flagsmith`);
+      mapLink.textContent = 'Flagsmith features';
+      mapLink.removeAttribute('data-private');
     }
     for (const brand of document.querySelectorAll('a.brand')) brand.setAttribute('href', BASE || '/');
     for (const node of document.querySelectorAll('[data-private]')) node.remove();

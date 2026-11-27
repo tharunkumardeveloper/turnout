@@ -12,15 +12,49 @@
 	admin off
 }
 
+# Shared by both sites. While a service restarts, Caddy keeps retrying it for a few seconds before giving up, and if it
+# is still down, visitors get a static page (deploy/fallback/down.html: the video, the code, "back in a minute")
+# instead of a bare 502. API calls get JSON, so the page's own scripts keep retrying quietly.
+(resilient) {
+	encode zstd gzip
+	handle_errors 502 503 504 {
+		@api path */api/*
+		handle @api {
+			header Content-Type application/json
+			header Cache-Control no-store
+			respond `{"error":"restarting, try again in a minute"}` 503
+		}
+		handle {
+			root * /srv/fallback
+			rewrite * /down.html
+			header Cache-Control no-store
+			file_server {
+				status 503
+			}
+		}
+	}
+}
+(retry) {
+	lb_try_duration 5s
+	lb_try_interval 500ms
+}
+
 {$TURNOUT_HOSTNAME} {
 	# Empty for a public certificate; "tls internal" (TURNOUT_CADDY_TLS) for Caddy's own CA in CI or a trial.
 	{$TURNOUT_CADDY_TLS}
+	import resilient
+
+	# The console's scripts, styles and images: browsers keep them 5 minutes (the console itself says no-store).
+	@asset path_regexp \.(js|css|svg|png)$
+	header @asset >Cache-Control "public, max-age=300"
 
 	@judge path /judge /judge/*
 	handle @judge {
 		@read method GET HEAD
 		handle @read {
-			reverse_proxy console:8092
+			reverse_proxy console:8092 {
+				import retry
+			}
 		}
 		@play {
 			method POST
@@ -47,8 +81,11 @@
 
 shop.{$TURNOUT_HOSTNAME} {
 	{$TURNOUT_CADDY_TLS}
+	import resilient
 
 	handle {
-		reverse_proxy turnout-live:8080
+		reverse_proxy turnout-live:8080 {
+			import retry
+		}
 	}
 }

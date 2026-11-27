@@ -17,7 +17,7 @@ import type { DoctorReport } from '../commands/doctor.ts';
 import { currentRelease } from '../commands/release.ts';
 import { decide, keepRunning, LosingGuardrailsError, plan } from '../decide.ts';
 import { losingGuardrails, pickWinner, recommend, type Experiments, type StepResult } from '../flagsmith/experiments.ts';
-import { createMapReader } from '../flagsmith/feature-map.ts';
+import { createMapReader, type FlagsmithMap } from '../flagsmith/feature-map.ts';
 import { readLedger } from '../ledger.ts';
 import type { Watcher } from '../health.ts';
 import { createAutopilot, type AutopilotOptions } from './autopilot.ts';
@@ -140,7 +140,7 @@ export function listenForPublic(server: http.Server, port: number, host: string,
 // The public view's prefix: Caddy sends /judge and /judge/* here, everything else on the hostname to the proxy.
 export const PUBLIC_BASE = '/judge';
 // What the public view serves: the judge page, its scripts, styles and icon, and three reads.
-const PUBLIC_READS = new Set(['/api/judge/state', '/api/judge/job', '/api/traffic', '/api/state']);
+const PUBLIC_READS = new Set(['/api/judge/state', '/api/judge/job', '/api/traffic', '/api/state', '/api/flagsmith-map']);
 // Writes from the private console: the autopilot steps aside for a while after one.
 const HUMAN_WRITES = new Set(['/api/judge/run', '/api/ship', '/api/revert', '/api/keep-running', '/api/refresh', '/api/guard']);
 const PUBLIC_ASSET_TYPES = new Set(['.js', '.css', '.svg', '.png']);
@@ -365,6 +365,8 @@ export function createConsole(opts: ConsoleOptions): http.Server {
     if (url.pathname === PUBLIC_BASE || url.pathname === `${PUBLIC_BASE}/`) return servePublicPage(opts.uiDir, res, publicToken, 'demo.html', opts.publicPlay);
     // The console, read-only: the same page as the private one, its data live, no button that changes anything.
     if (url.pathname === `${PUBLIC_BASE}/console` || url.pathname === `${PUBLIC_BASE}/console/`) return servePublicPage(opts.uiDir, res, publicToken, 'index.html', opts.publicPlay);
+    // The Flagsmith feature map, read-only: every Flagsmith feature and what Turnout does with it, values read live.
+    if (url.pathname === `${PUBLIC_BASE}/flagsmith` || url.pathname === `${PUBLIC_BASE}/flagsmith/`) return servePublicPage(opts.uiDir, res, publicToken, 'flagsmith.html', opts.publicPlay);
     if (!url.pathname.startsWith(`${PUBLIC_BASE}/`)) return json(res, 404, { error: 'not found' });
     const rest = url.pathname.slice(PUBLIC_BASE.length);
     if (rest.startsWith('/api/')) {
@@ -372,6 +374,7 @@ export function createConsole(opts: ConsoleOptions): http.Server {
       const given = req.headers[TOKEN_HEADER] ?? (rest === '/api/traffic' ? url.searchParams.get('token') : null);
       if (!sameSecret(typeof given === 'string' ? given : '', publicToken)) return json(res, 403, { error: 'Open the judge page to use its API.' });
       if (rest === '/api/traffic') return relayFeed(`${opts.feedUrl}/traffic`, res);
+      if (rest === '/api/flagsmith-map') return json(res, 200, publicMap(await flagsmithMap.read()));
       if (rest === '/api/state') {
         lastViewer = Date.now();
         const st = redact(await apiState.get());
@@ -878,6 +881,21 @@ export function sortSnapshots(files: string[]): string[] {
 
 const TOKEN_META = '<meta name="turnout-console" content="">';
 // Pages by path; each gets the API token injected.
+/** The feature map for the public page: Flagsmith's dashboard is private there, so no link into it survives. */
+export function publicMap(map: FlagsmithMap): FlagsmithMap {
+  const dash = map.flagsmith.dashboardUrl.replace(/\/+$/, '');
+  const intoDashboard = (href?: string | null) => !!href && (href === dash || href.startsWith(`${dash}/`));
+  return {
+    ...map,
+    flagsmith: { ...map.flagsmith, dashboardUrl: '' },
+    items: map.items.map((i) => ({
+      ...i,
+      link: null,
+      ...(i.details ? { details: i.details.map((d) => (intoDashboard(d.href) ? { text: d.text } : d)) } : {}),
+    })),
+  };
+}
+
 const PAGES: Record<string, string> = { '/': 'index.html', '/judge': 'demo.html', '/setup': 'setup.html', '/flagsmith': 'flagsmith.html' };
 
 // The public judge page: the same demo.html as /judge, read-only, its assets under /judge/ (Caddy sends only /judge* here, so

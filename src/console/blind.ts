@@ -122,6 +122,10 @@ export function createBlindStore(file: string, opts: { slowRelease?: string | nu
     round(experimentId: number): Round | null {
       return data.rounds.find((r) => r.experimentId === experimentId) ?? null;
     },
+    /** Rounds decided at or after this time (ms since the epoch). */
+    since(ms: number): number {
+      return data.rounds.filter((r) => Date.parse(r.at) >= ms).length;
+    },
     rounds(n = 10): Round[] {
       return data.rounds.slice(-n).reverse();
     },

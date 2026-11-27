@@ -1116,6 +1116,23 @@ describe('the public, read-only judge view (server mode)', () => {
     assert.equal((await fetch(`${pub}/judge/api/state`)).status, 403, 'the page token is required');
   });
 
+  test('the Flagsmith feature map, read-only, at /judge/flagsmith: no link into the private dashboard', async () => {
+    const page = await fetch(`${pub}/judge/flagsmith`);
+    assert.equal(page.status, 200);
+    const html = await page.text();
+    assert.match(html, /<meta name="turnout-readonly" content="1">/);
+    assert.match(html, /src="\/judge\/flagsmith\.js"/);
+    const res = await fetch(`${pub}/judge/api/flagsmith-map`, { headers: { 'x-turnout-console': token } });
+    assert.equal(res.status, 200);
+    const text = await res.text();
+    const map = JSON.parse(text);
+    assert.equal(map.flagsmith.dashboardUrl, '');
+    assert.ok(map.items.length > 10);
+    assert.ok(map.items.every((i: { link: unknown }) => i.link === null), 'no "Open in Flagsmith" links');
+    for (const secret of ['preview-token-secret', 'judge-token-0123456789', 'admin-password-123']) assert.ok(!text.includes(secret), 'no secret');
+    assert.equal((await fetch(`${pub}/judge/api/flagsmith-map`)).status, 403, 'the page token is required');
+  });
+
   test('every write, every other page and every other API answer is refused', async () => {
     const post = await fetch(`${pub}/judge/api/judge/run`, {
       method: 'POST',
@@ -1126,7 +1143,7 @@ describe('the public, read-only judge view (server mode)', () => {
     for (const method of ['PUT', 'DELETE', 'PATCH']) assert.equal((await fetch(`${pub}/judge`, { method })).status, 405);
     const h = { 'x-turnout-console': token, host: 'localhost' };
     for (const path of ['/', '/setup', '/flagsmith', '/api/state', '/api/doctor', '/api/judge/state', '/judge/api/doctor',
-      '/judge/api/guard', '/judge/api/judge/signin', '/judge/api/flagsmith-map', '/judge/judge.html', '/judge/setup.html', '/judge/index.html', '/judge/../index.html']) {
+      '/judge/api/guard', '/judge/api/judge/signin', '/judge/judge.html', '/judge/setup.html', '/judge/index.html', '/judge/../index.html']) {
       const res = await fetch(`${pub}${path}`, { headers: h });
       assert.equal(res.status, 404, path);
     }

@@ -5,7 +5,7 @@
 import * as M from './demo-model.js';
 import { createTour } from './tour.js';
 import { JUDGE_STOPS, stopsFor } from './tour-stops.js';
-import { PLAY, READONLY, loadSignin, noticeClosed, setupMenu, setVersions, signinBox, viewLink } from './menu.js';
+import { INSTALL, PLAY, READONLY, loadSignin, noticeClosed, setupMenu, setVersions, signinBox, viewLink } from './menu.js';
 
 const STATE_POLL_MS = 4000;
 const JOB_POLL_MS = 800;
@@ -508,11 +508,13 @@ function renderBlind(s) {
   const v = M.blindView(s);
   box.hidden = !v;
   if (!v) return;
-  const key = JSON.stringify(v);
+  const live = M.liveLine(s);
+  const key = JSON.stringify([v, live]);
   if (box.dataset.key === key) return;
   box.dataset.key = key;
   box.dataset.tone = v.tone;
-  box.replaceChildren(h('p', { class: 'blind-title' }, v.title), h('p', { class: 'blind-text' }, v.text), h('p', { class: 'blind-score' }, v.score));
+  box.replaceChildren(h('p', { class: 'blind-title' }, v.title), h('p', { class: 'blind-text' }, v.text), h('p', { class: 'blind-score' }, v.score),
+    ...(live ? [h('p', { class: 'blind-live' }, live)] : []));
 }
 
 function renderHistory(s) {
@@ -654,7 +656,7 @@ $('tab-yours').addEventListener('click', () => setTab('yours'));
 {
   // The repository's address, written apart: the page itself names no remote URL (it requests nothing outside).
   const repo = ['https:', '', 'github.com', 'tharunkumardeveloper', 'turnout'].join('/');
-  for (const c of document.querySelectorAll('#yours-tab [data-repo]')) c.textContent = (c.textContent ?? '').replace('{repo}', repo);
+  for (const c of document.querySelectorAll('#yours-tab [data-install]')) c.textContent = INSTALL[c.getAttribute('data-install')] ?? '';
   for (const a of document.querySelectorAll('#yours-tab [data-repo-link]')) a.setAttribute('href', repo + a.getAttribute('data-repo-link'));
   const win = /Win/i.test(navigator.platform || navigator.userAgent);
   for (const c of document.querySelectorAll('#yours-tab code[data-os]')) c.hidden = (c.getAttribute('data-os') === 'win') !== win;

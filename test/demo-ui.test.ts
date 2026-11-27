@@ -453,3 +453,25 @@ describe('blind rounds on the judge page (server mode)', () => {
     assert.match(shown.text, /^The truth: shop:1\.5 better on orders/);
   });
 });
+
+describe('the live line and empty browser rows', () => {
+  const now = Date.parse('2026-11-27T10:00:00Z');
+  test('Flagsmith version, when it computed results, and recent rounds', () => {
+    const s = { flagsmithVersion: '2.291.0', results: { asOf: '2026-11-27T09:56:00Z' }, blind: { last24h: 12 } };
+    assert.equal(M.liveLine(s, now), 'Live: Flagsmith 2.291.0, self-hosted · results computed by Flagsmith 4 min ago · 12 blind rounds decided in the last 24 h');
+    assert.equal(M.liveLine({ blind: { last24h: 1 } }, now), 'Live: 1 blind round decided in the last 24 h');
+    assert.equal(M.liveLine({}, now), null);
+    assert.equal(M.agoText('2026-11-27T09:59:50Z', now), 'just now');
+    assert.equal(M.agoText('2026-11-27T07:00:00Z', now), '3 h ago');
+    assert.equal(M.agoText(null, now), null);
+  });
+  test('browser page-speed rows only when some browser reported', () => {
+    const metric = (name: string, mean: number) => ({ name, role: 'GUARDRAIL', arms: { control: { mean }, v2: { mean } } });
+    const s = (reported: number) => ({
+      experiment: { arms: [{ key: 'control', release: '1.4' }, { key: 'v2', release: '1.5' }] },
+      results: { metrics: [metric('doc_latency_ms', 8), metric('lcp_ms', 0), metric('cls', 0), metric('vitals_reported', reported)] },
+    });
+    assert.deepEqual(M.findings(s(0)).map((f: any) => f.key), ['doc_latency_ms']);
+    assert.deepEqual(M.findings(s(0.9)).map((f: any) => f.key), ['doc_latency_ms', 'lcp_ms', 'cls', 'vitals_reported']);
+  });
+});

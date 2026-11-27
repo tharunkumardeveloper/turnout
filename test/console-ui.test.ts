@@ -71,8 +71,8 @@ describe('console UI files', () => {
   });
 
   test('no external requests: no remote URLs besides the SVG namespace', () => {
-    // The one exception is a link, not a request: the live demo's notice (menu.js) points to the project's own repository.
-    const allowed = (f: string, u: string) => u.startsWith('http://www.w3.org/2000/svg') || (f === 'menu.js' && u === 'https://github.com/tharunkumardeveloper/turnout');
+    // The one exception is a link, not a request: the live demo's notice (menu.js) points to the project's own repository and its one-line installers (shown as text, never fetched).
+    const allowed = (f: string, u: string) => u.startsWith('http://www.w3.org/2000/svg') || (f === 'menu.js' && ['https://github.com/tharunkumardeveloper/turnout', 'https://raw.githubusercontent.com/tharunkumardeveloper/turnout/main'].includes(u));
     for (const f of files) {
       const urls = [...read(f).matchAll(/https?:\/\/[^\s'"`)]+/g)].map((m) => m[0]).filter((u) => !allowed(f, u));
       assert.deepEqual(urls, [], `${f} references ${urls.join(', ')}`);
@@ -596,8 +596,12 @@ test("the live demo's notice: public page only, never in a frame, and tours wait
   for (const words of ['On this server', 'Only on your machine, and why', 'never runs strangers’ code', 'admin login can’t be public', 'turnout demo', 'Run it locally']) {
     assert.ok(menu.includes(words), words);
   }
-  // Once per browser; the menu's "About this demo" opens it again.
+  // A banner until closed, never a dialog over the demo; the banner and the menu's "About this demo" open the notice.
   assert.match(menu, /localStorage\.setItem\(NOTICE_KEY, '1'\)/);
+  assert.match(menu, /class: 'live-banner'/);
+  assert.doesNotMatch(menu.slice(menu.indexOf('if (seen) return;')), /^  dialog\.showModal\(\);$/m);
+  // The one-line installs, not git clone.
+  assert.ok(menu.includes('install.ps1 | iex') && menu.includes('install.sh | sh') && !menu.includes('git clone'));
   assert.match(menu, /'About this demo'/);
   // One dialog at a time: the tours start once it's closed.
   assert.match(read('demo.js'), /noticeClosed\(\)\.then\(\(\) => tour\.offer\(\)\)/);

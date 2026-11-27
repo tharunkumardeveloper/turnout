@@ -79,3 +79,11 @@
 .live-notice h2:focus { outline: none; }
 .live-feedback { margin: 14px 0 0; font-size: 13.5px; color: var(--muted); }
 .live-feedback a { color: #6633ff; font-weight: 700; }
+
+/* The public live demo's one-line note (menu.js setupLiveNotice): under the header, never over the demo. */
+.live-banner { display: flex; align-items: center; gap: 10px 14px; flex-wrap: wrap; padding: 8px 16px; font-size: 13.5px; line-height: 1.45; color: var(--text); background: color-mix(in srgb, #6633ff 8%, var(--surface)); border-bottom: 1px solid color-mix(in srgb, #6633ff 25%, var(--border)); }
+.live-banner-text { flex: 1 1 360px; }
+.live-banner-link { padding: 0; font: inherit; font-weight: 700; color: #6633ff; background: none; border: 0; cursor: pointer; text-decoration: underline; text-underline-offset: 2px; }
+.live-banner-close { width: 28px; height: 28px; font-size: 18px; line-height: 1; color: inherit; background: none; border: 1px solid transparent; border-radius: 6px; cursor: pointer; }
+.live-banner-close:hover, .live-banner-close:focus-visible { border-color: var(--border); }
+@media (prefers-color-scheme: dark) { .live-banner-link { color: #a78bfa; } }

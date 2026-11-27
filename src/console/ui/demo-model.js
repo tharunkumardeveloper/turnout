@@ -642,6 +642,28 @@ export function blindView(s) {
   return { tone: r.outcome === 'right' ? 'good' : r.outcome === 'wrong' ? 'bad' : 'wait', title: `Revealed: ${verdict}`, text: `The truth: ${b.round.truth}.`, score };
 }
 
+/** How long ago, in words: "just now", "4 min ago", "2 h ago". */
+export function agoText(iso, nowMs = Date.now()) {
+  const t = Date.parse(iso ?? '');
+  if (!Number.isFinite(t)) return null;
+  const min = Math.max(0, Math.round((nowMs - t) / 60_000));
+  if (min < 1) return 'just now';
+  if (min < 60) return `${min} min ago`;
+  const hours = Math.round(min / 60);
+  return hours < 48 ? `${hours} h ago` : `${Math.round(hours / 24)} days ago`;
+}
+
+/** Proof that this is running now, not a recording: Flagsmith's version, when it last computed results, recent rounds. */
+export function liveLine(s, nowMs = Date.now()) {
+  const parts = [];
+  if (s?.flagsmithVersion) parts.push(`Flagsmith ${s.flagsmithVersion}, self-hosted`);
+  const ago = agoText(s?.results?.asOf, nowMs);
+  if (ago) parts.push(`results computed by Flagsmith ${ago}`);
+  const n = s?.blind?.last24h;
+  if (typeof n === 'number' && n > 0) parts.push(`${n} blind ${n === 1 ? 'round' : 'rounds'} decided in the last 24 h`);
+  return parts.length ? `Live: ${parts.join(' · ')}` : null;
+}
+
 /** An also-watched metric that got worse for the winner: said, so the decision is made knowing it (it never blocks). */
 function watchedWorse(r, w) {
   const worse = r.metrics.filter((m) => m.role === 'secondary' && (m.byArm?.[w.key]?.verdict ?? m[w.key]?.verdict) === 'losing');

@@ -65,13 +65,13 @@
       <div class="results" id="results" role="tabpanel" aria-labelledby="tab-results"><p class="placeholder">Flagsmith's results appear here once shoppers have gone through and you ask for them.</p></div>
       <div class="fs" id="flagsmith-tab" role="tabpanel" aria-labelledby="tab-flagsmith" hidden></div>
       <div class="yours" id="yours-tab" role="tabpanel" aria-labelledby="tab-yours" hidden>
-        <p class="yours-lead">The same test on your own website, on your machine. You need Docker and Git; Flagsmith comes with Turnout.</p>
+        <p class="yours-lead">The same test on your own website, on your machine. You need Docker running; Flagsmith comes with Turnout.</p>
         <ol class="yours-steps">
-          <li><span>Get Turnout</span><code data-repo>git clone {repo}.git turnout</code><button class="btn btn-small btn-quiet copy" type="button">Copy</button></li>
-          <li><span>Install the command</span><code data-os="win">powershell -ExecutionPolicy Bypass -File turnout\install.ps1</code><code data-os="unix">sh turnout/install.sh</code><button class="btn btn-small btn-quiet copy" type="button">Copy</button></li>
-          <li><span>In a new terminal, in your project</span><code>turnout compare localhost:3001 localhost:3002</code><button class="btn btn-small btn-quiet copy" type="button">Copy</button></li>
+          <li><span>Install it, one line</span><code data-os="win" data-install="win"></code><code data-os="unix" data-install="unix"></code><button class="btn btn-small btn-quiet copy" type="button">Copy</button></li>
+          <li><span>This demo, every feature on</span><code>turnout demo</code><button class="btn btn-small btn-quiet copy" type="button">Copy</button></li>
+          <li><span>Or, in your project</span><code>turnout compare localhost:3001 localhost:3002</code><button class="btn btn-small btn-quiet copy" type="button">Copy</button></li>
         </ol>
-        <p class="yours-note">Your current version and the new one, running: addresses, Docker images or git branches. Turnout starts its own Flagsmith, splits visitors, and opens this console with your app in it. Or run <code>turnout demo</code> for this shop, with <b>Try it with your app</b> (paste a GitHub link). <a data-repo-link="#quick-start" target="_blank" rel="noopener">Full guide ↗</a></p>
+        <p class="yours-note">Your current version and the new one, running: addresses, Docker images or git branches. Turnout starts its own Flagsmith, splits visitors, and opens this console with your app in it. In <code>turnout demo</code>, <b>Try it with your app</b> takes a GitHub link instead. <a data-repo-link="#quick-start" target="_blank" rel="noopener">Full guide ↗</a></p>
       </div>
     </section>
   </main>

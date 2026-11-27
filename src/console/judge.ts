@@ -164,7 +164,10 @@ export type JudgeState = {
     round: { hidden: true } | { hidden: false; truth: string; round: Round } | null;
     score: Score;
     recent: { experimentId: number; v2: string; control: string; outcome: Round['outcome']; call: Round['call']; expected: Round['expected'] }[];
+    last24h?: number; // rounds decided in the last 24 hours
+    lastAt?: string | null; // when the last round was decided
   };
+  flagsmithVersion?: string | null; // Flagsmith's image tag, e.g. 2.291.0
   history?: Point[];
   // Server mode's live experiment for real visitors ("Be a visitor"): its own flag and experiment, never mixed
   // with the simulated ones. Null when there is none (local mode).
@@ -551,6 +554,16 @@ export function createJudge(opts: JudgeOptions, ctx: JudgeContext) {
   const swung = new Map<number, { back: boolean; forward: boolean }>();
   const refreshAllowed = new Map<number, number>();
   let projectId: number | undefined;
+  // Flagsmith's own version (GET /version/), read once in the background for the page's "live" strip.
+  let flagsmithVersion: string | null | undefined;
+  const readVersion = (exps: Experiments) => {
+    if (flagsmithVersion !== undefined) return;
+    flagsmithVersion = null;
+    exps.api.get<{ image_tag?: string }>('/version/').then(
+      (v) => void (flagsmithVersion = v.image_tag ?? null),
+      () => void (flagsmithVersion = undefined), // try again next time
+    );
+  };
   let previewSegmentId: number | undefined;
   let job: Job | null = null;
   let jobCount = 0;
@@ -611,6 +624,7 @@ export function createJudge(opts: JudgeOptions, ctx: JudgeContext) {
     const exps = await ctx.experiments();
     const detail = exps.detail();
     const pidRead = project(exps);
+    readVersion(exps);
     const [experiment, results, flag, pid, segmentId] = await Promise.all([
       detail,
       exps.results(),
@@ -727,12 +741,15 @@ export function createJudge(opts: JudgeOptions, ctx: JudgeContext) {
           round: decided ? { hidden: false, truth: truthText(decided.truth), round: decided } : store.truth(experiment.id) ? { hidden: true } : null,
           score: store.score(),
           recent: store.rounds(8).map((r) => ({ experimentId: r.experimentId, v2: r.truth.v2, control: r.truth.control, outcome: r.outcome, call: r.call, expected: r.expected })),
+          last24h: store.since(deps.now() - 24 * 3600_000),
+          lastAt: store.rounds(1)[0]?.at ?? null,
         }
       : undefined;
     const base = pid !== undefined ? `${dash}/project/${pid}/environment/${s.exps.ref.envKey}` : null;
     const { steps, current } = stepsFor(s);
     return {
       simulated: true,
+      flagsmithVersion: flagsmithVersion ?? null,
       flag: opts.flag,
       simulator: opts.simulator !== false,
       dashboardUrl: dash,

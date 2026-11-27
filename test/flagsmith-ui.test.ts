@@ -27,7 +27,8 @@ describe('the feature map page', () => {
     const used = [...js.matchAll(/\$\('([\w-]+)'\)/g)].map((m) => m[1]!);
     assert.ok(used.length >= 5);
     for (const id of new Set(used)) assert.ok(html.includes(`id="${id}"`), `flagsmith.js uses #${id}`);
-    assert.match(js, /fetch\('\/api\/flagsmith-map', \{ headers: \{ \[TOKEN_HEADER\]: TOKEN \} \}\)/);
+    // Under /judge on the public page (menu.js BASE).
+    assert.match(js, /fetch\(`\$\{BASE\}\/api\/flagsmith-map`, \{ headers: \{ \[TOKEN_HEADER\]: TOKEN \} \}\)/);
     assert.doesNotMatch(js, /innerHTML|outerHTML|insertAdjacentHTML|document\.write/);
   });
 

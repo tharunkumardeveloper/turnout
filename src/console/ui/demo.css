@@ -356,3 +356,9 @@ a.version-frame:hover::after, a.version-frame:focus-visible::after { opacity: 1;
   #versions-title .you-line { max-width: none; flex: 1 1 auto; margin-left: 0; white-space: normal; }
   #versions-title .btn-visit { margin-left: auto; }
 }
+
+/* "Live: Flagsmith 2.291.0 · results computed 3 min ago · …": proof the demo runs now (demo-model.js liveLine). */
+.blind-live { margin: 6px 0 0; font-size: 12.5px; color: var(--muted, inherit); display: flex; gap: 7px; align-items: baseline; }
+.blind-live::before { content: ""; flex: none; width: 7px; height: 7px; border-radius: 50%; background: #16a34a; transform: translateY(-1px); animation: blind-live 1.6s ease-in-out infinite; }
+@keyframes blind-live { 50% { opacity: 0.3; } }
+@media (prefers-reduced-motion: reduce) { .blind-live::before { animation: none; } }
