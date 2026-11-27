@@ -92,3 +92,8 @@
 @media (prefers-color-scheme: dark) { .live-banner-link { color: #a78bfa; } }
 /* Phones: "About this demo" is its "i" alone (title and aria-label keep the words), or the menu row widens the page. */
 @media (max-width: 760px) { .menu-about { font-size: 0; padding: 4px 8px; margin-left: 0; } .menu-about::before { margin-right: 0; } }
+
+/* The public page's Tour button, until it's clicked (app.js): a tour is one click away, never in the way. */
+.tour-hint { animation: tour-hint 2.4s ease-in-out 3; box-shadow: 0 0 0 0 rgb(102 51 255 / 0.45); }
+@keyframes tour-hint { 50% { box-shadow: 0 0 0 6px rgb(102 51 255 / 0); border-color: #6633ff; } }
+@media (prefers-reduced-motion: reduce) { .tour-hint { animation: none; border-color: #6633ff; } }

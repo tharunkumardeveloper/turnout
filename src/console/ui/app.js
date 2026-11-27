@@ -1551,7 +1551,10 @@ if (document.querySelector('meta[name="turnout-app"]')) {
 const mode = setupMode();
 $('tour-open').addEventListener('click', () => mode.tour() || tour.start());
 // Your app's console (/app) opens straight after a build: no tour on top of it (Tour is one click away).
-setTimeout(() => (mode.isOn() || document.body.classList.contains('is-app') ? null : noticeClosed().then(() => tour.offer())), 1500);
+// The public page never opens a tour by itself (it landed on top of a page still loading): Tour pulses instead.
+if (READONLY) $('tour-open').classList.add('tour-hint');
+$('tour-open').addEventListener('click', () => $('tour-open').classList.remove('tour-hint'));
+setTimeout(() => (READONLY || mode.isOn() || document.body.classList.contains('is-app') ? null : noticeClosed().then(() => tour.offer())), 1500);
 
 setInterval(renderConnection, 1000);
 refreshNow();
