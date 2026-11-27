@@ -175,7 +175,7 @@ function setupLiveNotice(menu) {
   const dialog = liveNotice();
   document.body.append(dialog);
   dialog.addEventListener('click', (e) => e.target === dialog && dialog.close()); // a click on the backdrop
-  menu.append(el('button', { class: 'menu-about', type: 'button', on: { click: () => dialog.showModal() } }, 'About this demo'));
+  menu.append(el('button', { class: 'menu-about', type: 'button', title: 'About this demo', 'aria-label': 'About this demo', on: { click: () => dialog.showModal() } }, 'About this demo'));
   let seen = false;
   try {
     seen = localStorage.getItem(NOTICE_KEY) === '1';
