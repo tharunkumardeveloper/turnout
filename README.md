@@ -20,9 +20,13 @@
 
 [**▶ Demo video (2:50)**](https://www.youtube.com/watch?v=uoJtfs4HVrE) · [**Live demo**](https://172-198-62-67.sslip.io) · [Quick start](#quick-start) · [Step-by-step setup](#step-by-step-setup) · [How Flagsmith is used](#how-flagsmith-is-used)
 
+<sub>The blind-round figures in the video are from an earlier sample; the current ones, from the hackathon, are below.</sub>
+
 <img src="docs/images/judge-ship.gif" width="860" alt="The live demo, guided: a visitor runs an A/B/C test. 2,100 shoppers go through, Flagsmith is not sure B beats A and flags C's pages as 8.6× slower; keeping A reveals the blind round: identical on orders, so Flagsmith got it right (96 of 98)">
 
 </div>
+
+**A real finding:** Gitea 28.0.0's release notes include a front-end speed-up for the repo page. Turnout ran 1.27.3 and 28.0.0 side by side with 940 real headless-Chrome visits and let Flagsmith decide: the server answers **13.8% faster** (100% sure), but the page's main content appears **no sooner** (+5.5%, interval −3% to +14%). [Method and raw numbers](docs/FINDING_GITEA.md); automated visits, labelled as such.
 
 ## Track 03 at a glance
 
@@ -33,7 +37,7 @@
 | **Developer tools** | The `turnout` CLI (`compare`, `results`, `ship`, `revert`, `simulate`, and `browsers`: real headless-Chrome visits for page speed before real traffic), a setup check with 28 checks, the Experiment Doctor (exposures and events on every arm, and a **sample-ratio check (SRM)** against the configured split), Try it with your app (paste a GitHub link), and an [agent skill](skills/turnout-experiment/SKILL.md) that runs a test and stops for a person to ship |
 | **Easy for others to reuse** | One-line installers for Windows, macOS and Linux, a public image on GitHub Container Registry, and 53 real GitHub repos tested, 39 run end to end ([Proof](#proof)) |
 
-**Flagsmith's own calls, graded:** in the 41 blind rounds the live demo decided during the hackathon (hidden true rates), Flagsmith caught every real lift and drop (16 of 16) and made a false call in 1 of 8 rounds with no difference; Turnout's decision was right in 40 of 41. [The write-up](docs/BLIND_ROUNDS.md).
+**Flagsmith's own calls, graded:** in 111 blind rounds the live demo decided during the hackathon (hidden true rates), Flagsmith called 36 of 38 real lifts and drops, never in the wrong direction, and made a false call in 2 of 28 rounds with no difference. Shipping whenever Flagsmith was 95% sure would have shipped 14 bad releases; Turnout's interval and page-speed checks shipped 1. [The write-up](docs/BLIND_ROUNDS.md).
 
 ## In plain words
 
@@ -82,7 +86,7 @@ It works for any website in any language: a shop, a sign-up page, a dashboard. Y
 </td>
 <td width="50%" valign="top">
 <img src="docs/images/judge-ship.gif" alt="The guided demo on the live site: an A/B/C test, 2,100 shoppers, Flagsmith's verdict and the blind round revealed">
-<p><b>The guided demo, on the <a href="https://172-198-62-67.sslip.io">live site</a>.</b> Start, shoppers, Flagsmith's call, decide. Blind rounds hide the true rates until the end; during the hackathon, Turnout's decision was right in 40 of 41.</p>
+<p><b>The guided demo, on the <a href="https://172-198-62-67.sslip.io">live site</a>.</b> Start, shoppers, Flagsmith's call, decide. Blind rounds hide the true rates until the end; during the hackathon, Turnout's decision was right in 105 of 111.</p>
 </td>
 </tr>
 </table>

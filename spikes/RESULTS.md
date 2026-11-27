@@ -185,9 +185,24 @@ The live demo's console reports the release flag's health to Flagsmith's Feature
 
 **Found while checking:** the release log said "by a person" for every decision, the autopilot's included (383 entries). Fixed: the autopilot now passes its own name with each action, outside the request body so a public request can't claim it, and the log says "automatically by the live demo's autopilot" (`src/console/autopilot.ts`, `src/ledger.ts`, tests in `test/autopilot.test.ts` and `test/ledger.test.ts`).
 
-## Blind rounds during the hackathon (26 Nov 06:31 to 27 Nov 02:29)
+## Blind rounds during the hackathon (26 Nov 06:31 to 27 Nov 07:18)
 
-The live demo's autopilot runs A/B tests with hidden random rates and grades each call once decided. The 41 rounds decided since the hackathon started (26 Nov, 08:00 IST): [docs/BLIND_ROUNDS.md](../docs/BLIND_ROUNDS.md), every round in [docs/blind-rounds.json](../docs/blind-rounds.json).
+The live demo's autopilot runs A/B tests with hidden random rates and grades each call once decided. The first 111 rounds decided since the hackathon started (26 Nov, 08:00 IST), experiments 186 to 330; a watcher kept the public page open so the autopilot kept running. Turnout's recommendation right in 105 of 111; Flagsmith called 36 of 38 real differences, never in the wrong direction; 2 false calls in 28 no-difference rounds; all 45 rounds with the slow release rolled back on page speed. Shipping whenever Flagsmith was 95% sure would have shipped 38 releases, 14 of them bad; Turnout's rule shipped 24, 1 bad. The write-up: [docs/BLIND_ROUNDS.md](../docs/BLIND_ROUNDS.md); every round: [docs/blind-rounds.json](../docs/blind-rounds.json).
+
+## A real finding: Gitea 1.27.3 against 28.0.0 (07:00–07:22)
+
+`gitea/gitea:1.27.3` and `gitea/gitea:28.0.0`, each with the same seeded repository, behind `turnout compare localhost:3101 localhost:3102 --browser-speed`; then `turnout browsers --visits 240 --path /demo/demo --latency 50` and `--visits 700`: **940 of 940 visits reported page speed** (469 on 28.0.0, 471 on 1.27.3). Flagsmith's results at 07:21:54:
+
+```text
+doc_latency_ms (mean per exposed identity, down): v2 44.3 (n=469), control 51.3 (n=471)
+  v2: lift -13.8% (interval −21% to −6%), chance to win 100.0%
+lcp_ms (mean per exposed identity, down): v2 708.6 (n=469), control 671.5 (n=471)
+  v2: lift 5.5% (interval −3% to +14%), chance to win 10.4%
+cls (mean per exposed identity, down): v2 0.0 (n=469), control 0.0 (n=471)
+vitals_reported (occurrence, up): v2 1.000 (n=469), control 1.000 (n=471)
+```
+
+After the first 240 visits: `doc_latency_ms` −8.5% (−26% to +9%), `lcp_ms` +8.0% (−13% to +29%), both unsettled. What it means and its limits: [docs/FINDING_GITEA.md](../docs/FINDING_GITEA.md).
 
 ## Flagsmith Node SDK: events lost faster than one batch round-trip (03:50–04:00)
 
