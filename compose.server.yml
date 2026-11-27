@@ -51,6 +51,7 @@ services:
       TURNOUT_CADDY_TLS: ${TURNOUT_CADDY_TLS:-}
     volumes:
       - ./deploy/Caddyfile:/etc/caddy/Caddyfile:ro
+      - ./deploy/fallback:/srv/fallback:ro # the page shown while a service restarts
       - caddy-data:/data # certificates: keep them, or Let's Encrypt rate limits bite on rebuilds
       - caddy-config:/config
     networks: [edge]
