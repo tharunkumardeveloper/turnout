@@ -326,7 +326,10 @@ function render() {
     if (s.experiment.status === 'completed' && ui.plan === null) ui.plan = ui.kind ?? 2;
   }
   const kind = chosenKind(s);
-  const m = ui.plan !== null ? M.planModel(s, ui.plan) : M.model(s, { kind }); // a pick shows at once; its Start waits for a running step
+  // A pick shows at once (its Start waits for a running step). While a new test starts, its own fresh steps stay on
+  // screen until Flagsmith has it: never the last test's finished steps in between.
+  const planned = ui.plan ?? (ui.pendingKind !== null && s.experiment?.status === 'completed' ? ui.pendingKind : null);
+  const m = planned !== null ? M.planModel(s, planned) : M.model(s, { kind });
   // A test that was just picked: show its versions now, before Flagsmith confirms it. Cleared once the page shows it.
   if (ui.pendingKind !== null && !ui.sending && !isBusy() && M.kindOf(s) === ui.pendingKind && s.experiment?.status === 'running') ui.pendingKind = null;
   if (ui.pendingKind !== null && !m.plan) m.versions = M.plannedVersions(s.releases, ui.pendingKind);
