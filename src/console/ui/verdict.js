@@ -101,7 +101,7 @@ export function armReleases(state) {
   return out;
 }
 
-const KNOWN = { doc_latency_ms: 'Page load time', server_error: 'Server errors' };
+const KNOWN = { doc_latency_ms: 'Page load time', lcp_ms: 'Largest paint (real browsers)', cls: 'Layout shift (real browsers)', server_error: 'Server errors' };
 /** A metric's name for people. */
 export function metricLabel(m, goal) {
   if (m.role === 'goal') return goal ? `Goal: a visitor who ${goalWords(goal)}` : 'Goal';

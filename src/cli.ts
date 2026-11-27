@@ -15,7 +15,7 @@ import { preview } from './commands/preview.ts';
 import { release } from './commands/release.ts';
 import { revert, ship, status } from './commands/ship.ts';
 import { simulate } from '../demo/simulator/simulate.ts';
-import { defaultHypothesis, describeGoal, loadConfig } from './config.ts';
+import { defaultHypothesis, describeGoal, experimentMetrics, loadConfig } from './config.ts';
 import { createFlagSource } from './flagsmith/flag-source.ts';
 import { DEFAULT_RATES, parseRates, readLiveVisitors } from './console/judge.ts';
 import { createBlindStore } from './console/blind.ts';
@@ -66,6 +66,7 @@ Commands:
   server-check  Server mode: refuse placeholder Flagsmith secrets and tokens (names only, never values) [--after-init]
   code-refs  Find the flag's name in this checkout and submit it to Flagsmith's Code References [--project <id>]
              (repository: GitHub Actions' variables, an https GitHub "origin" remote, or TURNOUT_REPOSITORY_URL)
+  pr-comment Post turnout check's report on the pull request this CI run is for, or update the earlier one
 
 Options for any command:
   --api-url <url>      Flagsmith's API, e.g. http://127.0.0.1:8000/api/v1/ (env FLAGSMITH_API_URL)
@@ -411,8 +412,49 @@ const commands: Record<string, () => Promise<void>> = {
   check: async () => {
     // The admin key is optional here and never asked for: check runs in CI with only a server key.
     const adminKeyGiven = cliFlags['admin-key'] ?? (process.env.TURNOUT_ADMIN_KEY || undefined);
-    const leftovers = await check({ apiUrl: apiUrl(), serverKey: serverKey(), adminKey: adminKeyGiven });
-    process.exitCode = leftovers > 0 ? 1 : 0;
+    // In CI: the same output as Markdown, for the job summary (GITHUB_STEP_SUMMARY) and a pull-request comment
+    // (TURNOUT_REPORT_FILE, which turnout pr-comment posts).
+    const lines: string[] = [];
+    const log = (line: string) => (lines.push(line), console.log(line));
+    const write = async (problems: number, error: string | null) => {
+      const reportFile = process.env.TURNOUT_REPORT_FILE;
+      const summary = process.env.GITHUB_STEP_SUMMARY;
+      if (!reportFile && !summary) return;
+      const { checkMarkdown } = await import('./ci/report.ts');
+      const { appendFileSync, writeFileSync } = await import('node:fs');
+      const run = process.env.GITHUB_SERVER_URL && process.env.GITHUB_REPOSITORY && process.env.GITHUB_RUN_ID
+        ? `${process.env.GITHUB_SERVER_URL}/${process.env.GITHUB_REPOSITORY}/actions/runs/${process.env.GITHUB_RUN_ID}`
+        : null;
+      const md = checkMarkdown({ problems, lines, error, runUrl: run });
+      if (reportFile) writeFileSync(reportFile, md);
+      if (summary) appendFileSync(summary, md);
+    };
+    let problems: number;
+    try {
+      problems = await check({ apiUrl: apiUrl(), serverKey: serverKey(), adminKey: adminKeyGiven, log });
+    } catch (error) {
+      await write(0, (error as Error).message);
+      throw error;
+    }
+    await write(problems, null);
+    process.exitCode = problems > 0 ? 1 : 0;
+  },
+  'pr-comment': async () => {
+    // Posts (or updates) turnout check's report on the pull request this workflow run is for. Never fails the job:
+    // no pull request, or no permission to comment, is said and skipped.
+    const file = positionals[0] ?? process.env.TURNOUT_REPORT_FILE;
+    const { readFileSync, existsSync } = await import('node:fs');
+    const { commentOnPullRequest, pullRequestNumber } = await import('./ci/report.ts');
+    if (!file || !existsSync(file)) return void console.log('turnout pr-comment: no report to post (turnout check writes it with TURNOUT_REPORT_FILE).');
+    const event = process.env.GITHUB_EVENT_PATH && existsSync(process.env.GITHUB_EVENT_PATH) ? JSON.parse(readFileSync(process.env.GITHUB_EVENT_PATH, 'utf8')) : null;
+    const number = pullRequestNumber(event);
+    if (number === null) return void console.log('turnout pr-comment: this run is not for a pull request; the report is in the job summary.');
+    const token = process.env.GITHUB_TOKEN;
+    if (!token || !process.env.GITHUB_REPOSITORY) return void console.log('turnout pr-comment: GITHUB_TOKEN and GITHUB_REPOSITORY are needed to comment.');
+    const done = await commentOnPullRequest({ api: process.env.GITHUB_API_URL || 'https://api.github.com', repository: process.env.GITHUB_REPOSITORY, number, token, body: readFileSync(file, 'utf8') });
+    console.log(done.action === 'forbidden'
+      ? "turnout pr-comment: GitHub refused the comment (403). Give the workflow `permissions: pull-requests: write`; the report is in the job summary."
+      : `turnout pr-comment: ${done.action} the comment on #${number}${done.url ? `: ${done.url}` : ''}`);
   },
   doctor: async () => {
     const options = doctorOptions();
@@ -506,11 +548,7 @@ const commands: Record<string, () => Promise<void>> = {
       // metrics and the guardrails) instead of the previous experiment's: how a changed goal reaches Flagsmith.
       ...(cliFlags['config-metrics'] === true
         ? {
-            metrics: [
-              { name: config.goal.event, expected_direction: config.goal.speedOnly ? 'decrease' : 'increase' },
-              ...(config.metrics ?? []).map((m) => ({ name: m.event, expected_direction: 'increase' })),
-              ...config.guardrails.filter((g) => g !== config.goal.event).map((g) => ({ name: g, expected_direction: 'not_increase' })),
-            ],
+            metrics: experimentMetrics(config),
           }
         : {}),
     });
@@ -543,6 +581,9 @@ const commands: Record<string, () => Promise<void>> = {
     const judge = {
       flag: config.flag,
       releases: [...config.releases.keys()],
+      // Each new test's metrics come from turnout.config.yml, so a guardrail added there (lcp_ms, cls) is measured from
+      // the next test on, not only after a turnout release --config-metrics.
+      metrics: experimentMetrics(config),
       goal: config.goal.event,
       apiUrl: apiUrl(),
       adminKey: key,

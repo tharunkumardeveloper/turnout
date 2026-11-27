@@ -358,3 +358,71 @@ test('a GET whose connection the app resets is sent once more, not answered 502'
     app.close();
   }
 });
+
+test('page speed in real browsers: the script on counted pages, its report as the visitor\'s lcp_ms and cls events', async () => {
+  const { createProxy, VITALS_SCRIPT, parseVitals } = await import('../src/proxy/server.ts');
+  const app = http.createServer((_q, r) => r.writeHead(200, { 'content-type': 'text/html' }).end('<h1>Hi</h1>'));
+  await new Promise<void>((r) => app.listen(0, '127.0.0.1', () => r()));
+  const appUrl = `http://127.0.0.1:${(app.address() as AddressInfo).port}`;
+  const tracked: Tracked[] = [];
+  const flags = { assign: async () => ({ variant: 'v2', release: 'v2', enrolled: true }), track: (event: string, identity: string, value?: number) => tracked.push({ event, identity, value }), ready: () => true };
+  const config = parseConfig({ flag: 'f', releases: { v1: appUrl, v2: appUrl }, guardrails: ['lcp_ms', 'cls'] });
+  const proxy = createProxy({ config, flags } as never);
+  await new Promise<void>((r) => proxy.listen(0, '127.0.0.1', () => r()));
+  const base = `http://127.0.0.1:${(proxy.address() as AddressInfo).port}`;
+  const browser = { accept: 'text/html', 'user-agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) Chrome/131.0 Safari/537.36' };
+  const report = (body: unknown, cookie?: string) => fetch(`${base}/__turnout/vitals`, { method: 'POST', headers: cookie ? { cookie } : {}, body: JSON.stringify(body) });
+  try {
+    const visit = await fetch(`${base}/`, { headers: browser });
+    assert.match(await visit.text(), /<h1>Hi<\/h1><script src="\/__turnout\/vitals.js" defer><\/script>$/);
+    const cookie = (visit.headers.getSetCookie?.() ?? []).map((c) => c.split(';')[0]).join('; ');
+    const id = cookie.split('=')[1];
+    assert.equal(await (await fetch(`${base}/__turnout/vitals.js`)).text(), VITALS_SCRIPT);
+
+    assert.equal((await report({ lcp: 1234.6, cls: 0.0421 }, cookie)).status, 204);
+    assert.deepEqual(tracked.filter((t) => t.event === 'lcp_ms' || t.event === 'cls'), [
+      { event: 'lcp_ms', identity: id, value: 1235 },
+      { event: 'cls', identity: id, value: 0.0421 },
+    ]);
+    const before = tracked.length;
+    await report({ lcp: 900, cls: 0 }); // no cookie: nobody we served
+    await report({ lcp: 900, cls: 0 }, `${cookie.split('=')[0]}=someone-else`); // a cookie we never served
+    await report({ lcp: -5, cls: 99 }, cookie); // out of range
+    await report('nonsense', cookie);
+    assert.equal(tracked.length, before, 'only a served visitor\'s sensible numbers count');
+
+    // A bot gets the page without the script and is never counted.
+    const bot = await (await fetch(`${base}/`, { headers: { accept: 'text/html', 'user-agent': 'curl/8.0' } })).text();
+    assert.equal(bot, '<h1>Hi</h1>');
+
+    assert.deepEqual(parseVitals({ lcp: 2500, cls: 0.1 }), { lcp: 2500, cls: 0.1 });
+    assert.deepEqual(parseVitals({ lcp: null, cls: 0.05 }), { lcp: null, cls: 0.05 });
+    assert.equal(parseVitals({ lcp: 0, cls: -1 }), null);
+    assert.equal(parseVitals({ lcp: 999_999 }), null);
+    // The script sends numbers only, once, as the page is left or hidden.
+    assert.match(VITALS_SCRIPT, /largest-contentful-paint/);
+    assert.match(VITALS_SCRIPT, /hadRecentInput/);
+    assert.match(VITALS_SCRIPT, /if \(sent\) return;/);
+  } finally {
+    proxy.close();
+    app.close();
+  }
+});
+
+test('without the lcp_ms or cls guardrail, no page-speed script and no report endpoint', async () => {
+  const { createProxy } = await import('../src/proxy/server.ts');
+  const app = http.createServer((q, r) => r.writeHead(200, { 'content-type': 'text/html' }).end(q.url === '/__turnout/vitals' ? 'app' : '<h1>Hi</h1>'));
+  await new Promise<void>((r) => app.listen(0, '127.0.0.1', () => r()));
+  const appUrl = `http://127.0.0.1:${(app.address() as AddressInfo).port}`;
+  const flags = { assign: async () => ({ variant: 'control', release: 'v1', enrolled: false }), track: () => {}, ready: () => true };
+  const proxy = createProxy({ config: parseConfig({ flag: 'f', releases: { v1: appUrl }, guardrails: ['doc_latency_ms'] }), flags } as never);
+  await new Promise<void>((r) => proxy.listen(0, '127.0.0.1', () => r()));
+  const base = `http://127.0.0.1:${(proxy.address() as AddressInfo).port}`;
+  try {
+    assert.equal(await (await fetch(`${base}/`, { headers: { accept: 'text/html', 'user-agent': 'Mozilla/5.0 Chrome/131.0' } })).text(), '<h1>Hi</h1>');
+    assert.notEqual((await fetch(`${base}/__turnout/vitals.js`)).headers.get('content-type'), 'text/javascript; charset=utf-8');
+  } finally {
+    proxy.close();
+    app.close();
+  }
+});

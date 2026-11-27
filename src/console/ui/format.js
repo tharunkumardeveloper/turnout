@@ -629,6 +629,6 @@ export function shownText(text) {
 }
 /** Changes when the names do: part of each cache key that draws a name. */
 export const shownKey = () => JSON.stringify(SHOWN);
-const METRIC_NAMES = { doc_latency_ms: 'Page load time', server_error: 'Server errors', order_placed: 'Orders', add_to_cart: 'Added to cart' };
+const METRIC_NAMES = { doc_latency_ms: 'Page load time', lcp_ms: 'Largest paint (real browsers)', cls: 'Layout shift (real browsers)', server_error: 'Server errors', order_placed: 'Orders', add_to_cart: 'Added to cart' };
 /** A metric's name for people: "docs_cv_pdf" → "docs cv pdf"; the known ones in words. The raw name is the tooltip. */
 export const metricName = (name) => METRIC_NAMES[name] ?? String(name).replace(/_/g, ' ');

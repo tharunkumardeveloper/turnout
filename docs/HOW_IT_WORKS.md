@@ -71,7 +71,7 @@ Turnout runs as an overlay on Flagsmith's official self-hosted Docker Compose. B
 | Round | Flagsmith does | Turnout does |
 |---|---|---|
 | 01 Multivariate flag | `shop_release` has variants `control` and `v2`; each variant's **value** is the release it serves (`shop:1.5`) | Routes each visitor to the container for that release, from an allowlist |
-| 02 Metrics | Holds the goal and the guardrails | Turns HTTP into events: "POST /checkout returned 2xx" becomes `order_placed` (the goal), "POST /cart/add" becomes `add_to_cart` (a secondary funnel metric, never a guardrail); every page load gives `doc_latency_ms` and `server_error` |
+| 02 Metrics | Holds the goal and the guardrails | Turns HTTP into events: "POST /checkout returned 2xx" becomes `order_placed` (the goal), "POST /cart/add" becomes `add_to_cart` (a secondary funnel metric, never a guardrail); every page load gives `doc_latency_ms` and `server_error`; with the `lcp_ms` and `cls` guardrails, the visitor's own browser reports page speed too (below) |
 | 03 Split traffic | Buckets visitors, records exposures, computes the Bayesian result | Records an exposure when a returning visitor loads a page |
 | 04 Ship the winner | Serves the winner from the same flag | Warns when the winner is losing a guardrail; ships in an order that reaches everyone; writes the decision to the release |
 
@@ -100,6 +100,15 @@ Turnout runs as an overlay on Flagsmith's official self-hosted Docker Compose. B
 2. **When Flagsmith can't answer** (not loaded yet, slower than 150 ms, flag off, a value not in the allowlist) a visitor gets the **live release**: what visitors outside the experiment are served, remembered across restarts. Bots get it too, and are never counted.
 3. **Events.** A visitor counts from their first page load in a browser (bounces included); API calls, assets and cookie-less scripts without the cookie never become identities. A page load records the exposure; rules turn responses into conversions; page loads send the guardrails. All server-side; no client key is published.
 4. **Scoring.** Flagsmith alone computes lift, credible interval and chance to win. Turnout shows its numbers as returned.
+
+### Page speed in real browsers
+
+`doc_latency_ms` is the time to the app's response headers, measured by the proxy: it catches a slow server, not a slow page. Add `lcp_ms` and `cls` to `guardrails:` and the proxy appends one small script to every uncompressed HTML page it serves to a counted visitor. In the visitor's browser it reads two numbers with the browser's own `PerformanceObserver`: **largest contentful paint** (when the page's main content appeared, in ms) and **cumulative layout shift** (how much the page jumped while loading; shifts right after a click or key press don't count). When the visitor leaves or hides the page it sends them once to `/__turnout/vitals`, and the proxy records them as that visitor's Flagsmith events, so Flagsmith scores them per version like any other guardrail. No app code, no client key, no names or values from the page; reports from anyone the proxy didn't serve, and numbers out of range, are dropped.
+
+- A harm worth acting on is 100 ms of LCP or 0.02 of CLS (and over 5% relative), the same rule as the 20 ms page-speed floor.
+- Flagsmith averages a Mean metric over every exposed visitor, counting a visitor with no event as 0, so visitors whose browser didn't report (they left before the page finished, or aren't browsers) pull both versions' means down alike.
+- A compressed page (`Content-Encoding: gzip`) passes through untouched, so it isn't measured in the browser.
+- A new experiment takes its metrics from `turnout.config.yml` in the guided demo, or with `turnout release --config-metrics`; otherwise it copies the previous experiment's.
 
 The whole integration is one file, [`turnout.config.yml`](../turnout.config.yml): the flag, the allowlist of releases and their containers, the goal as an HTTP rule (`POST /checkout` returning 2xx) and the guardrails.
 

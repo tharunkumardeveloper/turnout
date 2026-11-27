@@ -3,7 +3,7 @@ import http from 'node:http';
 import https from 'node:https';
 import dns from 'node:dns';
 import type { LookupFunction } from 'node:net';
-import { EVENT_NAME, GUARDRAILS, matchesRule, measuresSpeed, type Config } from '../config.ts';
+import { EVENT_NAME, GUARDRAILS, matchesRule, measuresSpeed, measuresVitals, type Config } from '../config.ts';
 import type { Receipt } from '../flagsmith/receipts.ts';
 
 export const ID_COOKIE = 'tn_id';
@@ -102,9 +102,36 @@ export const CLICK_SCRIPT = `(() => {
 })();
 `;
 
+// Runs in the visitor's browser when the config has the lcp_ms or cls guardrail: page speed as the visitor saw it.
+// Largest contentful paint (when the main content appeared) and cumulative layout shift (how much the page jumped,
+// shifts right after a click or key press excluded), sent once as the page is left or hidden. Numbers only.
+export const VITALS_SCRIPT = `(() => {
+  if (!('PerformanceObserver' in window)) return;
+  let lcp = 0, cls = 0, sent = false;
+  try { new PerformanceObserver((list) => { for (const e of list.getEntries()) lcp = Math.max(lcp, e.startTime); }).observe({ type: 'largest-contentful-paint', buffered: true }); } catch {}
+  try { new PerformanceObserver((list) => { for (const e of list.getEntries()) if (!e.hadRecentInput) cls += e.value; }).observe({ type: 'layout-shift', buffered: true }); } catch {}
+  const send = () => {
+    if (sent) return;
+    sent = true;
+    const body = JSON.stringify({ lcp: lcp > 0 ? Math.round(lcp) : null, cls: Math.round(cls * 10000) / 10000 });
+    if (!navigator.sendBeacon || !navigator.sendBeacon('${OWN_PREFIX}vitals', new Blob([body], { type: 'application/json' }))) fetch('${OWN_PREFIX}vitals', { method: 'POST', body, keepalive: true }).catch(() => {});
+  };
+  addEventListener('visibilitychange', () => { if (document.visibilityState === 'hidden') send(); }, true);
+  addEventListener('pagehide', send, true);
+})();
+`;
+/** A browser report's numbers, or null: LCP in ms (0 to 2 minutes), CLS (0 to 10). Anything else is dropped. */
+export function parseVitals(body: unknown): { lcp: number | null; cls: number | null } | null {
+  const b = (body ?? {}) as { lcp?: unknown; cls?: unknown };
+  const lcp = typeof b.lcp === 'number' && Number.isFinite(b.lcp) && b.lcp > 0 && b.lcp <= 120_000 ? Math.round(b.lcp) : null;
+  const cls = typeof b.cls === 'number' && Number.isFinite(b.cls) && b.cls >= 0 && b.cls <= 10 ? b.cls : null;
+  return lcp === null && cls === null ? null : { lcp, cls };
+}
+
 export function createProxy(opts: Options): http.Server {
   const { config, flags, onTraffic, receipts, previewToken, debugToken } = opts;
   const assignTimeoutMs = opts.assignTimeoutMs ?? 150;
+  const vitals = measuresVitals(config); // the browser script that measures lcp_ms and cls
   const upstreamTimeoutMs = opts.upstreamTimeoutMs ?? 30_000;
   const log = opts.log ?? ((line) => console.log(JSON.stringify(line)));
   const warn = opts.warn ?? ((message) => console.warn(message));
@@ -252,7 +279,7 @@ export function createProxy(opts: Options): http.Server {
     const enrolled = !!assignment?.enrolled && !fallback;
     const tracked = counted && !fallback;
     const upstream = config.releases.get(release)!;
-    if (tracked && opts.onClick) noteServed(id, release);
+    if (tracked && (opts.onClick || vitals)) noteServed(id, release);
 
     let appEvents: AppEvent[] = [];
     let done = false;
@@ -311,12 +338,14 @@ export function createProxy(opts: Options): http.Server {
         const cookie = `${ID_COOKIE}=${id}; Path=/; Max-Age=${ONE_YEAR_S}; HttpOnly; SameSite=Lax${secure ? '; Secure' : ''}${opts.cookieDomain ? `; Domain=${opts.cookieDomain}` : ''}`;
         headers['set-cookie'] = [...asArray(headers['set-cookie']), cookie];
       }
-      // The click script, added to the end of every uncompressed page (opt-in).
-      const addScript = Boolean(opts.onClick) && /text\/html/i.test(String(headers['content-type'] ?? '')) && !headers['content-encoding'] && method !== 'HEAD';
+      // The click script (opt-in) and the page-speed script (lcp_ms or cls guardrails), added to the end of every
+      // uncompressed page. A compressed page is passed through untouched, so it isn't measured in the browser.
+      const tags = [opts.onClick ? `<script src="${OWN_PREFIX}clicks.js" defer></script>` : '', vitals && tracked ? `<script src="${OWN_PREFIX}vitals.js" defer></script>` : ''].join('');
+      const addScript = tags !== '' && /text\/html/i.test(String(headers['content-type'] ?? '')) && !headers['content-encoding'] && method !== 'HEAD';
       if (addScript) delete headers['content-length'];
       res.writeHead(status, headers);
       upstreamRes.pipe(res, { end: !addScript });
-      if (addScript) upstreamRes.on('end', () => res.end(`<script src="${OWN_PREFIX}clicks.js" defer></script>`));
+      if (addScript) upstreamRes.on('end', () => res.end(tags));
       upstreamRes.on('end', () => finish(status, latencyMs));
       upstreamRes.on('error', () => res.destroy()); // a body cut mid-way must not look complete
     };
@@ -380,6 +409,31 @@ export function createProxy(opts: Options): http.Server {
     const pathname = o.url.pathname;
     const params = new URLSearchParams(o.url.search);
 
+    // Page speed in real browsers (lcp_ms, cls guardrails): the script, and its one report per page. Recorded only for a
+    // counted visitor (their own cookie, a release they were served), as their Flagsmith events; never for a bot or a
+    // view of one chosen version.
+    if (vitals && pathname === `${OWN_PREFIX}vitals.js`) {
+      res.writeHead(200, { 'content-type': 'text/javascript; charset=utf-8', 'cache-control': 'no-store' });
+      return void res.end(VITALS_SCRIPT);
+    }
+    if (vitals && pathname === `${OWN_PREFIX}vitals` && o.req.method === 'POST') {
+      let text = '';
+      o.req.setEncoding('utf8');
+      for await (const chunk of o.req) {
+        text += chunk;
+        if (text.length > 512) return void res.writeHead(413).end();
+      }
+      const served = identity && !o.viewing ? servedTo.get(identity) : undefined;
+      let report: ReturnType<typeof parseVitals> = null;
+      try {
+        report = parseVitals(JSON.parse(text));
+      } catch {}
+      if (served && report && identity) {
+        if (report.lcp !== null && config.guardrails.includes('lcp_ms')) track('lcp_ms', identity, report.lcp);
+        if (report.cls !== null && config.guardrails.includes('cls')) track('cls', identity, report.cls);
+      }
+      return void res.writeHead(204, { 'cache-control': 'no-store' }).end();
+    }
     // The click script (opt-in, Try it only): what a visitor clicks or sends, by its visible label. Never what they type.
     if (opts.onClick && pathname === `${OWN_PREFIX}clicks.js`) {
       res.writeHead(200, { 'content-type': 'text/javascript; charset=utf-8', 'cache-control': 'no-store' });

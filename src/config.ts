@@ -1,7 +1,9 @@
 import { readFileSync } from 'node:fs';
 import { parse } from 'yaml';
 
-export const GUARDRAILS = ['doc_latency_ms', 'server_error'] as const;
+// doc_latency_ms: time to the app's response headers, measured by the proxy. lcp_ms and cls: measured in the visitor's
+// own browser (largest contentful paint, cumulative layout shift) by a small script the proxy adds to each page.
+export const GUARDRAILS = ['doc_latency_ms', 'server_error', 'lcp_ms', 'cls'] as const;
 export type Guardrail = (typeof GUARDRAILS)[number];
 
 export type HttpRule = {
@@ -152,6 +154,8 @@ export const defaultHypothesis = (release: string, goalEvent: string): string =>
 
 /** Does the proxy send page-load latency (as the speed-only goal or as a guardrail)? */
 export const measuresSpeed = (c: Config): boolean => !!c.goal.speedOnly || c.guardrails.includes('doc_latency_ms');
+/** Does the proxy add the browser script that measures page speed in real browsers (lcp_ms, cls)? */
+export const measuresVitals = (c: Config): boolean => c.guardrails.includes('lcp_ms') || c.guardrails.includes('cls');
 
 // status: "2xx", "201", or a comma list of those ("2xx,303": a form post that redirects counts too).
 const STATUS_RULE = /^[1-5](xx|\d\d)(,[1-5](xx|\d\d))*$/;
@@ -208,4 +212,13 @@ function asUrl(value: unknown, name: string): URL {
   } catch {
     throw new ConfigError(`${name} must be an http(s) URL`);
   }
+}
+
+/** A new experiment's metrics from the config: the goal first (Flagsmith's primary), then the funnel metrics, then the guardrails. */
+export function experimentMetrics(c: Config): { name: string; expected_direction: string }[] {
+  return [
+    { name: c.goal.event, expected_direction: c.goal.speedOnly ? 'decrease' : 'increase' },
+    ...(c.metrics ?? []).map((m) => ({ name: m.event, expected_direction: 'increase' })),
+    ...c.guardrails.filter((g) => g !== c.goal.event).map((g) => ({ name: g, expected_direction: 'not_increase' })),
+  ];
 }

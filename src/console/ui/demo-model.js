@@ -34,6 +34,8 @@ const METRICS = {
   order_placed: { name: 'Orders', hint: 'shoppers who placed an order' },
   add_to_cart: { name: 'Added to cart', hint: 'shoppers who added something' },
   doc_latency_ms: { name: 'Page load time', hint: 'average time to serve a page' },
+  lcp_ms: { name: 'Largest paint (real browsers)', hint: "when a page's main content appeared, in visitors' own browsers" },
+  cls: { name: 'Layout shift (real browsers)', hint: "how much a page jumped while loading, in visitors' own browsers" },
   server_error: { name: 'Server errors', hint: 'pages that failed' },
 };
 export function metricName(name) {
@@ -90,6 +92,7 @@ function valueText(metric, arm) {
   if (metric.aggregation === 'occurrence') return pct(arm.mean);
   if (/_ms$/.test(metric.name)) return `${Math.round(arm.mean)} ms`;
   if (metric.name === 'server_error') return arm.mean === 0 ? 'none' : arm.mean.toFixed(3);
+  if (metric.name === 'cls') return arm.mean.toFixed(3);
   return arm.mean.toFixed(2);
 }
 

@@ -91,7 +91,8 @@ export const GUARDRAIL_LOSING_BELOW = 0.05;
 export const GUARDRAIL_MIN_HARM = 0.05; // relative lift, in the metric's bad direction
 // A practical floor in the metric's own unit, on top of the relative one: a page-speed difference under 20 ms is
 // never a loss, however sure Flagsmith is of it. Compared on Flagsmith's means per exposed identity.
-export const GUARDRAIL_MIN_ABSOLUTE: Record<string, number> = { doc_latency_ms: 20 };
+// A harm worth acting on, in the metric's own unit: 20 ms of server time, 100 ms of largest paint, 0.02 of layout shift.
+export const GUARDRAIL_MIN_ABSOLUTE: Record<string, number> = { doc_latency_ms: 20, lcp_ms: 100, cls: 0.02 };
 function absoluteHarmClears(metric: string, direction: string, variants: Record<string, { n: number; sum: number }>, key: string): boolean {
   const floor = GUARDRAIL_MIN_ABSOLUTE[metric];
   if (floor === undefined) return true;

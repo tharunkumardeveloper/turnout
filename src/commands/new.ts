@@ -130,6 +130,7 @@ ${releases.map((r) => `  ${yamlString(r.label)}: ${r.url}`).join('\n')}
 ${goal}
 
 ${noGoal ? 'guardrails: [server_error]   # sent on every page load' : 'guardrails: [doc_latency_ms, server_error]   # sent on every page load'}
+# Add lcp_ms and cls to also measure page speed in each visitor's own browser (largest paint, layout shift).
 
 # % of visitors in the experiment; the rest stay on the first release.
 traffic: ${a.traffic}

@@ -337,6 +337,28 @@ describe('losingGuardrails', () => {
     assert.equal(losingGuardrails(s.experiment, s.results, 'v2').length, 1, '71 ms slower is a loss');
   });
 
+  test('real-browser page speed: 100 ms of largest paint and 0.02 of layout shift are the floors', () => {
+    const s = initialState();
+    s.experiment.metrics[1]!.metric_name = 'lcp_ms';
+    s.results!.payload!.metrics.push({
+      metric_id: 2,
+      variants: { control: { n: 100, sum: 15_200, sum_squares: 0 }, v2: { n: 100, sum: 23_600, sum_squares: 0 } },
+      inference: { v2: { lift: 0.55, ci_low: 0.41, ci_high: 0.69, chance_to_win: 0.0 } }, // 152 ms → 236 ms: 84 ms
+    });
+    assert.equal(GUARDRAIL_MIN_ABSOLUTE.lcp_ms, 100);
+    assert.deepEqual(losingGuardrails(s.experiment, s.results, 'v2'), [], '84 ms later is under the floor');
+    s.results!.payload!.metrics[1]!.variants.v2!.sum = 45_200; // 300 ms later
+    assert.equal(losingGuardrails(s.experiment, s.results, 'v2')[0]?.metric, 'lcp_ms', '300 ms later is a loss');
+
+    s.experiment.metrics[1]!.metric_name = 'cls';
+    s.results!.payload!.metrics[1]!.variants = { control: { n: 100, sum: 1, sum_squares: 0 }, v2: { n: 100, sum: 2.5, sum_squares: 0 } }; // 0.010 → 0.025
+    s.results!.payload!.metrics[1]!.inference.v2 = { lift: 1.5, ci_low: 1.2, ci_high: 1.8, chance_to_win: 0.0 };
+    assert.equal(GUARDRAIL_MIN_ABSOLUTE.cls, 0.02);
+    assert.deepEqual(losingGuardrails(s.experiment, s.results, 'v2'), [], 'a layout shift 0.015 bigger is under the floor');
+    s.results!.payload!.metrics[1]!.variants.v2!.sum = 24; // 0.24, a banner pushing the page down
+    assert.equal(losingGuardrails(s.experiment, s.results, 'v2')[0]?.metric, 'cls', 'a page that jumps is a loss');
+  });
+
   test('ignores the primary metric and missing results', () => {
     const s = initialState();
     s.results!.payload!.metrics[0]!.inference.v2!.chance_to_win = 0.01;
