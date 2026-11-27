@@ -1,18 +1,15 @@
 # Plug and play: Turnout in front of apps it has never seen
 
-Turnout needs no code in your app: it sits in front as a reverse proxy, picks a release per visitor from a Flagsmith flag, and turns HTTP requests into Flagsmith events. This page records what was tested, how to repeat it, and what doesn't work.
+Turnout needs no code in your app: it sits in front as a reverse proxy, picks a release per visitor from a Flagsmith flag, and turns HTTP requests into Flagsmith events. This page explains what Turnout handles for an app it has never seen, how that is tested, how to set it up yourself, and what doesn't work.
 
-## What was tested
+## How it's tested
 
-During Toggle Wars (27 Nov 2026 unless noted), each a real run against Flagsmith 2.291.0. How each was run, with every number: [spikes/RESULTS.md](../spikes/RESULTS.md).
+- **Automatically, on every `npm test`:** [`test/plug-and-play.test.ts`](../test/plug-and-play.test.ts) puts two real local HTTP apps behind the proxy, one under a path, one client-routed with a JSON API and a CSRF-checked form, and checks the split, stickiness, redirects, CSRF headers, gzip assets, JSON API calls, app cookies, and that the visitor cookie never reaches the app.
+- **The scoreboard:** `npm run scoreboard` runs 12 sample apps through Try it, one of each kind (plain HTML, Vite, Next.js static and server, Express, Flask, Django, Go, PHP, no Dockerfile, needs a database, needs a setting): build, start, goal, visitors, Flagsmith's results, matching counts and Ship ([scoreboard/README.md](../scoreboard/README.md)).
+- **Real repositories:** `npm run scoreboard -- <GitHub links>` does the same for public repositories as a person would paste them.
+- **`turnout compare`** on two versions of a site, from an empty folder.
 
-| Apps | How | Result |
-|---|---|---|
-| Two landing pages (nginx, Start Bootstrap's Agency and Creative), on the host at :3001 and :3002 | `turnout compare localhost:3001 localhost:3002` from an empty folder, next to another running Turnout stack | Running in 271 s on the next free ports; 2,000 new visitors split 49.3% at `--split 50` and 20.5% at `--split 20`; one visitor 20 of 20 on the same version; after Ship, 100 of 100 on the winner |
-| 12 sample apps: plain HTML, Vite, Next.js static and server, Express, Flask, Django, Go, PHP, no Dockerfile, needs a database, needs a setting | Try it, each built from its folder ([scoreboard](../scoreboard/README.md)) | builds 12/12, starts 12/12, goals found 11/12 (Next.js static has no working link, on purpose), counts match Flagsmith 12/12, ships 12/12 |
-| 53 public GitHub repositories, pasted as links (26 Nov) | Try it ([github-run.json](../scoreboard/github-run.json)) | 39 build, start, serve real pages, get Flagsmith results with matching counts, and ship; each failure with its reason |
-
-The automated version is [`test/plug-and-play.test.ts`](../test/plug-and-play.test.ts), part of `npm test` (684 tests, 0 failing): two real local HTTP apps behind the proxy (one under a path), checking the split, stickiness, the redirect and CSRF headers, gzip assets, JSON API calls, app cookies and that the visitor cookie never reaches the app.
+The results of each run: [spikes/RESULTS.md](../spikes/RESULTS.md).
 
 ## What the proxy handles for an app it has never seen
 
@@ -45,7 +42,7 @@ Open `http://127.0.0.1:18080`. For releases that are containers, either give `--
 ## Known limits
 
 - **Who counts.** A visitor counts from their first page load in a browser, so one-page visits (bounces) are in the data. Without the `tn_id` cookie, API calls, assets and cookie-less scripts never become identities.
-- **Single-page apps.** Navigation inside an SPA makes no new page loads, so put the goal on an API call (`POST /api/signup`) or the `X-Turnout-Event` header, not a page URL. App d above is an SPA and passed this way. Clients whose user agent looks like a bot (`curl`, `wget`, `python-requests`, headless browsers…) always get the live release and send no events: test with a browser user agent.
+- **Single-page apps.** Navigation inside an SPA makes no new page loads, so put the goal on an API call (`POST /api/signup`) or the `X-Turnout-Event` header, not a page URL; the plug-and-play test's client-routed app does exactly that. Clients whose user agent looks like a bot (`curl`, `wget`, `python-requests`, headless browsers…) always get the live release and send no events: test with a browser user agent.
 - **Absolute links in the page.** Turnout rewrites headers, never bodies. A page that links to `https://its-own-host/…` sends the visitor straight to the app, outside the experiment. Use relative links, or let Turnout serve the app's public host name.
 - **Third-party websites** work as a smoke test but are not a use case: a CSP naming the site's own host, assets on the site's CDN, or `<base href>` keep parts of the page on the original site. Your own app, served only through Turnout, has none of these problems.
 - **http to https redirects.** A release given as `http://site` that redirects to `https://site` sends the visitor away (the origins differ). Give the https URL.

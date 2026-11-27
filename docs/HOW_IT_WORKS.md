@@ -1,6 +1,6 @@
 # How Turnout works
 
-The detail behind the [README](../README.md): every mechanism, the evidence and the security model.
+The detail behind the [README](../README.md): every mechanism and the security model. What was measured, and how: [spikes/RESULTS.md](../spikes/RESULTS.md).
 
 ## Set it up by hand
 
@@ -30,7 +30,7 @@ A second, different example lives in [`examples/landing/`](../examples/landing/R
 - **Running next to another Turnout?** `turnout new --proxy-port <port> --console-port <port>` publishes the proxy and the console on free ports; `init` prints the judge link with that console port.
 - **No cookies named `tn_id` or `tn_preview`.** Those are Turnout's: `tn_id` keeps each visitor on the same version. The proxy removes those two from the request before it reaches your app; your app's own cookies pass through both ways untouched.
 - **A visitor counts from their first page load.** The first page a browser loads is routed by the flag, records the exposure and sends the guardrails, and its response sets `tn_id`, so a visitor who leaves after one page (a bounce) is in the data. Without the cookie, only a browser's page load counts: API calls, assets and cookie-less scripts never become identities.
-- **Single-page apps:** after the first load, navigation happens in the browser and Turnout sees no new page loads. The exposure is still right (it's the first load), but set the goal on an API call (`POST /api/signup` returned 2xx) or the `X-Turnout-Event` header, not on a page URL; `doc_latency_ms` covers full page loads only. Verified on a Node SPA ([docs/PLUG_AND_PLAY.md](PLUG_AND_PLAY.md), app d).
+- **Single-page apps:** after the first load, navigation happens in the browser and Turnout sees no new page loads. The exposure is still right (it's the first load), but set the goal on an API call (`POST /api/signup` returned 2xx) or the `X-Turnout-Event` header, not on a page URL; `doc_latency_ms` covers full page loads only. The automated plug-and-play test covers a client-routed app with a JSON API ([`test/plug-and-play.test.ts`](../test/plug-and-play.test.ts)).
 
 #### Optional: name the event in a response header (still no SDK)
 
@@ -59,12 +59,12 @@ Decisions read Flagsmith's own credible interval: when it crosses zero, Turnout 
 
 ![Guided demo after an A/B/C test: the four steps on the left, the versions and Flagsmith's results on the right; B shipped, C stopped by its slower pages](images/judge-dashboard.png)
 
-Turnout runs as an overlay on Flagsmith's official self-hosted Docker Compose. Built for Toggle Wars: The Flagsmith Experimentation Hackathon (Nov 26–29, 2026), Track 03: Build on Open Source Flagsmith. Licence: BSD-3-Clause.
+Turnout runs as an overlay on Flagsmith's official self-hosted Docker Compose. Built for Toggle Wars, the Flagsmith Experimentation hackathon, Track 03: Build on Open Source Flagsmith. Licence: BSD-3-Clause.
 
 ## The problem
 
 1. **A release isn't an experiment.** A Flagsmith experiment is app code: Flagsmith's PayPal-button example has three touchpoints in the app (`useExperiment`, `trackEvent` and an anonymous ID; [`example-paypal-button.md:56,61,76`](https://github.com/Flagsmith/flagsmith/blob/main/docs/docs/experimentation/example-paypal-button.md)). When the change is the whole deploy, v1.4 against v1.5, there's no single line to wrap in a flag.
-2. **Ending an experiment has a sharp edge.** The docs say to end the experiment, then update the flag ([`analyse-an-experiment.md:58-61`](https://github.com/Flagsmith/flagsmith/blob/main/docs/docs/experimentation/analyse-an-experiment.md)). On the pinned image, the experiment's split stays in place after it's completed until the flag's next experiment starts, so that edit reaches none of the identities the rollout covered: I measured 150 of 300 still on control (27 Nov). **Ship winner** drains the split first: 300 of 300 on the winner. Details and sources: [docs/FLAGSMITH.md](FLAGSMITH.md#ending-an-experiment-what-the-docs-say-and-what-the-pinned-image-does).
+2. **Ending an experiment has a sharp edge.** The docs say to end the experiment, then update the flag ([`analyse-an-experiment.md:58-61`](https://github.com/Flagsmith/flagsmith/blob/main/docs/docs/experimentation/analyse-an-experiment.md)). On the pinned image, the experiment's split stays in place after it's completed until the flag's next experiment starts, so that edit reaches none of the identities the rollout covered. **Ship winner** drains the split first, so it reaches all of them (the measured run: [spikes/RESULTS.md](../spikes/RESULTS.md)). Details and sources: [docs/FLAGSMITH.md](FLAGSMITH.md#ending-an-experiment-what-the-docs-say-and-what-the-pinned-image-does).
 
 ## What Turnout does
 
@@ -185,22 +185,18 @@ These work without the proxy, on experiments your app runs through the SDK. `che
 - **The preview cookie** holds an HMAC of the preview token, not the token. Rotate `TURNOUT_PREVIEW_TOKEN` to revoke every preview browser.
 - **Responses are per visitor**, so Turnout sets `Cache-Control: private` and `Vary: Cookie`, and strips its own cookies before anything reaches the app.
 
-## Evidence
+### Try it with your app: what it can do on your machine
 
-All measured during Toggle Wars, on 27 Nov 2026 unless noted, on Flagsmith `2.291.0` and Node SDK `9.4.0`: Docker Desktop on Windows 11, and the live demo's 2-vCPU VM. Raw numbers and how each was run: [`spikes/RESULTS.md`](../spikes/RESULTS.md).
+Try it builds or pulls the versions you give it and runs them as containers, through the Docker socket. **The Docker socket is root on the machine**, so pasting a repository is the same as running `docker build` and `docker run` on it yourself: its Dockerfile and its code run on your computer. Paste only repositories you would run anyway.
 
-| What | Result |
-|---|---|
-| Ending an experiment the documented way, 300 identities | 150 stayed on control (the split survives); after Ship winner, 300 of 300 on the winner; one default edit back, 300 of 300 on control |
-| `turnout compare` from an empty folder ([RESULTS](../spikes/RESULTS.md#turnout-compare-from-an-empty-folder-02500303)) | 271 s to running on Windows, check 27 ok. Split over 2,000 new visitors: 49.3% at `--split 50`, 20.5% at `--split 20`; one visitor 20 of 20 on the same version; after Ship, 100 of 100 on the winner |
-| 12 sample apps through Try it ([RESULTS](../spikes/RESULTS.md#the-12-app-scoreboard-02360250)) | builds 12/12, starts 12/12, goals found 11/12, counts match Flagsmith 12/12, ships 12/12 |
-| 53 public GitHub repos through Try it (26 Nov; [github-run.json](../scoreboard/github-run.json)) | 39 build, start, serve real pages, get Flagsmith results with matching counts, and ship |
-| Ship under live traffic on the VM, a new visitor every 0.1 s ([RESULTS](../spikes/RESULTS.md#live-demo-vm-ship-and-revert-under-live-traffic-03290338)) | Ship took 12.7 s; then 514 of 514 new visitors on the winner. Seven Reverts: 2,086 of 2,091 later visitors on control, the other 5 within 0.4 s of the decision finishing |
-| Flagsmith stopped on the VM ([RESULTS](../spikes/RESULTS.md#live-demo-vm-flagsmith-stopped-03100311)) | 100 of 100 pages served through the public HTTPS address, mean 173 ms (170 ms with Flagsmith running) |
-| Events under load, counted in Flagsmith's own table ([RESULTS](../spikes/RESULTS.md#live-demo-vm-events-under-load-03150320)) | 5 runs, 3,000 to 5,000 visitors, 20 to 200 at once: 68,141 events handed to the SDK, 68,141 stored, 0 dropped, including batches of up to 12.1 s. Peak memory for 5,000 visitors: sum of peaks 1.87 GiB of 7.7 GiB |
-| The VM rebooted ([RESULTS](../spikes/RESULTS.md#live-demo-vm-reboot-0340)) | Every container started by itself in 29 s, no manual step; the console healthy in 62 s after 6 restarts while Flagsmith started (fixed: it now waits for Flagsmith) |
-| Without Turnout's hold-back, the Node SDK alone ([RESULTS](../spikes/RESULTS.md#flagsmith-node-sdk-events-lost-faster-than-one-batch-round-trip-03500400)) | At 300 events/s with a 5 s batch round-trip, 28.3% of events lost (9.4.0) and 28.2% (9.5.0, the latest), each only as a log warning; [sdk-buffer-repro](../spikes/sdk-buffer-repro/) |
-| Open-proxy attempts (`//flagsmith:8000/…`, `//console:8090/…`, absolute-form, `/\host`) | 400, and the proxy keeps serving; covered by tests (684 tests, 0 failing) |
+- **Local only.** The `tryit` service exists only in local mode; server mode turns it off (`profiles: [never]` in `compose.server.yml`), so the live demo can never build or run anything someone pastes. Its API is reached only through the console on `127.0.0.1`, and the versions are published on `127.0.0.1` only.
+- **The containers it starts** are not privileged, mount nothing from your machine, sit on their own Docker network and are capped at 768 MB of memory each. They can reach your machine's ports through `host.docker.internal`, as any container can, so an app can call a database you run on the host.
+- **The `tryit` service itself** runs as root inside its container, because the socket belongs to root; it is the only Turnout container with the socket.
+- **To remove what it started:** its containers and networks carry the label `turnout.tryit=1`; `docker rm -f $(docker ps -aq --filter label=turnout.tryit=1)` and `docker network prune --filter label=turnout.tryit=1` remove them (images it built stay until `docker image prune`).
+
+## Measurements
+
+Every measurement, how it was run and its numbers: [spikes/RESULTS.md](../spikes/RESULTS.md). The blind rounds that grade Flagsmith's calls: [docs/BLIND_ROUNDS.md](BLIND_ROUNDS.md).
 
 **Not claimed:** production users, prevented incidents, or any simulated or seeded number as evidence about real users.
 

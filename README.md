@@ -16,6 +16,8 @@
 [![Tests](https://img.shields.io/badge/tests-650%2B%20passing-15803d)](#development)
 [![License: BSD-3-Clause](https://img.shields.io/badge/license-BSD--3--Clause-blue)](LICENSE)
 
+[![Open in GitHub Codespaces](https://github.com/codespaces/badge.svg)](https://codespaces.new/tharunkumardeveloper/turnout?quickstart=1)
+
 [**▶ Demo video (2:50)**](https://www.youtube.com/watch?v=uoJtfs4HVrE) · [**Live demo**](https://172-198-62-67.sslip.io) · [Quick start](#quick-start) · [Step-by-step setup](#step-by-step-setup) · [How Flagsmith is used](#how-flagsmith-is-used)
 
 <img src="docs/images/judge-ship.gif" width="860" alt="The live demo, guided: a visitor runs an A/B/C test. 2,100 shoppers go through, Flagsmith is not sure B beats A and flags C's pages as 8.6× slower; keeping A reveals the blind round: identical on orders, so Flagsmith got it right (96 of 98)">
@@ -249,7 +251,7 @@ With the switch off, the console: pick A/A, A/B or A/B/C in **Run a test** and p
 <details>
 <summary><b>2½. Try it with your app, from the console (no command line)</b></summary>
 
-Try it starts with everything else (`turnout.bat` / `sh turnout.sh`), **on your machine only**: it builds and runs code over the Docker socket, so a public server never runs it. Then, on the console, press **Try it with your app** and give one, two or three versions, each as:
+Try it starts with everything else (`turnout.bat` / `sh turnout.sh`), **on your machine only**: it builds and runs code over the Docker socket, so a public server never runs it. Paste only repositories you would run yourself: [what it can do on your machine](docs/HOW_IT_WORKS.md#try-it-with-your-app-what-it-can-do-on-your-machine). Then, on the console, press **Try it with your app** and give one, two or three versions, each as:
 
 - **your project folder** (press **Choose project folder**; it needs a Dockerfile at its top. Turnout sends the folder with it, leaving out `node_modules` and `.git`. A folder with several Dockerfiles, such as `Dockerfile` and `Dockerfile.teal`, fills A and B by itself),
 - or paste **anything** and Turnout works out what it is: a Dockerfile that copies no files, a **GitHub link**, or an **image** name (`nginx:alpine`, `myapp:1.1`),

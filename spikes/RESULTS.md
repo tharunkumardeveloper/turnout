@@ -46,6 +46,23 @@ Two landing pages served by nginx: Start Bootstrap's Agency on :3001 and Creativ
 | `ship v2 --yes` | Pause, snapshot, default = v2, drain, complete: all five steps done, recorded in `.turnout/RELEASES.md` |
 | 100 brand-new visitors after Ship | **100 of 100** on the winner |
 
+## Wipe, start again, resume (04:45–04:54)
+
+The same folder as above, after its Ship.
+
+| Step | Result |
+|---|---|
+| `turnout reset --yes` | 7 s: containers and volumes removed, state wiped |
+| `turnout compare localhost:3001 localhost:3002` after the wipe (a fresh Flagsmith, set up from nothing) | **274 s** to running, exit 0. Check: 27 ok, 0 warnings, 0 failing |
+| The same command again, on the running setup | **81 s**, exit 0, check 27 ok; 200 new visitors: 91 and 109; one visitor 20 of 20 on the same version |
+
+## The launcher scripts in a Linux shell (04:54–04:58)
+
+`docker:cli` (Alpine 3.24.4, BusyBox, Docker CLI 29.10.1, Compose 5.8.0) with this machine's Docker socket, the project mounted at the path Docker Desktop's engine uses for it. A real Linux shell and toolset; not macOS.
+
+- `sh turnout.sh status` against the running stack: **29 ok, 0 warnings, 0 failing.**
+- `sh setup.sh` (no terminal, so nothing installed): all 8 checks ran: "Ready. 1 warning(s)": Node.js isn't installed in that image (needed only for development). It also wrote `TURNOUT_UID=0` and `TURNOUT_GID=0` to `.env`, as designed for the user running it (root in that container); those two lines were removed afterwards, since the stack here runs on Windows.
+
 ## Ending an experiment: the documented order against Ship winner (03:50–03:51)
 
 `node spikes/07-round04.ts` on the local stack: two throwaway experiments (100% rollout, 50/50), and the same 300 fresh identities through a local-evaluation SDK after each step.
@@ -109,6 +126,12 @@ A probe inside the proxy's container sent a brand-new visitor (no cookie, browse
 - **Booted** at 03:40:38 (16 s). **Every container started** by itself at 03:40:51 (29 s): restart policies, no manual step.
 - **Console healthy at 03:41:24 (62 s), after 6 restarts.** Its log: `fetch failed (ECONNREFUSED)`. With Feature Health or the guard configured, as on the VM, the console reads the environment's name from Flagsmith at start, and exited because Flagsmith wasn't accepting connections yet; Docker's restart policy kept retrying. **Fixed:** the console now waits for Flagsmith (up to 3 minutes) at that step (`src/wait-for.ts`, `test/wait-for.test.ts`).
 - Afterwards: public `/judge` and the shop answered 200; doctor: 34 ok, 1 warning, 0 failing; the autopilot running.
+
+## Live demo VM: Feature Health in Flagsmith's own dashboard (26 Nov 06:32 to 27 Nov 04:42)
+
+The live demo's console reports the release flag's health to Flagsmith's Feature Health (its Webhook provider) while each experiment runs. Flagsmith's own table, `feature_health_featurehealthevent`, from the start of the hackathon: **16 Unhealthy and 84 Healthy reports**. For example, experiment 280 (shop:1.6 vs shop:1.5): Unhealthy at 04:42:19 with Flagsmith's numbers as the reason ("doc_latency_ms 64 on shop:1.6 vs 2.586 on control"), Healthy again at 04:42:39 once the experiment was decided. The guard (automatic revert) is off on the live demo (`TURNOUT_GUARD=off`), so every decision there was the autopilot's or a visitor's.
+
+**Found while checking:** the release log said "by a person" for every decision, the autopilot's included (383 entries). Fixed: the autopilot now passes its own name with each action, outside the request body so a public request can't claim it, and the log says "automatically by the live demo's autopilot" (`src/console/autopilot.ts`, `src/ledger.ts`, tests in `test/autopilot.test.ts` and `test/ledger.test.ts`).
 
 ## Blind rounds during the hackathon (26 Nov 06:31 to 27 Nov 02:29)
 
