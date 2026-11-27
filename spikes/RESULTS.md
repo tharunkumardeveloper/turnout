@@ -80,6 +80,18 @@ The new `lcp_ms` and `cls` guardrails on the local stack: `turnout.config.yml` l
 - **The floors:** shop:1.6's LCP is 84 ms later, under the 100 ms floor, so `lcp_ms` alone doesn't call it losing; its 61 ms server delay already fails `doc_latency_ms`.
 - **Found and fixed:** a new experiment copied the previous one's metrics, so a guardrail added to the config never reached one (the first test, experiment 390, had no `lcp_ms`). The guided demo now takes each new test's metrics from `turnout.config.yml`.
 
+## Browser page speed when some visitors don't report (06:20–06:30)
+
+A browser that never reports counts as 0 ms in Flagsmith's mean. To see it, the same local stack (experiment 392, shop:1.5 vs shop:1.6 vs shop:1.4) and 180 Chrome visitors, but on 27 of 1.6's 60 visits the page-speed script was blocked, as an ad blocker or an early exit would.
+
+| | Visitors | Reported (`vitals_reported`) | LCP read in the page | `lcp_ms` in Flagsmith |
+|---|---|---|---|---|
+| shop:1.4 (control) | 69 | 100% | 164 ms | 164.2 ms |
+| shop:1.5 | 51 | 100% | 170 ms | 170.4 ms (+4%) |
+| shop:1.6 | 60 | **55%** | 238 ms | **128.1 ms: "22% faster", 98.6% chance to win** |
+
+The bias is real: Flagsmith's numbers alone called the slowest release the fastest. **Fix, checked on these results:** the proxy records `vitals_reported` per reporting visitor; `lcp_ms` and `cls` decide only when both versions' reporting rates are within 5 points. Turnout's own functions on experiment 392: shop:1.5 comparable (100% vs 100%); shop:1.6 **not compared**, "55% of v3's visitors reported it against 100% of control's, and a visitor who didn't report counts as 0", and still losing on `doc_latency_ms`.
+
 ## The GitHub Action's report and pull-request comment (05:40)
 
 The real `turnout check` against the local Flagsmith, with GitHub Actions' variables set and a stand-in for GitHub's API on 127.0.0.1:

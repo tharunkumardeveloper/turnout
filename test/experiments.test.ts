@@ -18,6 +18,8 @@ import {
   runSteps,
   snapshotFileOf,
   variantKey,
+  vitalsComparable,
+  VITALS_MAX_RATE_GAP,
   type StepResult,
 } from '../src/flagsmith/experiments.ts';
 import { ENV, initialState, startFakeFlagsmith, type FakeState } from './fake-flagsmith.ts';
@@ -337,6 +339,12 @@ describe('losingGuardrails', () => {
     assert.equal(losingGuardrails(s.experiment, s.results, 'v2').length, 1, '71 ms slower is a loss');
   });
 
+  // The vitals_reported metric (metric 9), with each version's share of visitors whose browser reported page speed.
+  const withReported = (s: FakeState, control: number, v2: number) => {
+    s.experiment.metrics.push({ metric: 9, metric_name: 'vitals_reported', expected_direction: 'increase', direction: 'up' } as never);
+    s.results!.payload!.metrics.push({ metric_id: 9, variants: { control: { n: 100, sum: control * 100, sum_squares: 0 }, v2: { n: 100, sum: v2 * 100, sum_squares: 0 } }, inference: {} });
+  };
+
   test('real-browser page speed: 100 ms of largest paint and 0.02 of layout shift are the floors', () => {
     const s = initialState();
     s.experiment.metrics[1]!.metric_name = 'lcp_ms';
@@ -345,6 +353,7 @@ describe('losingGuardrails', () => {
       variants: { control: { n: 100, sum: 15_200, sum_squares: 0 }, v2: { n: 100, sum: 23_600, sum_squares: 0 } },
       inference: { v2: { lift: 0.55, ci_low: 0.41, ci_high: 0.69, chance_to_win: 0.0 } }, // 152 ms → 236 ms: 84 ms
     });
+    withReported(s, 0.95, 0.94); // both versions' browsers reported about as often
     assert.equal(GUARDRAIL_MIN_ABSOLUTE.lcp_ms, 100);
     assert.deepEqual(losingGuardrails(s.experiment, s.results, 'v2'), [], '84 ms later is under the floor');
     s.results!.payload!.metrics[1]!.variants.v2!.sum = 45_200; // 300 ms later
@@ -357,6 +366,28 @@ describe('losingGuardrails', () => {
     assert.deepEqual(losingGuardrails(s.experiment, s.results, 'v2'), [], 'a layout shift 0.015 bigger is under the floor');
     s.results!.payload!.metrics[1]!.variants.v2!.sum = 24; // 0.24, a banner pushing the page down
     assert.equal(losingGuardrails(s.experiment, s.results, 'v2')[0]?.metric, 'cls', 'a page that jumps is a loss');
+  });
+
+  test("browser page speed decides only when both versions' visitors reported it about as often", () => {
+    const losingLcp = (control: number | null, v2: number | null) => {
+      const s = initialState();
+      s.experiment.metrics[1]!.metric_name = 'lcp_ms';
+      if (control !== null && v2 !== null) withReported(s, control, v2);
+      s.results!.payload!.metrics.push({
+        metric_id: 2,
+        variants: { control: { n: 100, sum: 15_000, sum_squares: 0 }, v2: { n: 100, sum: 45_000, sum_squares: 0 } }, // 300 ms later
+        inference: { v2: { lift: 2, ci_low: 1.8, ci_high: 2.2, chance_to_win: 0.0 } },
+      });
+      return { s, losing: losingGuardrails(s.experiment, s.results, 'v2') };
+    };
+    assert.equal(losingLcp(0.95, 0.93).losing.length, 1, '2 points apart: compared');
+    assert.deepEqual(losingLcp(0.95, 0.80).losing, [], '15 points apart: a visitor who left before reporting counts as 0, so not compared');
+    assert.deepEqual(losingLcp(null, null).losing, [], 'no vitals_reported metric: rates unknown, not compared');
+    const { s } = losingLcp(0.95, 0.8);
+    assert.match(vitalsComparable(s.experiment, s.results, 'v2').note!, /80% of v2's visitors reported it against 95% of control's/);
+    // The recommendation says why.
+    assert.match((recommend(s.experiment, s.results).notes ?? [])[0]!, /page speed in browsers not compared/);
+    assert.equal(VITALS_MAX_RATE_GAP, 0.05);
   });
 
   test('ignores the primary metric and missing results', () => {

@@ -19,6 +19,11 @@ export function verdict(state, names = {}, opts = {}) {
   const losing = (r.losingGuardrails ?? []).map((g) => g.metric);
   const call = r.recommendation?.call;
   const settle = call === 'keep-running' ? r.recommendation?.settle : null; // experiments.ts settleText
+  const notes = (r.recommendation?.notes ?? []).map((n) => ` Note: ${n}.`).join('');
+  return sentence(who, lift, w, goalName, losing, call, settle) + notes;
+}
+
+function sentence(who, lift, w, goalName, losing, call, settle) {
   return `${who} ${lift != null && w.key !== 'control' ? `gets ${pct(Math.abs(lift))} ${lift >= 0 ? 'more' : 'fewer'} ${goalName}` : `leads on ${goalName}`}, ${pct(w.chanceToWin)} sure, ${losing.length ? `but worse on ${losing.join(', ')}` : 'no safety check losing'}: ${call === 'ship' ? `ship ${who}` : call === 'revert' ? 'revert' : `keep it running${settle ? ` (to settle it, ${settle})` : ''}`}.`;
 }
 
@@ -101,7 +106,7 @@ export function armReleases(state) {
   return out;
 }
 
-const KNOWN = { doc_latency_ms: 'Page load time', lcp_ms: 'Largest paint (real browsers)', cls: 'Layout shift (real browsers)', server_error: 'Server errors' };
+const KNOWN = { doc_latency_ms: 'Page load time', lcp_ms: 'Largest paint (real browsers)', cls: 'Layout shift (real browsers)', vitals_reported: 'Browsers that reported page speed', server_error: 'Server errors' };
 /** A metric's name for people. */
 export function metricLabel(m, goal) {
   if (m.role === 'goal') return goal ? `Goal: a visitor who ${goalWords(goal)}` : 'Goal';

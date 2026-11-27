@@ -36,6 +36,7 @@ const METRICS = {
   doc_latency_ms: { name: 'Page load time', hint: 'average time to serve a page' },
   lcp_ms: { name: 'Largest paint (real browsers)', hint: "when a page's main content appeared, in visitors' own browsers" },
   cls: { name: 'Layout shift (real browsers)', hint: "how much a page jumped while loading, in visitors' own browsers" },
+  vitals_reported: { name: 'Browsers that reported page speed', hint: 'page speed in browsers is compared only when this is about the same for each version' },
   server_error: { name: 'Server errors', hint: 'pages that failed' },
 };
 export function metricName(name) {

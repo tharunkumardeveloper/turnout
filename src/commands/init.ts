@@ -1,6 +1,6 @@
 import { randomBytes } from 'node:crypto';
 import { existsSync, readFileSync, statSync, writeFileSync } from 'node:fs';
-import { defaultHypothesis, type Config } from '../config.ts';
+import { defaultHypothesis, measuresVitals, VITALS_REPORTED, type Config } from '../config.ts';
 import {
   AdminClient,
   type Environment,
@@ -300,6 +300,8 @@ export async function init(opts: Options): Promise<void> {
       : { name: opts.config.goal.event, aggregation: 'occurrence', direction: 'up', expected: 'increase' },
     ...(opts.config.metrics ?? []).map((m) => ({ name: m.event, aggregation: 'occurrence', direction: 'up', expected: 'increase' })),
     ...opts.config.guardrails.map((g) => ({ name: g, aggregation: 'mean', direction: 'down', expected: 'not_increase' })),
+    // With the browser page-speed guardrails: the share of each version's visitors whose browser reported (config.ts).
+    ...(measuresVitals(opts.config) ? [{ name: VITALS_REPORTED, aggregation: 'occurrence', direction: 'up', expected: 'increase' }] : []),
   ];
   const existing = await api.list<Metric>(`${envPath}/experiment-metrics/`);
   const metrics: { metric: number; expected_direction: string }[] = [];

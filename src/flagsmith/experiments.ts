@@ -112,6 +112,32 @@ export const harmOf = (direction: string, lift: number): number => (/^(down|lowe
 // expected to increase) are shown, never guard a release.
 export const isGuardrail = (m: { expected_direction?: string }): boolean => m.expected_direction !== 'increase';
 
+// The browser page-speed guardrails, and the share of visitors whose browser reported them.
+const VITALS = new Set(['lcp_ms', 'cls']);
+const VITALS_REPORTED = 'vitals_reported'; // config.ts
+/** How far apart two versions' reporting rates may be (percentage points) for lcp_ms and cls to compare them. */
+export const VITALS_MAX_RATE_GAP = 0.05;
+
+/**
+ * Can lcp_ms and cls compare this version with control? Flagsmith counts a visitor with no event as 0 in a mean, so a
+ * version whose visitors report less often (they left before the page finished, the script was blocked) reads faster
+ * than it is. Comparable when both versions' reporting rates are known and within VITALS_MAX_RATE_GAP; otherwise a note
+ * saying why not. Without the vitals_reported metric (an older experiment), the rates are unknown: not comparable.
+ */
+export function vitalsComparable(experiment: ExperimentDetail, results: Results | null, key: string): { ok: boolean; note: string | null } {
+  const metric = experiment.metrics.find((m) => m.metric_name === VITALS_REPORTED);
+  const row = metric ? results?.payload?.metrics.find((r) => r.metric_id === metric.metric) : undefined;
+  const rate = (v?: { n: number; sum: number }) => (v && v.n > 0 ? v.sum / v.n : null);
+  const treated = rate(row?.variants[key]);
+  const control = rate(row?.variants[CONTROL]);
+  if (treated === null || control === null) return { ok: false, note: "page speed in browsers not compared: how many of each version's visitors reported it is unknown" };
+  if (Math.abs(treated - control) > VITALS_MAX_RATE_GAP) {
+    const pct = (x: number) => `${Math.round(x * 100)}%`;
+    return { ok: false, note: `page speed in browsers not compared: ${pct(treated)} of ${key}'s visitors reported it against ${pct(control)} of control's, and a visitor who didn't report counts as 0` };
+  }
+  return { ok: true, note: null };
+}
+
 export function losingGuardrails(
   experiment: ExperimentDetail,
   results: Results | null,
@@ -119,7 +145,9 @@ export function losingGuardrails(
   minHarm: number = GUARDRAIL_MIN_HARM,
 ): GuardrailWarning[] {
   if (winnerKey === CONTROL || !results?.payload) return [];
+  const vitalsOk = vitalsComparable(experiment, results, winnerKey).ok;
   return experiment.metrics.slice(1).filter(isGuardrail).flatMap((m) => {
+    if (VITALS.has(m.metric_name) && !vitalsOk) return [];
     const row = results.payload!.metrics.find((r) => r.metric_id === m.metric);
     const inference = row?.inference[winnerKey];
     return inference && inference.chance_to_win < GUARDRAIL_LOSING_BELOW && harmOf(m.direction, inference.lift) > minHarm &&
@@ -145,6 +173,7 @@ export type Recommendation = {
   interval: { low: number; high: number } | null;
   chanceToWin: number | null;
   settle?: string; // keep running on an interval crossing zero: roughly what it would take to settle it (settleText)
+  notes?: string[]; // what the call couldn't use, e.g. browser page speed when the versions' reporting rates differ
 };
 
 /**
@@ -187,7 +216,9 @@ export function recommend(experiment: ExperimentDetail, results: Results | null)
 
 function callFor(experiment: ExperimentDetail, results: Results | null, key: string, inference: Inference): Recommendation {
   const interval = { low: inference.ci_low, high: inference.ci_high };
-  const base = { variant: key, interval, chanceToWin: inference.chance_to_win };
+  const usesVitals = experiment.metrics.some((m) => VITALS.has(m.metric_name));
+  const vitalsNote = usesVitals ? vitalsComparable(experiment, results, key).note : null;
+  const base = { variant: key, interval, chanceToWin: inference.chance_to_win, ...(vitalsNote ? { notes: [vitalsNote] } : {}) };
   const losing = losingGuardrails(experiment, results, key);
   if (losing.length) {
     return {

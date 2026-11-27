@@ -380,7 +380,8 @@ test('page speed in real browsers: the script on counted pages, its report as th
     assert.equal(await (await fetch(`${base}/__turnout/vitals.js`)).text(), VITALS_SCRIPT);
 
     assert.equal((await report({ lcp: 1234.6, cls: 0.0421 }, cookie)).status, 204);
-    assert.deepEqual(tracked.filter((t) => t.event === 'lcp_ms' || t.event === 'cls'), [
+    assert.deepEqual(tracked.filter((t) => ['lcp_ms', 'cls', 'vitals_reported'].includes(t.event)), [
+      { event: 'vitals_reported', identity: id, value: undefined }, // who reported: the means count everyone else as 0
       { event: 'lcp_ms', identity: id, value: 1235 },
       { event: 'cls', identity: id, value: 0.0421 },
     ]);

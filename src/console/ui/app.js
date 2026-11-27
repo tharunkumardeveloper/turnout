@@ -656,7 +656,7 @@ function renderActions(s) {
 
   // Turnout's call, read off Flagsmith's interval: an interval crossing zero isn't a win.
   const rec = s.recommendation;
-  $('recommendation-note').textContent = completed || !rec ? '' : `Turnout recommends: ${F.recommendationText(rec)}.${rec.settle ? ` To settle it: ${rec.settle}.` : ''}`;
+  $('recommendation-note').textContent = completed || !rec ? '' : `Turnout recommends: ${F.recommendationText(rec)}.${rec.settle ? ` To settle it: ${rec.settle}.` : ''}${(rec.notes ?? []).map((n) => ` Note: ${n}.`).join('')}`;
   const keep = /** @type {HTMLButtonElement} */ ($('keep-running-btn'));
   keep.disabled = completed || busy;
   keep.textContent = rec?.call === 'keep-running' ? 'Keep running (interval crosses zero)' : 'Keep running';

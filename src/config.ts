@@ -156,6 +156,12 @@ export const defaultHypothesis = (release: string, goalEvent: string): string =>
 export const measuresSpeed = (c: Config): boolean => !!c.goal.speedOnly || c.guardrails.includes('doc_latency_ms');
 /** Does the proxy add the browser script that measures page speed in real browsers (lcp_ms, cls)? */
 export const measuresVitals = (c: Config): boolean => c.guardrails.includes('lcp_ms') || c.guardrails.includes('cls');
+/**
+ * One event per visitor whose browser reported page speed (an occurrence metric, shown next to the results). Flagsmith
+ * counts a visitor with no lcp_ms or cls event as 0 in their means, so versions are only compared on them when about the
+ * same share of each version's visitors reported (experiments.ts vitalsComparable).
+ */
+export const VITALS_REPORTED = 'vitals_reported';
 
 // status: "2xx", "201", or a comma list of those ("2xx,303": a form post that redirects counts too).
 const STATUS_RULE = /^[1-5](xx|\d\d)(,[1-5](xx|\d\d))*$/;
@@ -220,5 +226,6 @@ export function experimentMetrics(c: Config): { name: string; expected_direction
     { name: c.goal.event, expected_direction: c.goal.speedOnly ? 'decrease' : 'increase' },
     ...(c.metrics ?? []).map((m) => ({ name: m.event, expected_direction: 'increase' })),
     ...c.guardrails.filter((g) => g !== c.goal.event).map((g) => ({ name: g, expected_direction: 'not_increase' })),
+    ...(measuresVitals(c) ? [{ name: VITALS_REPORTED, expected_direction: 'increase' }] : []), // shown, never a guardrail
   ];
 }

@@ -48,6 +48,7 @@ export function recommendationLines(rec: Recommendation): string[] {
       : 'Credible interval on the goal: not computed yet',
     `Turnout recommends: ${call} (${rec.reason})`,
     ...(rec.settle ? [`To settle it: ${rec.settle}.`] : []),
+    ...(rec.notes ?? []).map((n) => `Note: ${n}.`),
   ];
 }
 

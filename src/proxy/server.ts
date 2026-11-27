@@ -3,7 +3,7 @@ import http from 'node:http';
 import https from 'node:https';
 import dns from 'node:dns';
 import type { LookupFunction } from 'node:net';
-import { EVENT_NAME, GUARDRAILS, matchesRule, measuresSpeed, measuresVitals, type Config } from '../config.ts';
+import { EVENT_NAME, GUARDRAILS, matchesRule, measuresSpeed, measuresVitals, VITALS_REPORTED, type Config } from '../config.ts';
 import type { Receipt } from '../flagsmith/receipts.ts';
 
 export const ID_COOKIE = 'tn_id';
@@ -429,6 +429,7 @@ export function createProxy(opts: Options): http.Server {
         report = parseVitals(JSON.parse(text));
       } catch {}
       if (served && report && identity) {
+        track(VITALS_REPORTED, identity); // who reported: the means count everyone else as 0 (config.ts)
         if (report.lcp !== null && config.guardrails.includes('lcp_ms')) track('lcp_ms', identity, report.lcp);
         if (report.cls !== null && config.guardrails.includes('cls')) track('cls', identity, report.cls);
       }
