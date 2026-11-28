@@ -259,6 +259,7 @@ Run `turnout compare` on the server that takes the traffic, then `turnout deploy
 - **Single-page apps**: in-browser navigations aren't visits; put the goal on an API call or the `X-Turnout-Event` header.
 - **One experiment per flag at a time** (Flagsmith's rule), and Turnout adds a hop to your traffic path.
 - **Self-hosted Flagsmith only for now**: Flagsmith Cloud is untested.
+- **Pinned to Flagsmith 2.291.0**, where the proofs and blind rounds ran. On 2.295.2 the server stack passes CI, but completing an experiment now requires a `rollout_decision` field Turnout doesn't send yet, so starting a second test fails ([CI run](https://github.com/tharunkumardeveloper/turnout/actions/runs/46161848028)).
 
 ## Tech stack
 
