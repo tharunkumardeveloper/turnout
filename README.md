@@ -25,7 +25,7 @@ A Flagsmith experiment normally lives in your app's code: `getExperimentFlag` an
 
 | Track 03 asks for | Turnout |
 |---|---|
-| **Self-hosted Flagsmith** | Flagsmith's official Docker Compose file, pinned to 2.291.0, with Experimentation and its PostgreSQL event store: started and configured by one command, and running the [live demo](https://172-198-62-67.sslip.io) on a VM |
+| **Self-hosted Flagsmith** | Flagsmith's official Docker Compose file, pinned to 2.291.0, with Experimentation and its PostgreSQL event store: started and configured by one command, and running the [live demo](https://172-198-62-67.sslip.io) on a VM. Pinned to 2.291.0 for the live demo and blind rounds; CI-verified on 2.295.2 ([run](https://github.com/tharunkumardeveloper/turnout/actions/runs/46163109755)) |
 | **Integrations and plugins** | A Feature Health provider (a losing version shows Unhealthy in Flagsmith), Code References, a [GitHub Action](action.yml) with a job summary and one PR comment, and a tour inside Flagsmith's own dashboard |
 | **Developer tools** | The `turnout` CLI (`compare`, `browsers`, `results`, `ship`, `revert`, `simulate`), a 28-check setup check, the Experiment Doctor with a sample-ratio check, a live console, and *Try it with your app* from GitHub links |
 | **Easy for others to reuse** | One-line installers for Windows, macOS and Linux, Codespaces, a public image on GitHub Container Registry, an [agent skill](skills/turnout-experiment/SKILL.md), and 39 of 53 real GitHub repos run end to end ([each failure's reason listed](scoreboard/github-run.json)) |
@@ -85,9 +85,14 @@ turnout compare localhost:3001 localhost:3002
 
 ### Already run Flagsmith?
 
-Point Turnout at it instead of the bundled one:
+Point Turnout at it instead of the bundled one, from your app's folder (the image is built once from a Turnout checkout):
 
-    turnout new --flagsmith https://flagsmith.example.com/api/v1/ --project "Your project" --environment Production --admin-key <Organisation API key>
+```sh
+docker build -t turnout:local path/to/turnout
+docker run --rm -it -v "$PWD:/work" turnout:local new --dir /work --flagsmith https://flagsmith.example.com/api/v1/   --project "Your project" --environment Production --admin-key <Organisation API key>   --release http://localhost:3001 --release http://localhost:3002 --success "POST /signup 2xx"
+docker compose -f turnout.compose.yml run --rm cli init     # the flag, metrics and experiment in your project
+docker compose -f turnout.compose.yml up -d --wait          # your app on :8080, the console on :8090
+```
 
 The key goes in `.env`, never the compose file. Turnout creates only its flag, metrics and experiment: no organisation, project or environment. Details: [docs/CLI.md](docs/CLI.md#init---project-bring-your-own-flagsmith).
 
@@ -259,7 +264,7 @@ Run `turnout compare` on the server that takes the traffic, then `turnout deploy
 - **Single-page apps**: in-browser navigations aren't visits; put the goal on an API call or the `X-Turnout-Event` header.
 - **One experiment per flag at a time** (Flagsmith's rule), and Turnout adds a hop to your traffic path.
 - **Self-hosted Flagsmith only for now**: Flagsmith Cloud is untested.
-- **Pinned to Flagsmith 2.291.0**, where the proofs and blind rounds ran. On 2.295.2 the server stack passes CI, but completing an experiment now requires a `rollout_decision` field Turnout doesn't send yet, so starting a second test fails ([CI run](https://github.com/tharunkumardeveloper/turnout/actions/runs/46161848028)).
+- **Pinned to Flagsmith 2.291.0** for the live demo and blind rounds; CI-verified on 2.295.2 ([run](https://github.com/tharunkumardeveloper/turnout/actions/runs/46163109755)).
 
 ## Tech stack
 
