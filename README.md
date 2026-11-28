@@ -25,7 +25,7 @@ A Flagsmith experiment normally lives in your app's code: `getExperimentFlag` an
 
 | Track 03 asks for | Turnout |
 |---|---|
-| **Self-hosted Flagsmith** | Flagsmith's official Docker Compose file, pinned to 2.291.0, with Experimentation and its PostgreSQL event store: started and configured by one command, and running the [live demo](https://172-198-62-67.sslip.io) on a VM. Pinned to 2.291.0 for the live demo and blind rounds; CI-verified on 2.295.2 ([run](https://github.com/tharunkumardeveloper/turnout/actions/runs/46163109755)) |
+| **Self-hosted Flagsmith** | Flagsmith's official Docker Compose file with Experimentation and its PostgreSQL event store, started and configured by one command; the [live demo](https://172-198-62-67.sslip.io) runs it on a VM. Pinned to 2.291.0 for the live demo and blind rounds; CI-verified on 2.295.2 ([run](https://github.com/tharunkumardeveloper/turnout/actions/runs/46163109755)) |
 | **Integrations and plugins** | A Feature Health provider (a losing version shows Unhealthy in Flagsmith), Code References, a [GitHub Action](action.yml) with a job summary and one PR comment, and a tour inside Flagsmith's own dashboard |
 | **Developer tools** | The `turnout` CLI (`compare`, `browsers`, `results`, `ship`, `revert`, `simulate`), a 28-check setup check, the Experiment Doctor with a sample-ratio check, a live console, and *Try it with your app* from GitHub links |
 | **Easy for others to reuse** | One-line installers for Windows, macOS and Linux, Codespaces, a public image on GitHub Container Registry, an [agent skill](skills/turnout-experiment/SKILL.md), and 39 of 53 real GitHub repos run end to end ([each failure's reason listed](scoreboard/github-run.json)) |
