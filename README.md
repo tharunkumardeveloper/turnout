@@ -28,7 +28,30 @@ A Flagsmith experiment normally lives in your app's code: `getExperimentFlag` an
 | **Self-hosted Flagsmith** | Flagsmith's official Docker Compose file, pinned to 2.291.0, with Experimentation and its PostgreSQL event store: started and configured by one command, and running the [live demo](https://172-198-62-67.sslip.io) on a VM |
 | **Integrations and plugins** | A Feature Health provider (a losing version shows Unhealthy in Flagsmith), Code References, a [GitHub Action](action.yml) with a job summary and one PR comment, and a tour inside Flagsmith's own dashboard |
 | **Developer tools** | The `turnout` CLI (`compare`, `browsers`, `results`, `ship`, `revert`, `simulate`), a 28-check setup check, the Experiment Doctor with a sample-ratio check, a live console, and *Try it with your app* from GitHub links |
-| **Easy for others to reuse** | One-line installers for Windows, macOS and Linux, Codespaces, a public image on GitHub Container Registry, an [agent skill](skills/turnout-experiment/SKILL.md), and 39 of 53 real GitHub repos run end to end |
+| **Easy for others to reuse** | One-line installers for Windows, macOS and Linux, Codespaces, a public image on GitHub Container Registry, an [agent skill](skills/turnout-experiment/SKILL.md), and 39 of 53 real GitHub repos run end to end ([each failure's reason listed](scoreboard/github-run.json)) |
+
+### Why not split traffic at my CDN or load balancer?
+
+You can, and Turnout can sit behind one. A weighted split (nginx `split_clients`, a load balancer's weighted target groups, a CDN rule) sends traffic to two versions and stops there: it doesn't know which visitor ordered, how sure you can be that one version is better, or whether the new one is slower or failing. Turnout adds the parts a split leaves out:
+
+- Each visitor stays on one version, and their requests become Flagsmith events under the same identity.
+- Flagsmith Experimentation decides, with a chance to be best and a credible interval.
+- Page speed and server errors are checked before anything ships.
+- Ship or Revert is one flag change, not an infrastructure edit and reload.
+
+### What it measures, and what it doesn't
+
+**Measures:** any request as the goal (`POST /signup`, `GET /thank-you`), page loads, server response time, server errors and, with `--browser-speed`, page speed from visitors' browsers.
+
+**Doesn't measure on its own:** actions that never reach your server, conversions completed on another domain (an external checkout) unless the visitor returns to a page on your site, and one person across devices (identity is a cookie). Those need your app to send the event itself.
+
+### Track 01: the experiment
+
+- **Hypothesis:** shop 1.5 or 1.6 raises orders without hurting page speed or errors.
+- **Flag:** `shop_release`, one multivariate flag: control 1.4, v2 1.5, v3 1.6, split evenly (Flagsmith experiment 375).
+- **Metrics:** `order_placed` (goal), `doc_latency_ms` and `server_error` (safety), `add_to_cart`.
+- **Result (2,100 visitors):** orders 10.8% on 1.4, 19.5% on 1.5 (+82%, interval +35% to +129%), 22.4% on 1.6 (+108%). But 1.6 was 45% slower (interval +39% to +52%), so it failed the safety check.
+- **Decision:** shipped 1.5, the version that won on orders and held page speed (+1.3%, interval −4% to +6%). A 95% rule alone would have shipped 1.6.
 
 ## Get started
 
