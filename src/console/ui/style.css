@@ -1457,3 +1457,8 @@ body.simple .detail { display: none !important; }
 .steps-layout .cgrid:has(.run-card[hidden]) .site-card { grid-row: 1 / span 2; }
 /* Short screens (768 px and so): Your site keeps its button and note; where you landed shows once you've visited. */
 @media (max-height: 820px) { .steps-layout #you { display: none; } .steps-layout .cgrid { gap: 10px; padding-top: 8px; } }
+/* Phone width: one column (the areas above would add columns to the one-column grid and scroll sideways). */
+@media (max-width: 760px) {
+  .steps-layout .cgrid { grid-template-columns: minmax(0, 1fr); grid-template-areas: "run" "site" "results" "map"; grid-template-rows: auto; }
+  .steps-layout .cgrid:has(.run-card[hidden]) .site-card { grid-row: auto; }
+}
