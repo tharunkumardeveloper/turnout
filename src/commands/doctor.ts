@@ -17,7 +17,7 @@ import { currentRelease } from './release.ts';
 import { evaluateServer, gatherServerFacts, type ServerFacts, type ServerModeOptions } from '../server-mode.ts';
 
 // The Flagsmith image compose.flagsmith.yml pins (test/doctor.test.ts keeps the two equal).
-export const PINNED_FLAGSMITH_VERSION = '2.295.2';
+export const PINNED_FLAGSMITH_VERSION = '2.291.0';
 
 export type CheckStatus = 'ok' | 'warn' | 'fail';
 export type DoctorCheck = { area: string; name: string; expected: string; actual: string; status: CheckStatus; fix?: string };
