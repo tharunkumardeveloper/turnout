@@ -44,7 +44,7 @@
 
 /* Flagsmith's own logo (from its image: frontend nav-logo.png) before anything that is Flagsmith's. */
 .fs-mark::before { content: ''; display: inline-block; flex: none; width: 1.05em; height: 1.05em; margin-right: .42em; vertical-align: -.16em; border-radius: 24%; background: url('flagsmith-logo.png') center / contain no-repeat; }
-@media (max-width: 760px) { .menu-panel { position: fixed; left: 12px; right: 12px; top: 96px; width: auto; max-height: 70vh; overflow: auto; white-space: normal; overflow-wrap: anywhere; } }
+@media (max-width: 760px) { .menu { flex-wrap: wrap; min-width: 0; } .menu-panel { position: fixed; left: 12px; right: 12px; top: 96px; width: auto; max-height: 70vh; overflow: auto; white-space: normal; overflow-wrap: anywhere; } }
 /* The menu scrolls sideways on phones (nowrap); its drop-down panels wrap, or their long lines widen the whole page. */
 
 /* Try it with your app: the same green, prominent button on every page (the console's style.css has its own copy). */
