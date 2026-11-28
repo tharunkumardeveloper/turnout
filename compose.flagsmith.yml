@@ -71,7 +71,7 @@ services:
       start_period: 20s
 
   migrate-db:
-    image: docker.flagsmith.com/flagsmith/flagsmith:2.291.0
+    image: docker.flagsmith.com/flagsmith/flagsmith:2.295.2
     command:
       - migrate
     environment:
@@ -83,7 +83,7 @@ services:
         condition: service_healthy
 
   flagsmith:
-    image: docker.flagsmith.com/flagsmith/flagsmith:2.291.0
+    image: docker.flagsmith.com/flagsmith/flagsmith:2.295.2
     command:
       - serve
     environment:
@@ -103,7 +103,7 @@ services:
   # The flagsmith_processor service is only needed if TASK_RUN_METHOD set to TASK_PROCESSOR
   # in the application environment
   flagsmith-task-processor:
-    image: docker.flagsmith.com/flagsmith/flagsmith:2.291.0
+    image: docker.flagsmith.com/flagsmith/flagsmith:2.295.2
     environment:
       <<: *flagsmith-env
     # Turnout: the official file publishes 8001:8000 here. Nothing outside the container uses that port: the image's
