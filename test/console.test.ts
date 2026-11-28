@@ -260,6 +260,8 @@ describe('console API', () => {
     assert.equal((await fetch(`${base}/api/judge/state`)).status, 403, 'still behind the page token');
     const page = await fetch(`${base}/judge`, { redirect: 'manual' });
     assert.deepEqual([page.status, page.headers.get('location')], [302, '/'], 'no guided demo: /judge is the console');
+    const steps = await fetch(`${base}/judge?view=steps`, { redirect: 'manual' });
+    assert.equal(steps.status, 302, 'no test API at all: no steps page either');
     assert.equal((await fetch(`${base}/judge?key=x`, { redirect: 'manual' })).status, 403);
   });
 

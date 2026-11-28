@@ -47,7 +47,9 @@ if (!EMBED) {
 const TRY = document.querySelector('meta[name="turnout-try"]') !== null;
 const WORDS = [[/\bShoppers\b/g, 'Visitors'], [/\bshoppers\b/g, 'visitors'], [/\bShopper\b/g, 'Visitor'], [/\bshopper\b/g, 'visitor'],
   [/\bthe demo shop\b/g, 'your app'], [/\bthe shop\b/g, 'your app'], [/\bOrders\b/g, 'Conversions'], [/\bordered\b/g, 'converted'], [/\borders\b/g, 'conversions'], [/\border\b/g, 'conversion']];
-const words = (t) => (TRY ? WORDS.reduce((x, [re, to]) => x.replace(re, to), String(t)) : String(t));
+// Your own app (Try it, or turnout compare's steps card, which has no guided demo): visitors, not the shop's shoppers.
+const OWN_APP = TRY || document.querySelector('meta[name="turnout-no-judge"]') !== null;
+const words = (t) => (OWN_APP ? WORDS.reduce((x, [re, to]) => x.replace(re, to), String(t)) : String(t));
 if (TRY) document.body.classList.add('is-try');
 
 /** Small element builder; strings become text nodes, never HTML. */

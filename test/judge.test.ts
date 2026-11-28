@@ -1284,3 +1284,41 @@ describe('the public page keeps the autopilot awake', () => {
     }
   });
 });
+
+describe('turnout compare: no guided page, but the console steps card still gets its steps', () => {
+  let flagsmith: Awaited<ReturnType<typeof startFlagsmith>>;
+  let server: http.Server;
+  let base = '';
+  before(async () => {
+    flagsmith = await startFlagsmith(initialState());
+    server = createConsole({
+      experiments: () => latestExperiment(new AdminClient(flagsmith.apiUrl, { apiKey: 'k' }), ENV, 'shop_release'),
+      feedUrl: 'http://127.0.0.1:9',
+      snapshotDir: mkdtempSync(join(tmpdir(), 'sy-compare-snap-')),
+      ledgerDir: mkdtempSync(join(tmpdir(), 'sy-compare-ledger-')),
+      uiDir: fileURLToPath(new URL('../src/console/ui/', import.meta.url)),
+      judgePage: false,
+      judge: {
+        flag: 'shop_release', releases: RELEASES, goal: 'order_placed', apiUrl: flagsmith.apiUrl, adminKey: 'k',
+        proxyUrl: 'http://proxy.invalid:8080', shopUrl: 'http://127.0.0.1:8080', dashboardUrl: 'http://127.0.0.1:8000',
+        previewToken: 'preview-token-secret', rates: parseRates(DEFAULT_RATES),
+      },
+    });
+    base = await listen(server);
+  });
+  after(() => {
+    server.close();
+    flagsmith.close();
+  });
+
+  test('/judge is the console; /judge?view=steps is the steps page (it was the console, nested in its own card)', async () => {
+    const plain = await fetch(`${base}/judge`, { redirect: 'manual' });
+    assert.deepEqual([plain.status, plain.headers.get('location')], [302, '/']);
+    const steps = await fetch(`${base}/judge?embed=1&view=steps`, { redirect: 'manual' });
+    assert.equal(steps.status, 200);
+    const html = await steps.text();
+    assert.match(html, /id="steps-panel"/, 'the guided page, whose steps the card shows');
+    assert.doesNotMatch(html, /id="traffic"/, 'not the console page');
+    assert.match(html, /<meta name="turnout-no-judge" content="1">/, 'its menu still has no guided demo link');
+  });
+});

@@ -651,6 +651,8 @@ export function createConsole(opts: ConsoleOptions): http.Server {
 
       // Without guided demo (turnout compare: your own app, not the demo shop), /judge is the console.
       if (req.method === 'GET' && url.pathname === '/judge' && !judgePage) {
+        // The console's steps card (?view=steps) still needs the steps page: without it the card got the console.
+        if (opts.judge && url.searchParams.get('view') === 'steps') return serveStatic(opts.uiDir, '/judge', res, token, true);
         res.writeHead(302, { location: '/', 'cache-control': 'no-store' });
         return void res.end();
       }
