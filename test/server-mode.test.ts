@@ -112,7 +112,7 @@ describe("server mode: doctor's checks", () => {
   test('local mode: doctor has no server facts and adds no server checks', () => {
     const local = evaluate({
       apiUrl: 'http://flagsmith:8000/api/v1/',
-      expectedVersion: '2.291.0',
+      expectedVersion: '2.295.2',
       config: { flag: 'f', releases: [], goal: 'g', guardrails: [] },
       given: { adminKey: false, serverKey: false, envKey: undefined, previewToken: false, healthWebhook: undefined },
       version: { error: 'down' },

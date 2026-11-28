@@ -457,8 +457,8 @@ describe('blind rounds on the judge page (server mode)', () => {
 describe('the live line and empty browser rows', () => {
   const now = Date.parse('2026-11-27T10:00:00Z');
   test('Flagsmith version, when it computed results, and recent rounds', () => {
-    const s = { flagsmithVersion: '2.291.0', results: { asOf: '2026-11-27T09:56:00Z' }, blind: { last24h: 12 } };
-    assert.equal(M.liveLine(s, now), 'Live: Flagsmith 2.291.0, self-hosted · results computed by Flagsmith 4 min ago', 'no rounds count');
+    const s = { flagsmithVersion: '2.295.2', results: { asOf: '2026-11-27T09:56:00Z' }, blind: { last24h: 12 } };
+    assert.equal(M.liveLine(s, now), 'Live: Flagsmith 2.295.2, self-hosted · results computed by Flagsmith 4 min ago', 'no rounds count');
     assert.equal(M.liveLine({ blind: { last24h: 1 } }, now), null);
     assert.equal(M.liveLine({}, now), null);
     assert.equal(M.agoText('2026-11-27T09:59:50Z', now), 'just now');

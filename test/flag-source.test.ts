@@ -1,5 +1,5 @@
 // createFlagSource against the real @flagsmith/nodejs SDK with local evaluation, fed by a fetch stub that serves an
-// environment document (shaped like Flagsmith 2.291.0's, trimmed to what the engine reads) and accepts events.
+// environment document (shaped like Flagsmith 2.295.2's, trimmed to what the engine reads) and accepts events.
 import assert from 'node:assert/strict';
 import { afterEach, test } from 'node:test';
 import { createFlagSource, eventsApiUrlFor } from '../src/flagsmith/flag-source.ts';

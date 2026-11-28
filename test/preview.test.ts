@@ -57,7 +57,7 @@ test('serves the new release to the preview segment only, rotating v2 with a ful
   assert.equal(flag.environment_default.value.value, 'shop:1.4');
   assert.deepEqual(flag.environment_default.variants, [{ id: SEED.v2Id, weight: 0 }]);
 
-  // v2 now serves the new release, via PUT (a partial PATCH answers 500 on Flagsmith 2.291.0).
+  // v2 now serves the new release, via PUT (a partial PATCH answers 500 on Flagsmith 2.295.2).
   assert.equal(state.features[0]!.multivariate_options[0]!.string_value, 'shop:1.6');
   assert.equal(calls(state, 'PATCH', /mv-options/).length, 0);
   const put = calls(state, 'PUT', /mv-options/);

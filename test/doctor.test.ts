@@ -417,7 +417,7 @@ describe('the terminal table', () => {
     const i = lines.findIndex((l) => l.includes('[WARN] Version'));
     assert.ok(i > 0);
     assert.match(lines[i]!, /2\.290\.0$/);
-    assert.match(lines[i + 1]!, /expected: 2\.291\.0$/);
+    assert.match(lines[i + 1]!, /expected: 2.295.2$/);
     assert.match(lines[i + 2]!, /fix: /);
     assert.ok(lines.includes('Flagsmith'), 'grouped under area headings');
     assert.match(lines.at(-1)!, /^\d+ ok, 1 warning, 0 failing\. Everything Turnout needs is in place\.$/);

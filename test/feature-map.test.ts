@@ -22,7 +22,7 @@ const DASH = 'http://localhost:8000';
 const facts = (over: Partial<MapFacts> = {}): MapFacts => ({
   flag: 'shop_release',
   envKey: 'envKeyX',
-  version: { imageTag: '2.291.0', isEnterprise: false },
+  version: { imageTag: '2.295.2', isEnterprise: false },
   environment: { id: 3, name: 'Production', project: 2 },
   environments: 1,
   feature: { id: 4, initialValue: 'shop:1.4', variants: [{ key: 'v2', value: 'shop:1.5' }], tagIds: [7, 8], lifecycleStage: 'permanent', segmentOverrides: 2 },
@@ -55,7 +55,7 @@ describe('the feature map', () => {
     assert.deepEqual(map.items.filter((i) => i.kind === 'integration').map((i) => i.name).sort(), [...INTEGRATIONS].sort());
     for (const name of ['Multivariate flag', 'Experiments', 'Metrics', 'Feature Health', 'Flag Analytics', 'Prometheus events counter']) byName(map, name);
     assert.equal(new Set(map.items.map((i) => i.id)).size, map.items.length, 'ids are unique');
-    assert.deepEqual(map.flagsmith, { version: '2.291.0', dashboardUrl: DASH, projectId: 2, environment: 'Production', flag: 'shop_release' });
+    assert.deepEqual(map.flagsmith, { version: '2.295.2', dashboardUrl: DASH, projectId: 2, environment: 'Production', flag: 'shop_release' });
     assert.equal(map.generatedAt, '2026-11-17T12:00:00.000Z');
     const total = Object.values(map.counts).reduce((a, b) => a + b, 0);
     assert.equal(total, map.items.length);
@@ -91,7 +91,7 @@ describe('the feature map', () => {
     assert.equal(byName(map, 'Segments').live, '1 segment, including turnout-preview; 2 segment overrides on shop_release');
     assert.equal(byName(map, 'Lifecycle').live, 'shop_release is permanent; project: permanent 1');
     assert.equal(byName(map, 'Audit Log').live, "0 entries visible through the API; 2 decisions in Turnout's ledger");
-    assert.equal(byName(map, 'Segment Change Requests').live, 'this image: 2.291.0, is_enterprise false');
+    assert.equal(byName(map, 'Segment Change Requests').live, 'this image: 2.295.2, is_enterprise false');
     assert.equal(byName(map, 'Feature Health').live, 'provider: Webhook; shop_release is tagged Unhealthy');
     assert.equal(byName(map, 'Tags').live, 'release (permanent), Unhealthy');
     assert.equal(byName(map, 'Flag Analytics').live, '38,521 evaluations in the last 7 days');
@@ -175,7 +175,7 @@ describe('reading the facts from Flagsmith', () => {
 
   test('every value, from its own endpoint', async () => {
     const f = await readMapFacts({ api, envKey: SEED.envKey, flag: 'shop_release', readEvents: async () => ({ accepted: 5, rejected: 0 }) });
-    assert.deepEqual(f.version, { imageTag: '2.291.0', isEnterprise: false });
+    assert.deepEqual(f.version, { imageTag: '2.295.2', isEnterprise: false });
     assert.deepEqual(f.environment, { id: 3, name: 'Production', project: SEED.projectId });
     assert.equal(f.environments, 1);
     assert.equal(f.feature?.id, SEED.featureId);

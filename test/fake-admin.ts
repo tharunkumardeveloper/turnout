@@ -4,7 +4,7 @@
 // Rules it enforces where the real API does and the commands depend on them:
 // - auth on everything but /version/ and the first-user signup (Token <t> or Api-Key <k>);
 // - signing up only while the instance has no users;
-// - a partial PATCH of an mv-option answers 500 (Flagsmith 2.291.0, features/multivariate/serializers.py:85-86);
+// - a partial PATCH of an mv-option answers 500 (Flagsmith 2.295.2, features/multivariate/serializers.py:85-86);
 // - a flag's segment override priorities are unique;
 // - one unfinished experiment per flag; an option can't change while one runs.
 import http from 'node:http';
@@ -103,7 +103,7 @@ export async function startFakeAdmin(state: FakeAdminState): Promise<{ apiUrl: s
 
     // Unauthenticated endpoints.
     if (method === 'GET' && path === '/version/') {
-      return send(200, { ci_commit_sha: 'fake', image_tag: '2.291.0', self_hosted_data: { has_users: state.hasUsers } });
+      return send(200, { ci_commit_sha: 'fake', image_tag: '2.295.2', self_hosted_data: { has_users: state.hasUsers } });
     }
     if (method === 'POST' && path === '/api/v1/auth/users/') {
       if (state.hasUsers) return send(403, { detail: 'You do not have permission to perform this action.' });
@@ -378,7 +378,7 @@ export async function startFakeAdmin(state: FakeAdminState): Promise<{ apiUrl: s
           const option = feature.multivariate_options.find((o) => o.id === optionId);
           if (!option) return send(404, { detail: 'Not found.' });
           if (method === 'PATCH') {
-            // Flagsmith 2.291.0: the option validator reads every field; a partial body is a KeyError.
+            // Flagsmith 2.295.2: the option validator reads every field; a partial body is a KeyError.
             return send(500, '<h1>Server Error (500)</h1>');
           }
           if (method === 'PUT') {
@@ -437,7 +437,7 @@ export async function startFakeAdmin(state: FakeAdminState): Promise<{ apiUrl: s
             }
           }
         }
-        // Flagsmith 2.291.0 refuses an override that leaves out one of the feature's variants (seen live: 400,
+        // Flagsmith 2.295.2 refuses an override that leaves out one of the feature's variants (seen live: 400,
         // {"segment_overrides":[{"variants":["Must include all feature's variants."]}]}), once it lists any.
         const options = state.features.find((f) => f.id === Number(m![2]))?.multivariate_options ?? [];
         for (const o of (body.segment_overrides ?? []) as Override[]) {

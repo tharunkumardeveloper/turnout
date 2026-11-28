@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { analyze, coverage, describe, type EnvironmentDocument } from '../src/commands/check.ts';
 
-// Trimmed from a real environment document (Flagsmith 2.291.0, after spikes/07-round04.ts).
+// Trimmed from a real environment document (Flagsmith 2.295.2, after spikes/07-round04.ts).
 const split = (value: string) => [{ type: 'ALL', rules: [], conditions: [{ operator: 'PERCENTAGE_SPLIT', value, property_: '$.identity.key' }] }];
 const mv = (key: string, percentage_allocation: number) => [{ multivariate_feature_option: { key }, percentage_allocation }];
 const doc: EnvironmentDocument = {
