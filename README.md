@@ -83,6 +83,14 @@ turnout compare localhost:3001 localhost:3002
 
 <sub>Nothing to install: the [live demo](https://172-198-62-67.sslip.io), or [Codespaces](https://codespaces.new/tharunkumardeveloper/turnout?quickstart=1) (a 4-core codespace runs the same demo). Rather clone than pipe a script? See [Step by step](#step-by-step).</sub>
 
+### Already run Flagsmith?
+
+Point Turnout at it instead of the bundled one:
+
+    turnout new --flagsmith https://flagsmith.example.com/api/v1/ --project "Your project" --environment Production --admin-key <Organisation API key>
+
+The key goes in `.env`, never the compose file. Turnout creates only its flag, metrics and experiment: no organisation, project or environment. Details: [docs/CLI.md](docs/CLI.md#init---project-bring-your-own-flagsmith).
+
 ### Live demo or your machine?
 
 The [live demo](https://172-198-62-67.sslip.io) shows the whole loop in a minute with nothing installed: run a test yourself, one button at a time. **For every feature, run it locally:** a shared public server can't run strangers' code or hand out Flagsmith's admin login.
@@ -138,7 +146,7 @@ Also the Admin API (everything is created automatically) and Code References. Ev
 
 **A real release, measured.** Gitea 28.0.0's release notes promise a faster repo page. Turnout ran 1.27.3 and 28.0.0 side by side with 940 real headless-Chrome visits and let Flagsmith decide: the server answers **13.8% faster** (100% sure), but the page's main content appears **no sooner** (+5.5%, interval −3% to +14%). [Method and raw numbers](docs/FINDING_GITEA.md).
 
-**Flagsmith's calls, graded.** In 111 blind rounds on the live demo (true rates drawn at random and hidden), Flagsmith called 36 of 38 real differences, never in the wrong direction, and made 2 false calls in 28 rounds with no difference. Shipping whenever it was 95% sure would have shipped 14 bad releases; Turnout's interval and page-speed checks shipped 1. [The write-up](docs/BLIND_ROUNDS.md).
+**Flagsmith's calls, graded.** In 111 blind rounds on the live demo (true rates drawn at random and hidden), Flagsmith called 36 of 38 real differences, never in the wrong direction, and made 2 false calls in 28 rounds with no difference. Shipping whenever Flagsmith was 95% sure would have shipped 14 bad releases, 13 of them the 1.6 build slowed on purpose, which a rule reading only orders can't see. Turnout's interval and page-speed checks shipped 1. [The write-up](docs/BLIND_ROUNDS.md).
 
 | Test | Result |
 |---|---|
@@ -239,8 +247,18 @@ Run `turnout compare` on the server that takes the traffic, then `turnout deploy
 - **A port is busy:** Turnout picks the next free one and says so.
 - **A version doesn't answer:** its last log lines are printed; pass its settings with `--env-file`.
 - **Anything else:** `turnout status`, or <http://127.0.0.1:8090/setup> (28 checks).
-- **Real results take real visitors:** a few hundred per version. Both versions share your database, as in blue/green. A single-page app's in-browser navigations aren't new visits: put the goal on an API call. One experiment per flag at a time (Flagsmith's rule). A first-party id cookie may need a cookie notice in the EU.
+- **Real results take real visitors:** a few hundred per version. See [Limits](#limits).
 </details>
+
+## Limits
+
+- **No production users yet.** The proofs use labelled simulated shoppers and headless Chrome.
+- **A false winner on identical versions can still ship** (experiment 198 passed every check). Run an A/A test first.
+- **Both versions share your database**, as in blue/green.
+- **Identity is a first-party cookie**: one person on two devices is two visitors, and the EU may need a cookie notice.
+- **Single-page apps**: in-browser navigations aren't visits; put the goal on an API call or the `X-Turnout-Event` header.
+- **One experiment per flag at a time** (Flagsmith's rule), and Turnout adds a hop to your traffic path.
+- **Self-hosted Flagsmith only for now**: Flagsmith Cloud is untested.
 
 ## Tech stack
 
