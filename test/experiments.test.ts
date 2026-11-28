@@ -136,6 +136,8 @@ describe('Ship winner', () => {
       value: { type: 'string', value: 'shop:1.4' },
       variants: [{ id: 11, weight: 100 }],
     });
+    // Flagsmith 2.295+ refuses to complete without a rollout decision; it names the variant already shipped.
+    assert.deepEqual(state.completeBody, { rollout_decision: 'variant', rollout_variant: 11 });
     assert.equal(state.experiment.experiment_rollout?.rollout_percentage, 0);
     assert.deepEqual(state.flag.segment_overrides[0]!.variants, [{ id: 11, weight: 100 }]);
     assert.ok(log.every((s) => s.status === 'done'));
@@ -237,6 +239,7 @@ describe('Revert to control', () => {
     assert.equal(state.experiment.status, 'completed');
     assert.equal(state.experiment.experiment_rollout?.rollout_percentage, 0);
     assert.deepEqual(state.flag.environment_default.variants, [{ id: 11, weight: 0 }]);
+    assert.deepEqual(state.completeBody, { rollout_decision: 'control' });
     assert.deepEqual(state.flag.segment_overrides[0]!.variants, [{ id: 11, weight: 0 }]);
     assert.deepEqual(writes(state), [
       `POST /api/v1/environments/${ENV}/experiments/7/pause/`, // the default already serves control: skipped

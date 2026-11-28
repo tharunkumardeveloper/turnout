@@ -333,6 +333,14 @@ export type Step = {
 const weightsFor = (experiment: ExperimentDetail, winnerKey: string) =>
   experiment.feature.multivariate_options.map((o, i) => ({ id: o.id, weight: variantKey(o, i) === winnerKey ? 100 : 0 }));
 
+// Flagsmith 2.295+ requires a rollout decision to complete an experiment (experimentation/serializers.py,
+// ExperimentRolloutDecisionSerializer); 2.291.0's complete ignores the body. The decision names the same outcome
+// the steps before it already set (the winner's variant at 100%, or control), so on 2.295+ applying it changes nothing.
+export const completeBody = (weights: { id: number; weight: number }[]) => {
+  const winner = weights.find((w) => w.weight === 100);
+  return winner ? { rollout_decision: 'variant', rollout_variant: winner.id } : { rollout_decision: 'control' };
+};
+
 // The decision snapshot a plan wrote, once runSteps has run it; null if the step was skipped.
 export const snapshotFileOf = (steps: Step[]): string | null => steps.find((s) => s.file)?.file ?? null;
 
@@ -403,7 +411,7 @@ export async function planShip(exp: Experiments, winnerKey: string, snapshotDir:
       call: `POST ${base}/complete/`,
       done: ({ experiment: e }) => e.status === 'completed',
       verify: ({ experiment: e }) => e.status === 'completed',
-      run: () => exp.api.post(`${base}/complete/`),
+      run: () => exp.api.post(`${base}/complete/`, completeBody(weights)),
     },
   ];
 }

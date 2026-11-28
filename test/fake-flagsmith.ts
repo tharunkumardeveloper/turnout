@@ -13,6 +13,7 @@ export type FakeState = {
   requests: string[];
   failNext?: string; // "METHOD path" to fail once with a 500
   refreshAnswer?: { status: number; body: unknown }; // POST …/results/refresh/; 202 when unset
+  completeBody?: unknown; // the body of POST …/complete/ (Flagsmith 2.295+ requires a rollout decision)
 };
 
 export function initialState(): FakeState {
@@ -104,7 +105,10 @@ export async function startFakeFlagsmith(state: FakeState): Promise<{ apiUrl: st
       return state.refreshAnswer ? send(state.refreshAnswer.status, state.refreshAnswer.body) : send(202, {});
     }
     if (req.method === 'POST' && path === `${exp}/pause/`) return transition('paused');
-    if (req.method === 'POST' && path === `${exp}/complete/`) return transition('completed');
+    if (req.method === 'POST' && path === `${exp}/complete/`) {
+      state.completeBody = body;
+      return transition('completed');
+    }
     if (req.method === 'PATCH' && path === `${exp}/rollout/`) {
       if (state.experiment.status === 'completed') {
         return send(400, { detail: 'Cannot change the rollout of a completed experiment.' });
